@@ -17,7 +17,7 @@
     "test:coverage": "vitest run --coverage tests/unit"
   },
   "engines": {
-    "node": ">=22"
+    "node": "22"
   },
   "dependencies": {
     "cors": "^2.8.5",
