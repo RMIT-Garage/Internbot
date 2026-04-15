@@ -15,6 +15,10 @@ export const api = onRequest(
     maxInstances: 10,
     memory: '256MiB',
     timeoutSeconds: 60,
+    // Public REST API — anyone can hit endpoints. Auth happens at the
+    // application layer via authMiddleware (Firebase ID token verification).
+    invoker: 'public',
+    cors: true,
   },
   app
 )

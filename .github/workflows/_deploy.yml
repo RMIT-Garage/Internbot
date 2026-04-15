@@ -57,21 +57,10 @@ jobs:
         # Pinned firebase-tools major version for deterministic CI runs.
         # Uses root firebase.json (functions-only config). The emulator has its
         # own config under docker/firebase-emulator/firebase.json.
+        # Public-invoker IAM is declared in backend/src/index.ts via
+        # `invoker: 'public'` — Firebase deploy sets it automatically.
         run: |
           npx --yes firebase-tools@15 deploy \
             --only ${{ inputs.deploy_targets }} \
             --project ${{ inputs.firebase_project_id }} \
             --non-interactive
-
-      - name: Make api function publicly invokable
-        # Post-deploy: grant allUsers run.invoker on the Cloud Run service that
-        # backs the api Cloud Function. Idempotent — safe to re-run. Can't live
-        # in Terraform cleanly because the function is created by `firebase
-        # deploy` AFTER terraform apply runs.
-        run: |
-          gcloud run services add-iam-policy-binding api \
-            --region=australia-southeast1 \
-            --project=${{ inputs.firebase_project_id }} \
-            --member="allUsers" \
-            --role="roles/run.invoker" \
-            --quiet
