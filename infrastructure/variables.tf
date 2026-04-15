@@ -15,39 +15,6 @@ variable "firestore_location" {
   default     = "australia-southeast2"
 }
 
-variable "apphosting_backend_id" {
-  description = "Firebase App Hosting backend ID for the Next.js frontend"
-  type        = string
-}
-
-variable "apphosting_display_name" {
-  description = "Display name for the Firebase Web App and App Hosting backend"
-  type        = string
-  default     = "Internbot"
-}
-
-variable "apphosting_environment" {
-  description = "App Hosting environment name (for apphosting.<environment>.yaml support)"
-  type        = string
-}
-
-variable "apphosting_location" {
-  description = "Firebase App Hosting region. App Hosting does not currently offer an Australia region."
-  type        = string
-  default     = "asia-southeast1"
-}
-
-variable "apphosting_live_branch" {
-  description = "Git branch associated with the App Hosting backend"
-  type        = string
-}
-
-variable "apphosting_root_directory" {
-  description = "Directory containing the Next.js app, relative to the repository root"
-  type        = string
-  default     = "frontend"
-}
-
 variable "state_bucket" {
   description = "GCS bucket holding Terraform remote state. Used to grant planner SA read access."
   type        = string
@@ -91,7 +58,6 @@ variable "deploy_sa_roles" {
   type        = list(string)
   default = [
     "roles/firebase.admin",
-    "roles/firebaseapphosting.developer",
     "roles/cloudfunctions.admin",
     "roles/artifactregistry.writer",
     "roles/iam.serviceAccountUser",

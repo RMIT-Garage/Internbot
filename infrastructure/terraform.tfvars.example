@@ -11,11 +11,6 @@ billing_account      = "0161F5-9777AE-74E102"
 github_repository    = "giatinhuynh/Internbot"
 github_repository_id = "1187697443"
 
-apphosting_backend_id   = "internbot-dev"
-apphosting_display_name = "Internbot Dev"
-apphosting_environment  = "dev"
-apphosting_live_branch  = "develop"
-
 # Empty list = any branch can impersonate the deploy SA.
 # For prod, use: github_allowed_refs = ["refs/heads/main"]
 github_allowed_refs = ["refs/heads/develop"]

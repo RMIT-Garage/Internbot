@@ -1,7 +1,6 @@
 locals {
   required_apis = [
     "firebase.googleapis.com",
-    "firebaseapphosting.googleapis.com",
     "identitytoolkit.googleapis.com",
     "firestore.googleapis.com",
     "firebasestorage.googleapis.com",
@@ -12,7 +11,6 @@ locals {
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
     "eventarc.googleapis.com",
-    "developerconnect.googleapis.com",
     "pubsub.googleapis.com",
     "storage.googleapis.com",
     "serviceusage.googleapis.com",
