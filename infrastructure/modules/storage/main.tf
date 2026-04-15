@@ -1,8 +1,9 @@
 locals {
-  # Firebase's modern default-bucket convention. The legacy `.appspot.com`
-  # scheme requires Google Search Console domain verification for new buckets;
-  # `.firebasestorage.app` is Google-owned and skips that.
-  bucket_name = "${var.project_id}.firebasestorage.app"
+  # Plain bucket name — avoids GCS's domain-ownership check that fires when a
+  # bucket name contains a TLD (e.g. .appspot.com, .firebasestorage.app).
+  # Firebase Storage SDKs work fine with any bucket name; the frontend just
+  # needs to reference it via NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET.
+  bucket_name = "${var.project_id}-storage"
 }
 
 resource "google_storage_bucket" "default" {
