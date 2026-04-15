@@ -92,7 +92,12 @@ resource "google_project_iam_member" "planner_roles" {
 }
 
 resource "google_service_account_iam_member" "planner_wif_binding" {
+  for_each = toset([
+    "roles/iam.workloadIdentityUser",
+    "roles/iam.serviceAccountTokenCreator",
+  ])
+
   service_account_id = google_service_account.planner.name
-  role               = "roles/iam.workloadIdentityUser"
+  role               = each.value
   member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github.workload_identity_pool_id}/attribute.repository/${var.github_repository}"
 }

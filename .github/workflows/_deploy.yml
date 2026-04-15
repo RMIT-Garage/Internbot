@@ -54,9 +54,11 @@ jobs:
           service_account: ${{ inputs.deploy_service_account }}
 
       - name: Deploy to Firebase
+        # Pinned firebase-tools major version for deterministic CI runs.
+        # Uses root firebase.json (functions-only config). The emulator has its
+        # own config under docker/firebase-emulator/firebase.json.
         run: |
-          npx firebase-tools deploy \
-            --config docker/firebase-emulator/firebase.json \
+          npx --yes firebase-tools@15 deploy \
             --only ${{ inputs.deploy_targets }} \
             --project ${{ inputs.firebase_project_id }} \
             --non-interactive

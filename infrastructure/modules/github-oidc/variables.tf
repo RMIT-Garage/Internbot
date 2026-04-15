@@ -30,5 +30,12 @@ variable "planner_sa_roles" {
   default = [
     "roles/viewer",
     "roles/iam.securityReviewer",
+    # Lets the SA honour the google provider's billing_project + user_project_override
+    # so API quota billing routes to this project (not Google's default).
+    "roles/serviceusage.serviceUsageConsumer",
+    # Read access to Firebase Rules + broader Firebase metadata — Terraform plan
+    # reads rulesets + releases + project-wide Firebase config.
+    "roles/firebaserules.viewer",
+    "roles/firebase.viewer",
   ]
 }
