@@ -81,6 +81,20 @@ module "functions_housekeeping" {
   depends_on = [module.firebase_project]
 }
 
+module "app_hosting" {
+  source            = "./modules/app-hosting"
+  project_id        = var.project_id
+  backend_id        = var.apphosting_backend_id
+  display_name      = var.apphosting_display_name
+  environment       = var.apphosting_environment
+  location          = var.apphosting_location
+  github_repository = var.github_repository
+  live_branch       = var.apphosting_live_branch
+  root_directory    = var.apphosting_root_directory
+
+  depends_on = [module.firebase_project]
+}
+
 # Read-only access for the planner SA on the Terraform state bucket.
 # Lets `terraform plan` on PR workflows read state without write perms.
 resource "google_storage_bucket_iam_member" "planner_state_read" {

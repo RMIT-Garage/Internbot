@@ -47,6 +47,18 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
+          if ! npx --yes firebase-tools@15 apphosting:backends:get \
+            ${{ inputs.apphosting_backend_id }} \
+            --project ${{ inputs.firebase_project_id }} \
+            --non-interactive >/dev/null; then
+            {
+              echo "::error::Firebase App Hosting backend '${{ inputs.apphosting_backend_id }}' does not exist in project '${{ inputs.firebase_project_id }}'."
+              echo "::error::In Firebase App Hosting terminology, this backend is the frontend hosting service, not the Cloud Functions API."
+              echo "::error::Create/import the App Hosting backend first, then rerun this workflow."
+            }
+            exit 1
+          fi
+
           npx --yes firebase-tools@15 apphosting:rollouts:create \
             ${{ inputs.apphosting_backend_id }} \
             --git-commit ${{ github.sha }} \
