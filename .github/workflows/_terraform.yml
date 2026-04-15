@@ -1,0 +1,113 @@
+name: Terraform (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      action:
+        description: plan or apply
+        required: true
+        type: string
+      env:
+        description: Environment name (dev, prod) — maps to envs/{env}.tfvars
+        required: true
+        type: string
+      state_bucket:
+        required: true
+        type: string
+      wif_provider:
+        required: true
+        type: string
+      terraform_sa:
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: terraform ${{ inputs.action }} (${{ inputs.env }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      # Repo identity is always the repo running the workflow — no need to commit these
+      TF_VAR_github_repository: ${{ github.repository }}
+      TF_VAR_github_repository_id: ${{ github.repository_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ inputs.wif_provider }}
+          service_account: ${{ inputs.terraform_sa }}
+
+      - name: Terraform init
+        run: terraform init -backend-config="bucket=${{ inputs.state_bucket }}"
+
+      - name: Terraform fmt check
+        if: inputs.action == 'plan'
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        if: inputs.action == 'plan'
+        id: plan
+        run: |
+          set +e
+          terraform plan -no-color -var-file=envs/${{ inputs.env }}.tfvars -out=tfplan 2>&1 | tee plan.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Post plan to PR
+        if: inputs.action == 'plan' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const plan = fs.readFileSync('infrastructure/plan.txt', 'utf8')
+            const truncated = plan.length > 60000 ? plan.slice(0, 60000) + '\n\n...(truncated)' : plan
+            const body = `### Terraform Plan — \`${{ inputs.env }}\`\n\n<details><summary>Plan output</summary>\n\n\`\`\`terraform\n${truncated}\n\`\`\`\n\n</details>`
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const marker = `### Terraform Plan — \`${{ inputs.env }}\``
+            const existing = comments.find(c => c.body.startsWith(marker))
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              })
+            }
+
+      - name: Fail if plan errored
+        if: inputs.action == 'plan' && steps.plan.outputs.exitcode != '0'
+        run: exit 1
+
+      - name: Terraform apply
+        if: inputs.action == 'apply'
+        run: terraform apply -auto-approve -var-file=envs/${{ inputs.env }}.tfvars

@@ -1,0 +1,18 @@
+title = "garage-boilerplate gitleaks config"
+
+[allowlist]
+  description = "Allow example/placeholder values in template files"
+  regexes = [
+    '''EXAMPLE_''',
+    '''your-.*-here''',
+    '''\{\{.*\}\}''',
+    '''placeholder''',
+    '''changeme''',
+  ]
+  paths = [
+    '''\.env\.example$''',
+    '''\.env\.local\.example$''',
+    '''docs/''',
+    '''README\.md$''',
+    '''CLAUDE\.md$''',
+  ]

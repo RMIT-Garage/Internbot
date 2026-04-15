@@ -1,0 +1,62 @@
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      firebase_project_id:
+        description: Target Firebase project ID
+        required: true
+        type: string
+      wif_provider:
+        description: Full resource name of the Workload Identity Provider
+        required: true
+        type: string
+      deploy_service_account:
+        description: Email of the deploy service account to impersonate
+        required: true
+        type: string
+      deploy_targets:
+        description: Firebase deploy --only targets (e.g. "functions,firestore,storage")
+        required: false
+        type: string
+        default: functions,firestore,storage
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.firebase_project_id }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build backend
+        run: pnpm --filter backend build
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ inputs.wif_provider }}
+          service_account: ${{ inputs.deploy_service_account }}
+
+      - name: Deploy to Firebase
+        run: |
+          npx firebase-tools deploy \
+            --config docker/firebase-emulator/firebase.json \
+            --only ${{ inputs.deploy_targets }} \
+            --project ${{ inputs.firebase_project_id }} \
+            --non-interactive
