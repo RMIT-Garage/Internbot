@@ -18,6 +18,7 @@ locals {
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
     "secretmanager.googleapis.com",
+    "cloudbilling.googleapis.com",
   ]
 }
 
