@@ -66,9 +66,11 @@ jobs:
       - name: Terraform plan
         if: inputs.action == 'plan'
         id: plan
+        # -lock=false: planner SA has only read perms on state bucket, can't acquire lock.
+        # Plan is read-only so skipping lock is safe; apply keeps locking.
         run: |
           set +e
-          terraform plan -no-color -var-file=envs/${{ inputs.env }}.tfvars -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -lock=false -no-color -var-file=envs/${{ inputs.env }}.tfvars -out=tfplan 2>&1 | tee plan.txt
           echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
 
       - name: Post plan to PR

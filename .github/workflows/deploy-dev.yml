@@ -35,4 +35,7 @@ jobs:
       firebase_project_id: internbot-dev-ae3a3
       wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
       deploy_service_account: github-deploy@internbot-dev-ae3a3.iam.gserviceaccount.com
-      deploy_targets: functions,firestore,storage
+      # Only functions via firebase CLI. Firestore/Storage rules + indexes
+      # are managed by Terraform (google_firebaserules_* + google_firestore_*)
+      # for drift detection and atomic infra deploys.
+      deploy_targets: functions

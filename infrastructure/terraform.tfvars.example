@@ -6,6 +6,7 @@
 # terraform.tfvars is gitignored — never commit it.
 
 project_id           = "internbot-dev-ae3a3"
+state_bucket         = "internbot-dev-ae3a3-tf-state"
 github_repository    = "giatinhuynh/Internbot"
 github_repository_id = "1187697443"
 

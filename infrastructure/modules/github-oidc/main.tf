@@ -1,16 +1,12 @@
-locals {
-  # Base condition: repo ID must match (immutable, survives renames)
-  repo_condition = "assertion.repository_id == '${var.github_repository_id}'"
-
-  # Optional ref allow-list — if empty, any ref can impersonate (dev).
-  # For prod, pass allowed_refs = ["refs/heads/main"] so only main can deploy.
-  ref_condition = length(var.allowed_refs) > 0 ? (
-    " && ${join(" || ", [for r in var.allowed_refs : "assertion.ref == '${r}'"])}"
-  ) : ""
-
-  full_condition = "${local.repo_condition}${local.ref_condition}"
+data "google_project" "this" {
+  project_id = var.project_id
 }
 
+# Workload Identity Pool + Provider.
+# Provider-level condition: only require repo match. Per-SA ref restrictions
+# live on the principalSet member format (attribute.ref/...) so the loose
+# provider condition lets PR workflows authenticate (for plan) while write
+# SAs are still locked to specific branches.
 resource "google_iam_workload_identity_pool" "github" {
   project                   = var.project_id
   workload_identity_pool_id = "github"
@@ -32,12 +28,15 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.ref"              = "assertion.ref"
   }
 
-  attribute_condition = local.full_condition
+  # Only this repo can authenticate. Per-ref restriction moves to SA bindings.
+  attribute_condition = "assertion.repository_id == '${var.github_repository_id}'"
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
 }
+
+# --- Deploy SA (write): locked to specific refs via principalSet. -------------
 
 resource "google_service_account" "deploy" {
   project      = var.project_id
@@ -54,12 +53,46 @@ resource "google_project_iam_member" "deploy_roles" {
   member  = "serviceAccount:${google_service_account.deploy.email}"
 }
 
-resource "google_service_account_iam_member" "deploy_wif_binding" {
+# Ref-scoped WIF bindings for the deploy SA. One binding per allowed ref —
+# if allowed_refs = ["refs/heads/main"], only pushes to main can impersonate.
+# If allowed_refs is empty, falls back to a repo-level binding (any ref).
+resource "google_service_account_iam_member" "deploy_wif_binding_ref" {
+  for_each = toset(var.allowed_refs)
+
+  service_account_id = google_service_account.deploy.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github.workload_identity_pool_id}/attribute.ref/${each.value}"
+}
+
+resource "google_service_account_iam_member" "deploy_wif_binding_repo" {
+  count = length(var.allowed_refs) == 0 ? 1 : 0
+
   service_account_id = google_service_account.deploy.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github.workload_identity_pool_id}/attribute.repository/${var.github_repository}"
 }
 
-data "google_project" "this" {
-  project_id = var.project_id
+# --- Planner SA (read-only): loose WIF binding, any ref from this repo. ------
+# Used by terraform plan on PR workflows where ref=refs/pull/N/merge. Read-only
+# roles so a compromised PR branch can't mutate state.
+
+resource "google_service_account" "planner" {
+  project      = var.project_id
+  account_id   = "github-planner"
+  display_name = "GitHub Actions Planner"
+  description  = "Read-only SA for terraform plan on PR workflows. Any ref in the repo can impersonate."
+}
+
+resource "google_project_iam_member" "planner_roles" {
+  for_each = toset(var.planner_sa_roles)
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.planner.email}"
+}
+
+resource "google_service_account_iam_member" "planner_wif_binding" {
+  service_account_id = google_service_account.planner.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github.workload_identity_pool_id}/attribute.repository/${var.github_repository}"
 }

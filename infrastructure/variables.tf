@@ -15,6 +15,11 @@ variable "firestore_location" {
   default     = "australia-southeast2"
 }
 
+variable "state_bucket" {
+  description = "GCS bucket holding Terraform remote state. Used to grant planner SA read access."
+  type        = string
+}
+
 variable "github_repository" {
   description = "GitHub repository in owner/name form (e.g. giatinhuynh/Internbot)"
   type        = string

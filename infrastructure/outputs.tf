@@ -14,6 +14,11 @@ output "wif_provider" {
 }
 
 output "deploy_service_account" {
-  description = "Email of the github-deploy service account"
+  description = "Email of the github-deploy (write) service account — use in deploy workflows"
   value       = module.github_oidc.deploy_service_account
+}
+
+output "planner_service_account" {
+  description = "Email of the github-planner (read-only) service account — use in terraform-plan.yml"
+  value       = module.github_oidc.planner_service_account
 }

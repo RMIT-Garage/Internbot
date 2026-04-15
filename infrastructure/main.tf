@@ -71,3 +71,11 @@ module "github_oidc" {
 
   depends_on = [module.firebase_project]
 }
+
+# Read-only access for the planner SA on the Terraform state bucket.
+# Lets `terraform plan` on PR workflows read state without write perms.
+resource "google_storage_bucket_iam_member" "planner_state_read" {
+  bucket = var.state_bucket
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.github_oidc.planner_service_account}"
+}

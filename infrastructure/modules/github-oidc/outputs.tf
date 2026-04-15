@@ -4,8 +4,13 @@ output "wif_provider" {
 }
 
 output "deploy_service_account" {
-  description = "Email of the github-deploy service account"
+  description = "Email of the github-deploy (write) service account"
   value       = google_service_account.deploy.email
+}
+
+output "planner_service_account" {
+  description = "Email of the github-planner (read-only) service account used by terraform plan on PR workflows"
+  value       = google_service_account.planner.email
 }
 
 output "wif_pool_id" {
