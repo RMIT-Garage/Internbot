@@ -5,17 +5,22 @@
 ```
 PR opened/updated (targets main or develop)
     │
-    ├── ci.yml                              → Lint + typecheck, FE tests, BE tests, security scan
-    └── terraform-plan.yml (if infra/**)    → plan against dev; also prod if PR targets main
-                                              Posts plan diff as PR comment
+    ├── ci.yml             → Lint + typecheck, FE/BE tests, security (calls _ci.yml)
+    └── terraform-plan.yml → plan against dev (+ prod if PR targets main). Posts diff as PR comment.
     │
     ▼ (PR merged)
-Push to develop                                Push to main
-    │                                          │
-    ├── ci.yml                                 ├── ci.yml
-    ├── deploy-dev.yml (always)                ├── deploy-prod.yml (always)
-    └── terraform-apply-dev.yml (if infra/**)  └── terraform-apply-prod.yml (if infra/**)
+Push to develop                                 Push to main
+    │                                           │
+    └── deploy-dev.yml (one pipeline)           └── deploy-prod.yml (one pipeline)
+            │                                           │
+            ├── ci       (calls _ci.yml)                ├── ci
+            ├── terraform (needs: ci, _terraform.yml)   ├── terraform (needs: ci)
+            └── deploy   (needs: [ci, terraform])       └── deploy   (needs: [ci, terraform])
 ```
+
+Each env has **one workflow file** orchestrating the full pipeline: CI gates both
+Terraform and Firebase deploy; Firebase deploy waits for Terraform so infra is
+ready before the app tries to use it.
 
 ## Branch → environment mapping
 
@@ -75,16 +80,15 @@ GitHub Secrets would only be for:
 
 ## Workflow reference
 
-| File                       | Triggers                                     | Purpose                                      |
-| -------------------------- | -------------------------------------------- | -------------------------------------------- |
-| `ci.yml`                   | PR to main/develop, push to main/develop     | Lint, typecheck, tests, security             |
-| `deploy-dev.yml`           | push to develop                              | Deploy backend to dev                        |
-| `deploy-prod.yml`          | push to main                                 | Deploy backend to prod                       |
-| `_deploy.yml`              | workflow_call                                | Reusable deploy engine                       |
-| `terraform-plan.yml`       | PR touching `infrastructure/**`              | Plan against dev (+ prod if PR targets main) |
-| `terraform-apply-dev.yml`  | push to develop touching `infrastructure/**` | Apply to dev                                 |
-| `terraform-apply-prod.yml` | push to main touching `infrastructure/**`    | Apply to prod                                |
-| `_terraform.yml`           | workflow_call                                | Reusable Terraform engine                    |
+| File                 | Triggers                        | Purpose                                                      |
+| -------------------- | ------------------------------- | ------------------------------------------------------------ |
+| `ci.yml`             | PR to main/develop              | Thin wrapper, calls `_ci.yml`                                |
+| `_ci.yml`            | workflow_call                   | Reusable: lint, typecheck, tests, gitleaks                   |
+| `deploy-dev.yml`     | push to develop                 | Pipeline: CI → terraform apply dev → firebase deploy dev     |
+| `deploy-prod.yml`    | push to main                    | Pipeline: CI → terraform apply prod → firebase deploy prod   |
+| `_deploy.yml`        | workflow_call                   | Reusable: build backend + `firebase deploy`                  |
+| `terraform-plan.yml` | PR touching `infrastructure/**` | Plan against dev (+ prod if PR targets main). PR comment.    |
+| `_terraform.yml`     | workflow_call                   | Reusable: init + fmt + validate + plan/apply                 |
 
 ## Manual deployment
 

@@ -13,8 +13,18 @@ jobs:
   ci:
     uses: ./.github/workflows/_ci.yml
 
-  deploy:
+  terraform:
     needs: ci
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      action: apply
+      env: dev
+      state_bucket: internbot-dev-ae3a3-tf-state
+      wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
+      terraform_sa: terraform-ci@internbot-dev-ae3a3.iam.gserviceaccount.com
+
+  deploy:
+    needs: [ci, terraform]
     uses: ./.github/workflows/_deploy.yml
     with:
       firebase_project_id: internbot-dev-ae3a3

@@ -461,8 +461,8 @@ See [docs/CI-CD.md](docs/CI-CD.md) for the full deployment pipeline.
 - **Frontend hosting**: not deployed from this repo yet
 
 Deploys:
-- Push to `develop` → `deploy-dev.yml` + `terraform-apply-dev.yml` (if infra changed) → `internbot-dev-ae3a3`
-- Push to `main` → `deploy-prod.yml` + `terraform-apply-prod.yml` (if infra changed) → `internbot-prod`
+- Push to `develop` → `deploy-dev.yml` runs CI → terraform apply → firebase deploy → `internbot-dev-ae3a3`
+- Push to `main` → `deploy-prod.yml` runs CI → terraform apply → firebase deploy → `internbot-prod`
 
 ---
 
