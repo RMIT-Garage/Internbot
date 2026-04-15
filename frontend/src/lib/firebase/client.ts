@@ -34,17 +34,23 @@ function getServices(): Services {
       'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
     !process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() && 'NEXT_PUBLIC_FIREBASE_APP_ID',
   ].filter(Boolean) as string[]
+  const hasExplicitConfig = missing.length === 0
 
-  if (missing.length > 0) {
+  if (!hasExplicitConfig && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
     throw new Error(
       `Firebase web config is incomplete (missing: ${missing.join(', ')}). ` +
-        'In Firebase Console → Project settings → Your apps, open or add a web app and copy ' +
+        'In Firebase Console -> Project settings -> Your apps, open or add a web app and copy ' +
         'the config into frontend/.env.local. See README.md (environment variables). ' +
         'Emulator mode still requires these values.'
     )
   }
 
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+  const app =
+    getApps().length === 0
+      ? hasExplicitConfig
+        ? initializeApp(firebaseConfig)
+        : initializeApp()
+      : getApp()
   const auth = getAuth(app)
   const db = getFirestore(app)
   const storage = getStorage(app)

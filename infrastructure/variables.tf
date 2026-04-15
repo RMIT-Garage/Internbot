@@ -58,6 +58,7 @@ variable "deploy_sa_roles" {
   type        = list(string)
   default = [
     "roles/firebase.admin",
+    "roles/firebaseapphosting.developer",
     "roles/cloudfunctions.admin",
     "roles/artifactregistry.writer",
     "roles/iam.serviceAccountUser",

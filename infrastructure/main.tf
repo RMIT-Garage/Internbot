@@ -73,9 +73,10 @@ module "github_oidc" {
 }
 
 module "functions_housekeeping" {
-  source     = "./modules/functions-housekeeping"
-  project_id = var.project_id
-  region     = var.region
+  source         = "./modules/functions-housekeeping"
+  project_id     = var.project_id
+  project_number = data.google_project.this.number
+  region         = var.region
 
   depends_on = [module.firebase_project]
 }

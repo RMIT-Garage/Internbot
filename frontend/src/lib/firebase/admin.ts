@@ -9,7 +9,8 @@ function getAdminApp(): App {
   if (existing.length > 0) return existing[0]!
 
   const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_BASE64
-  if (!key) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_BASE64 environment variable is not set')
+
+  if (!key) return initializeApp()
 
   return initializeApp({
     credential: cert(JSON.parse(Buffer.from(key, 'base64').toString('utf8'))),
