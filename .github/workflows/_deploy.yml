@@ -48,8 +48,10 @@ jobs:
         run: pnpm --filter backend build
 
       - name: Authenticate to Google Cloud (OIDC)
+        id: auth
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
+          token_format: access_token
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.deploy_service_account }}
 
@@ -59,6 +61,8 @@ jobs:
         # own config under docker/firebase-emulator/firebase.json.
         # Public-invoker IAM is declared in backend/src/index.ts via
         # `invoker: 'public'` — Firebase deploy sets it automatically.
+        env:
+          FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           npx --yes firebase-tools@15 deploy \
             --only ${{ inputs.deploy_targets }} \
