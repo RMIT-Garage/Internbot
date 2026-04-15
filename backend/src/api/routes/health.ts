@@ -7,10 +7,13 @@ const router: ExpressRouter = Router()
  * Returns service health status. No auth required.
  */
 router.get('/', (_req, res) => {
+  // GOOGLE_CLOUD_PROJECT is auto-set by Cloud Functions runtime; fallback for local.
+  const project = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.FIREBASE_PROJECT_ID ?? 'local'
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV ?? 'development',
+    project,
+    nodeEnv: process.env.NODE_ENV ?? 'development',
   })
 })
 
