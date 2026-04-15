@@ -80,15 +80,15 @@ GitHub Secrets would only be for:
 
 ## Workflow reference
 
-| File                 | Triggers                        | Purpose                                                      |
-| -------------------- | ------------------------------- | ------------------------------------------------------------ |
-| `ci.yml`             | PR to main/develop              | Thin wrapper, calls `_ci.yml`                                |
-| `_ci.yml`            | workflow_call                   | Reusable: lint, typecheck, tests, gitleaks                   |
-| `deploy-dev.yml`     | push to develop                 | Pipeline: CI → terraform apply dev → firebase deploy dev     |
-| `deploy-prod.yml`    | push to main                    | Pipeline: CI → terraform apply prod → firebase deploy prod   |
-| `_deploy.yml`        | workflow_call                   | Reusable: build backend + `firebase deploy`                  |
-| `terraform-plan.yml` | PR touching `infrastructure/**` | Plan against dev (+ prod if PR targets main). PR comment.    |
-| `_terraform.yml`     | workflow_call                   | Reusable: init + fmt + validate + plan/apply                 |
+| File                 | Triggers                        | Purpose                                                    |
+| -------------------- | ------------------------------- | ---------------------------------------------------------- |
+| `ci.yml`             | PR to main/develop              | Thin wrapper, calls `_ci.yml`                              |
+| `_ci.yml`            | workflow_call                   | Reusable: lint, typecheck, tests, gitleaks                 |
+| `deploy-dev.yml`     | push to develop                 | Pipeline: CI → terraform apply dev → firebase deploy dev   |
+| `deploy-prod.yml`    | push to main                    | Pipeline: CI → terraform apply prod → firebase deploy prod |
+| `_deploy.yml`        | workflow_call                   | Reusable: build backend + `firebase deploy`                |
+| `terraform-plan.yml` | PR touching `infrastructure/**` | Plan against dev (+ prod if PR targets main). PR comment.  |
+| `_terraform.yml`     | workflow_call                   | Reusable: init + fmt + validate + plan/apply               |
 
 ## Manual deployment
 

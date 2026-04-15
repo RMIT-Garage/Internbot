@@ -9,6 +9,11 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
 jobs:
   ci:
     uses: ./.github/workflows/_ci.yml

@@ -12,6 +12,11 @@ concurrency:
   group: terraform-plan-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
 jobs:
   plan-dev:
     uses: ./.github/workflows/_terraform.yml

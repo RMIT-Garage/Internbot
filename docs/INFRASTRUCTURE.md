@@ -51,12 +51,12 @@ Dev is locked to `refs/heads/develop` only. Prod is locked to `refs/heads/main`.
 
 ## CI/CD workflows
 
-| Workflow             | Trigger                         | Purpose                                                                |
-| -------------------- | ------------------------------- | ---------------------------------------------------------------------- |
-| `terraform-plan.yml` | PR touches `infrastructure/**`  | Plan against dev (+ prod if PR targets main); posts diff as PR comment |
-| `_terraform.yml`     | `workflow_call`                 | Reusable engine — init, fmt, validate, plan/apply                      |
-| `deploy-dev.yml`     | Push to develop                 | `ci` → `terraform apply dev` → `firebase deploy dev`                   |
-| `deploy-prod.yml`    | Push to main                    | `ci` → `terraform apply prod` → `firebase deploy prod`                 |
+| Workflow             | Trigger                        | Purpose                                                                |
+| -------------------- | ------------------------------ | ---------------------------------------------------------------------- |
+| `terraform-plan.yml` | PR touches `infrastructure/**` | Plan against dev (+ prod if PR targets main); posts diff as PR comment |
+| `_terraform.yml`     | `workflow_call`                | Reusable engine — init, fmt, validate, plan/apply                      |
+| `deploy-dev.yml`     | Push to develop                | `ci` → `terraform apply dev` → `firebase deploy dev`                   |
+| `deploy-prod.yml`    | Push to main                   | `ci` → `terraform apply prod` → `firebase deploy prod`                 |
 
 `terraform apply` is a job inside the env deploy pipeline — not a separate workflow. It uses OIDC auth via the env's `terraform-ci` SA. The SA has enough IAM scope to manage project resources but no app-deploy permissions.
 
