@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   plan-dev:
+    if: github.base_ref == 'develop'
     uses: ./.github/workflows/_terraform.yml
     with:
       action: plan
