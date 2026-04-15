@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22",
-    "pnpm": ">=10"
+    "node": "22",
+    "pnpm": "10"
   },
   "scripts": {
     "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm run emulator\" --names \"frontend,emulators\" --prefix-colors \"cyan,yellow\"",
@@ -41,8 +41,8 @@
     ]
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "lefthook": "^1.11.13",
+    "concurrently": "9.2.1",
+    "lefthook": "1.13.6",
     "next": "16.2.1"
   }
 }

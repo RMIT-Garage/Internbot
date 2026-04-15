@@ -41,14 +41,14 @@ jobs:
       TF_VAR_github_repository_id: ${{ github.repository_id }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.10.5
           terraform_wrapper: false
 
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.terraform_sa }}
@@ -75,7 +75,7 @@ jobs:
 
       - name: Post plan to PR
         if: inputs.action == 'plan' && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs')
