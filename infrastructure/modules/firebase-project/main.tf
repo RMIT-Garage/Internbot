@@ -4,10 +4,20 @@ locals {
     "identitytoolkit.googleapis.com",
     "firestore.googleapis.com",
     "firebasestorage.googleapis.com",
+    "firebaserules.googleapis.com",
+    "firebaseextensions.googleapis.com",
     "cloudfunctions.googleapis.com",
     "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
+    "eventarc.googleapis.com",
+    "pubsub.googleapis.com",
+    "storage.googleapis.com",
+    "serviceusage.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
+    "secretmanager.googleapis.com",
   ]
 }
 
