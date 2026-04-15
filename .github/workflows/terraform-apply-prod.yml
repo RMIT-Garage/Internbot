@@ -14,7 +14,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    uses: ./.github/workflows/_ci.yml
+
   apply:
+    needs: ci
     uses: ./.github/workflows/_terraform.yml
     with:
       action: apply

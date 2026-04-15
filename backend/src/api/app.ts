@@ -1,4 +1,4 @@
-import express, { type Express } from 'express'
+import express, { type Express, type RequestHandler } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -45,8 +45,10 @@ export function createApp({ tokenVerifier = firebaseTokenVerifier }: AppOptions 
   // CORS — defaults to deny-all if CORS_ORIGIN is not set
   app.use(cors({ origin: process.env.CORS_ORIGIN ?? false }))
 
-  // Rate limiting — applied before any route logic
-  app.use(globalLimiter)
+  // Rate limiting — applied before any route logic.
+  // Cast: express-rate-limit's RateLimitRequestHandler doesn't fully match
+  // Express 5's stricter PathParams overload, but is a valid RequestHandler.
+  app.use(globalLimiter as unknown as RequestHandler)
 
   // Body parsers — 1mb limit to prevent memory exhaustion attacks
   app.use(express.json({ limit: '1mb' }))

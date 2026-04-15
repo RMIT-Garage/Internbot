@@ -39,7 +39,7 @@ async function syncUserProfile(user: User): Promise<UserProfile> {
   return snap.data() as UserProfile
 }
 
-async function setSessionCookie(user: User): Promise<void> {
+async function setSessionCookie(): Promise<void> {
   const token = await getIdToken()
   if (!token) return
   await fetch('/api/auth/session', {
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(firebaseUser)
         const userProfile = await syncUserProfile(firebaseUser)
         setProfile(userProfile)
-        await setSessionCookie(firebaseUser)
+        await setSessionCookie()
       } else {
         setUser(null)
         setProfile(null)

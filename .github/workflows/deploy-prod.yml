@@ -10,7 +10,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    uses: ./.github/workflows/_ci.yml
+
   deploy:
+    needs: ci
     uses: ./.github/workflows/_deploy.yml
     with:
       firebase_project_id: internbot-prod

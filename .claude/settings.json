@@ -17,6 +17,10 @@
       "Read(**/*.pem)",
       "Read(**/*.p12)",
       "Read(**/*.key)"
+    ],
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "hooks": {

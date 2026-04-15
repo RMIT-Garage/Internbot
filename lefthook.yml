@@ -18,6 +18,19 @@ pre-commit:
       glob: 'src/**/*.ts'
       run: npx eslint --fix {staged_files}
 
+    # Typecheck runs against the whole workspace even for a single-file change —
+    # TypeScript's type graph is project-wide, not per-file. Only triggers when
+    # .ts/.tsx files are staged to avoid slowing down doc-only commits.
+    typecheck-frontend:
+      root: 'frontend/'
+      glob: 'src/**/*.{ts,tsx}'
+      run: pnpm --filter frontend typecheck
+
+    typecheck-backend:
+      root: 'backend/'
+      glob: 'src/**/*.ts'
+      run: pnpm --filter backend typecheck
+
     gitleaks:
       run: "command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --no-banner || echo 'WARNING: gitleaks not installed — secret scanning skipped locally. Install: https://github.com/gitleaks/gitleaks/releases'"
 
