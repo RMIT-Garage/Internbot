@@ -72,6 +72,14 @@ module "github_oidc" {
   depends_on = [module.firebase_project]
 }
 
+module "functions_housekeeping" {
+  source     = "./modules/functions-housekeeping"
+  project_id = var.project_id
+  region     = var.region
+
+  depends_on = [module.firebase_project]
+}
+
 # Read-only access for the planner SA on the Terraform state bucket.
 # Lets `terraform plan` on PR workflows read state without write perms.
 resource "google_storage_bucket_iam_member" "planner_state_read" {
@@ -79,3 +87,41 @@ resource "google_storage_bucket_iam_member" "planner_state_read" {
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.github_oidc.planner_service_account}"
 }
+
+# Monthly budget alert on the project. Triggers email at 50/90/100% of budget.
+data "google_project" "this" {
+  project_id = var.project_id
+}
+
+resource "google_billing_budget" "default" {
+  billing_account = var.billing_account
+  display_name    = "Firebase Project ${var.project_id}"
+
+  budget_filter {
+    projects               = ["projects/${data.google_project.this.number}"]
+    calendar_period        = "MONTH"
+    credit_types_treatment = "INCLUDE_ALL_CREDITS"
+  }
+
+  amount {
+    specified_amount {
+      currency_code = var.budget_currency
+      units         = tostring(var.monthly_budget_amount)
+    }
+  }
+
+  threshold_rules {
+    threshold_percent = 0.5
+  }
+  threshold_rules {
+    threshold_percent = 0.9
+  }
+  threshold_rules {
+    threshold_percent = 1.0
+  }
+}
+
+# Note: making the `api` Cloud Function publicly invokable is handled by a
+# post-deploy step in `.github/workflows/_deploy.yml` (gcloud add-iam-policy-binding).
+# Can't be Terraform-managed cleanly because the Cloud Run service is created by
+# `firebase deploy` AFTER terraform apply runs — order would race.

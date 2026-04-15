@@ -62,3 +62,16 @@ jobs:
             --only ${{ inputs.deploy_targets }} \
             --project ${{ inputs.firebase_project_id }} \
             --non-interactive
+
+      - name: Make api function publicly invokable
+        # Post-deploy: grant allUsers run.invoker on the Cloud Run service that
+        # backs the api Cloud Function. Idempotent — safe to re-run. Can't live
+        # in Terraform cleanly because the function is created by `firebase
+        # deploy` AFTER terraform apply runs.
+        run: |
+          gcloud run services add-iam-policy-binding api \
+            --region=australia-southeast1 \
+            --project=${{ inputs.firebase_project_id }} \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --quiet

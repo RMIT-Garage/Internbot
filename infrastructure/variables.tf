@@ -20,6 +20,23 @@ variable "state_bucket" {
   type        = string
 }
 
+variable "billing_account" {
+  description = "Billing account ID (e.g. 0161F5-9777AE-74E102) — used for budget alerts."
+  type        = string
+}
+
+variable "monthly_budget_amount" {
+  description = "Monthly budget amount (in budget_currency). Triggers alert at 50/90/100% spend."
+  type        = number
+  default     = 1
+}
+
+variable "budget_currency" {
+  description = "Budget currency code (ISO 4217)"
+  type        = string
+  default     = "AUD"
+}
+
 variable "github_repository" {
   description = "GitHub repository in owner/name form (e.g. giatinhuynh/Internbot)"
   type        = string

@@ -7,6 +7,7 @@
 
 project_id           = "internbot-dev-ae3a3"
 state_bucket         = "internbot-dev-ae3a3-tf-state"
+billing_account      = "0161F5-9777AE-74E102"
 github_repository    = "giatinhuynh/Internbot"
 github_repository_id = "1187697443"
 
