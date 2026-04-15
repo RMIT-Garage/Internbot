@@ -36,12 +36,16 @@ jobs:
           node-version: 22
 
       - name: Authenticate to Google Cloud (OIDC)
+        id: auth
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
+          token_format: access_token
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.deploy_service_account }}
 
       - name: Roll out App Hosting frontend
+        env:
+          FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           npx --yes firebase-tools@15 apphosting:rollouts:create \
             ${{ inputs.apphosting_backend_id }} \

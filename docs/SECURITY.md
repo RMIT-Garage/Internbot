@@ -13,7 +13,7 @@ Security is enforced in layers — each layer is independent so a failure in one
 | API          | Zod input validation, actor-based access control              |
 | Data         | Firestore security rules (default deny, field allowlists)     |
 | CI           | gitleaks action + `pnpm audit --audit-level=high` on every PR |
-| Dependencies | Dependabot weekly PRs for backend, frontend, and Actions      |
+| Dependencies | Dependabot weekly PRs for the root pnpm workspace and Actions |
 
 ---
 
@@ -286,7 +286,7 @@ pnpm audit --audit-level=high
 pnpm audit --fix
 ```
 
-Dependabot opens weekly PRs for outdated packages in `/backend`, `/frontend`, and GitHub Actions workflows (`.github/dependabot.yml`).
+Dependabot opens weekly PRs for outdated packages from the repository root pnpm workspace and GitHub Actions workflows (`.github/dependabot.yml`). The npm update block intentionally points at `/` so Dependabot updates package manifests and the shared `pnpm-lock.yaml` together.
 
 ---
 
