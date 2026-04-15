@@ -121,7 +121,7 @@ resource "google_billing_budget" "default" {
   }
 }
 
-# Note: making the `api` Cloud Function publicly invokable is handled by a
-# post-deploy step in `.github/workflows/_deploy.yml` (gcloud add-iam-policy-binding).
-# Can't be Terraform-managed cleanly because the Cloud Run service is created by
-# `firebase deploy` AFTER terraform apply runs — order would race.
+# Note: Cloud Function invoker IAM is declared in backend/src/index.ts via
+# `invoker: 'public'` on the onRequest options. Firebase deploy applies it as
+# part of the deploy. Keeping it in code (not Terraform) avoids the race where
+# the Cloud Run service doesn't exist yet on first apply for a fresh project.
