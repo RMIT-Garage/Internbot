@@ -1,7 +1,8 @@
 locals {
-  # Firebase convention: storage bucket follows `{project-id}.appspot.com`.
-  # Firebase Storage wraps a regular GCS bucket — both must exist.
-  bucket_name = "${var.project_id}.appspot.com"
+  # Firebase's modern default-bucket convention. The legacy `.appspot.com`
+  # scheme requires Google Search Console domain verification for new buckets;
+  # `.firebasestorage.app` is Google-owned and skips that.
+  bucket_name = "${var.project_id}.firebasestorage.app"
 }
 
 resource "google_storage_bucket" "default" {
