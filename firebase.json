@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "source": "backend",
+    "codebase": "default",
+    "ignore": ["node_modules", ".git", "tests", "*.test.ts"]
+  }
+}

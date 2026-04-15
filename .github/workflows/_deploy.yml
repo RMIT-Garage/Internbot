@@ -1,0 +1,66 @@
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      firebase_project_id:
+        description: Target Firebase project ID
+        required: true
+        type: string
+      wif_provider:
+        description: Full resource name of the Workload Identity Provider
+        required: true
+        type: string
+      deploy_service_account:
+        description: Email of the deploy service account to impersonate
+        required: true
+        type: string
+      deploy_targets:
+        description: Firebase deploy --only targets (e.g. "functions,firestore,storage")
+        required: false
+        type: string
+        default: functions,firestore,storage
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.firebase_project_id }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build backend
+        run: pnpm --filter backend build
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ inputs.wif_provider }}
+          service_account: ${{ inputs.deploy_service_account }}
+
+      - name: Deploy to Firebase
+        # Pinned firebase-tools major version for deterministic CI runs.
+        # Uses root firebase.json (functions-only config). The emulator has its
+        # own config under docker/firebase-emulator/firebase.json.
+        # Public-invoker IAM is declared in backend/src/index.ts via
+        # `invoker: 'public'` — Firebase deploy sets it automatically.
+        run: |
+          npx --yes firebase-tools@15 deploy \
+            --only ${{ inputs.deploy_targets }} \
+            --project ${{ inputs.firebase_project_id }} \
+            --non-interactive

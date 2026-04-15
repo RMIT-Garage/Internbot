@@ -1,0 +1,41 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_ci.yml
+
+  terraform:
+    needs: ci
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      action: apply
+      env: dev
+      state_bucket: internbot-dev-ae3a3-tf-state
+      wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
+      terraform_sa: terraform-ci@internbot-dev-ae3a3.iam.gserviceaccount.com
+
+  deploy:
+    needs: [ci, terraform]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      firebase_project_id: internbot-dev-ae3a3
+      wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
+      deploy_service_account: github-deploy@internbot-dev-ae3a3.iam.gserviceaccount.com
+      # Only functions via firebase CLI. Firestore/Storage rules + indexes
+      # are managed by Terraform (google_firebaserules_* + google_firestore_*)
+      # for drift detection and atomic infra deploys.
+      deploy_targets: functions

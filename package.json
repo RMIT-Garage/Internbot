@@ -1,0 +1,48 @@
+{
+  "name": "garage-boilerplate",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22",
+    "pnpm": "10"
+  },
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm run emulator\" --names \"frontend,emulators\" --prefix-colors \"cyan,yellow\"",
+    "build": "pnpm --filter frontend build && pnpm --filter backend build",
+    "test": "pnpm --filter backend test",
+    "test:integration": "pnpm --filter backend test:integration",
+    "test:component": "pnpm --filter frontend test",
+    "pretest:e2e": "pnpm --filter backend build",
+    "test:e2e": "pnpm --filter e2e test",
+    "pretest:e2e:ui": "pnpm --filter backend build",
+    "test:e2e:ui": "pnpm --filter e2e test:ui",
+    "test:all": "pnpm run test && pnpm run test:integration && pnpm run test:component",
+    "lint": "pnpm -r lint",
+    "format": "pnpm -r format",
+    "typecheck": "pnpm -r typecheck",
+    "preemulator": "pnpm --filter backend build",
+    "emulator": "docker compose up -d",
+    "emulator:setup": "docker compose build firebase-emulators && docker compose up -d firebase-emulators",
+    "emulator:down": "docker compose down",
+    "emulator:logs": "docker compose logs -f",
+    "bootstrap": "node scripts/bootstrap.js",
+    "validate": "node scripts/validate-placeholders.js",
+    "hooks": "lefthook install",
+    "prepare": "lefthook install"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "esbuild",
+      "lefthook",
+      "protobufjs",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
+  "devDependencies": {
+    "concurrently": "9.2.1",
+    "lefthook": "1.13.6",
+    "next": "16.2.1"
+  }
+}

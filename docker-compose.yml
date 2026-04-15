@@ -1,0 +1,30 @@
+services:
+  firebase-emulators:
+    build:
+      context: .
+      dockerfile: docker/firebase-emulator/Dockerfile
+    env_file:
+      - ./backend/.env
+    ports:
+      - "4000:4000"  # Emulator UI
+      - "5001:5001"  # Cloud Functions
+      - "8080:8080"  # Firestore
+      - "9099:9099"  # Authentication
+      - "9199:9199"  # Storage
+    volumes:
+      - firebase-emulator-data:/workspace/.emulator-data
+      # Use repo files at runtime (rules + indexes live under docker/firebase-emulator/firebase/)
+      - ./docker/firebase-emulator/firebase.json:/workspace/firebase.json:ro
+      - ./docker/firebase-emulator/firebase:/workspace/firebase:ro
+      # Mount backend so the Functions emulator can load compiled JS from lib/ and its node_modules.
+      # Must run `pnpm --filter backend build` before `docker compose up`.
+      - ./backend:/workspace/backend:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 45s
+
+volumes:
+  firebase-emulator-data:
