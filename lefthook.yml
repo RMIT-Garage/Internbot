@@ -7,16 +7,19 @@ pre-commit:
       glob: '**/*.{ts,tsx,json,md,css}'
       exclude: '(node_modules|\.next|\.git)'
       run: npx --yes prettier --write {staged_files} || true
+      stage_fixed: true
 
     lint-frontend:
       root: 'frontend/'
       glob: 'src/**/*.{ts,tsx}'
       run: npx eslint --fix {staged_files}
+      stage_fixed: true
 
     lint-backend:
       root: 'backend/'
       glob: 'src/**/*.ts'
       run: npx eslint --fix {staged_files}
+      stage_fixed: true
 
     # Typecheck runs against the whole workspace even for a single-file change —
     # TypeScript's type graph is project-wide, not per-file. Only triggers when
