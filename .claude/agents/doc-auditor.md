@@ -29,6 +29,14 @@ For `CLAUDE.md`, check that:
 2. All listed MCP servers are configured in `.claude/settings.json`
 3. TypeScript, pnpm, and Next.js conventions match actual tsconfig.json, package.json, and src/ structure
 
+For `docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md` (plan coverage audit), check that:
+
+1. Every phase with `Status: done` has a non-empty `PR:` line referencing a real merged commit (`git log --grep`)
+2. Every route listed in a `done` phase's `Scope` exists under `backend/src/api/routes/` and is mounted in `backend/src/api/routes/index.ts`
+3. Every bullet in a `done` phase's `Success criteria` and `Bug-finding cases` has a matching `it(...)` (or `it.todo(...)`) in the corresponding route's test file. Match by description text (verbatim or truncated from the bullet — see test-writer convention)
+4. No phase has had its `Scope`, `Success criteria`, or `Bug-finding cases` edited in a commit that did not also amend the phase's `Status`. A frozen-section edit without a status change is a plan-integrity violation (flag as High severity)
+5. `Status: in_progress` phases should have a branch matching `feat/phase-N-*` or `feat/<phase-slug>` in the git log — not a hard requirement, flag as Low if missing
+
 ## How to audit
 
 1. Read `CLAUDE.md` first — this is the source of truth for conventions
