@@ -3,17 +3,23 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { createAuthMiddleware } from './middleware/auth'
-import { errorHandler } from './middleware/errorHandler'
+import { errorHandler } from './middleware/error-handler'
 import { healthRouter } from './routes/health'
-import { apiRouter } from './routes'
-import { firebaseTokenVerifier } from '../infrastructure/auth/firebaseTokenVerifier'
-import type { TokenVerifier } from '../application/ports/tokenVerifier'
+import { createApiRouter } from './routes'
+import { createOpenapiRouter } from './routes/openapi'
+import { verifyFirebaseToken, type VerifyToken } from './auth/firebase-token-verifier'
+import { firebasePlatformClaimsService } from '../infrastructure/services/firebase-platform-claims-service'
+import { firestoreUnitOfWork } from '../infrastructure/firestore/firestore-unit-of-work'
+import type { UnitOfWork } from '../application/ports/unit-of-work'
+import type { PlatformClaimsService } from '../application/ports/platform-claims-service'
 
-interface AppOptions {
-  tokenVerifier?: TokenVerifier
+export interface AppOptions {
+  verifyToken?: VerifyToken
+  uow?: UnitOfWork
+  platformClaimsService?: PlatformClaimsService
 }
 
-/** Global rate limiter — 300 requests per 15 min per IP */
+/** Global rate limiter — 300 requests per 15 min per IP. */
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -24,49 +30,53 @@ const globalLimiter = rateLimit({
     title: 'Too Many Requests',
     status: 429,
     detail: 'Too many requests, please try again later',
+    error: {
+      code: 'rate_limited',
+      message: 'Too many requests, please try again later',
+    },
   },
 })
 
 /**
  * Express app factory — composition root.
- * Wires infrastructure implementations to application/api layers.
  *
- * tokenVerifier defaults to firebaseTokenVerifier (production).
- * Pass a mock in tests: createApp({ tokenVerifier: mockVerifier })
+ * Production defaults: Firebase token verifier, Firestore UoW, Firebase claims
+ * service. Tests inject mocks:
+ *   createApp({ verifyToken, uow, platformClaimsService })
  */
-export function createApp({ tokenVerifier = firebaseTokenVerifier }: AppOptions = {}): Express {
+export function createApp({
+  verifyToken = verifyFirebaseToken,
+  uow = firestoreUnitOfWork,
+  platformClaimsService = firebasePlatformClaimsService,
+}: AppOptions = {}): Express {
   const app = express()
 
-  const authMiddleware = createAuthMiddleware(tokenVerifier)
+  const authMiddleware = createAuthMiddleware(verifyToken)
 
-  // Security headers (must be first)
   app.use(helmet())
-
-  // CORS — defaults to deny-all if CORS_ORIGIN is not set
   app.use(cors({ origin: process.env.CORS_ORIGIN ?? false }))
-
-  // Rate limiting — applied before any route logic.
-  // Cast: express-rate-limit's RateLimitRequestHandler doesn't fully match
-  // Express 5's stricter PathParams overload, but is a valid RequestHandler.
   app.use(globalLimiter as unknown as RequestHandler)
-
-  // Body parsers — 1mb limit to prevent memory exhaustion attacks
   app.use(express.json({ limit: '1mb' }))
   app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
   // Public routes (no auth)
   app.use('/api/health', healthRouter)
+  app.use('/api', createOpenapiRouter()) // /api/openapi.json + /api/docs
 
-  // Protected routes — requires valid Firebase ID token
-  app.use('/api', authMiddleware, apiRouter)
+  // Protected routes — Firebase ID token required
+  app.use('/api/v1', authMiddleware, createApiRouter({ uow, platformClaimsService }))
 
-  // 404 handler
+  // 404 handler for unmatched paths
   app.use((_req, res) => {
     res.status(404).json({
       type: 'https://httpstatuses.io/404',
       title: 'Not Found',
       status: 404,
       detail: 'The requested resource does not exist',
+      error: {
+        code: 'not_found',
+        message: 'The requested resource does not exist',
+      },
     })
   })
 

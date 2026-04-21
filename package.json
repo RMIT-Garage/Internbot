@@ -21,7 +21,7 @@
     "format": "pnpm -r format",
     "typecheck": "pnpm -r typecheck",
     "preemulator": "pnpm --filter backend build",
-    "emulator": "docker compose up -d",
+    "emulator": "docker compose up -d --wait",
     "emulator:setup": "docker compose build firebase-emulators && docker compose up -d firebase-emulators",
     "emulator:down": "docker compose down",
     "emulator:logs": "docker compose logs -f",

@@ -8,7 +8,7 @@
  * Violations are caught here before they silently drift.
  *
  * Also enforces:
- *   - infrastructure/config/firebaseAdmin is the sole Firebase Admin entry point
+ *   - infrastructure/config/firebase-admin is the sole Firebase Admin entry point
  *   - No console.log in any src/ file
  */
 
@@ -16,7 +16,7 @@ import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-const SRC = path.resolve(__dirname, '../../../src')
+const SRC = path.resolve(__dirname, '../../src')
 
 function getFiles(dir: string, ext = '.ts'): string[] {
   if (!fs.existsSync(dir)) return []
@@ -129,12 +129,61 @@ describe('Architecture boundaries', () => {
 
     for (const file of files) {
       const rel = path.relative(SRC, file)
-      it(`${rel} uses infrastructure/config/firebaseAdmin instead of firebase-admin directly`, () => {
+      it(`${rel} uses infrastructure/config/firebase-admin instead of firebase-admin directly`, () => {
         const hasDirectAdminImport = /from\s+['"]firebase-admin/.test(getContent(file))
         expect(
           hasDirectAdminImport,
-          `${rel} imports firebase-admin directly — use infrastructure/config/firebaseAdmin instead`
+          `${rel} imports firebase-admin directly — use infrastructure/config/firebase-admin instead`
         ).toBe(false)
+      })
+    }
+  })
+
+  describe('domain/ — must not import zod or firebase-admin (pure TS)', () => {
+    const domainDir = path.join(SRC, 'domain')
+    const files = getFiles(domainDir)
+
+    for (const file of files) {
+      const rel = path.relative(SRC, file)
+      it(`${rel} does not import zod or firebase-admin`, () => {
+        const content = getContent(file)
+        expect(
+          /from\s+['"]zod['"]/.test(content),
+          `${rel} imports zod — domain must be pure TypeScript`
+        ).toBe(false)
+        expect(
+          /from\s+['"]firebase-admin/.test(content),
+          `${rel} imports firebase-admin — domain must not depend on persistence`
+        ).toBe(false)
+      })
+    }
+  })
+
+  describe('application/ — must not import zod, firebase-admin, or api/', () => {
+    const appDir = path.join(SRC, 'application')
+    const files = getFiles(appDir)
+
+    for (const file of files) {
+      const rel = path.relative(SRC, file)
+      it(`${rel} does not import zod, firebase-admin, or reach into api/`, () => {
+        const content = getContent(file)
+        expect(
+          /from\s+['"]zod['"]/.test(content),
+          `${rel} imports zod — application must not own validation`
+        ).toBe(false)
+        expect(
+          /from\s+['"]firebase-admin/.test(content),
+          `${rel} imports firebase-admin — application must not depend on persistence`
+        ).toBe(false)
+        for (const imp of getImportedPaths(file)) {
+          if (!imp.startsWith('.')) continue
+          const resolved = path.resolve(path.dirname(file), imp)
+          const relResolved = path.relative(SRC, resolved)
+          expect(
+            relResolved,
+            `${rel} imports '${imp}' — application/ must not reach into api/`
+          ).not.toMatch(/^api/)
+        }
       })
     }
   })

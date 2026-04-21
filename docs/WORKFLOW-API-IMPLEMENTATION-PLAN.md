@@ -2,9 +2,18 @@
 
 Implementation roadmap for [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
 
-- **Cadence:** one PR per phase, merged to `develop` behind feature branches per [GIT-WORKFLOW.md](./GIT-WORKFLOW.md).
+- **Jira epic:** `IC-56` (Backend Workflow API v1). Each phase gets its own child Story (`IC-57` … created as each phase starts) with frozen Scope / Success criteria / Bug-finding cases copied from this file.
+- **Cadence:** one backend PR per phase, merged to `develop` behind feature branches per [GIT-WORKFLOW.md](./GIT-WORKFLOW.md). **Parallel vertical-slice delivery** — once a backend phase merges, backend Phase N+1 starts immediately while frontend implements the unblocked `US-*` stories against the freshly-merged API. Frontend and backend run concurrently; `develop` accumulates both as they land. Both halves of Phase N must be merged before we consider that phase "demoable."
 - **Out of scope (v1):** AI endpoints (`/ai-reviews`, `/faq`) and email delivery on notifications. Structural hooks remain so both can be added later without migrations.
-- **Global definition of done (every phase):** `pnpm run typecheck` + `pnpm run lint` + `pnpm run test` pass; integration tests for Firestore queries pass; no new `eslint-disable` comments; docs updated for any deviation from the spec.
+- **Global definition of done (every backend phase):**
+  - `pnpm --filter backend run typecheck` + `lint` pass
+  - **Test pyramid** per [docs/TESTING.md](./TESTING.md) — every phase ships all applicable levels:
+    - **Unit tests** for every domain class/rule, every CQRS handler (with mocked UoW), every mapper
+    - **Integration tests** against the Firestore emulator for every new repository method or Firestore query
+    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check.
+  - No new `eslint-disable` comments
+  - Docs updated for any deviation from the spec
+  - PR title carries `[IC-XX]` prefix and commits carry an `IC-XX` trailer
 
 ## How to edit this file
 
@@ -31,8 +40,19 @@ This is a sprint-contract file, not a status log. Two rules:
 
 ## Phase 1 — Identity + shared foundations
 
-**Status:** pending
-**PR:** —
+**Status:** in*progress
+**Jira:** [IC-57](https://internbot.atlassian.net/browse/IC-57)
+**Backend PR:** \_opening*
+**Frontend follow-up PR:** _pending (can start once backend merges to develop — runs in parallel with Phase 2 backend)_
+**Unblocks frontend stories:** [IC-26](https://internbot.atlassian.net/browse/IC-26) US-003 Firestore schema + Cloud Functions scaffold (primary), [IC-27](https://internbot.atlassian.net/browse/IC-27) US-004 Next.js role-aware routing, [IC-52](https://internbot.atlassian.net/browse/IC-52) US-025 Profile Settings page. `IC-57` has "blocks" links to all three in Jira.
+
+### Notes
+
+- Architecture scope grew beyond the original plan: full Clean Arch + DDD + CQRS scaffold (per-layer data models, class-based domain, class-based CQRS handlers with flat DI, port/adapter split, `application/ports/`, `infrastructure/services/`, `translate-firestore-errors` boundary wrapper). This pays off across Phases 2–10 — every later phase reuses the scaffold.
+- Auth model: Firebase custom claims carry `{ platformUserId, role }`. `POST /auth/sync` sets them via the `PlatformClaimsService` port. Subsequent requests read identity directly from the token — no per-request Firestore lookup.
+- Authz lives inline inside each CQRS handler. Route handlers do authentication (via middleware) + body validation + dispatch + serialization — never authz.
+- Naming convention settled: kebab-case files/folders, PascalCase classes/interfaces, camelCase identifiers.
+- Later within phase 1: aggregate pattern tightened to Vernon-style — private `#props` + getters + private ctor + `create`/`rehydrate` factories; `User` is **mutable** (`change*`/`set*`/`clear*` void methods); VOs stay immutable with `with*`. Repository port shrinks to `findById` / `findByFirebaseUid` / `create(user)` / `save(user)` — optimistic concurrency enforced inside `save()` via `updateTime.toMillis()`, no client-side version increment. Command shape: `actor`/`userId`/`patch`/`metadata?: CommandMetadata` — business intent on the command, transport metadata (expectedVersion, future correlationId/idempotencyKey) nested under `metadata`. `backend/CLAUDE.md` slimmed to rules + pointers; canonical reference is `docs/BACKEND.md`.
 
 ### Scope
 

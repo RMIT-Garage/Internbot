@@ -29,3 +29,14 @@ export const adminApp = getAdminApp()
 export const adminAuth = getAuth(adminApp)
 export const adminDb = getFirestore(adminApp)
 export const adminStorage = getStorage(adminApp)
+
+// Re-export Firestore value helpers so api/routes/ does not import firebase-admin
+// directly (enforced by tests/unit/architecture/architecture.test.ts).
+export { FieldValue, Timestamp } from 'firebase-admin/firestore'
+export type {
+  DocumentSnapshot,
+  QueryDocumentSnapshot,
+  Query,
+  CollectionReference,
+  DocumentReference,
+} from 'firebase-admin/firestore'
