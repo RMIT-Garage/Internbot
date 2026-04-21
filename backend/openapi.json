@@ -25,9 +25,7 @@
         "operationId": "getHealth",
         "summary": "Health probe",
         "description": "Public, unauthenticated. Returns 200 when the backend is serving requests.",
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "responses": {
           "200": {
             "description": "Service is healthy",
@@ -47,9 +45,7 @@
         "operationId": "authSync",
         "summary": "Verify Firebase identity and return/create the platform user",
         "description": "On first call for a given `firebaseUid` creates a `users/{id}` document, sets `role: student`, and writes Firebase custom claims `{ platformUserId, role }`. Subsequent calls are idempotent. See WORKFLOW-API-SPEC.md §7.1.",
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "security": [
           {
             "bearerAuth": []
@@ -140,30 +136,15 @@
         }
       }
     },
-    "/api/v1/users/{id}": {
+    "/api/v1/users/me": {
       "get": {
-        "operationId": "getUser",
-        "summary": "Return a platform user",
-        "description": "Polymorphic response shape by role. Students may read only their own record; coordinators may read any. See WORKFLOW-API-SPEC.md §7.2.",
-        "tags": [
-          "Users"
-        ],
+        "operationId": "getMyProfile",
+        "summary": "Return the caller's own platform user record",
+        "description": "Resolves to the caller's platform user from the decoded token's `platformUserId` claim. Returns 401 when the caller has not yet called `POST /auth/sync`. See WORKFLOW-API-SPEC.md §7.2.",
+        "tags": ["Users"],
         "security": [
           {
             "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "schema": {
-              "type": "string",
-              "example": "usr_aBc123XyZ",
-              "description": "Platform user id. Accepts the alias `me` to target the caller."
-            },
-            "required": true,
-            "description": "Platform user id. Accepts the alias `me` to target the caller."
           }
         ],
         "responses": {
@@ -185,7 +166,180 @@
             }
           },
           "401": {
-            "description": "Missing or invalid Firebase ID token.",
+            "description": "Missing or invalid Firebase ID token (or caller has not yet synced).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchMyProfile",
+        "summary": "Update the caller's own student profile",
+        "description": "Resolves to the caller's platform user from the decoded token's `platformUserId` claim. Student-only. Top-level identity fields (`email`, `role`, `firebaseUid`, `status`, `onboardingStage`) are not writable. `profileStatus` is derived server-side. `studentProfile.studentNumber` is immutable after first sync. See WORKFLOW-API-SPEC.md §7.2.",
+        "tags": ["Users"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body contains non-writable fields or violates `studentNumber` immutability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token (or caller has not yet synced).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Student caller is not the owner of the target user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Coordinator caller — coordinators have no writable user fields in v1. Response includes `Allow: GET`.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Client sent `If-Match` and it does not match the current ETag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation failure (empty body, missing required fields, etc.).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "get": {
+        "operationId": "getUser",
+        "summary": "Return a platform user by id",
+        "description": "Polymorphic response shape by role. Students may read only their own record; coordinators may read any. Callers targeting themselves should prefer `GET /users/me`. See WORKFLOW-API-SPEC.md §7.2.",
+        "tags": ["Users"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "usr_aBc123XyZ",
+              "description": "Platform user id."
+            },
+            "required": true,
+            "description": "Platform user id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User found",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token (or caller has not yet synced).",
             "content": {
               "application/json": {
                 "schema": {
@@ -218,11 +372,9 @@
       },
       "patch": {
         "operationId": "patchUser",
-        "summary": "Update the caller's student profile",
-        "description": "Student-only. Top-level identity fields (`email`, `role`, `firebaseUid`, `status`, `onboardingStage`) are not writable. `profileStatus` is derived server-side. `studentProfile.studentNumber` is immutable after first sync. See WORKFLOW-API-SPEC.md §7.2.",
-        "tags": [
-          "Users"
-        ],
+        "summary": "Update a student's profile by id",
+        "description": "Student-only. Students may only patch their own record; coordinators get `405 Allow: GET`. Callers targeting themselves should prefer `PATCH /users/me`. See WORKFLOW-API-SPEC.md §7.2.",
+        "tags": ["Users"],
         "security": [
           {
             "bearerAuth": []
@@ -235,10 +387,10 @@
             "schema": {
               "type": "string",
               "example": "usr_aBc123XyZ",
-              "description": "Platform user id. Accepts the alias `me` to target the caller."
+              "description": "Platform user id."
             },
             "required": true,
-            "description": "Platform user id. Accepts the alias `me` to target the caller."
+            "description": "Platform user id."
           },
           {
             "in": "header",
@@ -289,7 +441,7 @@
             }
           },
           "401": {
-            "description": "Missing or invalid Firebase ID token.",
+            "description": "Missing or invalid Firebase ID token (or caller has not yet synced).",
             "content": {
               "application/json": {
                 "schema": {
@@ -376,9 +528,7 @@
             "$ref": "#/components/schemas/StudentProfilePatch"
           }
         },
-        "required": [
-          "studentProfile"
-        ],
+        "required": ["studentProfile"],
         "additionalProperties": false,
         "description": "Body for PATCH /api/v1/users/:id. Top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400."
       },
@@ -429,10 +579,7 @@
           },
           "programLevel": {
             "type": "string",
-            "enum": [
-              "undergraduate",
-              "postgraduate"
-            ]
+            "enum": ["undergraduate", "postgraduate"]
           },
           "unitsAttempted": {
             "type": "number",
@@ -450,19 +597,11 @@
           },
           "currentStudyLoad": {
             "type": "string",
-            "enum": [
-              "full_time",
-              "part_time",
-              "unknown"
-            ]
+            "enum": ["full_time", "part_time", "unknown"]
           },
           "programStatus": {
             "type": "string",
-            "enum": [
-              "active_in_program",
-              "completed",
-              "discontinued"
-            ]
+            "enum": ["active_in_program", "completed", "discontinued"]
           },
           "majors": {
             "type": "array",
@@ -503,10 +642,7 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
-        "required": [
-          "status",
-          "timestamp"
-        ],
+        "required": ["status", "timestamp"],
         "additionalProperties": false
       },
       "UserResponse": {
@@ -552,18 +688,11 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "inactive",
-              "blocked"
-            ]
+            "enum": ["active", "inactive", "blocked"]
           },
           "onboardingStage": {
             "type": "string",
-            "enum": [
-              "profile_pending",
-              "profile_complete"
-            ]
+            "enum": ["profile_pending", "profile_complete"]
           },
           "role": {
             "type": "string",
@@ -662,19 +791,10 @@
           },
           "profileStatus": {
             "type": "string",
-            "enum": [
-              "incomplete",
-              "complete"
-            ]
+            "enum": ["incomplete", "complete"]
           }
         },
-        "required": [
-          "studentNumber",
-          "programCode",
-          "phone",
-          "academicInfo",
-          "profileStatus"
-        ],
+        "required": ["studentNumber", "programCode", "phone", "academicInfo", "profileStatus"],
         "additionalProperties": false,
         "description": "Embedded student profile on a User response (see §8.2A)."
       },
@@ -687,18 +807,11 @@
           },
           "programLevel": {
             "type": "string",
-            "enum": [
-              "undergraduate",
-              "postgraduate"
-            ]
+            "enum": ["undergraduate", "postgraduate"]
           },
           "programStatus": {
             "type": "string",
-            "enum": [
-              "active_in_program",
-              "completed",
-              "discontinued"
-            ]
+            "enum": ["active_in_program", "completed", "discontinued"]
           },
           "majors": {
             "type": "array",
@@ -727,11 +840,7 @@
           },
           "currentStudyLoad": {
             "type": "string",
-            "enum": [
-              "full_time",
-              "part_time",
-              "unknown"
-            ]
+            "enum": ["full_time", "part_time", "unknown"]
           },
           "notes": {
             "type": "string"
@@ -786,32 +895,18 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "inactive",
-              "blocked"
-            ]
+            "enum": ["active", "inactive", "blocked"]
           },
           "onboardingStage": {
             "type": "string",
-            "enum": [
-              "profile_pending",
-              "profile_complete"
-            ]
+            "enum": ["profile_pending", "profile_complete"]
           },
           "role": {
             "type": "string",
             "const": "coordinator"
           }
         },
-        "required": [
-          "id",
-          "email",
-          "displayName",
-          "status",
-          "onboardingStage",
-          "role"
-        ],
+        "required": ["id", "email", "displayName", "status", "onboardingStage", "role"],
         "additionalProperties": false,
         "description": "User record for role=coordinator. Identity fields only, no studentProfile."
       },
@@ -838,13 +933,7 @@
             "$ref": "#/components/schemas/ErrorBody"
           }
         },
-        "required": [
-          "type",
-          "title",
-          "status",
-          "detail",
-          "error"
-        ],
+        "required": ["type", "title", "status", "detail", "error"],
         "additionalProperties": false,
         "description": "RFC 9457 Problem Details wrapped with the domain error envelope — see docs/ERROR-HANDLING.md."
       },
@@ -883,10 +972,7 @@
             }
           }
         },
-        "required": [
-          "code",
-          "message"
-        ],
+        "required": ["code", "message"],
         "additionalProperties": false
       },
       "ErrorField": {
@@ -904,11 +990,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "field",
-          "code",
-          "message"
-        ],
+        "required": ["field", "code", "message"],
         "additionalProperties": false
       }
     },

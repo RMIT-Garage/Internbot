@@ -1,7 +1,12 @@
 import { createDocument, type ZodOpenApiObject } from 'zod-openapi'
 import { healthOperation } from './operations/health'
 import { authSyncOperation } from './operations/auth'
-import { getUserOperation, patchUserOperation } from './operations/users'
+import {
+  getMyProfileOperation,
+  getUserOperation,
+  patchMyProfileOperation,
+  patchUserOperation,
+} from './operations/users'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
 type OpenapiServer = NonNullable<ZodOpenApiObject['servers']>[number]
@@ -48,6 +53,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
     paths: {
       '/api/health': { get: healthOperation },
       '/api/v1/auth/sync': { post: authSyncOperation },
+      '/api/v1/users/me': { get: getMyProfileOperation, patch: patchMyProfileOperation },
       '/api/v1/users/{id}': { get: getUserOperation, patch: patchUserOperation },
     },
   })
