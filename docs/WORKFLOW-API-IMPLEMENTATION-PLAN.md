@@ -40,9 +40,9 @@ This is a sprint-contract file, not a status log. Two rules:
 
 ## Phase 1 — Identity + shared foundations
 
-**Status:** in*progress
+**Status:** done
 **Jira:** [IC-57](https://internbot.atlassian.net/browse/IC-57)
-**Backend PR:** \_opening*
+**Backend PR:** [#18](https://github.com/giatinhuynh/Internbot/pull/18) (merged as `a067ac9`) + [#19](https://github.com/giatinhuynh/Internbot/pull/19) (lefthook follow-up, merged as `0912be2`)
 **Frontend follow-up PR:** _pending (can start once backend merges to develop — runs in parallel with Phase 2 backend)_
 **Unblocks frontend stories:** [IC-26](https://internbot.atlassian.net/browse/IC-26) US-003 Firestore schema + Cloud Functions scaffold (primary), [IC-27](https://internbot.atlassian.net/browse/IC-27) US-004 Next.js role-aware routing, [IC-52](https://internbot.atlassian.net/browse/IC-52) US-025 Profile Settings page. `IC-57` has "blocks" links to all three in Jira.
 
@@ -99,7 +99,8 @@ _(append terse status notes here during implementation)_
 
 ## Phase 2 — Semesters
 
-**Status:** pending
+**Status:** in_progress
+**Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58)
 **PR:** —
 
 ### Scope
