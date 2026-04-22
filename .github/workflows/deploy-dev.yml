@@ -105,5 +105,8 @@ jobs:
       public_firebase_storage_bucket: internbot-dev-ae3a3-storage
       public_firebase_messaging_sender_id: ${{ vars.DEV_FIREBASE_MESSAGING_SENDER_ID }}
       public_firebase_app_id: ${{ vars.DEV_FIREBASE_APP_ID }}
-      public_api_url: https://australia-southeast1-internbot-dev-ae3a3.cloudfunctions.net/api
+      # Backend API is reached via a Firebase Hosting rewrite (/api/** → function:api).
+      # This keeps the frontend same-origin with the API (no CORS) and preserves the
+      # /api path prefix that Express routes expect.
+      public_api_url: https://internbot-dev-ae3a3.web.app
       public_app_url: https://internbot-dev-ae3a3.web.app

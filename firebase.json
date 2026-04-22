@@ -9,6 +9,12 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "trailingSlash": true,
     "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": { "functionId": "api", "region": "australia-southeast1" }
+      }
+    ],
     "headers": [
       {
         "source": "**",

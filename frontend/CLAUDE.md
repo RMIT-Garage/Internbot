@@ -84,12 +84,13 @@ All backend calls go through `@/lib/api/client`:
 ```typescript
 import { apiFetch } from '@/lib/api/client'
 
-const user = await apiFetch<User>('/users/me')
-await apiFetch('/users/me', { method: 'PATCH', body: { displayName: 'Jane' } })
+const user = await apiFetch<User>('/api/v1/users/me')
+await apiFetch('/api/v1/users/me', { method: 'PATCH', body: { displayName: 'Jane' } })
 ```
 
-- `apiFetch` reads `NEXT_PUBLIC_API_URL` (baked at build time)
-- If a Firebase user is signed in, it attaches `Authorization: Bearer <idToken>`
+- `apiFetch` reads `NEXT_PUBLIC_API_URL` (baked at build time) — in prod this is the Firebase Hosting origin; Hosting rewrites `/api/**` to the `api` Cloud Function, preserving the `/api` path prefix that Express routes expect
+- Include the full `/api/v1/...` (or `/api/health`, `/api/openapi.json`) path in every call — the base URL is the origin, not a versioned prefix
+- If a Firebase user is signed in, `Authorization: Bearer <idToken>` is attached automatically
 - Non-2xx responses throw `ApiError` with status + parsed body
 - JSON request bodies are stringified automatically; don't pre-serialize
 
