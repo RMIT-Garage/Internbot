@@ -9,7 +9,7 @@ Security is enforced in layers — each layer is independent so a failure in one
 | Pre-commit   | gitleaks secret scan (required)                               |
 | Claude Code  | Deny rules, PreToolUse/PostToolUse hooks                      |
 | HTTP         | helmet headers, CORS policy, rate limiting, body size cap     |
-| Auth         | Firebase token verification, session cookies                  |
+| Auth         | Firebase ID token verification (Bearer tokens, per request)   |
 | API          | Zod input validation, actor-based access control              |
 | Data         | Firestore security rules (default deny, field allowlists)     |
 | CI           | gitleaks action + `pnpm audit --audit-level=high` on every PR |
@@ -96,7 +96,7 @@ Request body is capped at `1mb` (`express.json({ limit: '1mb' })`). Routes that 
 
 ## HTTP Security (Frontend)
 
-Security headers are set in `next.config.ts` for all routes:
+The frontend is a static export served by Firebase Hosting. Security headers are set in `firebase.json` under `hosting.headers` for all routes:
 
 | Header                   | Value                                                         |
 | ------------------------ | ------------------------------------------------------------- |
@@ -105,7 +105,7 @@ Security headers are set in `next.config.ts` for all routes:
 | `Referrer-Policy`        | `strict-origin-when-cross-origin`                             |
 | `Permissions-Policy`     | camera, microphone, geolocation, browsing-topics all disabled |
 
-**Content Security Policy (CSP)** is an opt-in per project — it requires nonce injection in `proxy.ts` and a tuned `script-src` for each project's third-party scripts. See Next.js CSP docs when adding it to a client project.
+**Content Security Policy (CSP)** is an opt-in per project — it requires a tuned `script-src` per project's third-party scripts. Add it as a header in `firebase.json` when ready.
 
 ---
 
@@ -125,30 +125,28 @@ Route handler → (req as AuthenticatedRequest).actor.uid
 - The `TokenVerifier` interface is injected — swap `firebaseTokenVerifier` in tests without touching Firebase
 - Invalid or expired tokens always return `401 Unauthorized` with RFC 9457 format
 
-### Frontend session flow
+### Frontend auth flow
 
 ```
-Sign in → Firebase ID token → POST /api/auth/session
-                               ↓
-                     adminAuth.createSessionCookie()
-                               ↓
-                     HttpOnly __session cookie (14 days)
-                               ↓
-proxy.ts: optimistic presence check → gates protected routes
-Server Actions: requireAuth() → adminAuth.verifySessionCookie(cookie, true)
+Sign in (Firebase client SDK) → onAuthStateChanged fires in AuthProvider
+                                 ↓
+                       Every apiFetch call:
+                         user.getIdToken() → Authorization: Bearer <token>
+                                 ↓
+                       Backend authMiddleware verifies per request
 ```
 
-- `requireAuth()` checks token revocation (`checkRevoked: true`) on every Server Action call
-- The `proxy.ts` cookie check is **optimistic** (presence only) — real cryptographic verification always happens in Server Actions near the data
-- Session cookies are `HttpOnly`, `Secure` (production), `SameSite=Strict`
+- ID tokens expire after 1 hour; the Firebase client SDK refreshes them automatically
+- There is **no session cookie**; all server-side trust comes from verifying the ID token in `authMiddleware`
+- Client-side route guards (`useRequireAuth`, `useRedirectIfAuthed`) only gate UX — they are not a security boundary
 
 ### Revoking sessions
 
 To force-sign-out a user:
 
 1. `adminAuth.revokeRefreshTokens(uid)` — revokes all tokens
-2. Delete the Firestore `users/{uid}` session record if used
-3. Subsequent `verifySessionCookie(cookie, true)` calls will return 401
+2. Backend `authMiddleware` must call `adminAuth.verifyIdToken(token, true)` with `checkRevoked: true` to reject revoked tokens on the next request
+3. On the client, `onAuthStateChanged` receives `null` after token refresh fails
 
 ---
 
@@ -239,26 +237,17 @@ Never deploy rules from a local machine in production — use the CI deploy work
 
 ---
 
-## Firebase Service Account
+## Firebase Service Account (backend only)
 
-`FIREBASE_SERVICE_ACCOUNT_KEY_BASE64` is a base64-encoded service account JSON.
+The backend uses Application Default Credentials when deployed to Cloud Functions — no service account JSON key is stored in CI or the repo. The frontend package does **not** import `firebase-admin` and has no access to any service account.
 
 **Rules:**
 
-- Never commit this value to version control
-- Never use a `NEXT_PUBLIC_` prefix (exposes it to the browser)
-- Store in Cloud Functions environment config for production
-- Store as a GitHub Actions secret for CI/CD
-- Rotate immediately if accidentally exposed: Firebase Console → Project Settings → Service Accounts → Revoke key
+- Never use a `NEXT_PUBLIC_` prefix on any service account or admin key
+- Cloud Functions pick up the runtime service account automatically
+- For local emulator dev, the backend uses the emulator's built-in fake credentials
 
-**GCP Secret Manager (recommended for production):**
-
-```typescript
-// Instead of env var, fetch from Secret Manager at cold start
-import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
-```
-
-Document this as a per-client hardening step in the forking guide.
+**Production hardening (GCP Secret Manager):** use `defineSecret()` for runtime secrets (see [docs/ENV-VARS.md](./ENV-VARS.md)). Never fetch service account keys from Secret Manager at cold start — use ADC instead.
 
 ---
 

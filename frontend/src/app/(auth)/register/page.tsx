@@ -6,11 +6,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import { useRedirectIfAuthed } from '@/hooks/useRequireAuth'
 import { registerSchema, type RegisterInput } from '@/lib/validations/auth'
 
 export default function RegisterPage() {
   const router = useRouter()
   const { signUpWithEmail, signInWithGoogle } = useAuth()
+  useRedirectIfAuthed()
 
   const {
     register,

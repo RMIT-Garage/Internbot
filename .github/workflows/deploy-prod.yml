@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -31,6 +32,7 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -39,18 +41,25 @@ jobs:
 
           if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git diff --name-only "$base" "$head" | tee changed-files.txt
 
           backend=false
+          frontend=false
 
           if grep -Eq '^(backend/|firebase\.json$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.github/workflows/)' changed-files.txt; then
             backend=true
           fi
 
+          if grep -Eq '^(frontend/|firebase\.json$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.github/workflows/)' changed-files.txt; then
+            frontend=true
+          fi
+
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
 
   ci:
     uses: ./.github/workflows/_ci.yml
@@ -77,3 +86,24 @@ jobs:
       # are managed by Terraform (google_firebaserules_* + google_firestore_*)
       # for drift detection and atomic infra deploys.
       deploy_targets: functions
+
+  deploy-frontend:
+    needs: [changes, ci, terraform]
+    if: needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/_deploy-hosting.yml
+    with:
+      firebase_project_id: internbot-prod
+      wif_provider: projects/947410245672/locations/global/workloadIdentityPools/github/providers/github-provider
+      deploy_service_account: github-deploy@internbot-prod.iam.gserviceaccount.com
+      # Firebase client config values are NOT secrets — hardcoded here to match
+      # the existing pattern of committing non-secret env identifiers.
+      # TODO: populate these with real values from Firebase Console
+      # (Project settings → General → Your apps → SDK setup and configuration)
+      public_firebase_api_key: ${{ vars.PROD_FIREBASE_API_KEY }}
+      public_firebase_auth_domain: internbot-prod.firebaseapp.com
+      public_firebase_project_id: internbot-prod
+      public_firebase_storage_bucket: internbot-prod-storage
+      public_firebase_messaging_sender_id: ${{ vars.PROD_FIREBASE_MESSAGING_SENDER_ID }}
+      public_firebase_app_id: ${{ vars.PROD_FIREBASE_APP_ID }}
+      public_api_url: https://australia-southeast1-internbot-prod.cloudfunctions.net/api
+      public_app_url: https://internbot-prod.web.app

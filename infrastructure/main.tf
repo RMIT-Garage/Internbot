@@ -61,6 +61,13 @@ module "storage" {
   depends_on = [module.firebase_project]
 }
 
+module "hosting" {
+  source     = "./modules/hosting"
+  project_id = var.project_id
+
+  depends_on = [module.firebase_project]
+}
+
 module "github_oidc" {
   source               = "./modules/github-oidc"
   project_id           = var.project_id

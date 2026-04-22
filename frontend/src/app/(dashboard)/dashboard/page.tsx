@@ -1,19 +1,16 @@
-import type { Metadata } from 'next'
-import { getServerSession } from '@/actions/auth.actions'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Dashboard',
-}
+import { useAuth } from '@/hooks/useAuth'
 
-export default async function DashboardPage() {
-  const session = await getServerSession()
+export default function DashboardPage() {
+  const { user } = useAuth()
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Welcome back{session?.email ? `, ${session.email}` : ''}.
+          Welcome back{user?.email ? `, ${user.email}` : ''}.
         </p>
       </div>
 

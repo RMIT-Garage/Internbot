@@ -14,13 +14,15 @@ Push to develop                                 Push to main
     └── deploy-dev.yml (one pipeline)           └── deploy-prod.yml (one pipeline)
             │                                           │
             ├── ci       (calls _ci.yml)                ├── ci
-            ├── terraform (needs: ci, _terraform.yml)   ├── terraform (needs: ci)
-            └── deploy   (needs: [ci, terraform])       └── deploy   (needs: [ci, terraform])
+            ├── terraform (needs: ci, _terraform.yml)   ├── terraform
+            ├── deploy-backend  (functions, if changed) ├── deploy-backend  (functions)
+            └── deploy-frontend (hosting, if changed)   └── deploy-frontend (hosting)
 ```
 
-Each env has **one workflow file** orchestrating the full pipeline: CI gates both
-Terraform and Firebase deploy; Firebase deploy waits for Terraform so infra is
-ready before the app tries to use it.
+Each env has **one workflow file** orchestrating the full pipeline: CI gates
+Terraform and both Firebase deploys. Functions and hosting run in parallel
+after Terraform, each gated by a change-detector so unrelated pushes skip the
+deploy they don't touch.
 
 ## Branch → environment mapping
 
@@ -80,15 +82,16 @@ GitHub Secrets would only be for:
 
 ## Workflow reference
 
-| File                 | Triggers                        | Purpose                                                                                                                                                         |
-| -------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`             | PR to main/develop              | Thin wrapper, calls `_ci.yml`                                                                                                                                   |
-| `_ci.yml`            | workflow_call                   | Reusable: lint & typecheck, build-backend, build-frontend, frontend tests, backend tests (all tiers + ≥80% coverage gate, against Firebase emulators), gitleaks |
-| `deploy-dev.yml`     | push to develop                 | Pipeline: CI → terraform apply dev → firebase deploy dev                                                                                                        |
-| `deploy-prod.yml`    | push to main                    | Pipeline: CI → terraform apply prod → firebase deploy prod                                                                                                      |
-| `_deploy.yml`        | workflow_call                   | Reusable: build backend + `firebase deploy`                                                                                                                     |
-| `terraform-plan.yml` | PR touching `infrastructure/**` | Plan against dev (+ prod if PR targets main). PR comment.                                                                                                       |
-| `_terraform.yml`     | workflow_call                   | Reusable: init + fmt + validate + plan/apply                                                                                                                    |
+| File                  | Triggers                        | Purpose                                                                                                                                                         |
+| --------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`              | PR to main/develop              | Thin wrapper, calls `_ci.yml`                                                                                                                                   |
+| `_ci.yml`             | workflow_call                   | Reusable: lint & typecheck, build-backend, build-frontend, frontend tests, backend tests (all tiers + ≥80% coverage gate, against Firebase emulators), gitleaks |
+| `deploy-dev.yml`      | push to develop                 | Pipeline: CI → terraform apply dev → deploy functions + hosting (each gated by change detector)                                                                 |
+| `deploy-prod.yml`     | push to main                    | Pipeline: CI → terraform apply prod → deploy functions + hosting                                                                                                |
+| `_deploy.yml`         | workflow_call                   | Reusable: build backend + `firebase deploy --only functions`                                                                                                    |
+| `_deploy-hosting.yml` | workflow_call                   | Reusable: build frontend static export + `firebase deploy --only hosting`                                                                                       |
+| `terraform-plan.yml`  | PR touching `infrastructure/**` | Plan against dev (+ prod if PR targets main). PR comment.                                                                                                       |
+| `_terraform.yml`      | workflow_call                   | Reusable: init + fmt + validate + plan/apply                                                                                                                    |
 
 ## Manual deployment
 

@@ -2,15 +2,15 @@
 
 ## Overview
 
-Next.js 16 App Router with React 19, TypeScript (strict), and Tailwind CSS v4.
+Next.js 16 App Router with React 19, TypeScript (strict), and Tailwind CSS v4. **Built as a static export (`output: 'export'`) and deployed to Firebase Hosting — no Node runtime, no SSR.**
 
 ## Key Conventions
 
 ### Server vs Client Components
 
-- **Default: Server Component** — no `'use client'` directive needed
-- Add `'use client'` only when you need: React hooks, event handlers, browser APIs, or Firebase client SDK
-- Pages in `app/` are Server Components; extract interactivity to `*Client.tsx` components
+- Server Components run at **build time only** (static export) — they can't read request state
+- Add `'use client'` when you need: React hooks, event handlers, browser APIs, auth state, Firebase client SDK, `apiFetch`
+- Any page that reads the authenticated user must be `'use client'`
 
 ### Route Groups
 
@@ -29,8 +29,8 @@ src/features/invoices/
 ├── types.ts          TypeScript interfaces
 ├── hooks/
 │   └── useInvoices.ts  Firestore subscription hook
-├── actions/
-│   └── invoices.actions.ts  Server Actions
+├── api/
+│   └── invoices.api.ts  apiFetch wrappers for backend mutations
 └── components/
     └── InvoiceList.tsx
 ```
@@ -39,12 +39,13 @@ Use the `/new-feature` skill to scaffold this structure.
 
 ### Data Fetching
 
-| Context          | Method                            | When                   |
-| ---------------- | --------------------------------- | ---------------------- |
-| Server Component | `adminDb.collection(...).get()`   | One-time, SSR          |
-| Client Component | `useCollection()` hook            | Real-time subscription |
-| Server Action    | `adminDb` + `requireAuth()`       | Mutations              |
-| Route Handler    | `adminAuth.verifySessionCookie()` | Session management     |
+| Context                  | Method                           | When                             |
+| ------------------------ | -------------------------------- | -------------------------------- |
+| Build-time Server Comp.  | none — no data fetching possible | Static content only              |
+| Client Component (read)  | `useCollection()` hook           | Firestore real-time subscription |
+| Client Component (write) | `apiFetch('/path', { method })`  | Mutations via backend API        |
+
+All data mutations go through the backend API (`apiFetch`). Firestore writes from the frontend are only allowed for paths explicitly permitted by security rules.
 
 ### Styling
 
@@ -67,15 +68,17 @@ import { cn } from '@/lib/utils'
            /register → /dashboard
 ```
 
-- `AuthProvider` listens to `onAuthStateChanged` — wraps the root layout
-- `useAuth()` hook accesses auth state in any Client Component
-- `requireAuth()` Server Action gates Server Components in the dashboard layout
+- `AuthProvider` wraps the root layout, subscribes to `onAuthStateChanged`
+- `useAuth()` reads auth state in any client component
+- `useRequireAuth()` in the `(dashboard)` layout redirects to `/login` if no user
+- `useRedirectIfAuthed()` in `(auth)` pages pushes to `/dashboard` if already signed in
+- Backend calls use `apiFetch`, which attaches `Authorization: Bearer <idToken>` automatically
 
 ## Adding a Page
 
 Use the `/new-page` skill. Key checklist:
 
 - Correct route group (`(auth)` or `(dashboard)`)
-- Export `metadata` object
-- Call `requireAuth()` in protected pages
-- Put client interactivity in a `*Client.tsx` component
+- Static `metadata` on server components; client pages set `document.title` via effect if needed
+- Protected pages sit under `(dashboard)` — the layout already calls `useRequireAuth()`
+- Any interactivity or auth-aware UI is `'use client'`
