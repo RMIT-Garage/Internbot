@@ -47,10 +47,9 @@ module "firestore" {
 }
 
 module "auth" {
-  source         = "./modules/auth"
-  project_id     = var.project_id
-  project_number = data.google_project.this.number
-  region         = var.region
+  source     = "./modules/auth"
+  project_id = var.project_id
+  region     = var.region
 
   # GCIP beforeCreate blocking function — gates Firebase Auth sign-ups at the
   # IdP layer. Leave `false` on first apply (default); deploy the function

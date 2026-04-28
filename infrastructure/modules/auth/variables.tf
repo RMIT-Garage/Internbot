@@ -3,11 +3,6 @@ variable "project_id" {
   type        = string
 }
 
-variable "project_number" {
-  description = "The numeric GCP project number (used to derive the GCIP service-agent email)."
-  type        = string
-}
-
 variable "region" {
   description = "Region where the blocking function is deployed."
   type        = string
