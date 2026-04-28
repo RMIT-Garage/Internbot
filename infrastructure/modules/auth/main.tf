@@ -15,12 +15,25 @@ data "google_cloudfunctions2_function" "before_create" {
   name     = "enforceStudentEmail"
 }
 
-# GCIP service agent that invokes blocking functions. Auto-created by
-# Google when the project is upgraded to Identity Platform (which happens
-# via `google_identity_platform_config` below). Without `roles/run.invoker`
-# on the underlying Cloud Run v2 service the trigger fires but receives a
-# 403 and the sign-up succeeds without the policy check — silently
-# degrading to "no enforcement".
+# GCIP service agent that invokes blocking functions.
+#
+# Google creates this `service-{PROJECT_NUMBER}@gcp-sa-identitytoolkit...`
+# service account lazily — `google_identity_platform_config` upgrading the
+# project to Identity Platform is *not* enough to mint it, and granting
+# IAM to a not-yet-existent SA returns `Error 400: ... does not exist`.
+# `google_project_service_identity` triggers creation explicitly and
+# returns the email, which we then reference for the IAM grant.
+resource "google_project_service_identity" "gcip" {
+  count = var.wire_blocking_function ? 1 : 0
+
+  provider = google-beta
+  project  = var.project_id
+  service  = "identitytoolkit.googleapis.com"
+}
+
+# Without `roles/run.invoker` on the underlying Cloud Run v2 service the
+# trigger fires but receives a 403 and the sign-up succeeds without the
+# policy check — silently degrading to "no enforcement".
 resource "google_cloud_run_v2_service_iam_member" "gcip_invoker" {
   count = var.wire_blocking_function ? 1 : 0
 
@@ -28,9 +41,12 @@ resource "google_cloud_run_v2_service_iam_member" "gcip_invoker" {
   location = var.region
   name     = "enforcestudentemail" # Cloud Run v2 service name == lowercase function name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:service-${var.project_number}@gcp-sa-identitytoolkit.iam.gserviceaccount.com"
+  member   = "serviceAccount:${google_project_service_identity.gcip[0].email}"
 
-  depends_on = [data.google_cloudfunctions2_function.before_create]
+  depends_on = [
+    data.google_cloudfunctions2_function.before_create,
+    google_project_service_identity.gcip,
+  ]
 }
 
 resource "google_identity_platform_config" "default" {
