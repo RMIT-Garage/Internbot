@@ -167,12 +167,50 @@ Git-level, not Jira-level. Normal PR discipline:
 
 ## Merge Strategy
 
-| Direction                       | Strategy     | Why                             |
-| ------------------------------- | ------------ | ------------------------------- |
-| `feature/*` → `develop`         | Squash merge | Clean linear history on develop |
-| `release/*` → `main`            | Merge commit | Preserve release history        |
-| `hotfix/*` → `main`             | Merge commit | Preserve fix history            |
-| `main` → `develop` (back-merge) | Merge commit | Bring hotfix back to develop    |
+| Direction                       | Strategy            | Why                                         |
+| ------------------------------- | ------------------- | ------------------------------------------- |
+| `feature/*` → `develop`         | Squash merge        | Clean linear history on develop             |
+| `develop` → `main`              | Merge commit `--no-ff` | Preserve release marker; ancestry intact |
+| `release/*` → `main`            | Merge commit `--no-ff` | Preserve release history                 |
+| `hotfix/*` → `main`             | Merge commit `--no-ff` | Preserve fix history                     |
+| `hotfix/*` → `develop`          | Merge commit `--no-ff` | Don't squash — back-merges need it visible |
+| `main` → `develop` (back-merge) | Merge commit `--no-ff` | Bring release/hotfix into develop's ancestry |
+
+## Back-Merge Rule (mandatory after every main update)
+
+Every time `develop` → `main` or `hotfix/*` → `main` lands, `main` must be merged back into `develop` so develop's ancestry stays current with main's release commits. This is the rule that prevents long-running history drift — without it, develop and main accumulate independent histories and a future merge surfaces every conflict at once.
+
+**Automation**: `.github/workflows/back-merge.yml` runs on every push to `main`. It attempts a clean merge into `develop` and pushes; if conflicts surface, it opens a PR for manual resolution rather than silently failing. This means:
+
+- You never need to remember to back-merge.
+- Conflicts surface one release at a time (small, localised) instead of accumulating across dozens of commits.
+- The release flow becomes: develop → main → (auto) main → develop. Done.
+
+If the workflow opens a back-merge PR, treat it as priority — it's blocking the next release.
+
+## Release Cadence
+
+Promote `develop` → `main` on a **regular cadence**, not on accumulation. Pick one and stick with it:
+
+- **Phase-based**: every completed phase in `WORKFLOW-API-IMPLEMENTATION-PLAN.md` → release.
+- **Time-based**: every Sunday → release whatever is on develop.
+- **Count-based**: every 5–10 squash-merges on develop → release.
+
+Solo-dev GitFlow only works when releases are *frequent and small*. Letting develop accumulate 30+ commits before a release is the failure mode that produces enormous merge conflicts and stale Dependabot configs.
+
+## Main-First Files
+
+Some files are read by external systems from the **default branch only** (`main`). Editing them on `develop` causes silent drift — develop's version doesn't take effect until the next release. Treat these as *main-owned*: edits go on a `chore/<topic>` branch from main, PR straight to main, and the back-merge workflow propagates them to develop automatically.
+
+Current main-first files:
+
+| File                                | Read by               |
+| ----------------------------------- | --------------------- |
+| `.github/dependabot.yml`            | Dependabot            |
+| `.github/CODEOWNERS`                | GitHub review routing |
+| `.github/workflows/back-merge.yml`  | GitHub Actions on `push: main` |
+
+When in doubt: if the file is read by a default-branch-only mechanism (Dependabot, CodeQL default config, branch-protection-as-code, etc.), it goes here.
 
 ## Release Rule
 
