@@ -92,6 +92,7 @@ GitHub Secrets would only be for:
 | `_deploy-hosting.yml` | workflow_call                   | Reusable: build frontend static export + `firebase deploy --only hosting`                                                                                       |
 | `terraform-plan.yml`  | PR touching `infrastructure/**` | Plan against dev (+ prod if PR targets main). PR comment.                                                                                                       |
 | `_terraform.yml`      | workflow_call                   | Reusable: init + fmt + validate + plan/apply                                                                                                                    |
+| `back-merge.yml`      | push to main                    | Auto-merge `main` back into `develop` after every release. Opens a PR if conflicts. See `docs/GIT-WORKFLOW.md` § Back-Merge Rule.                              |
 
 ## Manual deployment
 
