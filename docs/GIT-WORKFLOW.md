@@ -167,13 +167,13 @@ Git-level, not Jira-level. Normal PR discipline:
 
 ## Merge Strategy
 
-| Direction                       | Strategy            | Why                                         |
-| ------------------------------- | ------------------- | ------------------------------------------- |
-| `feature/*` → `develop`         | Squash merge        | Clean linear history on develop             |
-| `develop` → `main`              | Merge commit `--no-ff` | Preserve release marker; ancestry intact |
-| `release/*` → `main`            | Merge commit `--no-ff` | Preserve release history                 |
-| `hotfix/*` → `main`             | Merge commit `--no-ff` | Preserve fix history                     |
-| `hotfix/*` → `develop`          | Merge commit `--no-ff` | Don't squash — back-merges need it visible |
+| Direction                       | Strategy               | Why                                          |
+| ------------------------------- | ---------------------- | -------------------------------------------- |
+| `feature/*` → `develop`         | Squash merge           | Clean linear history on develop              |
+| `develop` → `main`              | Merge commit `--no-ff` | Preserve release marker; ancestry intact     |
+| `release/*` → `main`            | Merge commit `--no-ff` | Preserve release history                     |
+| `hotfix/*` → `main`             | Merge commit `--no-ff` | Preserve fix history                         |
+| `hotfix/*` → `develop`          | Merge commit `--no-ff` | Don't squash — back-merges need it visible   |
 | `main` → `develop` (back-merge) | Merge commit `--no-ff` | Bring release/hotfix into develop's ancestry |
 
 ## Back-Merge Rule (after hotfixes only)
@@ -197,11 +197,16 @@ Promote `develop` → `main` on a **regular cadence**, not on accumulation. Pick
 - **Time-based**: every Sunday → release whatever is on develop.
 - **Count-based**: every 5–10 squash-merges on develop → release.
 
-Solo-dev GitFlow only works when releases are *frequent and small*. Letting develop accumulate 30+ commits before a release is the failure mode that produces enormous merge conflicts and stale Dependabot configs.
+Solo-dev GitFlow only works when releases are _frequent and small_. Letting develop accumulate 30+ commits before a release is the failure mode that produces enormous merge conflicts and stale Dependabot configs.
 
 ## Dependabot
 
 Dependabot reads `.github/dependabot.yml` from `main` only — that's a GitHub constraint, not a project decision. With `target-branch: develop` set in the config, version-update PRs are opened against `develop` (so they integrate with feature work and ride to main on the next release). Security-update PRs always target the default branch (`main`) and ignore `target-branch`.
+
+**Merging Dependabot PRs** — same rules as the merge strategy table:
+
+- **Version updates** (→ `develop`) — squash, like any feature PR.
+- **Security updates** (→ `main`) — treat as a hotfix: merge with `--no-ff`, then back-merge `main → develop`. Don't squash; that strips ancestry and re-creates the merge-base problem the strategy table exists to prevent.
 
 Edit `.github/dependabot.yml` on `develop` like any other file. The new config activates when the next `develop` → `main` release lands. The cadence rule above is what keeps that lag short — letting it sit for 30+ commits is what produced the stale-config / wrong-target-branch problem we hit at the IC-58 release.
 
