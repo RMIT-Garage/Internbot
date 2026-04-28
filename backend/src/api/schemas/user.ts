@@ -32,15 +32,28 @@ export type AuthSyncRequest = z.infer<typeof authSyncRequestSchema>
 
 const academicInfoRequestSchema = z
   .object({
-    programName: z.string().min(1),
+    programName: z
+      .string()
+      .min(1)
+      .meta({ example: 'Bachelor of Software Engineering (Professional)' }),
     programLevel: z.enum(programLevelValues),
-    unitsAttempted: z.number().nonnegative(),
-    creditUnitsEarned: z.number().nonnegative(),
-    gpa: z.number().min(0).max(4).meta({ description: 'GPA on the RMIT /4.0 scale.' }),
+    unitsAttempted: z.number().nonnegative().meta({ example: 192 }),
+    creditUnitsEarned: z.number().nonnegative().meta({ example: 168 }),
+    gpa: z
+      .number()
+      .min(0)
+      .max(4)
+      .meta({ example: 3.2, description: 'GPA on the RMIT /4.0 scale.' }),
     currentStudyLoad: z.enum(studyLoadValues),
     programStatus: z.enum(programStatusValues).optional(),
-    majors: z.array(z.string()).optional(),
-    minors: z.array(z.string()).optional(),
+    majors: z
+      .array(z.string())
+      .optional()
+      .meta({ example: ['Software Engineering'] }),
+    minors: z
+      .array(z.string())
+      .optional()
+      .meta({ example: ['Data Science'] }),
     notes: z.string().optional(),
   })
   .strict()
@@ -53,7 +66,7 @@ export const studentProfilePatchSchema = z
         'Same value as first-sync is a no-op; a different value returns 400 `immutable_field`.',
     }),
     programCode: z.string().min(1).optional().meta({ example: 'BP096' }),
-    phone: z.string().min(1).nullable().optional(),
+    phone: z.string().min(1).nullable().optional().meta({ example: '+61 4 1234 5678' }),
     academicInfo: academicInfoRequestSchema.nullable().optional().meta({
       description:
         'Replace the academic info block, or `null` to clear it (returns the profile to incomplete).',

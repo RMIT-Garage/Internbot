@@ -74,6 +74,7 @@ export const academicInfoResponseSchema = z
     currentStudyLoad: z.enum(studyLoadValues),
     notes: z.string().optional(),
     confirmedAt: z.string().datetime().nullable().meta({
+      example: '2026-04-05T03:14:12Z',
       description:
         'Set once at first profile-complete transition; not rewritten on subsequent edits.',
     }),
@@ -88,10 +89,15 @@ export const studentProfileResponseSchema = z
   .object({
     studentNumber: z.string().meta({ example: 's1234567' }),
     programCode: z.string().nullable().meta({ example: 'BP096' }),
-    phone: z.string().nullable(),
+    phone: z.string().nullable().meta({ example: '+61 4 1234 5678' }),
     academicInfo: academicInfoResponseSchema.nullable(),
-    semesterId: z.string().nullable().optional(),
-    semesterSelectedAt: z.string().datetime().nullable().optional(),
+    semesterId: z.string().nullable().optional().meta({ example: 'sem_aBc123XyZ' }),
+    semesterSelectedAt: z
+      .string()
+      .datetime()
+      .nullable()
+      .optional()
+      .meta({ example: '2026-04-05T03:14:12Z' }),
     profileStatus: z.enum(profileStatusValues),
   })
   .meta({
@@ -102,8 +108,8 @@ export type StudentProfileResponse = z.infer<typeof studentProfileResponseSchema
 
 const userResponseBase = z.object({
   id: z.string().meta({ example: 'usr_aBc123XyZ' }),
-  email: z.string().email(),
-  displayName: z.string().nullable(),
+  email: z.string().email().meta({ example: 's1234567@student.rmit.edu.au' }),
+  displayName: z.string().nullable().meta({ example: 'Alex Chen' }),
   status: z.enum(userStatusValues),
   onboardingStage: z.enum(onboardingStageValues),
 })

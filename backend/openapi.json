@@ -1461,6 +1461,7 @@
             "minLength": 1
           },
           "phone": {
+            "example": "+61 4 1234 5678",
             "anyOf": [
               {
                 "type": "string",
@@ -1490,7 +1491,8 @@
         "properties": {
           "programName": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "example": "Bachelor of Software Engineering (Professional)"
           },
           "programLevel": {
             "type": "string",
@@ -1498,16 +1500,19 @@
           },
           "unitsAttempted": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "example": 192
           },
           "creditUnitsEarned": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "example": 168
           },
           "gpa": {
             "type": "number",
             "minimum": 0,
             "maximum": 4,
+            "example": 3.2,
             "description": "GPA on the RMIT /4.0 scale."
           },
           "currentStudyLoad": {
@@ -1519,12 +1524,14 @@
             "enum": ["active_in_program", "completed", "discontinued"]
           },
           "majors": {
+            "example": ["Software Engineering"],
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "minors": {
+            "example": ["Data Science"],
             "type": "array",
             "items": {
               "type": "string"
@@ -1583,11 +1590,13 @@
             "enum": ["draft", "active", "archived"]
           },
           "enrolmentOpenAt": {
+            "example": "2026-01-15T00:00:00Z",
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "enrolmentCloseAt": {
+            "example": "2026-03-13T23:59:59Z",
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
@@ -1601,10 +1610,12 @@
         "type": "object",
         "properties": {
           "displayName": {
+            "example": "Semester 1 2026",
             "type": "string",
             "minLength": 1
           },
           "enrolmentOpenAt": {
+            "example": "2026-01-15T00:00:00Z",
             "anyOf": [
               {
                 "type": "string",
@@ -1617,6 +1628,7 @@
             ]
           },
           "enrolmentCloseAt": {
+            "example": "2026-03-13T23:59:59Z",
             "anyOf": [
               {
                 "type": "string",
@@ -1693,7 +1705,8 @@
           "email": {
             "type": "string",
             "format": "email",
-            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "example": "s1234567@student.rmit.edu.au"
           },
           "displayName": {
             "anyOf": [
@@ -1703,7 +1716,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "example": "Alex Chen"
           },
           "status": {
             "type": "string",
@@ -1774,7 +1788,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "example": "+61 4 1234 5678"
           },
           "academicInfo": {
             "anyOf": [
@@ -1787,6 +1802,7 @@
             ]
           },
           "semesterId": {
+            "example": "sem_aBc123XyZ",
             "anyOf": [
               {
                 "type": "string"
@@ -1797,6 +1813,7 @@
             ]
           },
           "semesterSelectedAt": {
+            "example": "2026-04-05T03:14:12Z",
             "anyOf": [
               {
                 "type": "string",
@@ -1875,6 +1892,7 @@
                 "type": "null"
               }
             ],
+            "example": "2026-04-05T03:14:12Z",
             "description": "Set once at first profile-complete transition; not rewritten on subsequent edits."
           }
         },
@@ -1900,7 +1918,8 @@
           "email": {
             "type": "string",
             "format": "email",
-            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "example": "s1234567@student.rmit.edu.au"
           },
           "displayName": {
             "anyOf": [
@@ -1910,7 +1929,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "example": "Alex Chen"
           },
           "status": {
             "type": "string",
@@ -2103,7 +2123,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "example": "2026-01-15T00:00:00Z"
           },
           "enrolmentCloseAt": {
             "anyOf": [
@@ -2115,17 +2136,20 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "example": "2026-03-13T23:59:59Z"
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
           }
         },
         "required": [
