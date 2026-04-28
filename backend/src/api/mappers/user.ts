@@ -5,13 +5,8 @@ import type {
   AcademicInfoPatch,
   UpdateUserProfileCommand,
 } from '../../application/commands/update-user-profile'
-import type { SyncUserCommand } from '../../application/commands/sync-user'
 import type { SelectSemesterCommand } from '../../application/commands/select-semester'
-import type {
-  AuthSyncRequest,
-  PatchUserRequest,
-  PutSemesterSelectionRequest,
-} from '../schemas/user'
+import type { PatchUserRequest, PutSemesterSelectionRequest } from '../schemas/user'
 import type {
   AcademicInfoResponse,
   StudentProfileResponse,
@@ -30,14 +25,6 @@ import { formatETag, parseIfMatch } from '../utils/etag'
  */
 
 // ------------------------------ request → command ------------------------------
-
-export function toSyncUserCommand(actor: RequestActor, body: AuthSyncRequest): SyncUserCommand {
-  return {
-    actor,
-    studentNumber: body.studentNumber,
-    displayName: body.displayName,
-  }
-}
 
 export function toSelectSemesterCommand(
   actor: RequestActor,

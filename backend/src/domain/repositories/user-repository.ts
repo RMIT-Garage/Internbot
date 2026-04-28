@@ -23,13 +23,14 @@ export interface UserRepository {
   findByIdentity(identity: UserIdentityLookup): Promise<User | null>
 
   /**
-   * Insert a freshly-constructed `User` aggregate. Used by `POST
-   * /auth/sync` on the first call. The aggregate must already carry a
-   * non-empty id (the application service mints it via `IdGenerator`
-   * before construction) and a populated `identity` VO. The implementation
-   * writes the user doc (with denormalised identity) and the slim
-   * `userIdentities/{key}` uniqueness sentinel atomically — identity
-   * uniqueness enforcement lives there, not in the handler.
+   * Insert a freshly-constructed `User` aggregate. Used by the auth-edge
+   * JIT bootstrap on first request from a verified student email. The
+   * aggregate must already carry a non-empty id (the application service
+   * mints it via `IdGenerator` before construction) and a populated
+   * `identity` VO. The implementation writes the user doc (with
+   * denormalised identity) and the slim `userIdentities/{key}` uniqueness
+   * sentinel atomically — identity uniqueness enforcement lives there,
+   * not in the handler.
    */
   create(user: User): Promise<void>
 

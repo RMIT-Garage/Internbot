@@ -11,10 +11,6 @@
       "description": "Public health probe."
     },
     {
-      "name": "Authentication",
-      "description": "Firebase identity sync."
-    },
-    {
       "name": "Users",
       "description": "Platform user records."
     },
@@ -44,107 +40,11 @@
         }
       }
     },
-    "/api/v1/auth/sync": {
-      "post": {
-        "operationId": "authSync",
-        "summary": "Verify Firebase identity and return/create the platform user",
-        "description": "On first call for a given Firebase identity creates a `users/{id}` document, creates a `userIdentities` mapping, sets `role: student`, and writes Firebase custom claims `{ platformUserId, role }`. Subsequent calls are idempotent. See WORKFLOW-API-SPEC.md §7.1.",
-        "tags": ["Authentication"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthSyncRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Subsequent sync — the existing user is returned.",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "First sync — a new users/{id} document was created. Response includes `Location: /api/v1/users/{id}` and the full user body.",
-            "headers": {
-              "Location": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Canonical URL for the new user"
-              },
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Opaque version token"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request — malformed body.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid Firebase ID token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "First-time sync missing the required `studentNumber`.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/users/me": {
       "get": {
         "operationId": "getMyProfile",
         "summary": "Return the caller's own platform user record",
-        "description": "Resolves to the caller's platform user from the decoded token's `platformUserId` claim. Returns 401 when the caller has not yet called `POST /auth/sync`. See WORKFLOW-API-SPEC.md §7.2.",
+        "description": "Resolves to the caller's platform user. The auth middleware hydrates identity from Firestore and JIT-creates the record on first call from a verified RMIT student email. Returns 403 `no_platform_user` when JIT cannot run (unverified email, non-student-shape email, or unprovisioned coordinator). See WORKFLOW-API-SPEC.md §7.2.",
         "tags": ["Users"],
         "security": [
           {
@@ -982,7 +882,7 @@
             }
           },
           "403": {
-            "description": "Caller has no platform user record (must call POST /auth/sync first).",
+            "description": "Caller has no platform user record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1142,7 +1042,7 @@
             }
           },
           "403": {
-            "description": "Caller has no platform user record (must call POST /auth/sync first).",
+            "description": "Caller has no platform user record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1418,24 +1318,6 @@
   },
   "components": {
     "schemas": {
-      "AuthSyncRequest": {
-        "type": "object",
-        "properties": {
-          "studentNumber": {
-            "example": "s1234567",
-            "description": "Required on the first call (creates the student profile). Immutable after first-set; ignored on subsequent calls.",
-            "type": "string",
-            "minLength": 1
-          },
-          "displayName": {
-            "example": "Alex Chen",
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "additionalProperties": false,
-        "description": "Body for POST /api/v1/auth/sync. All fields optional on repeat calls."
-      },
       "PatchUserRequest": {
         "type": "object",
         "properties": {
@@ -2148,7 +2030,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "Firebase ID token",
-        "description": "Firebase ID token obtained client-side. Platform identity (`platformUserId`, `role`) is read from custom claims; see docs/WORKFLOW-API-SPEC.md §7.0."
+        "description": "Firebase ID token obtained client-side. Platform identity is hydrated at the api edge from `userIdentities/{provider}__{uid}` → `users/{id}` on every request; on a brand-new student-shape email the hydrator JIT-creates the platform record in the same transaction. See docs/WORKFLOW-API-SPEC.md §7.0."
       }
     }
   }

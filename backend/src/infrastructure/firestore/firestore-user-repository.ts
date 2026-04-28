@@ -359,10 +359,10 @@ export class FirestoreUserRepository implements UserRepository {
   }
 
   /**
-   * Insert a freshly-constructed aggregate. Called by `POST /auth/sync`
-   * on first-sync. The aggregate must already carry a non-empty id
-   * (obtained via `nextIdentity()` before construction — see Vernon IDDD
-   * ch. 5) and a populated `identity` VO.
+   * Insert a freshly-constructed aggregate. Called from the auth-edge JIT
+   * bootstrap on first request from a verified student email. The aggregate
+   * must already carry a non-empty id (obtained via `nextIdentity()` before
+   * construction — see Vernon IDDD ch. 5) and a populated `identity` VO.
    *
    * Writes two docs atomically inside the txn:
    *   1. `users/{id}` — full aggregate including denormalised identity.

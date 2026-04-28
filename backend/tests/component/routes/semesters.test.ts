@@ -16,7 +16,10 @@ import {
   trackDoc,
   mintEmulatorIdToken,
 } from '../../setup.emulator'
-import { adminAuth, adminDb } from '../../../src/infrastructure/config/firebase-admin'
+import { adminDb } from '../../../src/infrastructure/config/firebase-admin'
+import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
+import { User } from '../../../src/domain/entities/user'
+import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
 
 function uniqueSemesterCode(): string {
   return `2026-S${randomUUID()
@@ -28,13 +31,48 @@ function uniqueCourseCode(): string {
   return `INTE${Math.floor(Math.random() * 9000 + 1000)}`
 }
 
+async function provisionUser(
+  role: 'student' | 'coordinator',
+  email: string,
+  platformUserId: string,
+  firebaseUid: string
+): Promise<void> {
+  // Pattern B: identity is read from Firestore at the edge. Tests pre-seed
+  // both `users/{id}` and the `userIdentities/{provider}__{uid}` sentinel
+  // atomically so the auth middleware's hydrator resolves the caller in one
+  // lookup and never enters the JIT branch.
+  const uow = new FirestoreUnitOfWork()
+  await uow.execute(async (ctx) => {
+    const now = new Date()
+    const user = User.create({
+      id: platformUserId,
+      version: 0,
+      email,
+      role,
+      status: 'active',
+      onboardingStage: 'profile_complete',
+      identity: UserIdentity.create({
+        provider: 'firebase',
+        providerUserId: firebaseUid,
+        emailSnapshot: email,
+      }),
+      createdAt: now,
+      updatedAt: now,
+      displayName: undefined,
+      studentProfile: undefined,
+    })
+    await ctx.users.create(user)
+  })
+  trackDoc('users', platformUserId)
+}
+
 async function makeCoordinator() {
   const firebaseUid = `fb_${randomUUID()}`
   const email = `coord_${randomUUID().slice(0, 6)}@rmit.edu.au`
   const platformUserId = `usr_coord_${randomUUID()}`
-  await adminAuth.createUser({ uid: firebaseUid, email })
-  await adminAuth.setCustomUserClaims(firebaseUid, { platformUserId, role: 'coordinator' })
+  // mintEmulatorIdToken creates the Firebase Auth user with emailVerified=true.
   const idToken = await mintEmulatorIdToken(firebaseUid, email)
+  await provisionUser('coordinator', email, platformUserId, firebaseUid)
   return { firebaseUid, email, platformUserId, idToken }
 }
 
@@ -42,9 +80,8 @@ async function makeStudent() {
   const firebaseUid = `fb_${randomUUID()}`
   const email = `student_${randomUUID().slice(0, 6)}@student.rmit.edu.au`
   const platformUserId = `usr_student_${randomUUID()}`
-  await adminAuth.createUser({ uid: firebaseUid, email })
-  await adminAuth.setCustomUserClaims(firebaseUid, { platformUserId, role: 'student' })
   const idToken = await mintEmulatorIdToken(firebaseUid, email)
+  await provisionUser('student', email, platformUserId, firebaseUid)
   return { firebaseUid, email, platformUserId, idToken }
 }
 

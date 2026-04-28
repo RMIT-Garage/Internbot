@@ -47,8 +47,17 @@ module "firestore" {
 }
 
 module "auth" {
-  source     = "./modules/auth"
-  project_id = var.project_id
+  source         = "./modules/auth"
+  project_id     = var.project_id
+  project_number = data.google_project.this.number
+  region         = var.region
+
+  # GCIP beforeCreate blocking function — gates Firebase Auth sign-ups at the
+  # IdP layer. Leave `false` on first apply (default); deploy the function
+  # with `firebase deploy --only functions:enforceStudentEmail`, then flip
+  # to `true` in the env tfvars and re-apply. Terraform discovers the
+  # function URL via a data source, so no manual URL hand-off.
+  wire_blocking_function = var.wire_blocking_function
 
   depends_on = [module.firebase_project]
 }

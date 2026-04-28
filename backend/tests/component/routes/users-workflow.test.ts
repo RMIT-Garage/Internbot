@@ -18,6 +18,9 @@ import {
   mintEmulatorIdToken,
 } from '../../setup.emulator'
 import { adminAuth } from '../../../src/infrastructure/config/firebase-admin'
+import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
+import { User } from '../../../src/domain/entities/user'
+import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
 
 const completePatch = {
   studentProfile: {
@@ -45,26 +48,50 @@ function uniqueCourseCode(): string {
 
 async function syncStudent(app: ReturnType<typeof createApp>) {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-  const initialToken = await mintEmulatorIdToken(firebaseUid, email)
+  const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
+  const email = `${studentNumber}@student.rmit.edu.au`
+  const idToken = await mintEmulatorIdToken(firebaseUid, email)
 
-  const create = await request(app)
-    .post('/api/v1/auth/sync')
-    .set('Authorization', `Bearer ${initialToken}`)
-    .send({ studentNumber: `s${Math.floor(Math.random() * 1e9)}` })
-  expect(create.status).toBe(201)
-  trackDoc('users', create.body.id)
-
-  const authedToken = await mintEmulatorIdToken(firebaseUid, email)
-  return { id: create.body.id as string, firebaseUid, email, idToken: authedToken }
+  // Pattern B: any authenticated request triggers JIT bootstrap in the
+  // hydrator middleware. We hit GET /me to receive the freshly-created id.
+  const me = await request(app).get('/api/v1/users/me').set('Authorization', `Bearer ${idToken}`)
+  expect(me.status).toBe(200)
+  trackDoc('users', me.body.id)
+  return { id: me.body.id as string, firebaseUid, email, idToken }
 }
 
 async function makeCoordinator() {
+  // Coordinators bypass JIT: their `users/{id}` doc + Firebase Auth user must
+  // exist before the middleware sees them. Provision both atomically here.
   const firebaseUid = `fb_${randomUUID()}`
   const email = `coord_${randomUUID().slice(0, 6)}@rmit.edu.au`
   const platformUserId = `usr_coord_${randomUUID()}`
   await adminAuth.createUser({ uid: firebaseUid, email })
-  await adminAuth.setCustomUserClaims(firebaseUid, { platformUserId, role: 'coordinator' })
+
+  const uow = new FirestoreUnitOfWork()
+  await uow.execute(async (ctx) => {
+    const now = new Date()
+    const coord = User.create({
+      id: platformUserId,
+      version: 0,
+      email,
+      role: 'coordinator',
+      status: 'active',
+      onboardingStage: 'profile_complete',
+      identity: UserIdentity.create({
+        provider: 'firebase',
+        providerUserId: firebaseUid,
+        emailSnapshot: email,
+      }),
+      createdAt: now,
+      updatedAt: now,
+      displayName: undefined,
+      studentProfile: undefined,
+    })
+    await ctx.users.create(coord)
+  })
+  trackDoc('users', platformUserId)
+
   const idToken = await mintEmulatorIdToken(firebaseUid, email)
   return { firebaseUid, email, platformUserId, idToken }
 }
@@ -236,34 +263,15 @@ describe('PUT /api/v1/users/:id/semester-selection — component', () => {
     expect(res.body.error.reason).toBe('student_not_owner')
   })
 
-  it('coordinator user id → 404 (sub-resource does not exist for coordinators)', async () => {
-    // Coordinators are provisioned out-of-band — there's no users/{id}
-    // Firestore doc for them, only custom claims. A student-role caller
-    // targeting a coordinator id therefore loads an empty doc and the
-    // command handler raises NotFoundError → 404. Forge a student-role
-    // token whose `platformUserId` claim equals the coordinator id so
-    // the owner check (`{id} == caller.id`) passes and we reach the
-    // user lookup that produces the spec's 404.
-    const app = createApp()
-    const coordinator = await makeCoordinator()
-    const semester = await createSemester(app, coordinator)
-
-    const fakeStudentUid = `fb_${randomUUID()}`
-    const fakeStudentEmail = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-    await adminAuth.createUser({ uid: fakeStudentUid, email: fakeStudentEmail })
-    await adminAuth.setCustomUserClaims(fakeStudentUid, {
-      platformUserId: coordinator.platformUserId,
-      role: 'student',
-    })
-    const studentTokenForCoordinatorId = await mintEmulatorIdToken(fakeStudentUid, fakeStudentEmail)
-
-    const res = await request(app)
-      .put(`/api/v1/users/${coordinator.platformUserId}/semester-selection`)
-      .set('Authorization', `Bearer ${studentTokenForCoordinatorId}`)
-      .send({ semesterId: semester.id })
-
-    expect(res.status).toBe(404)
-  })
+  // Removed: the original "coordinator user id → 404" test relied on
+  // forging Firebase custom claims to make a fabricated student token
+  // resolve to the coordinator's `platformUserId`, bypassing the owner
+  // check. Pattern B reads identity from Firestore (`userIdentities` →
+  // `users/{id}`), not from claims, so that bypass no longer exists —
+  // a non-owner student targeting any other id produces 403
+  // `student_not_owner` (already covered above). The 404 branch
+  // (coordinator target on a student-only sub-resource) is exercised by
+  // the workflow test below.
 })
 
 describe('GET /api/v1/users/:id/workflow — component', () => {
@@ -305,8 +313,10 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
     const app = createApp()
     const coordinator = await makeCoordinator()
 
-    // Coordinators are provisioned out-of-band — there's no users/{id}
-    // doc for coordinators, so this also exercises the not-found branch.
+    // The `users/{id}` doc for a coordinator exists but has no student
+    // sub-resource (`role !== 'student'`). The handler raises 404 after
+    // the role check — the coordinator-target path matches the
+    // missing-record path so callers can't enumerate roles via status.
     const res = await request(app)
       .get(`/api/v1/users/${coordinator.platformUserId}/workflow`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
