@@ -55,6 +55,17 @@ jobs:
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.deploy_service_account }}
 
+      # Identity Platform password policy lives outside Terraform
+      # (`google_identity_platform_config` does not surface
+      # `password_policy_config`). Re-asserting on every deploy keeps the
+      # policy declarative-by-execution; the script is idempotent and uses
+      # the ADC file written by the auth step above.
+      - name: Apply Identity Platform password policy
+        env:
+          FIREBASE_PROJECT_ID: ${{ inputs.firebase_project_id }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+        run: pnpm --filter backend run auth:configure-password-policy
+
       - name: Deploy to Firebase
         # Pinned firebase-tools major version for deterministic CI runs.
         # Uses root firebase.json (functions-only config). The emulator has its

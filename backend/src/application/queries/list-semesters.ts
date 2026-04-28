@@ -37,10 +37,7 @@ export class ListSemestersQueryHandler {
     q: ListSemestersQuery
   ): Promise<SemesterListResult & { cursor: SemesterListCursor | null }> {
     if (!q.actor.platformUser) {
-      throw new ForbiddenError(
-        'Caller has no platform user record. Call POST /api/v1/auth/sync first.',
-        'no_platform_user'
-      )
+      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
     }
 
     return this.uow.execute(async (ctx) => {

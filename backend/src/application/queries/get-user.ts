@@ -24,10 +24,7 @@ export class GetUserQueryHandler {
   async handle(q: GetUserQuery): Promise<UserResult> {
     const platformUser = q.actor.platformUser
     if (!platformUser) {
-      throw new ForbiddenError(
-        'Caller has no platform user record. Call POST /api/v1/auth/sync first.',
-        'no_platform_user'
-      )
+      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
     }
 
     if (platformUser.role === 'student' && platformUser.id !== q.userId) {

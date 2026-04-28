@@ -1,10 +1,10 @@
 import { vi } from 'vitest'
 import type { RequestActor, PlatformUser } from '../src/application/actor'
-import type { VerifyToken } from '../src/api/auth/firebase-token-verifier'
+import type { VerifyToken, VerifiedIdpToken } from '../src/api/auth/firebase-token-verifier'
+import type { HydrateInput, HydratePlatformUser } from '../src/api/auth/platform-user-hydrator'
 import type { UnitOfWork, UnitOfWorkContext } from '../src/application/ports/unit-of-work'
 import type { UserRepository } from '../src/domain/repositories/user-repository'
 import type { SemesterRepository } from '../src/domain/repositories/semester-repository'
-import type { PlatformClaimsService } from '../src/application/ports/platform-claims-service'
 import type { IdGenerator } from '../src/application/ports/id-generator'
 
 // Prevent Firebase Admin from initializing during unit tests. createApp()
@@ -12,7 +12,7 @@ import type { IdGenerator } from '../src/application/ports/id-generator'
 // the module is imported at load time — this stub keeps that load cheap.
 vi.mock('../src/infrastructure/config/firebase-admin', () => ({
   adminApp: {},
-  adminAuth: { verifyIdToken: vi.fn(), setCustomUserClaims: vi.fn() },
+  adminAuth: { verifyIdToken: vi.fn() },
   adminDb: { collection: vi.fn(), runTransaction: vi.fn() },
   adminStorage: { bucket: vi.fn() },
   FieldValue: { serverTimestamp: vi.fn(() => '__SERVER_TS__') },
@@ -20,9 +20,9 @@ vi.mock('../src/infrastructure/config/firebase-admin', () => ({
 }))
 
 /**
- * Build a RequestActor for tests. Default is pre-sync (no platform user) —
- * only POST /auth/sync is legal. Pass `{ platformUser: { id, role } }` to
- * simulate an authenticated, synced caller.
+ * Build a RequestActor for tests. Default has no platform user; pass
+ * `{ platformUser: { id, role } }` to simulate an authenticated caller whose
+ * JIT bootstrap (or admin provisioning) has already produced a `users/{id}`.
  */
 export function buildRequestActor(overrides: Partial<RequestActor> = {}): RequestActor {
   return {
@@ -38,19 +38,24 @@ export function buildPlatformUser(overrides: Partial<PlatformUser> = {}): Platfo
 }
 
 /**
- * Mock token verifier — default rejects (unauthenticated).
- *   vi.mocked(mockVerifyToken).mockResolvedValue(buildRequestActor({ platformUser: ... }))
+ * Mock token verifier — default rejects (unauthenticated). Returns the
+ * Pattern B `VerifiedIdpToken` shape; platform identity is hydrated by the
+ * middleware via `mockHydratePlatformUser`.
+ *   vi.mocked(mockVerifyToken).mockResolvedValue({ firebaseUid: 'fb', email: 'a@b' })
  */
 export const mockVerifyToken: VerifyToken = vi
-  .fn<(token: string) => Promise<RequestActor>>()
+  .fn<(token: string) => Promise<VerifiedIdpToken>>()
   .mockRejectedValue(new Error('No token configured for this test'))
 
 /**
- * Mock PlatformClaimsService — `set` no-ops by default.
+ * Mock platform-user hydrator — default returns null (caller has no
+ * platform record and JIT didn't fire — e.g. non-student email). Override
+ * in tests:
+ *   vi.mocked(mockHydratePlatformUser).mockResolvedValue({ id, role })
  */
-export const mockPlatformClaimsService: PlatformClaimsService = {
-  set: vi.fn().mockResolvedValue(undefined),
-}
+export const mockHydratePlatformUser: HydratePlatformUser = vi
+  .fn<(input: HydrateInput) => Promise<PlatformUser | null>>()
+  .mockResolvedValue(null)
 
 /**
  * Mock IdGenerator — yields predictable counter-based ids `id_test_001`,

@@ -30,10 +30,7 @@ export class GetUserWorkflowQueryHandler {
   async handle(q: GetUserWorkflowQuery): Promise<UserWorkflowResult> {
     const platformUser = q.actor.platformUser
     if (!platformUser) {
-      throw new ForbiddenError(
-        'Caller has no platform user record. Call POST /api/v1/auth/sync first.',
-        'no_platform_user'
-      )
+      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
     }
     if (platformUser.role === 'student' && platformUser.id !== q.userId) {
       throw new ForbiddenError('Students may only read their own workflow', 'student_not_owner')

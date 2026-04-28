@@ -59,7 +59,7 @@ export const listSemestersOperation: ZodOpenApiOperationObject = {
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     '403': {
-      description: 'Caller has no platform user record (must call POST /auth/sync first).',
+      description: 'Caller has no platform user record.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },
@@ -84,7 +84,7 @@ export const getSemesterOperation: ZodOpenApiOperationObject = {
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     '403': {
-      description: 'Caller has no platform user record (must call POST /auth/sync first).',
+      description: 'Caller has no platform user record.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     '404': {

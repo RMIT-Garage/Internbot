@@ -2,9 +2,8 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { UpdateUserProfileCommandHandler } from '../../../../src/application/commands/update-user-profile'
 import { GetUserQueryHandler } from '../../../../src/application/queries/get-user'
-import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
+import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
-import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
@@ -26,21 +25,14 @@ const completeAcademicInfo = {
 
 async function seedStudent(): Promise<{ id: string; firebaseUid: string; studentNumber: string }> {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-  await ensureFirebaseUser(firebaseUid, email)
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
-  const sync = new SyncUserCommandHandler(
-    new FirestoreUnitOfWork(),
-    new FirebasePlatformClaimsService(),
-    firestoreIdGenerator
-  )
-  const { id } = await sync.handle({
-    actor: { firebaseUid, email, platformUser: null },
-    studentNumber,
-    displayName: undefined,
-  })
-  trackDoc('users', id)
-  return { id, firebaseUid, studentNumber }
+  const email = `${studentNumber}@student.rmit.edu.au`
+  await ensureFirebaseUser(firebaseUid, email)
+  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
+  if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
+  trackDoc('users', platformUser.id)
+  return { id: platformUser.id, firebaseUid, studentNumber }
 }
 
 function actorFor(id: string, role: 'student' | 'coordinator'): RequestActor {

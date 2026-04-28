@@ -38,10 +38,7 @@ export class UpdateSemesterCommandHandler {
   async handle(cmd: UpdateSemesterCommand): Promise<UpdateSemesterResult> {
     const platformUser = cmd.actor.platformUser
     if (!platformUser) {
-      throw new ForbiddenError(
-        'Caller has no platform user record. Call POST /api/v1/auth/sync first.',
-        'no_platform_user'
-      )
+      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
     }
     if (platformUser.role !== 'coordinator') {
       throw new ForbiddenError('Only coordinators may update semesters', 'role_restricted_action')

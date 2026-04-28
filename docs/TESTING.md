@@ -55,8 +55,7 @@ Infrastructure layer against the real Firestore emulator. These catch Firestore-
 
 Black-box HTTP against `createApp()` with real Firestore + Firebase Auth emulators. The definitive "this endpoint meets the spec" test.
 
-- `tests/component/routes/auth.test.ts` — POST /auth/sync: first call (creates doc + sets claims), repeat call, missing studentNumber, concurrent first-call race
-- `tests/component/routes/users.test.ts` — GET /users/:id, PATCH /users/:id, all Success-criteria and Bug-finding bullets from the phase
+- `tests/component/routes/users.test.ts` — JIT bootstrap on first authenticated request (GET /users/me triggers it via the hydrator middleware), GET /users/:id, PATCH /users/:id, derived `studentNumber` from RMIT email, no `firebaseUid` leaked, concurrent first-request race resolves to a single user record
 
 **One `it(...)` per bullet** in the governing phase's `Success criteria` + `Bug-finding cases` in `docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md`. This is the **definitive** contract check.
 

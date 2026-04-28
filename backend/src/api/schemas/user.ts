@@ -13,23 +13,6 @@ import {
  * the same Zod object drives runtime validation + the published spec.
  */
 
-export const authSyncRequestSchema = z
-  .object({
-    studentNumber: z.string().trim().min(1).optional().meta({
-      example: 's1234567',
-      description:
-        'Required on the first call (creates the student profile). Immutable after first-set; ignored on subsequent calls.',
-    }),
-    displayName: z.string().trim().min(1).optional().meta({ example: 'Alex Chen' }),
-  })
-  .strict()
-  .meta({
-    id: 'AuthSyncRequest',
-    description: 'Body for POST /api/v1/auth/sync. All fields optional on repeat calls.',
-  })
-
-export type AuthSyncRequest = z.infer<typeof authSyncRequestSchema>
-
 const academicInfoRequestSchema = z
   .object({
     programName: z

@@ -53,6 +53,26 @@ variable "github_allowed_refs" {
   default     = []
 }
 
+variable "wire_blocking_function" {
+  description = <<-EOT
+    Wire the GCIP `beforeCreate` blocking function (`enforceStudentEmail`
+    from `backend/src/index.ts`) that rejects sign-ups whose email isn't
+    an RMIT student email.
+
+    Bootstrap order for a fresh environment:
+      1. First apply with `wire_blocking_function = false` (default) —
+         upgrades the project to Identity Platform; trigger unwired.
+      2. Deploy the function:
+           firebase deploy --only functions:enforceStudentEmail
+      3. Set `wire_blocking_function = true` in the env tfvars and re-apply.
+         Terraform discovers the function URL via a data source and grants
+         `roles/run.invoker` to the GCIP service agent — no manual
+         URL hand-off, idempotent on subsequent code deploys.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "deploy_sa_roles" {
   description = "IAM roles granted to the github-deploy service account"
   type        = list(string)

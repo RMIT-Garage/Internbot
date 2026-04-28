@@ -250,14 +250,16 @@ export interface UserRepository {
 
 ---
 
-## Authentication — Firebase custom claims
+## Authentication — edge hydration with JIT bootstrap (Pattern B)
 
-Identity is resolved from the ID token itself. No per-request Firestore lookup:
+Identity is hydrated from Firestore at the api edge on every request. No JWT custom claims, no client handshake. The flow:
 
-1. First `POST /auth/sync` creates `users/{id}`, creates `userIdentities/firebase__{uid}`, and calls `adminAuth.setCustomUserClaims(uid, { platformUserId, role })`.
-2. Client forces `user.getIdToken(true)` to refresh the token and pick up claims.
-3. Subsequent requests: `verifyFirebaseToken` reads `platformUserId` + `role` from decoded token claims and builds `RequestActor`.
-4. Routes that require a synced user check `actor.platformUser !== null` inside the CQRS handler. Only `POST /auth/sync` may run with `platformUser === null`.
+1. `verifyFirebaseToken` decodes the IdP-attested token and returns `{ firebaseUid, email }` only.
+2. `createPlatformUserHydrator(uow, idGenerator)` runs a transactional lookup of `userIdentities/firebase__{uid}` → `users/{id}`. If found, returns `{ id, role }`.
+3. **JIT bootstrap (students only):** if not found and the email is RMIT-student-shape (`s\d+@student.rmit.edu.au`), the hydrator creates the `users/{id}` aggregate (with derived `studentNumber` + initial `studentProfile`) plus the `userIdentities` sentinel in the same transaction. Coordinators are admin-provisioned (Auth user + Firestore doc together) so they reach this hydrator already-hydrated and never trigger the JIT branch.
+4. `createAuthMiddleware` assembles `actor = { firebaseUid, email, platformUser }` on the request. Routes whose handlers require a synced user check `actor.platformUser !== null` inline; null at this stage means email shape couldn't drive the JIT (auth provider drift) — treat as 403.
+
+Email-domain enforcement lives at the IdP boundary (`enforceStudentEmail` GCIP `beforeUserCreated` blocking function, see `backend/src/index.ts`), not in the application layer. The hydrator's regex check is a system-invariant guard, not a policy gate.
 
 ---
 

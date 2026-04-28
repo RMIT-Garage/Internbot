@@ -21,7 +21,8 @@
     "test:component:watch": "vitest --project component",
     "test:coverage": "vitest run --coverage",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
-    "openapi:check": "tsx scripts/generate-openapi.ts && git diff --exit-code openapi.json"
+    "openapi:check": "tsx scripts/generate-openapi.ts && git diff --exit-code openapi.json",
+    "auth:configure-password-policy": "tsx scripts/configure-password-policy.ts"
   },
   "engines": {
     "node": "22"

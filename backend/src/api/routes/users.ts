@@ -53,7 +53,7 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
           new ApiError(
             403,
             'Forbidden',
-            'Cannot resolve `me`: caller has no platform user record. Call POST /api/v1/auth/sync first.',
+            'Cannot resolve `me`: caller has no platform user record.',
             { reason: 'no_platform_user' }
           )
         )
@@ -92,7 +92,7 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
           new ApiError(
             403,
             'Forbidden',
-            'Cannot resolve `me`: caller has no platform user record. Call POST /api/v1/auth/sync first.',
+            'Cannot resolve `me`: caller has no platform user record.',
             { reason: 'no_platform_user' }
           )
         )
@@ -181,7 +181,7 @@ function unsyncedError(): ApiError {
   return new ApiError(
     403,
     'Forbidden',
-    'Cannot resolve `me`: caller has no platform user record. Call POST /api/v1/auth/sync first.',
+    'Cannot resolve `me`: caller has no platform user record.',
     { reason: 'no_platform_user' }
   )
 }

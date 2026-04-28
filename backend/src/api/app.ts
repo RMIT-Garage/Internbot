@@ -8,17 +8,16 @@ import { healthRouter } from './routes/health'
 import { createApiRouter } from './routes'
 import { createOpenapiRouter } from './routes/openapi'
 import { verifyFirebaseToken, type VerifyToken } from './auth/firebase-token-verifier'
-import { firebasePlatformClaimsService } from '../infrastructure/services/firebase-platform-claims-service'
+import { createPlatformUserHydrator, type HydratePlatformUser } from './auth/platform-user-hydrator'
 import { firestoreUnitOfWork } from '../infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../infrastructure/firestore/firestore-id-generator'
 import type { UnitOfWork } from '../application/ports/unit-of-work'
-import type { PlatformClaimsService } from '../application/ports/platform-claims-service'
 import type { IdGenerator } from '../application/ports/id-generator'
 
 export interface AppOptions {
   verifyToken?: VerifyToken
+  hydratePlatformUser?: HydratePlatformUser
   uow?: UnitOfWork
-  platformClaimsService?: PlatformClaimsService
   idGenerator?: IdGenerator
 }
 
@@ -43,19 +42,19 @@ const globalLimiter = rateLimit({
 /**
  * Express app factory — composition root.
  *
- * Production defaults: Firebase token verifier, Firestore UoW, Firebase claims
- * service, Firestore id generator. Tests inject mocks:
- *   createApp({ verifyToken, uow, platformClaimsService, idGenerator })
+ * Production defaults: Firebase token verifier + Firestore-backed platform-user
+ * hydrator (Pattern B: identity resolved at the edge on every request, not
+ * read from custom claims). Tests inject mocks via `AppOptions`.
  */
-export function createApp({
-  verifyToken = verifyFirebaseToken,
-  uow = firestoreUnitOfWork,
-  platformClaimsService = firebasePlatformClaimsService,
-  idGenerator = firestoreIdGenerator,
-}: AppOptions = {}): Express {
-  const app = express()
+export function createApp(options: AppOptions = {}): Express {
+  const uow = options.uow ?? firestoreUnitOfWork
+  const idGenerator = options.idGenerator ?? firestoreIdGenerator
+  const verifyToken = options.verifyToken ?? verifyFirebaseToken
+  const hydratePlatformUser =
+    options.hydratePlatformUser ?? createPlatformUserHydrator(uow, idGenerator)
 
-  const authMiddleware = createAuthMiddleware(verifyToken)
+  const app = express()
+  const authMiddleware = createAuthMiddleware(verifyToken, hydratePlatformUser)
 
   app.use(helmet())
   app.use(cors({ origin: process.env.CORS_ORIGIN ?? false }))
@@ -68,7 +67,7 @@ export function createApp({
   app.use('/api', createOpenapiRouter()) // /api/openapi.json + /api/docs
 
   // Protected routes — Firebase ID token required
-  app.use('/api/v1', authMiddleware, createApiRouter({ uow, platformClaimsService, idGenerator }))
+  app.use('/api/v1', authMiddleware, createApiRouter({ uow, idGenerator }))
 
   // 404 handler for unmatched paths
   app.use((_req, res) => {
