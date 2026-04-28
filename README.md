@@ -285,7 +285,7 @@ Security is enforced in layers — each is independent:
 | API | Zod input validation with `.strict()`, actor-based access control |
 | Data | Firestore rules — default deny, field allowlists, soft-delete guard |
 | CI | gitleaks action + `pnpm audit --audit-level=high` on every PR |
-| Dependencies | Dependabot weekly PRs for backend, frontend, and Actions |
+| Dependencies | Dependabot weekly PRs for the root pnpm workspace and Actions |
 
 See [docs/SECURITY.md](docs/SECURITY.md) for the full reference.
 

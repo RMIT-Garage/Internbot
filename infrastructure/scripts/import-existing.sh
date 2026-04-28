@@ -59,6 +59,11 @@ for role in "${roles[@]}"; do
     "$project $role serviceAccount:github-deploy@$project.iam.gserviceaccount.com"
 done
 
+# Default Firebase Hosting site — auto-created when Firebase Hosting is enabled.
+# site_id equals project_id for the default site.
+terraform import -var-file="envs/$env.tfvars" "module.hosting.google_firebase_hosting_site.default" \
+  "projects/$project/sites/$project" || echo "  (hosting site may not exist yet — safe to skip on fresh project)"
+
 echo ""
 echo "Import complete. Run 'terraform plan' — it should show additions for the"
 echo "new planner SA + ref-scoped deploy WIF binding + firestore/storage rules."

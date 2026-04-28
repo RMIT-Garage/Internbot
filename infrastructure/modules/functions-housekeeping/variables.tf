@@ -3,6 +3,11 @@ variable "project_id" {
   type        = string
 }
 
+variable "project_number" {
+  description = "Numeric GCP project number used in Firebase-managed Cloud Functions source bucket names"
+  type        = string
+}
+
 variable "region" {
   description = "Region the functions deploy to (matches Cloud Function region)"
   type        = string

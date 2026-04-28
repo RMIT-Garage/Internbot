@@ -1,12 +1,9 @@
-import type { Metadata } from 'next'
-import { getServerSession } from '@/actions/auth.actions'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Profile',
-}
+import { useAuth } from '@/hooks/useAuth'
 
-export default async function ProfilePage() {
-  const session = await getServerSession()
+export default function ProfilePage() {
+  const { user } = useAuth()
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -18,11 +15,11 @@ export default async function ProfilePage() {
       <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Email</p>
-          <p className="mt-1 text-sm">{session?.email ?? '—'}</p>
+          <p className="mt-1 text-sm">{user?.email ?? '—'}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">User ID</p>
-          <p className="mt-1 font-mono text-sm text-zinc-500">{session?.uid ?? '—'}</p>
+          <p className="mt-1 font-mono text-sm text-zinc-500">{user?.uid ?? '—'}</p>
         </div>
       </div>
     </div>

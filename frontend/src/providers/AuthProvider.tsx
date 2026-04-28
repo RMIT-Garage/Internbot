@@ -9,7 +9,6 @@ import {
   signUpWithEmail as fbSignUpWithEmail,
   signInWithGoogle as fbSignInWithGoogle,
   signOut as fbSignOut,
-  getIdToken,
 } from '@/lib/firebase/auth'
 import type { AuthContextValue } from '@/types/auth'
 import type { UserProfile } from '@/types/firestore'
@@ -39,20 +38,6 @@ async function syncUserProfile(user: User): Promise<UserProfile> {
   return snap.data() as UserProfile
 }
 
-async function setSessionCookie(): Promise<void> {
-  const token = await getIdToken()
-  if (!token) return
-  await fetch('/api/auth/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
-  })
-}
-
-async function clearSessionCookie(): Promise<void> {
-  await fetch('/api/auth/session', { method: 'DELETE' })
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -64,11 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(firebaseUser)
         const userProfile = await syncUserProfile(firebaseUser)
         setProfile(userProfile)
-        await setSessionCookie()
       } else {
         setUser(null)
         setProfile(null)
-        await clearSessionCookie()
       }
       setLoading(false)
     })
@@ -78,7 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string) => {
     await fbSignInWithEmail(email, password)
-    // State updated via onAuthStateChanged
   }
 
   const signUpWithEmail = async (email: string, password: string, displayName: string) => {

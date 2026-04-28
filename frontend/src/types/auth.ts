@@ -10,9 +10,3 @@ export interface AuthContextValue {
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
 }
-
-export interface SessionPayload {
-  uid: string
-  email: string
-  expiresAt: number
-}

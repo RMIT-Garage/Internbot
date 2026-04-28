@@ -10,6 +10,7 @@ GCP + Firebase resources are managed with **Terraform** in `infrastructure/`. De
 | `auth`             | Firebase Authentication / Identity Platform config                     |
 | `firestore`        | Firestore database                                                     |
 | `storage`          | Firebase Storage bucket                                                |
+| `hosting`          | Firebase Hosting default site (tracks auto-created site in state)      |
 | `github-oidc`      | Workload Identity pool, OIDC provider, github-deploy SA, role bindings |
 
 ## Environments
@@ -51,12 +52,14 @@ Dev is locked to `refs/heads/develop` only. Prod is locked to `refs/heads/main`.
 
 ## CI/CD workflows
 
-| Workflow             | Trigger                        | Purpose                                                                |
-| -------------------- | ------------------------------ | ---------------------------------------------------------------------- |
-| `terraform-plan.yml` | PR touches `infrastructure/**` | Plan against dev (+ prod if PR targets main); posts diff as PR comment |
-| `_terraform.yml`     | `workflow_call`                | Reusable engine — init, fmt, validate, plan/apply                      |
-| `deploy-dev.yml`     | Push to develop                | `ci` → `terraform apply dev` → `firebase deploy dev`                   |
-| `deploy-prod.yml`    | Push to main                   | `ci` → `terraform apply prod` → `firebase deploy prod`                 |
+| Workflow              | Trigger                        | Purpose                                                                |
+| --------------------- | ------------------------------ | ---------------------------------------------------------------------- |
+| `terraform-plan.yml`  | PR touches `infrastructure/**` | Plan against dev (+ prod if PR targets main); posts diff as PR comment |
+| `_terraform.yml`      | `workflow_call`                | Reusable engine — init, fmt, validate, plan/apply                      |
+| `deploy-dev.yml`      | Push to develop                | `ci` → `terraform apply dev` → functions + hosting deploy              |
+| `deploy-prod.yml`     | Push to main                   | `ci` → `terraform apply prod` → functions + hosting deploy             |
+| `_deploy.yml`         | `workflow_call`                | Reusable: `firebase deploy --only functions`                           |
+| `_deploy-hosting.yml` | `workflow_call`                | Reusable: static frontend build + `firebase deploy --only hosting`     |
 
 `terraform apply` is a job inside the env deploy pipeline — not a separate workflow. It uses OIDC auth via the env's `terraform-ci` SA. The SA has enough IAM scope to manage project resources but no app-deploy permissions.
 

@@ -1,7 +1,3 @@
-data "google_project" "this" {
-  project_id = var.project_id
-}
-
 # Artifact Registry repo for Cloud Functions v2 container images.
 # Firebase deploy auto-creates this on first run, but managing it via Terraform
 # lets us own the cleanup_policies (otherwise images accumulate forever).
@@ -42,7 +38,7 @@ resource "google_artifact_registry_repository" "gcf_artifacts" {
 # Each deploy creates a new object; without a lifecycle rule they pile up.
 resource "google_storage_bucket" "gcf_sources" {
   project                     = var.project_id
-  name                        = "gcf-v2-sources-${data.google_project.this.number}-${var.region}"
+  name                        = "gcf-v2-sources-${var.project_number}-${var.region}"
   location                    = upper(var.region)
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true

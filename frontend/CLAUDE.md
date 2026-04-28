@@ -4,41 +4,34 @@ Loaded automatically when editing files in `frontend/`. Supplements root `CLAUDE
 
 ---
 
-## Next.js 16 (App Router)
+## Next.js 16 — static export (SPA mode)
 
-This is **Next.js 16** — APIs, file conventions, and routing differ from earlier versions.
-Before writing any Next.js code, check `node_modules/next/dist/docs/` for breaking changes.
+This frontend is built with `output: 'export'` and deploys to Firebase Hosting as plain static assets. **There is no Node runtime.**
 
-Key Next.js 16 changes from training data:
+That means the following Next.js features are **disabled** and must not be used:
 
-- `middleware.ts` is deprecated — use `proxy.ts` with `export function proxy()`
-- App Router is the only supported router
-- Server Actions are stable and the preferred mutation pattern
+- Server Actions (`'use server'`)
+- Route handlers (`src/app/api/**`)
+- Async Server Components (can't `await` work at request time)
+- `middleware.ts` / `proxy.ts`
+- `next/image` optimization (we use `images.unoptimized = true`)
+- `headers()`, `cookies()` from `next/headers`
+- Any import of `firebase-admin`
+
+Use `node_modules/next/dist/docs/` to check Next 16 specifics before writing new code.
 
 ---
 
 ## Server vs Client Components
 
-**Default: Server Component.** Add `'use client'` only when you need:
+Server Components still exist (they run at build time for static export), but anything interactive needs `'use client'`. Add it when you need:
 
 - React hooks (`useState`, `useEffect`, `useContext`, etc.)
 - Event handlers (`onClick`, `onChange`, etc.)
 - Browser APIs (`window`, `localStorage`, `navigator`, etc.)
-- Third-party client-only libraries
+- `useAuth`, `apiFetch`, Firebase client SDK
 
-**Never add `'use client'` to:**
-
-- Files that only fetch data and render HTML
-- Files that only import server-only libraries
-- Layout files unless they truly need client state
-
-**Never import in a Server Component:**
-
-- `firebase/auth`, `firebase/firestore`, `firebase/storage` (client SDK)
-- `@/lib/firebase/client` (client SDK)
-- Any hook from `@/hooks/` (they're all client hooks)
-
-**For server-side Firebase always use:** `@/lib/firebase/admin`
+Pages that read authenticated user state must be `'use client'` — the user is only known in the browser, not at build time.
 
 ---
 
@@ -47,33 +40,31 @@ Key Next.js 16 changes from training data:
 ```
 src/
 ├── app/
-│   ├── (auth)/           # Login, register — no auth required
-│   ├── (dashboard)/      # Protected pages — requireAuth() in layout
-│   ├── api/auth/session/ # Session cookie route handler
-│   ├── layout.tsx        # Root layout — Server Component
-│   └── page.tsx          # Landing page — Server Component
+│   ├── (auth)/           # Login, register — client pages, redirect-if-authed
+│   ├── (dashboard)/      # Protected pages — useRequireAuth in layout
+│   ├── layout.tsx        # Root layout — static Server Component
+│   └── page.tsx          # Landing page — static Server Component
 ├── components/
 │   ├── layout/           # DashboardShell, Sidebar, Navbar, PageHeader
 │   ├── shared/           # ErrorBoundary, LoadingSpinner, EmptyState
 │   └── ui/               # shadcn/ui (do not edit — regenerate with CLI)
 ├── features/             # One folder per business domain
 │   └── [domain]/
-│       ├── components/   # Domain-specific UI
-│       ├── hooks/        # Domain-specific hooks
-│       ├── actions/      # Server Actions
-│       └── types.ts      # Domain types
+│       ├── components/
+│       ├── hooks/
+│       └── types.ts
 ├── lib/
+│   ├── api/
+│   │   └── client.ts     # apiFetch<T>() — adds Bearer token automatically
 │   ├── firebase/
-│   │   ├── client.ts     # Client SDK singleton (browser only)
-│   │   ├── admin.ts      # Admin SDK (server-only, never client)
+│   │   ├── client.ts     # Client SDK singleton
 │   │   ├── auth.ts       # Sign-in helpers
 │   │   ├── firestore.ts  # typedCollection<T>() factory
 │   │   └── storage.ts    # Upload helpers
-│   ├── validations/      # Zod schemas for forms and actions
+│   ├── validations/      # Zod schemas for forms
 │   └── utils.ts          # cn(), formatDate(), truncate()
-├── hooks/                # Cross-domain React hooks (all 'use client')
-├── providers/            # AuthProvider, Toaster (all 'use client')
-├── actions/              # Cross-domain Server Actions
+├── hooks/                # Cross-domain hooks — useAuth, useRequireAuth
+├── providers/            # AuthProvider, Toaster
 └── types/                # Shared TypeScript types
 ```
 
@@ -81,53 +72,42 @@ src/
 
 - Always use `@/` alias — never `../../` more than one level
 - Features import from `@/lib/`, `@/hooks/`, `@/types/` but not from other features
-- `app/` pages import from `@/components/`, `@/features/`, `@/actions/`
+- `app/` pages import from `@/components/`, `@/features/`, `@/hooks/`
+- Never import `firebase-admin` — it's not a dependency of this package
 
 ---
 
-## Server Actions
+## Backend API calls — `apiFetch`
 
-All Server Actions live in `src/features/[domain]/actions/` or `src/actions/` for cross-domain.
+All backend calls go through `@/lib/api/client`:
 
 ```typescript
-'use server'
+import { apiFetch } from '@/lib/api/client'
 
-import { requireAuth } from '@/actions/auth.actions'
-import type { ActionResult } from '@/types'
-
-export async function updateProfile(input: UpdateProfileInput): Promise<ActionResult<void>> {
-  const session = await requireAuth() // redirects to /login if not authed
-
-  // validate input with zod
-  const parsed = updateProfileSchema.safeParse(input)
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0]?.message ?? 'Invalid input' }
-  }
-
-  try {
-    await adminDb.collection('users').doc(session.uid).update(parsed.data)
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Failed to update profile' }
-  }
-}
+const user = await apiFetch<User>('/api/v1/users/me')
+await apiFetch('/api/v1/users/me', { method: 'PATCH', body: { displayName: 'Jane' } })
 ```
 
-- Always return `ActionResult<T>`: `{ success: boolean, error?: string, data?: T }`
-- Always call `requireAuth()` first
-- Always validate with Zod before any database operation
-- Never throw from a Server Action — return `{ success: false, error: '...' }`
+- `apiFetch` reads `NEXT_PUBLIC_API_URL` (baked at build time) — in prod this is the Firebase Hosting origin; Hosting rewrites `/api/**` to the `api` Cloud Function, preserving the `/api` path prefix that Express routes expect
+- Include the full `/api/v1/...` (or `/api/health`, `/api/openapi.json`) path in every call — the base URL is the origin, not a versioned prefix
+- If a Firebase user is signed in, `Authorization: Bearer <idToken>` is attached automatically
+- Non-2xx responses throw `ApiError` with status + parsed body
+- JSON request bodies are stringified automatically; don't pre-serialize
+
+Never call the backend with a raw `fetch()` — you'll lose the auth header.
 
 ---
 
-## Auth Flow
+## Auth Flow (client-only)
 
 1. User signs in via `@/lib/firebase/auth` (client SDK)
-2. Client calls `POST /api/auth/session` with the Firebase ID token
-3. Server creates an HttpOnly `__session` cookie (Firebase session cookie)
-4. `proxy.ts` checks for the `__session` cookie to gate protected routes
-5. Server Actions call `requireAuth()` which calls `adminAuth.verifySessionCookie()`
-6. **Critical:** The cookie check in proxy.ts is optimistic (presence only). Real verification always happens in Server Actions near the data.
+2. `onAuthStateChanged` in `AuthProvider` fires → `user` is set
+3. `AuthProvider` syncs the profile doc to Firestore (`users/{uid}`)
+4. Protected routes use `useRequireAuth()` in their layout — redirects to `/login` if no user
+5. Login/register pages use `useRedirectIfAuthed()` — pushes to `/dashboard` if already signed in
+6. Backend authz: every API call attaches a fresh ID token; backend verifies via `authMiddleware`
+
+There is **no session cookie and no server-side auth verification in the frontend**. All security happens at the backend/Firestore-rules boundary.
 
 ---
 
@@ -149,6 +129,5 @@ See `docs/DESIGN.md` for the full design reference:
 Tests live in `frontend/tests/unit/` mirroring `src/`.
 
 - `vi.mock('@/lib/firebase/client')` in setup
-- `vi.mock('@/lib/firebase/admin')` in setup
 - Use `@testing-library/react` for components, `renderHook` for hooks
 - Do not test `src/components/ui/` (shadcn) or `src/app/` pages
