@@ -40,11 +40,13 @@ These flow as `TF_VAR_*` env vars in `_terraform.yml`.
 
 ### Firebase deploy values
 
-Project IDs, WIF provider ARNs, and deploy SA emails are **hardcoded in the trigger workflow files** (`deploy-dev.yml`, `deploy-prod.yml`). They're:
+Project IDs, WIF provider ARNs, deploy SA emails, and the frontend's `NEXT_PUBLIC_*` build inputs (api URL, app URL, auth domain, storage bucket) are **hardcoded in the trigger workflow files** (`deploy-dev.yml`, `deploy-prod.yml`). They're:
 
-- Not secret (project IDs visible in URLs, SA emails are public)
+- Not secret (project IDs visible in URLs, SA emails are public, Firebase client API keys are scoped by Security Rules + authDomain)
 - Stable (rarely change — changes go through PR review)
 - Self-documenting (reading the workflow shows exactly what it deploys)
+
+Firebase web-config values that vary per-env and are awkward to inline (`NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`) are referenced via GitHub repo variables (`vars.DEV_*`, `vars.PROD_*`). Fill them in once per env from the Firebase Console (Project settings → General → Your apps → SDK setup and configuration).
 
 ### GitHub Secrets/Variables
 

@@ -4,6 +4,7 @@ locals {
     "identitytoolkit.googleapis.com",
     "firestore.googleapis.com",
     "firebasestorage.googleapis.com",
+    "firebasehosting.googleapis.com",
     "firebaserules.googleapis.com",
     "firebaseextensions.googleapis.com",
     "cloudfunctions.googleapis.com",

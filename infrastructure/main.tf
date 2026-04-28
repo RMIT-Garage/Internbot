@@ -61,6 +61,13 @@ module "storage" {
   depends_on = [module.firebase_project]
 }
 
+module "hosting" {
+  source     = "./modules/hosting"
+  project_id = var.project_id
+
+  depends_on = [module.firebase_project]
+}
+
 module "github_oidc" {
   source               = "./modules/github-oidc"
   project_id           = var.project_id
@@ -73,9 +80,10 @@ module "github_oidc" {
 }
 
 module "functions_housekeeping" {
-  source     = "./modules/functions-housekeeping"
-  project_id = var.project_id
-  region     = var.region
+  source         = "./modules/functions-housekeeping"
+  project_id     = var.project_id
+  project_number = data.google_project.this.number
+  region         = var.region
 
   depends_on = [module.firebase_project]
 }

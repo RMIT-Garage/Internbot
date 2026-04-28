@@ -8,12 +8,3 @@ vi.mock('@/lib/firebase/client', () => ({
   storage: {},
   app: {},
 }))
-
-vi.mock('@/lib/firebase/admin', () => ({
-  adminAuth: {
-    verifySessionCookie: vi.fn(),
-    createSessionCookie: vi.fn(),
-  },
-  adminDb: {},
-  adminStorage: {},
-}))

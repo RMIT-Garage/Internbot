@@ -12,10 +12,10 @@ Audit staged changes for security issues and code pattern violations.
 
 ### Authentication & Authorization
 
-- All Cloud Functions routes under `/api/` are protected by `authMiddleware`
-- Unauthenticated endpoints are explicitly intentional (e.g. `GET /api/health`)
+- All Cloud Functions routes under `/api/` are protected by `authMiddleware` (mounted in `backend/src/api/app.ts`)
+- Unauthenticated endpoints are explicitly intentional (e.g. `GET /api/health`) and mounted **before** `authMiddleware`
 - Server Actions call `requireAuth()` before accessing any Firestore or Storage
-- Firebase ID tokens verified via `adminAuth.verifyIdToken()` in middleware, not client-side
+- Firebase ID tokens verified via the injected `TokenVerifier` port (production implementation: `firebaseTokenVerifier`). Never verified client-side. Route handlers must never import `firebase-admin` directly — use `adminDb`/`adminAuth`/`adminStorage` re-exports from `backend/src/infrastructure/config/firebaseAdmin`
 - Session cookies use `adminAuth.verifySessionCookie()` in Server Actions, never trust client claims
 
 ### Firestore Security
@@ -67,10 +67,11 @@ Audit staged changes for security issues and code pattern violations.
 
 ### Backend
 
-- New routes registered in `backend/src/routes/index.ts`, not inline in `index.ts`
-- Auth middleware applied at router level, not duplicated per-route
-- Errors thrown via `createError(message, statusCode)` from `middleware/error.ts`
-- No business logic in route handlers — delegate to service functions
+- New routes registered in `backend/src/api/routes/index.ts`, not inline in `backend/src/index.ts`
+- Auth middleware applied at router level in `backend/src/api/app.ts`, not duplicated per-route
+- Errors propagated via `next(new DomainError(...))` (from `backend/src/domain/errors.ts`, preferred) or `next(new ApiError(status, title, detail))` (from `backend/src/api/errors.ts`) — never `res.status(500).json(...)` inline. The RFC 9457 error handler in `backend/src/api/middleware/errorHandler.ts` maps both to Problem Details responses
+- Clean Architecture dependency rule: `domain` imports nothing; `application` imports only `domain`; `infrastructure` imports `domain` + `application`; `api` imports all three. Enforced by `backend/tests/unit/architecture/architecture.test.ts`
+- No business logic in route handlers — delegate to application-layer use cases or repositories behind `IUnitOfWork`
 
 ### TypeScript
 

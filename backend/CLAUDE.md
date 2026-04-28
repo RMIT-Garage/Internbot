@@ -2,268 +2,128 @@
 
 Loaded automatically when editing files in `backend/`. Supplements root `CLAUDE.md`.
 
----
-
-## Architecture: Clean Architecture
-
-The backend uses Clean Architecture with four layers. Dependency rule: outer layers depend on inner layers, never the reverse.
-
-```
-domain ← application ← infrastructure ← api
-```
-
-```
-backend/src/
-├── index.ts                              # Cloud Function entry — exports `api` via onRequest()
-├── domain/                               # Pure TypeScript — no infrastructure dependencies
-│   ├── errors.ts                         # DomainError subclasses with code (no HTTP status)
-│   └── repositories/
-│       └── unitOfWork.ts                 # IRepository<T> + IUnitOfWork interfaces
-├── application/                          # Use cases, ports (interfaces), actor
-│   ├── actor.ts                          # Actor { uid, email, claims } — auth identity
-│   └── ports/
-│       └── tokenVerifier.ts              # TokenVerifier interface (DI contract)
-├── infrastructure/                       # Adapters to external systems
-│   ├── config/
-│   │   └── firebaseAdmin.ts              # Admin SDK singleton (sole entry point)
-│   ├── auth/
-│   │   └── firebaseTokenVerifier.ts      # Implements TokenVerifier via Firebase Admin
-│   └── firestore/
-│       ├── zodConverter.ts               # Typed Firestore converter with _schemaVersion
-│       └── firestoreUnitOfWork.ts        # Implements IUnitOfWork with Firestore transactions
-└── api/                                  # HTTP delivery — Express routes, middleware
-    ├── app.ts                            # Composition root — wires DI, mounts routes
-    ├── errors.ts                         # ApiError (RFC 9457 Problem Details)
-    ├── middleware/
-    │   ├── auth.ts                       # createAuthMiddleware(tokenVerifier) — injects DI
-    │   └── errorHandler.ts               # Maps DomainError/ApiError → RFC 9457 response
-    └── routes/
-        ├── index.ts                      # Route registry
-        └── health.ts                     # GET /health — public, no auth
-```
+**This file is a rule sheet, not a reference manual.** Deep dives live in [`docs/BACKEND.md`](../docs/BACKEND.md) — read it on demand when you need the "why" or a detailed example.
 
 ---
 
-## Dependency Rule
+## Architecture in one paragraph
 
-| Layer             | May import from                     | Must NOT import from             |
-| ----------------- | ----------------------------------- | -------------------------------- |
-| `domain/`         | nothing (pure TS)                   | application, infrastructure, api |
-| `application/`    | domain                              | infrastructure, api              |
-| `infrastructure/` | domain, application                 | api                              |
-| `api/`            | domain, application, infrastructure | — (outermost)                    |
-
-The architecture tests in `tests/unit/architecture/architecture.test.ts` enforce this at CI time.
+Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency rule: `domain ← application ← infrastructure ← api`. Each layer owns its own data model; mappers at every boundary. **Aggregate roots (`User`) are mutable; value objects (`StudentProfile`, `AcademicInfo`) are immutable.** All domain classes use `#props` + getters + private constructor + static `create` / `rehydrate` factories. See [docs/BACKEND.md](../docs/BACKEND.md) for the full pattern.
 
 ---
 
-## Composition Root (`api/app.ts`)
+## Enforced rules
 
-`createApp()` is the DI wiring point. It accepts an optional `TokenVerifier` for testing:
+**Dependency rule** (architecture test fails if violated):
 
-```typescript
-// Production (default)
-const app = createApp()
+| Layer             | May import                | Must NOT import                                |
+| ----------------- | ------------------------- | ---------------------------------------------- |
+| `domain/`         | only other `domain/`      | zod, firebase-admin, anything outside domain   |
+| `application/`    | `domain/`                 | zod, firebase-admin, `infrastructure/`, `api/` |
+| `infrastructure/` | `domain/`, `application/` | `api/`                                         |
+| `api/`            | everything below          | (none — api is outermost)                      |
 
-// Tests — inject a mock instead of calling Firebase
-const app = createApp({ tokenVerifier: mockTokenVerifier })
-```
+**Additional enforced rules:**
 
-Never import `firebaseTokenVerifier` directly in route handlers — it's wired once in `app.ts`.
-
----
-
-## Route Handler Pattern
-
-```typescript
-import { Router } from 'express'
-import { type Router as ExpressRouter } from 'express'
-import type { AuthenticatedRequest } from '../middleware/auth'
-import type { Request, Response, NextFunction } from 'express'
-import { ApiError } from '../errors'
-import { NotFoundError } from '../../domain/errors'
-import { adminDb } from '../../infrastructure/config/firebaseAdmin'
-import { z } from 'zod'
-
-const router: ExpressRouter = Router()
-
-const createItemSchema = z.object({
-  title: z.string().min(1).max(200),
-})
-
-// GET /api/items/:id
-router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { actor } = req as AuthenticatedRequest
-    const { id } = req.params
-
-    const doc = await adminDb
-      .collection('items')
-      .doc(id ?? '')
-      .get()
-    if (!doc.exists) {
-      return next(new NotFoundError('Item', id)) // DomainError → auto-mapped to 404
-    }
-
-    res.json({ item: doc.data() })
-  } catch (err) {
-    next(err)
-  }
-})
-
-// POST /api/items
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { actor } = req as AuthenticatedRequest
-
-    const parsed = createItemSchema.safeParse(req.body)
-    if (!parsed.success) {
-      return next(
-        new ApiError(400, 'Bad Request', parsed.error.errors[0]?.message ?? 'Invalid input')
-      )
-    }
-
-    const ref = adminDb.collection('items').doc()
-    await ref.set({ ...parsed.data, uid: actor.uid, _schemaVersion: 1 })
-
-    res.status(201).json({ id: ref.id })
-  } catch (err) {
-    next(err)
-  }
-})
-
-export { router as itemsRouter }
-```
-
-**Rules:**
-
-- Access the authed user via `(req as AuthenticatedRequest).actor` (not `.uid` directly)
-- Throw domain errors (`NotFoundError`, `ForbiddenError`) — they auto-map to HTTP in `errorHandler`
-- Use `next(new ApiError(...))` for HTTP-specific errors without a domain equivalent
-- Never `res.status(500).json(...)` inline — always propagate via `next(err)`
-- Always validate `req.body` with Zod before use
+- `api/routes/` must not import `firebase-admin` directly — delegate through application handlers.
+- No business logic in route handlers — validate body → build command → `handler.handle(cmd)` → serialize.
+- No `console.log` anywhere in `src/`.
+- Only import firebase-admin from `infrastructure/config/firebase-admin` (the re-export module).
 
 ---
 
-## Error Handling
+## Hard conventions (don't drift from these)
 
-```
-DomainError (domain/errors.ts)
-    ↓ mapped by ApiError.fromDomainError()
-ApiError (api/errors.ts)
-    ↓ rendered by errorHandler
-RFC 9457 Problem Details response: { type, title, status, detail }
-```
+### Domain classes
 
-**From a route handler:**
+- **Private `#props`** field (ECMAScript `#`, not TypeScript `private`) + **getters** for reads.
+- **Private constructor** + two static factories:
+  - `create(props)` — command-handler input path, validates.
+  - `rehydrate(props)` — storage path, no validation.
+- Never call `new User(...)` — use the factories.
+- **Aggregates are mutable** (`change*` / `set*` / `clear*` → `void`).
+- **Value objects are immutable** (`with*` → new instance).
 
-```typescript
-// Domain errors (preferred — no HTTP coupling)
-next(new NotFoundError('User', uid)) // → 404
-next(new ForbiddenError()) // → 403
-next(new ValidationError('Bad input')) // → 400
+### Method-name prefixes
 
-// API errors (when no domain equivalent)
-next(new ApiError(422, 'Unprocessable Entity', 'File too large'))
-```
+| Prefix                 | Returns                    | Use                                    |
+| ---------------------- | -------------------------- | -------------------------------------- |
+| `is*()`                | boolean (often type guard) | Predicate                              |
+| `has*()`               | boolean                    | Presence check                         |
+| `ensure*()`            | void (throws)              | Invariant guard                        |
+| `with*()`              | new VO instance            | VO mutator (immutable)                 |
+| `change*` / `set*`     | void (aggregate mutates)   | Aggregate command                      |
+| `clear*()`             | void (aggregate mutates)   | Aggregate command that removes a field |
+| `markX` / domain event | new VO / void              | Intent-revealing state transition      |
 
-**Error response format (RFC 9457):**
+### CQRS handlers
 
-```json
-{
-  "type": "https://httpstatuses.io/404",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "User 'abc123' not found"
-}
-```
+- Single `handle(cmd)` signature. **Never** a second `ctx` argument.
+- Cross-cutting transport metadata goes on `cmd.metadata: CommandMetadata` (expectedVersion, future correlationId / idempotencyKey).
+- `actor: RequestActor` is always the first field of the command/query.
+- Specific id naming: `userId`, `semesterId` — **not** generic `targetId`.
+- Authz inline; no shared `application/authz/` module.
+- Handlers call aggregate methods — they don't mutate `user.studentProfile` directly.
+- Commands return `{ id }` only; route dispatches a follow-up query for the response body.
+- Throw `DomainError` / `ValidationError`, never `Result`.
 
----
+### Optimistic concurrency
 
-## Firestore Zod Converter
+- `User.version` / `Semester.version` is an **app-managed monotonic integer** persisted on the doc.
+- **Never incremented client-side.** New aggregates start at `0`; the repo bumps to `stored + 1` on every save inside the transaction.
+- `repo.save(...)` reads the stored `version` in-txn, compares against the domain version, throws `PreconditionFailedError` on mismatch.
+- API layer parses `If-Match` → `cmd.metadata.expectedVersion`; handler throws early on mismatch (clean 412).
+- HTTP ETag is `W/"${user.version}"`; same integer round-trips through the wire.
 
-Use `createZodConverter()` for typed collection access with schema validation and lazy migration:
+### Naming
 
-```typescript
-import { z } from 'zod'
-import { createZodConverter } from '../../infrastructure/firestore/zodConverter'
-import { adminDb } from '../../infrastructure/config/firebaseAdmin'
-
-const userSchema = z.object({
-  uid: z.string(),
-  email: z.string(),
-  role: z.enum(['user', 'admin']),
-  _schemaVersion: z.literal(1),
-})
-type User = z.infer<typeof userSchema>
-
-const userConverter = createZodConverter(userSchema, 1)
-
-// Typed read:
-const ref = adminDb.collection('users').doc(uid).withConverter(userConverter)
-const snap = await ref.get()
-const user = snap.data() // User | undefined — fully typed
-```
-
----
-
-## Auth Middleware
-
-```typescript
-// Access the authenticated actor in route handlers:
-const { actor } = req as AuthenticatedRequest
-// actor.uid    — Firebase UID
-// actor.email  — email (may be undefined)
-// actor.claims — full decoded token claims
-```
-
-Public endpoints must be registered before `authMiddleware` in `api/app.ts`.
+| Artifact                       | Style                                                           |
+| ------------------------------ | --------------------------------------------------------------- |
+| Files & folders                | `kebab-case` (`firestore-user-repository.ts`, `value-objects/`) |
+| Classes, interfaces, types     | `PascalCase` (`SyncUserCommandHandler`, `UserProps`)            |
+| Functions, variables, exports  | `lowerCamelCase` (`verifyFirebaseToken`)                        |
+| URL path segments (multi-word) | `kebab-case` (`/offer-submissions`)                             |
+| Express route params           | `lowerCamelCase` (`:studentId`)                                 |
+| Enum / status values           | `snake_case` (`offer_pending_review`)                           |
 
 ---
 
 ## Testing
 
-**Unit tests** — `tests/unit/` — inject `mockTokenVerifier` via `createApp()`:
+Three tiers; emulator required for integration + component. Full details: [docs/TESTING.md](../docs/TESTING.md).
 
-```typescript
-import { createApp } from '../../../src/api/app'
-import { mockTokenVerifier, mockActor } from '../../setup'
-import { vi } from 'vitest'
+| Tier         | Folder                                     | Emulator |
+| ------------ | ------------------------------------------ | -------- |
+| Unit         | `backend/tests/unit/domain/**`             | No       |
+| Integration  | `backend/tests/integration/application/**` | Yes      |
+| Component    | `backend/tests/component/routes/**`        | Yes      |
+| Architecture | `backend/tests/architecture/**`            | No       |
 
-const app = createApp({ tokenVerifier: mockTokenVerifier })
+**Isolation rules (mandatory):** every test generates its own random IDs via `crypto.randomUUID()`; `trackDoc(collection, id)` every doc; `afterEach(clearDocs)`; no `beforeAll` for mutable state; tests run in parallel.
 
-// Simulate authenticated request:
-vi.mocked(mockTokenVerifier.verify).mockResolvedValue(mockActor)
+**Domain test construction:** `Xxx.rehydrate({...})` or `Xxx.create({...})` — never `new Xxx(...)` (private constructor).
 
-// Simulate unauthenticated:
-vi.mocked(mockTokenVerifier.verify).mockRejectedValue(new Error('invalid'))
+```bash
+pnpm --filter backend run test:unit          # fast, no emulator
+pnpm run emulator                            # docker compose up firebase-emulators
+pnpm --filter backend run test:integration   # hits localhost:8080
+pnpm --filter backend run test:component     # hits localhost:8080
+pnpm --filter backend run test               # all tiers
 ```
-
-The `tests/setup.ts` also mocks `infrastructure/config/firebaseAdmin` so the SDK never initializes.
-
-**Integration tests** — `tests/integration/` — require Docker emulators (`pnpm run emulator`).
 
 ---
 
-## Registering a New Route
+## Adding a new route
 
-1. Create `src/api/routes/{name}.ts` — export `{name}Router`
-2. Import and mount in `src/api/routes/index.ts`:
-   ```typescript
-   import { {name}Router } from './{name}'
-   router.use('/{name}', {name}Router)
-   ```
-3. Write unit tests in `tests/unit/routes/{name}.test.ts`
-4. Use the `/add-route` skill to scaffold the boilerplate
+Use the `/add-route` Claude Code skill. See [docs/BACKEND.md § Adding a new route](../docs/BACKEND.md#adding-a-new-route) for the full cascade.
 
 ---
 
-## Firebase Admin SDK
+## Pointers
 
-Only import from `infrastructure/config/firebaseAdmin` — never directly from `firebase-admin`:
-
-```typescript
-import { adminDb, adminAuth, adminStorage } from '../../infrastructure/config/firebaseAdmin'
-```
-
-The architecture test will fail if routes import `firebase-admin` directly.
+- **Deep architecture reference**: [docs/BACKEND.md](../docs/BACKEND.md)
+- **API wire contract**: [docs/WORKFLOW-API-SPEC.md](../docs/WORKFLOW-API-SPEC.md)
+- **Implementation plan (phased)**: [docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md](../docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md)
+- **Firestore schema**: [docs/FIRESTORE-SCHEMA.md](../docs/FIRESTORE-SCHEMA.md)
+- **Error handling rules**: [docs/ERROR-HANDLING.md](../docs/ERROR-HANDLING.md)
+- **Testing conventions**: [docs/TESTING.md](../docs/TESTING.md)

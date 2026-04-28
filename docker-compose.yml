@@ -4,7 +4,10 @@ services:
       context: .
       dockerfile: docker/firebase-emulator/Dockerfile
     env_file:
-      - ./backend/.env
+      # Optional: CI doesn't commit this file (it's .gitignored). Local dev
+      # uses it for Firebase project overrides; emulator works without it.
+      - path: ./backend/.env
+        required: false
     ports:
       - "4000:4000"  # Emulator UI
       - "5001:5001"  # Cloud Functions

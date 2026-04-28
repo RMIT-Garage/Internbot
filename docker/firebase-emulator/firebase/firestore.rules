@@ -2,61 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helper functions ───────────────────────────────────────────────────
+    // Internbot policy: the public Firebase web config (project ID + API key)
+    // is shipped in the frontend bundle, so `firestore.googleapis.com` is
+    // reachable by any holder of a valid Firebase ID token regardless of
+    // what the frontend itself does. Anything we allow here is allowed for
+    // the entire internet of authenticated tokens.
+    //
+    // We therefore default-deny EVERY collection. All reads and writes go
+    // through the backend Express API, which uses the Admin SDK (rules are
+    // bypassed for that path) and applies DTO redaction the rules language
+    // cannot express (auth provider IDs, raw GPA, phone, etc.).
+    //
+    // Adding a new collection? Do NOT add an `allow` rule here — expose it
+    // through a backend route instead. If a feature genuinely needs a
+    // realtime client listener, that is a deliberate architectural change:
+    // discuss before relaxing this default-deny posture.
 
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
-
-    function isOwner(uid) {
-      return isAuthenticated() && request.auth.uid == uid;
-    }
-
-    // Role checked against Firestore document (not custom claims).
-    // For performance-critical rules, use hasCustomClaim() instead.
-    function isAdmin() {
-      return isAuthenticated()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Role checked against Firebase Auth custom claims — no Firestore read needed.
-    // Set custom claims via Admin SDK: adminAuth.setCustomUserClaims(uid, { admin: true })
-    function hasCustomClaim(claim) {
-      return isAuthenticated() && request.auth.token[claim] == true;
-    }
-
-    // Soft-delete guard — filters out logically deleted documents.
-    // Include in read rules: allow read: if isOwner(userId) && notDeleted();
-    function notDeleted() {
-      return !('deletedAt' in resource.data) || resource.data.deletedAt == null;
-    }
-
-    // ── Collections ────────────────────────────────────────────────────────
-
-    // users/{userId}
-    // Each user can only read and update their own profile.
-    // Admins can read any profile.
-    // Creation is triggered by AuthProvider on first sign-in (syncUserProfile).
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin()) && notDeleted();
-
-      allow create: if isAuthenticated() && isOwner(userId)
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasAll(['uid', 'email', 'role', 'createdAt', 'updatedAt', '_schemaVersion'])
-        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion'])
-        && request.resource.data.role == 'user';  // only admin SDK can set 'admin' role
-
-      allow update: if isAuthenticated() && isOwner(userId)
-        && request.resource.data.uid == resource.data.uid    // uid is immutable
-        && request.resource.data.role == resource.data.role  // role is immutable by user
-        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion']);
-
-      allow delete: if false; // soft-delete only — set deletedAt field instead
-    }
-
-    // Add new collection rules above this comment using the /firebase-collection skill.
-
-    // ── Default deny ───────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

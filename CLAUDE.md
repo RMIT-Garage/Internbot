@@ -12,6 +12,8 @@ Use these files as the source of truth by concern:
 
 - Workflow, API contract, statuses, and Firestore model:
   [docs/WORKFLOW-API-SPEC.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/WORKFLOW-API-SPEC.md)
+- Workflow API implementation roadmap (phased sprint contracts, one PR per phase):
+  [docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md)
 - System architecture:
   [docs/ARCHITECTURE.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/ARCHITECTURE.md)
 - Firestore schema summary:
@@ -59,3 +61,4 @@ Use these files as the source of truth by concern:
 - Use the platform `users/{id}` as the app identity. Do not use `firebaseUid` as a foreign key or route id.
 - When a change affects documented behavior, update the relevant docs in the same session.
 - Do not let root `CLAUDE.md`, package `CLAUDE.md` files, and docs drift from the codebase.
+- When working on the Workflow API implementation, read the phase you are on in [docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md) first. You may only edit that file's `Status`, `PR`, and `Notes` lines; the `Scope`, `Success criteria`, and `Bug-finding cases` sections are frozen for the duration of the phase and require explicit human confirmation to change.
