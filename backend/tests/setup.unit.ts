@@ -1,9 +1,11 @@
 import { vi } from 'vitest'
 import type { RequestActor, PlatformUser } from '../src/application/actor'
 import type { VerifyToken } from '../src/api/auth/firebase-token-verifier'
-import type { UnitOfWork, UnitOfWorkContext } from '../src/application/unit-of-work'
+import type { UnitOfWork, UnitOfWorkContext } from '../src/application/ports/unit-of-work'
 import type { UserRepository } from '../src/domain/repositories/user-repository'
+import type { SemesterRepository } from '../src/domain/repositories/semester-repository'
 import type { PlatformClaimsService } from '../src/application/ports/platform-claims-service'
+import type { IdGenerator } from '../src/application/ports/id-generator'
 
 // Prevent Firebase Admin from initializing during unit tests. createApp()
 // accepts DI for every external dep so the admin SDK is never reached, but
@@ -51,34 +53,64 @@ export const mockPlatformClaimsService: PlatformClaimsService = {
 }
 
 /**
- * Build a mock UnitOfWork that runs the work function synchronously with a
- * caller-supplied repository stub.
+ * Mock IdGenerator — yields predictable counter-based ids `id_test_001`,
+ * `id_test_002`, … so tests asserting on the generated id stay stable.
  */
+export function buildMockIdGenerator(prefix = 'id_test'): IdGenerator {
+  let counter = 0
+  return {
+    next: vi.fn(() => `${prefix}_${String(++counter).padStart(3, '0')}`),
+  }
+}
+
 export interface MockUserRepository {
   findById: ReturnType<typeof vi.fn>
-  findByFirebaseUid: ReturnType<typeof vi.fn>
+  findByIdentity: ReturnType<typeof vi.fn>
   create: ReturnType<typeof vi.fn>
-  update: ReturnType<typeof vi.fn>
-  markAcademicInfoConfirmed: ReturnType<typeof vi.fn>
+  save: ReturnType<typeof vi.fn>
 }
 
 export function buildMockUserRepository(): MockUserRepository {
   return {
     findById: vi.fn(),
-    findByFirebaseUid: vi.fn(),
+    findByIdentity: vi.fn(),
     create: vi.fn(),
-    update: vi.fn(),
-    markAcademicInfoConfirmed: vi.fn(),
+    save: vi.fn(),
   }
 }
 
-export function buildMockUow(users: MockUserRepository = buildMockUserRepository()): {
+export interface MockSemesterRepository {
+  findById: ReturnType<typeof vi.fn>
+  findByNaturalKey: ReturnType<typeof vi.fn>
+  list: ReturnType<typeof vi.fn>
+  create: ReturnType<typeof vi.fn>
+  save: ReturnType<typeof vi.fn>
+}
+
+export function buildMockSemesterRepository(): MockSemesterRepository {
+  return {
+    findById: vi.fn(),
+    findByNaturalKey: vi.fn(),
+    list: vi.fn(),
+    create: vi.fn(),
+    save: vi.fn(),
+  }
+}
+
+export function buildMockUow(
+  users: MockUserRepository = buildMockUserRepository(),
+  semesters: MockSemesterRepository = buildMockSemesterRepository()
+): {
   uow: UnitOfWork
   users: MockUserRepository
+  semesters: MockSemesterRepository
 } {
   const uow: UnitOfWork = {
     execute: async (work) =>
-      work({ users: users as unknown as UserRepository } as UnitOfWorkContext),
+      work({
+        users: users as unknown as UserRepository,
+        semesters: semesters as unknown as SemesterRepository,
+      } as UnitOfWorkContext),
   }
-  return { uow, users }
+  return { uow, users, semesters }
 }

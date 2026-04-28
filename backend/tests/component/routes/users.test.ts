@@ -77,7 +77,8 @@ describe('GET /api/v1/users/:id — component', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(student.id)
-    expect(res.headers['etag']).toMatch(/^W\/"\d+"$/)
+    // First persisted version is always 1 (sync-user is the first save).
+    expect(res.headers['etag']).toBe('W/"1"')
     expect(res.body.firebaseUid).toBeUndefined()
   })
 
@@ -138,6 +139,8 @@ describe('PATCH /api/v1/users/:id — component', () => {
     expect(res.status).toBe(200)
     expect(res.body.studentProfile.profileStatus).toBe('complete')
     expect(res.body.studentProfile.academicInfo.confirmedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    // Successful PATCH bumps the version monotonically: sync seeded v1, this PATCH → v2.
+    expect(res.headers['etag']).toBe('W/"2"')
   })
 
   it('attempt to change studentNumber to a new value returns 422 immutable_field', async () => {
@@ -243,5 +246,54 @@ describe('PATCH /api/v1/users/:id — component', () => {
       })
     expect(second.status).toBe(200)
     expect(second.body.studentProfile.academicInfo.confirmedAt).toBe(firstConfirmedAt)
+  })
+})
+
+/**
+ * Status-code regression: a Firebase-authenticated caller with no platform
+ * user record (i.e. hasn't called POST /auth/sync yet) must receive 403, not
+ * 401. The token is valid; the caller is just missing a platform identity.
+ *
+ * Per spec §7.0: 401 = invalid/missing token; 403 = authenticated but lacks
+ * permission. Same condition routed through the bare `:id` path (handler
+ * throws ForbiddenError) returns 403 — `/me` aliases must match.
+ */
+describe('/me alias — pre-sync caller returns 403, not 401', () => {
+  beforeAll(() => initEmulator())
+  afterEach(async () => {
+    await clearDocs()
+    await clearAuthUsers()
+  })
+
+  it.each([
+    ['GET', '/api/v1/users/me'],
+    ['PATCH', '/api/v1/users/me'],
+    ['GET', '/api/v1/users/me/workflow'],
+    ['PUT', '/api/v1/users/me/semester-selection'],
+  ])('%s %s with no platform user → 403 no_platform_user', async (method, path) => {
+    const app = createApp()
+    // Mint a token but never call /auth/sync — caller is Firebase-authed but
+    // has no platform identity. The token carries no platformUserId/role
+    // custom claims, so `actor.platformUser` resolves to null in middleware.
+    const firebaseUid = `fb_${randomUUID()}`
+    const idToken = await mintEmulatorIdToken(firebaseUid, 'a@b.com')
+
+    const req = request(app)
+    const send = (() => {
+      switch (method) {
+        case 'GET':
+          return req.get(path)
+        case 'PATCH':
+          return req.patch(path).send({ studentProfile: { phone: '+61400000000' } })
+        case 'PUT':
+          return req.put(path).send({ semesterId: 'sem_anything' })
+        default:
+          throw new Error(`unexpected method ${method}`)
+      }
+    })()
+
+    const res = await send.set('Authorization', `Bearer ${idToken}`)
+    expect(res.status).toBe(403)
+    expect(res.body.error.reason).toBe('no_platform_user')
   })
 })

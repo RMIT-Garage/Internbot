@@ -8,6 +8,11 @@ import {
   studyLoadValues,
   userStatusValues,
 } from '../../domain/value-objects/user-enums'
+import {
+  currentWorkflowStepValues,
+  internshipStatusValues,
+  semesterEnrolmentStateValues,
+} from '../../domain/value-objects/workflow-state'
 
 /**
  * Wire-format response DTOs as Zod schemas.
@@ -23,14 +28,38 @@ import {
  *     coordinator does not
  */
 
-export const currentWorkflowStepSchema = z
-  .enum(['profile', 'semester_selection', 'opportunity_browsing', 'offer_stage', 'completed'])
-  .meta({
-    id: 'CurrentWorkflowStep',
-    description:
-      "Coarse routing-level workflow step derived from the student's profile and internship state (see WORKFLOW-API-SPEC.md §7.1).",
-  })
+export const currentWorkflowStepSchema = z.enum(currentWorkflowStepValues).meta({
+  id: 'CurrentWorkflowStep',
+  description:
+    "Coarse routing-level workflow step derived from the student's profile and internship state (see WORKFLOW-API-SPEC.md §7.1).",
+})
 export type CurrentWorkflowStep = z.infer<typeof currentWorkflowStepSchema>
+
+export const internshipStatusSchema = z.enum(internshipStatusValues).meta({
+  id: 'InternshipStatus',
+  description: 'Fine derived workflow state for display (see WORKFLOW-API-SPEC.md §9.2).',
+})
+export type InternshipStatus = z.infer<typeof internshipStatusSchema>
+
+export const semesterEnrolmentStateSchema = z.enum(semesterEnrolmentStateValues).meta({
+  id: 'SemesterEnrolmentState',
+  description:
+    'Derived display state for the semester enrolment step (see WORKFLOW-API-SPEC.md §7.2).',
+})
+export type SemesterEnrolmentState = z.infer<typeof semesterEnrolmentStateSchema>
+
+export const userWorkflowResponseSchema = z
+  .object({
+    currentWorkflowStep: currentWorkflowStepSchema,
+    internshipStatus: internshipStatusSchema,
+    semesterEnrolmentState: semesterEnrolmentStateSchema,
+  })
+  .meta({
+    id: 'UserWorkflowResponse',
+    description:
+      'Body of GET /api/v1/users/{id}/workflow. All three fields are derived (none are persisted).',
+  })
+export type UserWorkflowResponse = z.infer<typeof userWorkflowResponseSchema>
 
 export const academicInfoResponseSchema = z
   .object({

@@ -5,6 +5,7 @@ import { GetUserQueryHandler } from '../../../../src/application/queries/get-use
 import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
+import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
   clearDocs,
@@ -30,7 +31,8 @@ async function seedStudent(): Promise<{ id: string; firebaseUid: string; student
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
   const sync = new SyncUserCommandHandler(
     new FirestoreUnitOfWork(),
-    new FirebasePlatformClaimsService()
+    new FirebasePlatformClaimsService(),
+    firestoreIdGenerator
   )
   const { id } = await sync.handle({
     actor: { firebaseUid, email, platformUser: null },
@@ -80,7 +82,7 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
       update.handle({
         actor: actorFor(student.id, 'student'),
         userId: student.id,
-          patch: { studentNumber: `s${Math.floor(Math.random() * 1e9)}` },
+        patch: { studentNumber: `s${Math.floor(Math.random() * 1e9)}` },
       })
     ).rejects.toMatchObject({ name: 'ValidationError', reason: 'immutable_field' })
   })
@@ -104,7 +106,7 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
       update.handle({
         actor: actorFor(`usr_${randomUUID()}`, 'coordinator'),
         userId: student.id,
-          patch: { programCode: 'BP096' },
+        patch: { programCode: 'BP096' },
       })
     ).rejects.toMatchObject({
       name: 'MethodNotAllowedError',
@@ -122,7 +124,7 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
       update.handle({
         actor: actorFor(other.id, 'student'),
         userId: owner.id,
-          patch: { programCode: 'BP096' },
+        patch: { programCode: 'BP096' },
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError', reason: 'student_not_owner' })
   })

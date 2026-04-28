@@ -6,7 +6,18 @@ import {
   getUserOperation,
   patchMyProfileOperation,
   patchUserOperation,
+  putMySemesterSelectionOperation,
+  putUserSemesterSelectionOperation,
+  getMyWorkflowOperation,
+  getUserWorkflowOperation,
 } from './operations/users'
+import {
+  listSemestersOperation,
+  getSemesterOperation,
+  createSemesterOperation,
+  patchSemesterOperation,
+  transitionSemesterOperation,
+} from './operations/semesters'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
 type OpenapiServer = NonNullable<ZodOpenApiObject['servers']>[number]
@@ -38,6 +49,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       { name: 'Health', description: 'Public health probe.' },
       { name: 'Authentication', description: 'Firebase identity sync.' },
       { name: 'Users', description: 'Platform user records.' },
+      { name: 'Semesters', description: 'Semester records and lifecycle transitions.' },
     ],
     components: {
       securitySchemes: {
@@ -54,7 +66,14 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       '/api/health': { get: healthOperation },
       '/api/v1/auth/sync': { post: authSyncOperation },
       '/api/v1/users/me': { get: getMyProfileOperation, patch: patchMyProfileOperation },
+      '/api/v1/users/me/workflow': { get: getMyWorkflowOperation },
+      '/api/v1/users/me/semester-selection': { put: putMySemesterSelectionOperation },
       '/api/v1/users/{id}': { get: getUserOperation, patch: patchUserOperation },
+      '/api/v1/users/{id}/workflow': { get: getUserWorkflowOperation },
+      '/api/v1/users/{id}/semester-selection': { put: putUserSemesterSelectionOperation },
+      '/api/v1/semesters': { get: listSemestersOperation, post: createSemesterOperation },
+      '/api/v1/semesters/{id}': { get: getSemesterOperation, patch: patchSemesterOperation },
+      '/api/v1/semesters/{id}/transitions': { post: transitionSemesterOperation },
     },
   })
 }

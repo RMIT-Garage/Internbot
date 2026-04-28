@@ -153,9 +153,7 @@ export class StudentProfile {
    * branching at the handler.
    */
   settleStatus(now: Date): StudentProfile {
-    return this.isComplete()
-      ? this.markComplete(now)
-      : this.withProfileStatus(this.deriveStatus())
+    return this.isComplete() ? this.markComplete(now) : this.withProfileStatus(this.deriveStatus())
   }
 
   /**

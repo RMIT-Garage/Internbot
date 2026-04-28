@@ -92,3 +92,18 @@ export const FORBIDDEN_TOP_LEVEL_FIELDS: ReadonlySet<string> = new Set([
   'updatedAt',
   '_schemaVersion',
 ])
+
+export const putSemesterSelectionRequestSchema = z
+  .object({
+    semesterId: z.string().min(1).meta({
+      example: 'sem_aBc123XyZ',
+      description: 'The active semester to enrol in (see WORKFLOW-API-SPEC.md §7.6).',
+    }),
+  })
+  .strict()
+  .meta({
+    id: 'PutSemesterSelectionRequest',
+    description: 'Body for PUT /api/v1/users/:id/semester-selection.',
+  })
+
+export type PutSemesterSelectionRequest = z.infer<typeof putSemesterSelectionRequestSchema>

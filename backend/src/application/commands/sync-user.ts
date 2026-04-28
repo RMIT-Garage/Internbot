@@ -1,8 +1,10 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { PlatformClaimsService } from '../ports/platform-claims-service'
+import type { IdGenerator } from '../ports/id-generator'
 import { ValidationError } from '../../domain/errors'
 import { StudentProfile } from '../../domain/value-objects/student-profile'
+import { UserIdentity } from '../../domain/value-objects/user-identity'
 import { User } from '../../domain/entities/user'
 
 /**
@@ -12,7 +14,7 @@ import { User } from '../../domain/entities/user'
  * Per WORKFLOW-API-SPEC.md §7.1:
  *   - First call: required `studentNumber`, creates user with `role: student`,
  *     sets Firebase custom claims `{ platformUserId, role }`, returns 201
- *   - Subsequent calls: lookup by firebaseUid, update mutable fields
+ *   - Subsequent calls: lookup by IdP identity, update mutable fields
  *     (displayName), re-affirm claims (idempotent), return 200
  *
  * Strict CQRS: returns only `{ id, created }`. The route dispatches a
@@ -32,12 +34,23 @@ export interface SyncUserResult {
 export class SyncUserCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
-    private readonly platformClaims: PlatformClaimsService
+    private readonly platformClaims: PlatformClaimsService,
+    private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: SyncUserCommand): Promise<SyncUserResult> {
+    // Mint the new aggregate id up-front (outside the transaction). We
+    // only consume it on the create path; if `findByIdentity` returns an
+    // existing user the id is harmlessly burned. Application layer owns
+    // identity orchestration — the repo never sees an empty id.
+    const newUserId = this.idGenerator.next()
+
     const outcome = await this.uow.execute(async (uow) => {
-      const existing = await uow.users.findByFirebaseUid(cmd.actor.firebaseUid)
+      const lookup = {
+        provider: 'firebase' as const,
+        providerUserId: cmd.actor.firebaseUid,
+      }
+      const existing = await uow.users.findByIdentity(lookup)
 
       if (existing) {
         if (cmd.displayName !== undefined && cmd.displayName !== existing.displayName) {
@@ -62,20 +75,20 @@ export class SyncUserCommandHandler {
       }
 
       const user = User.create({
-        id: '',
+        id: newUserId,
         version: 0,
-        firebaseUid: cmd.actor.firebaseUid,
         email: cmd.actor.email ?? '',
         role: 'student',
         status: 'active',
         onboardingStage: 'profile_pending',
+        identity: UserIdentity.create({ ...lookup, emailSnapshot: cmd.actor.email }),
         createdAt: new Date(),
         updatedAt: new Date(),
         displayName: cmd.displayName,
         studentProfile: newIncompleteProfile(cmd.studentNumber),
       })
-      const { id } = await uow.users.create(user)
-      return { id, role: 'student' as const, created: true }
+      await uow.users.create(user)
+      return { id: newUserId, role: 'student' as const, created: true }
     })
 
     // After the transaction commits, set Firebase custom claims so the

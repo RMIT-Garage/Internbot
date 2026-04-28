@@ -45,7 +45,7 @@ Pure TypeScript, no network, no emulator. Fast feedback loop.
 
 Infrastructure layer against the real Firestore emulator. These catch Firestore-specific quirks mocks cannot: transaction retries, index errors, serverTimestamp ordering, `updateTime`-based ETags, concurrent write contention.
 
-- `tests/integration/infrastructure/firestore/firestore-user-repository.test.ts` — `create` / `findById` / `findByFirebaseUid` / `update` / `markAcademicInfoConfirmed` against emulator
+- Firestore user repository behavior is exercised through auth-sync integration/component tests: `create` / `findById` / `findByIdentity` / `save` against the emulator
 - `tests/integration/infrastructure/firestore/firestore-unit-of-work.test.ts` — transaction rollback on throw, concurrent execute contention
 - `tests/integration/infrastructure/firestore/translate-firestore-errors.test.ts` — driver-error → DomainError mapping with induced emulator errors
 

@@ -4,6 +4,7 @@ import { GetUserQueryHandler } from '../../../../src/application/queries/get-use
 import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
+import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
   clearDocs,
@@ -19,7 +20,8 @@ async function seedStudent(): Promise<{ id: string; firebaseUid: string }> {
   await ensureFirebaseUser(firebaseUid, email)
   const sync = new SyncUserCommandHandler(
     new FirestoreUnitOfWork(),
-    new FirebasePlatformClaimsService()
+    new FirebasePlatformClaimsService(),
+    firestoreIdGenerator
   )
   const { id } = await sync.handle({
     actor: { firebaseUid, email, platformUser: null },
@@ -98,8 +100,9 @@ describe('GetUserQueryHandler — integration', () => {
       platformUser: null,
     }
 
-    await expect(
-      handler.handle({ actor: preSync, userId: 'usr_whatever' })
-    ).rejects.toMatchObject({ name: 'ForbiddenError', reason: 'no_platform_user' })
+    await expect(handler.handle({ actor: preSync, userId: 'usr_whatever' })).rejects.toMatchObject({
+      name: 'ForbiddenError',
+      reason: 'no_platform_user',
+    })
   })
 })

@@ -52,12 +52,12 @@ This is a sprint-contract file, not a status log. Two rules:
 - Auth model: Firebase custom claims carry `{ platformUserId, role }`. `POST /auth/sync` sets them via the `PlatformClaimsService` port. Subsequent requests read identity directly from the token — no per-request Firestore lookup.
 - Authz lives inline inside each CQRS handler. Route handlers do authentication (via middleware) + body validation + dispatch + serialization — never authz.
 - Naming convention settled: kebab-case files/folders, PascalCase classes/interfaces, camelCase identifiers.
-- Later within phase 1: aggregate pattern tightened to Vernon-style — private `#props` + getters + private ctor + `create`/`rehydrate` factories; `User` is **mutable** (`change*`/`set*`/`clear*` void methods); VOs stay immutable with `with*`. Repository port shrinks to `findById` / `findByFirebaseUid` / `create(user)` / `save(user)` — optimistic concurrency enforced inside `save()` via `updateTime.toMillis()`, no client-side version increment. Command shape: `actor`/`userId`/`patch`/`metadata?: CommandMetadata` — business intent on the command, transport metadata (expectedVersion, future correlationId/idempotencyKey) nested under `metadata`. `backend/CLAUDE.md` slimmed to rules + pointers; canonical reference is `docs/BACKEND.md`.
+- Later within phase 1: aggregate pattern tightened to Vernon-style — private `#props` + getters + private ctor + `create`/`rehydrate` factories; `User` is **mutable** (`change*`/`set*`/`clear*` void methods); VOs stay immutable with `with*`. Repository port shrinks to `findById` / `findByIdentity` / `create(user, identity)` / `save(user)` — optimistic concurrency enforced inside `save()` via `updateTime.toMillis()`, no client-side version increment. Command shape: `actor`/`userId`/`patch`/`metadata?: CommandMetadata` — business intent on the command, transport metadata (expectedVersion, future correlationId/idempotencyKey) nested under `metadata`. `backend/CLAUDE.md` slimmed to rules + pointers; canonical reference is `docs/BACKEND.md`.
 
 ### Scope
 
 - Shared foundations bundled into this phase (every later phase depends on them):
-  - Platform-id resolver: auth middleware looks up `users where firebaseUid == token.uid` and populates `actor.{id, role, studentProfile?}`.
+  - Platform-id resolver: `POST /auth/sync` resolves `userIdentities/firebase__{token.uid}` and custom claims populate `actor.{id, role}` on later requests.
   - ETag helper (derived from Firestore `updateTime`) + `If-Match` middleware → 412 on mismatch.
   - Cursor pagination helper (opaque token = last doc snapshot reference).
   - Role guards: `requireCoordinator()`, `requireStudent()`, `requireOwner(resourceUserId)`.
@@ -99,7 +99,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 2 — Semesters
 
-**Status:** in_progress
+**Status:** review_ready
 **Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58)
 **PR:** —
 
@@ -128,11 +128,16 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implementation lands the full vertical slice: domain aggregate (`Semester` + `SemesterTransition` VO with state-machine guard), CQRS handlers (create/update/transition + get/list queries), Firestore repo with in-txn natural-key uniqueness and atomic `recordTransition` (parent status + activity subcollection in one txn), `/api/v1/semesters` router, OpenAPI spec, all three test tiers.
+- Test pyramid: 286 tests across 24 files passing — 220 unit (incl. architecture rules), 31 integration (Firestore emulator), 35 component (Firestore + Auth emulator). One `it(...)` per Phase 2 Success criteria + Bug-finding bullet in `tests/component/routes/semesters.test.ts`.
+- Storage schema accepts `null` on `enrolmentOpenAt` / `enrolmentCloseAt` so PATCH writes can clear the field (mapped back to `undefined` on the domain side).
+- Route-level POST distinguishes `422 missing_required_field` from `400 invalid_body` via Zod v4's `invalid_type` issue + "received undefined" message text (Zod v4 dropped the structured `received` field from its issue payload).
+
 ---
 
 ## Phase 3 — Student enrolment + workflow
 
-**Status:** pending
+**Status:** review_ready
 **PR:** —
 
 ### Scope
@@ -158,6 +163,11 @@ _(append terse status notes here during implementation)_
 - `semesterEnrolmentState` reflects `window_closed` when the semester is active but the window has closed.
 
 ### Notes
+
+- Domain: added `User.selectSemester(semesterId, now)` (delegates to `StudentProfile.withSemester`, which already preserves first-set `semesterSelectedAt`); new `domain/value-objects/workflow-state.ts` (coarse + fine + enrolment-state vocabularies); new `domain/services/workflow-derivation.ts` centralizing the §7.1 / §9.2 / §7.2 derivation. Mapper-level `deriveWorkflowStep` removed — `toUserResponse` now flows through the same derivation function future phases will extend.
+- Application: `SelectSemesterCommandHandler` (3-step validation chain: complete profile → active semester → open enrolment window) + `GetUserWorkflowQueryHandler` (loads referenced semester only when set; tolerant of dangling refs). Both follow Phase 1/2 conventions (inline authz, `metadata.expectedVersion`, returns `{ id }`).
+- API: `PUT /api/v1/users/{id}/semester-selection` + `/me` alias, `GET /api/v1/users/{id}/workflow` + `/me` alias. New schemas, DTOs, mappers, OpenAPI operations. Snapshot `backend/openapi.json` regenerated.
+- Tests: 350 / 350 across 29 files. Unit: `User.selectSemester` (4 tests), `deriveWorkflowState` (7), `SelectSemesterCommandHandler` (11), `GetUserWorkflowQueryHandler` (7). Integration (Firestore emulator): 8 tests covering all 409 paths and the `semesterSelectedAt`-set-once invariant. Component (Firestore + Auth emulators): 11 tests, one `it(...)` per Success-criteria + Bug-finding bullet.
 
 ---
 

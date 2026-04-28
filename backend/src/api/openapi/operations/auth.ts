@@ -7,7 +7,7 @@ export const authSyncOperation: ZodOpenApiOperationObject = {
   operationId: 'authSync',
   summary: 'Verify Firebase identity and return/create the platform user',
   description:
-    'On first call for a given `firebaseUid` creates a `users/{id}` document, sets `role: student`, and writes Firebase custom claims `{ platformUserId, role }`. Subsequent calls are idempotent. See WORKFLOW-API-SPEC.md §7.1.',
+    'On first call for a given Firebase identity creates a `users/{id}` document, creates a `userIdentities` mapping, sets `role: student`, and writes Firebase custom claims `{ platformUserId, role }`. Subsequent calls are idempotent. See WORKFLOW-API-SPEC.md §7.1.',
   tags: ['Authentication'],
   security: [{ bearerAuth: [] }],
   requestBody: {

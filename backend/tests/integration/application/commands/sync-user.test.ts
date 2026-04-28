@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
+import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
   clearDocs,
@@ -31,7 +32,8 @@ describe('SyncUserCommandHandler — integration', () => {
     const actor = await buildFreshActor()
     const handler = new SyncUserCommandHandler(
       new FirestoreUnitOfWork(),
-      new FirebasePlatformClaimsService()
+      new FirebasePlatformClaimsService(),
+      firestoreIdGenerator
     )
 
     const result = await handler.handle({
@@ -46,8 +48,21 @@ describe('SyncUserCommandHandler — integration', () => {
     const snap = await adminDb.collection('users').doc(result.id).get()
     const data = snap.data()
     expect(data?.['role']).toBe('student')
-    expect(data?.['firebaseUid']).toBe(actor.firebaseUid)
+    expect(data?.['firebaseUid']).toBeUndefined()
     expect(data?.['studentProfile']?.['profileStatus']).toBe('incomplete')
+    // Identity is denormalised onto the user doc — single read populates it.
+    expect(data?.['identity']).toMatchObject({
+      provider: 'firebase',
+      providerUserId: actor.firebaseUid,
+      emailSnapshot: actor.email,
+    })
+
+    // Slim sentinel — uniqueness lock only, just the back-pointer.
+    const sentinel = await adminDb
+      .collection('userIdentities')
+      .doc(`firebase__${encodeURIComponent(actor.firebaseUid)}`)
+      .get()
+    expect(sentinel.data()).toMatchObject({ userId: result.id })
 
     // Real Firebase Auth claims must now be set on the emulator user.
     const authRecord = await adminAuth.getUser(actor.firebaseUid)
@@ -58,7 +73,8 @@ describe('SyncUserCommandHandler — integration', () => {
     const actor = await buildFreshActor()
     const handler = new SyncUserCommandHandler(
       new FirestoreUnitOfWork(),
-      new FirebasePlatformClaimsService()
+      new FirebasePlatformClaimsService(),
+      firestoreIdGenerator
     )
 
     const first = await handler.handle({
@@ -85,7 +101,8 @@ describe('SyncUserCommandHandler — integration', () => {
     const actor = await buildFreshActor()
     const handler = new SyncUserCommandHandler(
       new FirestoreUnitOfWork(),
-      new FirebasePlatformClaimsService()
+      new FirebasePlatformClaimsService(),
+      firestoreIdGenerator
     )
 
     await expect(

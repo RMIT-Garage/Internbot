@@ -1,19 +1,26 @@
 import type { RequestActor } from '../../application/actor'
 import type { UserResult } from '../../application/models/user'
+import type { UserWorkflowResult } from '../../application/models/user-workflow'
 import type {
   AcademicInfoPatch,
   UpdateUserProfileCommand,
 } from '../../application/commands/update-user-profile'
 import type { SyncUserCommand } from '../../application/commands/sync-user'
-import type { AuthSyncRequest, PatchUserRequest } from '../schemas/user'
+import type { SelectSemesterCommand } from '../../application/commands/select-semester'
+import type {
+  AuthSyncRequest,
+  PatchUserRequest,
+  PutSemesterSelectionRequest,
+} from '../schemas/user'
 import type {
   AcademicInfoResponse,
-  CurrentWorkflowStep,
   StudentProfileResponse,
   UserResponse,
+  UserWorkflowResponse,
 } from '../dto/user'
 import type { AcademicInfo } from '../../domain/value-objects/academic-info'
 import type { StudentProfile } from '../../domain/value-objects/student-profile'
+import { deriveWorkflowState } from '../../domain/services/workflow-derivation'
 import { formatETag, parseIfMatch } from '../utils/etag'
 
 /**
@@ -29,6 +36,21 @@ export function toSyncUserCommand(actor: RequestActor, body: AuthSyncRequest): S
     actor,
     studentNumber: body.studentNumber,
     displayName: body.displayName,
+  }
+}
+
+export function toSelectSemesterCommand(
+  actor: RequestActor,
+  userId: string,
+  ifMatch: string | undefined,
+  body: PutSemesterSelectionRequest
+): SelectSemesterCommand {
+  const expectedVersion = parseIfMatch(ifMatch)
+  return {
+    actor,
+    userId,
+    payload: { semesterId: body.semesterId },
+    ...(expectedVersion !== undefined ? { metadata: { expectedVersion } } : {}),
   }
 }
 
@@ -99,20 +121,15 @@ function studentProfileToResponse(p: StudentProfile): StudentProfileResponse {
   return dto
 }
 
-/**
- * Derive the coarse `currentWorkflowStep` per WORKFLOW-API-SPEC.md §7.1.
- * Phase 1 only knows `profile` / `semester_selection` / `opportunity_browsing`
- * — later phases refine by reading internships.
- */
-function deriveWorkflowStep(p: StudentProfile): CurrentWorkflowStep {
-  if (p.profileStatus !== 'complete') return 'profile'
-  if (!p.semesterId) return 'semester_selection'
-  return 'opportunity_browsing'
-}
-
 export function toUserResponse(result: UserResult): UserResponse {
   const u = result.user
   if (u.isStudent()) {
+    // GET /users/:id returns the *coarse* step only — the fine
+    // `internshipStatus` and `semesterEnrolmentState` belong to the
+    // dedicated workflow sub-resource. We compute the triple anyway and
+    // pluck the coarse step so future expansion (Phase 5+) flows through
+    // a single derivation function rather than two.
+    const { currentWorkflowStep } = deriveWorkflowState(u, undefined, new Date())
     return {
       id: u.id,
       email: u.email,
@@ -120,7 +137,7 @@ export function toUserResponse(result: UserResult): UserResponse {
       status: u.status,
       onboardingStage: u.onboardingStage,
       role: 'student',
-      currentWorkflowStep: deriveWorkflowStep(u.studentProfile),
+      currentWorkflowStep,
       studentProfile: studentProfileToResponse(u.studentProfile),
     }
   }
@@ -131,6 +148,14 @@ export function toUserResponse(result: UserResult): UserResponse {
     status: u.status,
     onboardingStage: u.onboardingStage,
     role: 'coordinator',
+  }
+}
+
+export function toUserWorkflowResponse(result: UserWorkflowResult): UserWorkflowResponse {
+  return {
+    currentWorkflowStep: result.workflow.currentWorkflowStep,
+    internshipStatus: result.workflow.internshipStatus,
+    semesterEnrolmentState: result.workflow.semesterEnrolmentState,
   }
 }
 

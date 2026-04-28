@@ -18,7 +18,7 @@ domain  ←  application  ←  infrastructure  ←  api
 
 Each layer owns its own data model. Mappers sit at every boundary — no type ever leaks across layers.
 
-Identity: **platform `users/{id}`** is the app identity. `firebaseUid` bridges to Firebase Auth only; never used as a foreign key or route param.
+Identity: **platform `users/{id}`** is the app identity. Firebase UID is an IdP identity mapped through `userIdentities/{provider}__{providerUserId}`; never use it as a foreign key or route param.
 
 ---
 
@@ -35,7 +35,7 @@ backend/src/
 │   │   ├── user-enums.ts                       Role, UserStatus, ProfileStatus, …
 │   │   ├── academic-info.ts                    Immutable VO — #props + getters + create/rehydrate + with*
 │   │   └── student-profile.ts                  Immutable VO — with*/settleStatus/markComplete
-│   └── repositories/user-repository.ts         UserRepository port — findById / findByFirebaseUid / create / save
+│   └── repositories/user-repository.ts         UserRepository port — findById / findByIdentity / create / save
 │
 ├── application/                                Use cases — no zod, no firebase, no express
 │   ├── actor.ts                                RequestActor + PlatformUser
@@ -110,15 +110,15 @@ Mutation methods enforce their own invariants (e.g. `ForbiddenError` if the aggr
 
 ### Method naming conventions
 
-| Prefix / shape        | Returns                        | Use                                                                             |
-| --------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
-| `is*()`               | `boolean` (often type guard)   | Predicate. `isStudent()`, `isCoordinator()`                                     |
-| `has*()`              | `boolean`                      | Presence / invariant check. `hasAllRequiredFields()`                            |
-| `ensure*()`           | `void` (throws on violation)   | Invariant guard. `ensureStudentNumberMatches(x)`                                |
-| `with*()`             | new VO instance                | VO field mutator (immutable). `withProgramCode('BP096')`                        |
-| `change*` / `set*`    | `void` (aggregate mutates)     | Aggregate command. `changePhone(x)`, `setAcademicInfo(info)`                    |
-| `clear*()`            | `void` (aggregate mutates)     | Aggregate command that removes a field. `clearPhone()`, `clearAcademicInfo()`  |
-| `markX` / domain event| new VO / void                  | Intent-revealing state transition. `markComplete(now)` — not CRUD-shaped        |
+| Prefix / shape         | Returns                      | Use                                                                           |
+| ---------------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| `is*()`                | `boolean` (often type guard) | Predicate. `isStudent()`, `isCoordinator()`                                   |
+| `has*()`               | `boolean`                    | Presence / invariant check. `hasAllRequiredFields()`                          |
+| `ensure*()`            | `void` (throws on violation) | Invariant guard. `ensureStudentNumberMatches(x)`                              |
+| `with*()`              | new VO instance              | VO field mutator (immutable). `withProgramCode('BP096')`                      |
+| `change*` / `set*`     | `void` (aggregate mutates)   | Aggregate command. `changePhone(x)`, `setAcademicInfo(info)`                  |
+| `clear*()`             | `void` (aggregate mutates)   | Aggregate command that removes a field. `clearPhone()`, `clearAcademicInfo()` |
+| `markX` / domain event | new VO / void                | Intent-revealing state transition. `markComplete(now)` — not CRUD-shaped      |
 
 ### Optimistic concurrency lives at the persistence boundary
 
@@ -135,32 +135,32 @@ Command handlers translate patch keys to aggregate method calls one-per-field. B
 
 ## Per-concern implementation choices
 
-| Concern                                                 | Uses                                                                                        |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Aggregate root (`User`)                                 | **class**, mutable, `#props` + getters, private ctor, `create` / `rehydrate`, `change*`/`set*`/`clear*` void methods |
-| Value objects (`StudentProfile`, `AcademicInfo`)        | **class**, immutable, `#props` + getters, private ctor, `create` / `rehydrate`, `with*` returning new instances |
-| Repository contracts                                    | **interface** (port) — in `domain/repositories/`                                            |
-| Repository implementations                              | **class** — in `infrastructure/firestore/`; `save(user)` enforces optimistic concurrency in-txn |
-| UnitOfWork                                              | **interface** (port) in application + **class** impl in infrastructure                      |
-| Route handlers / controllers                            | **plain function** inside a Router factory                                                  |
-| CQRS command/query handlers                             | **class** with flat constructor-injected deps, single `handle(cmd)` method                  |
-| Cross-cutting transport metadata on commands            | Nested `cmd.metadata: CommandMetadata` (NOT a second `handle(cmd, ctx)` argument)           |
-| DTOs, command/query payloads, results                   | **interface** or **type**                                                                   |
-| Auth helpers (token verifier, claims setter)            | **plain function** (no port — api is outermost layer)                                       |
+| Concern                                          | Uses                                                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Aggregate root (`User`)                          | **class**, mutable, `#props` + getters, private ctor, `create` / `rehydrate`, `change*`/`set*`/`clear*` void methods |
+| Value objects (`StudentProfile`, `AcademicInfo`) | **class**, immutable, `#props` + getters, private ctor, `create` / `rehydrate`, `with*` returning new instances      |
+| Repository contracts                             | **interface** (port) — in `domain/repositories/`                                                                     |
+| Repository implementations                       | **class** — in `infrastructure/firestore/`; `save(user)` enforces optimistic concurrency in-txn                      |
+| UnitOfWork                                       | **interface** (port) in application + **class** impl in infrastructure                                               |
+| Route handlers / controllers                     | **plain function** inside a Router factory                                                                           |
+| CQRS command/query handlers                      | **class** with flat constructor-injected deps, single `handle(cmd)` method                                           |
+| Cross-cutting transport metadata on commands     | Nested `cmd.metadata: CommandMetadata` (NOT a second `handle(cmd, ctx)` argument)                                    |
+| DTOs, command/query payloads, results            | **interface** or **type**                                                                                            |
+| Auth helpers (token verifier, claims setter)     | **plain function** (no port — api is outermost layer)                                                                |
 
 ---
 
 ## Naming
 
-| Artifact                          | Style                                                           |
-| --------------------------------- | --------------------------------------------------------------- |
-| Files & folders                   | `kebab-case` (`firestore-user-repository.ts`, `value-objects/`) |
-| Classes, interfaces, type aliases | `PascalCase` (`SyncUserCommandHandler`, `UserProps`)            |
-| Functions, variables, exports     | `lowerCamelCase` (`verifyFirebaseToken`)                        |
+| Artifact                          | Style                                                               |
+| --------------------------------- | ------------------------------------------------------------------- |
+| Files & folders                   | `kebab-case` (`firestore-user-repository.ts`, `value-objects/`)     |
+| Classes, interfaces, type aliases | `PascalCase` (`SyncUserCommandHandler`, `UserProps`)                |
+| Functions, variables, exports     | `lowerCamelCase` (`verifyFirebaseToken`)                            |
 | Command/query target id           | Specific name (`userId`, `semesterId`) — **not generic `targetId`** |
-| URL path segments (multi-word)    | `kebab-case` (`/offer-submissions`)                             |
-| Express route params              | `lowerCamelCase` (`:studentId`)                                 |
-| Enum / status values              | `snake_case` (`offer_pending_review`)                           |
+| URL path segments (multi-word)    | `kebab-case` (`/offer-submissions`)                                 |
+| Express route params              | `lowerCamelCase` (`:studentId`)                                     |
+| Enum / status values              | `snake_case` (`offer_pending_review`)                               |
 
 ---
 
@@ -217,11 +217,11 @@ Rules:
 
 ```typescript
 export interface UnitOfWork {
-  execute<T>(work: (ctx: UnitOfWorkContext) => Promise<T>): Promise<T>
+  execute<T>(work: (ctx: UnitOfWorkContext) => Promise<T>): Promise<T>;
 }
 
 export interface UnitOfWorkContext {
-  readonly users: UserRepository
+  readonly users: UserRepository;
   // Future phases extend: opportunities, internships, semesters, …
 }
 ```
@@ -236,14 +236,15 @@ Firestore quirk: transactions cannot re-read a document after a write in the sam
 
 ```typescript
 export interface UserRepository {
-  findById(id: string): Promise<User | null>
-  findByFirebaseUid(firebaseUid: string): Promise<User | null>
-  create(user: User): Promise<{ id: string }>    // insert — no concurrency check
-  save(user: User): Promise<void>                // update — optimistic lock via user.version
+  findById(id: string): Promise<User | null>;
+  findByIdentity(identity: UserIdentityLookup): Promise<User | null>;
+  create(user: User, identity: UserIdentityCreate): Promise<{ id: string }>;
+  save(user: User): Promise<void>; // update — optimistic lock via user.version
 }
 ```
 
-- `create(user)` accepts a fresh aggregate from `User.create(...)` and inserts. The returned `id` replaces the aggregate's empty id.
+- `findByIdentity(identity)` resolves an IdP subject through `userIdentities/{provider}__{providerUserId}` and returns the app user.
+- `create(user, identity)` accepts a fresh aggregate from `User.create(...)`, inserts `users/{id}`, and creates the identity mapping in the same transaction. The returned `id` replaces the aggregate's empty id.
 - `save(user)` reads the doc in-txn, compares `updateTime.toMillis()` to `user.version`, throws `PreconditionFailedError` on mismatch, then writes the mutable subset (`displayName`, `studentProfile`, `onboardingStage`, `status`, `updatedAt`).
 - `save(user)` does **not** mutate `user.version`. Callers discard the instance after save or re-read.
 
@@ -253,7 +254,7 @@ export interface UserRepository {
 
 Identity is resolved from the ID token itself. No per-request Firestore lookup:
 
-1. First `POST /auth/sync` creates `users/{id}` AND calls `adminAuth.setCustomUserClaims(uid, { platformUserId, role })`.
+1. First `POST /auth/sync` creates `users/{id}`, creates `userIdentities/firebase__{uid}`, and calls `adminAuth.setCustomUserClaims(uid, { platformUserId, role })`.
 2. Client forces `user.getIdToken(true)` to refresh the token and pick up claims.
 3. Subsequent requests: `verifyFirebaseToken` reads `platformUserId` + `role` from decoded token claims and builds `RequestActor`.
 4. Routes that require a synced user check `actor.platformUser !== null` inside the CQRS handler. Only `POST /auth/sync` may run with `platformUser === null`.
@@ -383,7 +384,7 @@ import {
   adminStorage,
   FieldValue,
   Timestamp,
-} from '../../infrastructure/config/firebase-admin'
+} from "../../infrastructure/config/firebase-admin";
 ```
 
 The architecture test fails if `api/routes/` imports `firebase-admin` directly.
@@ -406,11 +407,11 @@ The **normative** contract lives in [docs/WORKFLOW-API-SPEC.md §7.0](/Users/nha
 
 ### Success status codes
 
-| Code             | When                                                                                           |
-| ---------------- | ---------------------------------------------------------------------------------------------- |
-| `200 OK`         | Successful `GET`, `PATCH`, `PUT`, or action `POST` that returns a body                         |
+| Code             | When                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `200 OK`         | Successful `GET`, `PATCH`, `PUT`, or action `POST` that returns a body                                                           |
 | `201 Created`    | Successful `POST` that creates a new resource. Must include a `Location` header pointing to the created resource's canonical URL |
-| `204 No Content` | Reserved — not used in v1                                                                      |
+| `204 No Content` | Reserved — not used in v1                                                                                                        |
 
 ### Status-code semantics
 

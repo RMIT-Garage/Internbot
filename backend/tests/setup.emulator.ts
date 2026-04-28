@@ -65,6 +65,25 @@ export function trackDoc(collection: string, id: string): void {
   trackedDocs.set(collection, set)
 }
 
+/**
+ * Delete every doc tracked by `trackDoc()` and reset the tracking map.
+ *
+ * IMPORTANT — does NOT wipe collections wholesale. Earlier versions did,
+ * for sibling guard collections (`userIdentities`, `semesterNaturalKeys`),
+ * to "prevent accumulation across the suite". That wholesale wipe raced
+ * with sibling test files: file A's `afterEach` would scan the whole
+ * collection while file B was mid-operation, deleting B's in-flight guard
+ * doc and producing inconsistent failures (duplicate-create no longer
+ * 409s, identity lookups returning undefined, etc).
+ *
+ * Test isolation is provided by random ids (`crypto.randomUUID()`) at the
+ * call sites — collisions across tests / runs are not possible. Guard
+ * docs left behind in the emulator are harmless: the emulator drops all
+ * data when its process exits. Tests that *do* care about a specific
+ * guard's lifecycle should `trackDoc('userIdentities', deterministicId)`
+ * (or `'semesterNaturalKeys'`) directly so the cleanup is scoped to
+ * THIS test only.
+ */
 export async function clearDocs(): Promise<void> {
   const db = requireDb()
   const deletions: Promise<unknown>[] = []

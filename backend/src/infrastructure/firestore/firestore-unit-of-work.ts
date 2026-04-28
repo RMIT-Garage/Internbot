@@ -1,6 +1,7 @@
 import type { UnitOfWork, UnitOfWorkContext } from '../../application/ports/unit-of-work'
 import { adminDb } from '../config/firebase-admin'
 import { FirestoreUserRepository } from './firestore-user-repository'
+import { FirestoreSemesterRepository } from './firestore-semester-repository'
 
 /**
  * Firestore implementation of `UnitOfWork`.
@@ -18,6 +19,7 @@ export class FirestoreUnitOfWork implements UnitOfWork {
     return adminDb.runTransaction(async (txn) => {
       const ctx: UnitOfWorkContext = {
         users: new FirestoreUserRepository(txn),
+        semesters: new FirestoreSemesterRepository(txn),
       }
       return work(ctx)
     })

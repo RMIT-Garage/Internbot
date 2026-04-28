@@ -8,15 +8,21 @@ import { SyncUserCommandHandler } from '../../application/commands/sync-user'
 import { GetUserQueryHandler } from '../../application/queries/get-user'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { PlatformClaimsService } from '../../application/ports/platform-claims-service'
+import type { IdGenerator } from '../../application/ports/id-generator'
 
 export interface AuthRouterDeps {
   uow: UnitOfWork
   platformClaimsService: PlatformClaimsService
+  idGenerator: IdGenerator
 }
 
 export function createAuthRouter(deps: AuthRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
-  const syncUser = new SyncUserCommandHandler(deps.uow, deps.platformClaimsService)
+  const syncUser = new SyncUserCommandHandler(
+    deps.uow,
+    deps.platformClaimsService,
+    deps.idGenerator
+  )
   const getUser = new GetUserQueryHandler(deps.uow)
 
   router.post('/sync', async (req: Request, res: Response, next: NextFunction) => {

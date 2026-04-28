@@ -2,10 +2,22 @@ import { Router, type Router as ExpressRouter } from 'express'
 import type { Request, Response, NextFunction } from 'express'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import { ApiError } from '../errors'
-import { patchUserRequestSchema, FORBIDDEN_TOP_LEVEL_FIELDS } from '../schemas/user'
-import { toUpdateUserProfileCommand, toUserResponse, etagFrom } from '../mappers/user'
+import {
+  patchUserRequestSchema,
+  putSemesterSelectionRequestSchema,
+  FORBIDDEN_TOP_LEVEL_FIELDS,
+} from '../schemas/user'
+import {
+  toUpdateUserProfileCommand,
+  toSelectSemesterCommand,
+  toUserResponse,
+  toUserWorkflowResponse,
+  etagFrom,
+} from '../mappers/user'
 import { GetUserQueryHandler } from '../../application/queries/get-user'
+import { GetUserWorkflowQueryHandler } from '../../application/queries/get-user-workflow'
 import { UpdateUserProfileCommandHandler } from '../../application/commands/update-user-profile'
+import { SelectSemesterCommandHandler } from '../../application/commands/select-semester'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 
 export interface UsersRouterDeps {
@@ -27,7 +39,9 @@ export interface UsersRouterDeps {
 export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
   const getUser = new GetUserQueryHandler(deps.uow)
+  const getUserWorkflow = new GetUserWorkflowQueryHandler(deps.uow)
   const updateUserProfile = new UpdateUserProfileCommandHandler(deps.uow)
+  const selectSemester = new SelectSemesterCommandHandler(deps.uow)
 
   // ---------- GET ----------
   router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
@@ -37,8 +51,8 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
       if (!userId) {
         next(
           new ApiError(
-            401,
-            'Unauthorized',
+            403,
+            'Forbidden',
             'Cannot resolve `me`: caller has no platform user record. Call POST /api/v1/auth/sync first.',
             { reason: 'no_platform_user' }
           )
@@ -76,8 +90,8 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
       if (!userId) {
         next(
           new ApiError(
-            401,
-            'Unauthorized',
+            403,
+            'Forbidden',
             'Cannot resolve `me`: caller has no platform user record. Call POST /api/v1/auth/sync first.',
             { reason: 'no_platform_user' }
           )
@@ -101,7 +115,128 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
     }
   })
 
+  // ---------- WORKFLOW (GET) ----------
+  router.get('/me/workflow', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const userId = actor.platformUser?.id
+      if (!userId) {
+        next(unsyncedError())
+        return
+      }
+      const result = await getUserWorkflow.handle({ actor, userId })
+      res.setHeader('Cache-Control', 'private, no-cache')
+      res.status(200).json(toUserWorkflowResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.get('/:id/workflow', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const userId = paramId(req)
+      const result = await getUserWorkflow.handle({ actor, userId })
+      res.setHeader('Cache-Control', 'private, no-cache')
+      res.status(200).json(toUserWorkflowResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ---------- SEMESTER SELECTION (PUT) ----------
+  router.put('/me/semester-selection', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const userId = actor.platformUser?.id
+      if (!userId) {
+        next(unsyncedError())
+        return
+      }
+      await handlePutSemesterSelection(req, res, next, userId, selectSemester, getUser, actor)
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.put('/:id/semester-selection', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const userId = paramId(req)
+      await handlePutSemesterSelection(req, res, next, userId, selectSemester, getUser, actor)
+    } catch (err) {
+      next(err)
+    }
+  })
+
   return router
+}
+
+function paramId(req: Request): string {
+  const raw = req.params['id']
+  return Array.isArray(raw) ? raw[0]! : raw!
+}
+
+function unsyncedError(): ApiError {
+  return new ApiError(
+    403,
+    'Forbidden',
+    'Cannot resolve `me`: caller has no platform user record. Call POST /api/v1/auth/sync first.',
+    { reason: 'no_platform_user' }
+  )
+}
+
+/**
+ * PUT /:id/semester-selection (and /me alias) body validation + dispatch.
+ *
+ * Spec §7.6: malformed / missing `semesterId` returns 422
+ * `missing_required_field`. Zod v4 reports both missing-required and
+ * wrong-type as `invalid_type`; we re-use the same heuristic the semester
+ * routes use ("received undefined" message text → 422; everything else →
+ * 400) to stay consistent with the rest of the surface.
+ */
+async function handlePutSemesterSelection(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  userId: string,
+  selectSemester: SelectSemesterCommandHandler,
+  getUser: GetUserQueryHandler,
+  actor: AuthenticatedRequest['actor']
+): Promise<void> {
+  const parsed = putSemesterSelectionRequestSchema.safeParse(req.body)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    const isMissing =
+      issue?.code === 'invalid_type' && /received undefined/.test(issue.message ?? '')
+    const status = isMissing ? 422 : 400
+    const reason = isMissing ? 'missing_required_field' : 'invalid_body'
+    next(
+      new ApiError(
+        status,
+        status === 422 ? 'Unprocessable Entity' : 'Bad Request',
+        issue?.message ?? 'Invalid body',
+        {
+          reason,
+          fields: parsed.error.issues.map((i) => ({
+            field: i.path.join('.'),
+            code: i.code,
+            message: i.message,
+          })),
+        }
+      )
+    )
+    return
+  }
+
+  const ifMatch = req.header('If-Match')
+  const cmd = toSelectSemesterCommand(actor, userId, ifMatch, parsed.data)
+  const { id } = await selectSemester.handle(cmd)
+  const result = await getUser.handle({ actor, userId: id })
+
+  res.setHeader('ETag', etagFrom(result))
+  res.setHeader('Cache-Control', 'private, no-cache')
+  res.status(200).json(toUserResponse(result))
 }
 
 /**
