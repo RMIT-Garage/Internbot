@@ -176,17 +176,18 @@ Git-level, not Jira-level. Normal PR discipline:
 | `hotfix/*` → `develop`          | Merge commit `--no-ff` | Don't squash — back-merges need it visible |
 | `main` → `develop` (back-merge) | Merge commit `--no-ff` | Bring release/hotfix into develop's ancestry |
 
-## Back-Merge Rule (mandatory after every main update)
+## Back-Merge Rule (after hotfixes only)
 
-Every time `develop` → `main` or `hotfix/*` → `main` lands, `main` must be merged back into `develop` so develop's ancestry stays current with main's release commits. This is the rule that prevents long-running history drift — without it, develop and main accumulate independent histories and a future merge surfaces every conflict at once.
+After a `hotfix/*` → `main` lands, manually merge `main` back into `develop` so develop has the fix:
 
-**Automation**: `.github/workflows/back-merge.yml` runs on every push to `main`. It attempts a clean merge into `develop` and pushes; if conflicts surface, it opens a PR for manual resolution rather than silently failing. This means:
+```bash
+git checkout develop
+git pull
+git merge main --no-ff -m "chore(merge): back-merge main → develop after hotfix"
+git push origin develop
+```
 
-- You never need to remember to back-merge.
-- Conflicts surface one release at a time (small, localised) instead of accumulating across dozens of commits.
-- The release flow becomes: develop → main → (auto) main → develop. Done.
-
-If the workflow opens a back-merge PR, treat it as priority — it's blocking the next release.
+This is **only needed when something edits main outside of a develop → main release** — typically hotfixes. For pure `develop → main` releases the back-merge is unnecessary because develop's tip is already a parent of main's merge commit (that's what `--no-ff` preserves).
 
 ## Release Cadence
 
@@ -198,19 +199,13 @@ Promote `develop` → `main` on a **regular cadence**, not on accumulation. Pick
 
 Solo-dev GitFlow only works when releases are *frequent and small*. Letting develop accumulate 30+ commits before a release is the failure mode that produces enormous merge conflicts and stale Dependabot configs.
 
-## Main-First Files
+## Dependabot
 
-Some files are read by external systems from the **default branch only** (`main`). Editing them on `develop` causes silent drift — develop's version doesn't take effect until the next release. Treat these as *main-owned*: edits go on a `chore/<topic>` branch from main, PR straight to main, and the back-merge workflow propagates them to develop automatically.
+Dependabot reads `.github/dependabot.yml` from `main` only — that's a GitHub constraint, not a project decision. With `target-branch: develop` set in the config, version-update PRs are opened against `develop` (so they integrate with feature work and ride to main on the next release). Security-update PRs always target the default branch (`main`) and ignore `target-branch`.
 
-Current main-first files:
+Edit `.github/dependabot.yml` on `develop` like any other file. The new config activates when the next `develop` → `main` release lands. The cadence rule above is what keeps that lag short — letting it sit for 30+ commits is what produced the stale-config / wrong-target-branch problem we hit at the IC-58 release.
 
-| File                                | Read by               |
-| ----------------------------------- | --------------------- |
-| `.github/dependabot.yml`            | Dependabot            |
-| `.github/CODEOWNERS`                | GitHub review routing |
-| `.github/workflows/back-merge.yml`  | GitHub Actions on `push: main` |
-
-When in doubt: if the file is read by a default-branch-only mechanism (Dependabot, CodeQL default config, branch-protection-as-code, etc.), it goes here.
+If a different file ever needs to be read from `main` only (`CODEOWNERS`, CodeQL default config, etc.), the same lag applies and the same cadence rule fixes it. Don't bypass cadence by branching from main for one-off config edits — that creates a divergent main that develop never gets, defeating the whole pattern.
 
 ## Release Rule
 
