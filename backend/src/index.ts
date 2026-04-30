@@ -1,4 +1,6 @@
 import { onRequest } from 'firebase-functions/v2/https'
+import { beforeUserCreated, HttpsError } from 'firebase-functions/v2/identity'
+import type { BlockingFunction } from 'firebase-functions/v1'
 import { createApp } from './api/app'
 
 const app = createApp()
@@ -22,3 +24,61 @@ export const api = onRequest(
   },
   app
 )
+
+/**
+ * Identity Platform `beforeCreate` blocking function — rejects sign-ups whose
+ * email is not an RMIT student email. This is the *only* trustworthy place
+ * to enforce the email-domain policy: client SDK validation can be bypassed
+ * and any backend post-create derivation runs after the auth user already
+ * exists.
+ *
+ * Wired to GCIP via `infrastructure/modules/auth/main.tf`. The Terraform
+ * module reads the deployed function URL through a
+ * `google_cloudfunctions2_function` data source — no manual URL hand-off.
+ *
+ * Bootstrap on a new environment (one-time):
+ *   1. `terraform apply` with `wire_blocking_function = false` (upgrades
+ *      the project to Identity Platform; trigger unwired).
+ *   2. `firebase deploy --only functions:enforceStudentEmail`.
+ *   3. Flip `wire_blocking_function = true` in env tfvars; `terraform apply`.
+ *
+ * Steady state: every push to develop/main re-runs Terraform then deploys
+ * the function. The deterministic `cloudfunctions.net` URL is stable so
+ * Terraform sees no diff after bootstrap.
+ */
+const STUDENT_EMAIL_REGEX = /^s\d+@student\.rmit\.edu\.au$/i
+
+export const enforceStudentEmail: BlockingFunction = beforeUserCreated(
+  { region: 'australia-southeast1' },
+  (event) => {
+    const email = event.data?.email
+    if (!email || !STUDENT_EMAIL_REGEX.test(email)) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Sign-up requires an RMIT student email (e.g. s1234567@student.rmit.edu.au).'
+      )
+    }
+  }
+)
+
+/**
+ * Why no `beforeUserSignedIn` blocking function?
+ *
+ * `createUserWithEmailAndPassword` performs an implicit sign-in immediately
+ * after create. A `beforeSignIn` trigger that gates on `emailVerified` would
+ * reject that sign-in (a fresh user is unverified by definition), the SDK
+ * never populates `auth.currentUser`, and the frontend has no way to call
+ * `sendEmailVerification(user)` — the user is locked out before the email
+ * is ever sent. Working around it requires a backend email service and
+ * custom sign-up endpoint, which is not worth the marginal security gain:
+ * unverified tokens are already inert in our system.
+ *
+ * Defense-in-depth lives in two places instead:
+ *   - `firebase-token-verifier.ts` — rejects any decoded token whose
+ *     `email_verified` claim is not true.
+ *   - `platform-user-hydrator.ts` — refuses to JIT-create a `users/{id}`
+ *     document for an unverified email, preventing student-number squatting.
+ *
+ * An attacker holding an unverified token therefore has zero API surface:
+ * no platform identity, no Firestore writes, no Storage access.
+ */

@@ -16,6 +16,9 @@ import {
   mintEmulatorIdToken,
 } from '../../setup.emulator'
 import { adminAuth } from '../../../src/infrastructure/config/firebase-admin'
+import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
+import { User } from '../../../src/domain/entities/user'
+import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
 
 const completePatch = {
   studentProfile: {
@@ -33,29 +36,50 @@ const completePatch = {
 
 async function syncStudent(app: ReturnType<typeof createApp>) {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-  const initialToken = await mintEmulatorIdToken(firebaseUid, email)
+  const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
+  const email = `${studentNumber}@student.rmit.edu.au`
+  const idToken = await mintEmulatorIdToken(firebaseUid, email)
 
-  const create = await request(app)
-    .post('/api/v1/auth/sync')
-    .set('Authorization', `Bearer ${initialToken}`)
-    .send({ studentNumber: `s${Math.floor(Math.random() * 1e9)}` })
-  expect(create.status).toBe(201)
-  trackDoc('users', create.body.id)
-
-  // Subsequent calls use a refreshed token (picks up the claims set by sync).
-  const authedToken = await mintEmulatorIdToken(firebaseUid, email)
-  return { id: create.body.id as string, firebaseUid, email, idToken: authedToken }
+  // Pattern B: any authenticated request triggers JIT bootstrap in the
+  // hydrator middleware. We hit GET /me to receive the freshly-created id.
+  const me = await request(app).get('/api/v1/users/me').set('Authorization', `Bearer ${idToken}`)
+  expect(me.status).toBe(200)
+  trackDoc('users', me.body.id)
+  return { id: me.body.id as string, firebaseUid, email, idToken }
 }
 
 async function makeCoordinator() {
+  // Coordinators bypass JIT: their `users/{id}` doc + Firebase Auth user must
+  // exist before the middleware sees them. Provision both atomically here.
   const firebaseUid = `fb_${randomUUID()}`
   const email = `coord_${randomUUID().slice(0, 6)}@rmit.edu.au`
   const platformUserId = `usr_coord_${randomUUID()}`
   await adminAuth.createUser({ uid: firebaseUid, email })
-  await adminAuth.setCustomUserClaims(firebaseUid, { platformUserId, role: 'coordinator' })
-  // Note: coordinators in this project are provisioned out-of-band — no
-  // Firestore doc is required to exercise coordinator-role routes.
+
+  const uow = new FirestoreUnitOfWork()
+  await uow.execute(async (ctx) => {
+    const now = new Date()
+    const coord = User.create({
+      id: platformUserId,
+      version: 0,
+      email,
+      role: 'coordinator',
+      status: 'active',
+      onboardingStage: 'profile_complete',
+      identity: UserIdentity.create({
+        provider: 'firebase',
+        providerUserId: firebaseUid,
+        emailSnapshot: email,
+      }),
+      createdAt: now,
+      updatedAt: now,
+      displayName: undefined,
+      studentProfile: undefined,
+    })
+    await ctx.users.create(coord)
+  })
+  trackDoc('users', platformUserId)
+
   const idToken = await mintEmulatorIdToken(firebaseUid, email)
   return { firebaseUid, email, platformUserId, idToken }
 }
@@ -77,7 +101,8 @@ describe('GET /api/v1/users/:id — component', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(student.id)
-    // First persisted version is always 1 (sync-user is the first save).
+    // First persisted version is always 1 (the JIT bootstrap is the
+    // first save).
     expect(res.headers['etag']).toBe('W/"1"')
     expect(res.body.firebaseUid).toBeUndefined()
   })
@@ -250,15 +275,16 @@ describe('PATCH /api/v1/users/:id — component', () => {
 })
 
 /**
- * Status-code regression: a Firebase-authenticated caller with no platform
- * user record (i.e. hasn't called POST /auth/sync yet) must receive 403, not
- * 401. The token is valid; the caller is just missing a platform identity.
+ * Status-code regression: a Firebase-authenticated caller whose JIT
+ * bootstrap could not run (non-student-shape email here) must receive
+ * 403, not 401. The token is valid; the caller just has no platform
+ * identity that the hydrator could create.
  *
- * Per spec §7.0: 401 = invalid/missing token; 403 = authenticated but lacks
- * permission. Same condition routed through the bare `:id` path (handler
- * throws ForbiddenError) returns 403 — `/me` aliases must match.
+ * Per spec §7.0: 401 = invalid/missing token; 403 = authenticated but
+ * lacks permission. Same condition routed through the bare `:id` path
+ * (handler throws ForbiddenError) returns 403 — `/me` aliases must match.
  */
-describe('/me alias — pre-sync caller returns 403, not 401', () => {
+describe('/me alias — caller without platform user returns 403, not 401', () => {
   beforeAll(() => initEmulator())
   afterEach(async () => {
     await clearDocs()
@@ -272,9 +298,9 @@ describe('/me alias — pre-sync caller returns 403, not 401', () => {
     ['PUT', '/api/v1/users/me/semester-selection'],
   ])('%s %s with no platform user → 403 no_platform_user', async (method, path) => {
     const app = createApp()
-    // Mint a token but never call /auth/sync — caller is Firebase-authed but
-    // has no platform identity. The token carries no platformUserId/role
-    // custom claims, so `actor.platformUser` resolves to null in middleware.
+    // Caller is Firebase-authed with a non-student-shape email, so the
+    // JIT bootstrap declines to create a `users/{id}` doc and the
+    // hydrator returns null → `actor.platformUser === null`.
     const firebaseUid = `fb_${randomUUID()}`
     const idToken = await mintEmulatorIdToken(firebaseUid, 'a@b.com')
 

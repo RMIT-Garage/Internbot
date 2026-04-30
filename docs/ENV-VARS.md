@@ -7,7 +7,7 @@ Every value belongs to exactly one of these categories. Pick the right one befor
 | Category                    | What it is                                                             | Where it lives                                                         | Who reads it                                                                   |
 | --------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | **Non-secret config**       | Project IDs, regions, app names, public URLs                           | Code default, GitHub **repo variables** (`vars.*`), or workflow `env:` | Anywhere — committed, logged, visible to contributors                          |
-| **Public-bundle values**    | `NEXT_PUBLIC_*` — ship in the browser bundle                           | GitHub repo variables (`vars.*`) or Secret Manager                     | Frontend build step in CI, or Next.js at build time                            |
+| **Public-bundle values**    | `NEXT_PUBLIC_*` — ship in the browser bundle                           | Secret Manager (`firebase-web-config`, written by Terraform)           | Frontend build step in CI fetches via `gcloud secrets versions access`         |
 | **Build-time secrets**      | API keys needed to build the frontend bundle but NOT meant for browser | Secret Manager                                                         | GitHub Actions fetches during build, never committed                           |
 | **Runtime backend secrets** | Stripe, OpenAI, SendGrid keys used by Cloud Functions                  | `defineSecret()` → Secret Manager                                      | Function reads directly at cold start — **GitHub Actions never touches these** |
 | **Deploy credentials**      | Service account to run `firebase deploy`                               | None — OIDC/WIF replaces them                                          | GitHub Actions mints short-lived tokens per job                                |
@@ -40,17 +40,13 @@ These flow as `TF_VAR_*` env vars in `_terraform.yml`.
 
 ### Firebase deploy values
 
-Project IDs, WIF provider ARNs, deploy SA emails, and the frontend's `NEXT_PUBLIC_*` build inputs (api URL, app URL, auth domain, storage bucket) are **hardcoded in the trigger workflow files** (`deploy-dev.yml`, `deploy-prod.yml`). They're:
+Stable identity values — project IDs, WIF provider ARNs, deploy SA emails — are **hardcoded in the trigger workflow files** (`deploy-dev.yml`, `deploy-prod.yml`). They're not secret, rarely change, and reading the workflow tells you what it deploys.
 
-- Not secret (project IDs visible in URLs, SA emails are public, Firebase client API keys are scoped by Security Rules + authDomain)
-- Stable (rarely change — changes go through PR review)
-- Self-documenting (reading the workflow shows exactly what it deploys)
-
-Firebase web-config values that vary per-env and are awkward to inline (`NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`) are referenced via GitHub repo variables (`vars.DEV_*`, `vars.PROD_*`). Fill them in once per env from the Firebase Console (Project settings → General → Your apps → SDK setup and configuration).
+Firebase web-config values (`NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`) are **owned by Terraform** (`infrastructure/modules/web-app/`) and exported to a single Secret Manager secret named `firebase-web-config` — same name in every project, only the project ID varies. The hosting deploy workflow runs `gcloud secrets versions access latest --secret=firebase-web-config --project=<env>`, unpacks the JSON with `jq`, and uses the values to build the static bundle. Adding or rotating an env requires zero workflow changes.
 
 ### GitHub Secrets/Variables
 
-**Currently empty.** OIDC + Secret Manager + committed tfvars + hardcoded workflow values cover all needs.
+**None used.** OIDC + Secret Manager + committed tfvars + hardcoded workflow values cover all needs.
 
 GitHub Secrets would only be for:
 
@@ -120,7 +116,7 @@ Is it used by Cloud Functions at runtime?
 ├── YES, non-sensitive → plain process.env via backend/.env
 │
 Is it used by the frontend?
-├── YES, public (NEXT_PUBLIC_*) → GitHub repo variable, referenced in workflow env: for build
+├── YES, public (NEXT_PUBLIC_*) → add to firebase-web-config secret JSON in infrastructure/modules/web-app, fetched by hosting deploy workflow
 ├── YES, private build-time secret → Secret Manager, fetched in GH Actions during build
 │
 Is it only used by Terraform/CI?

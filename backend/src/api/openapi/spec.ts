@@ -1,6 +1,5 @@
 import { createDocument, type ZodOpenApiObject } from 'zod-openapi'
 import { healthOperation } from './operations/health'
-import { authSyncOperation } from './operations/auth'
 import {
   getMyProfileOperation,
   getUserOperation,
@@ -47,7 +46,6 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
     servers: servers.length > 0 ? (servers as OpenapiServer[]) : undefined,
     tags: [
       { name: 'Health', description: 'Public health probe.' },
-      { name: 'Authentication', description: 'Firebase identity sync.' },
       { name: 'Users', description: 'Platform user records.' },
       { name: 'Semesters', description: 'Semester records and lifecycle transitions.' },
     ],
@@ -58,13 +56,12 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
           scheme: 'bearer',
           bearerFormat: 'Firebase ID token',
           description:
-            'Firebase ID token obtained client-side. Platform identity (`platformUserId`, `role`) is read from custom claims; see docs/WORKFLOW-API-SPEC.md §7.0.',
+            'Firebase ID token obtained client-side. Platform identity is hydrated at the api edge from `userIdentities/{provider}__{uid}` → `users/{id}` on every request; on a brand-new student-shape email the hydrator JIT-creates the platform record in the same transaction. See docs/WORKFLOW-API-SPEC.md §7.0.',
         },
       },
     },
     paths: {
       '/api/health': { get: healthOperation },
-      '/api/v1/auth/sync': { post: authSyncOperation },
       '/api/v1/users/me': { get: getMyProfileOperation, patch: patchMyProfileOperation },
       '/api/v1/users/me/workflow': { get: getMyWorkflowOperation },
       '/api/v1/users/me/semester-selection': { put: putMySemesterSelectionOperation },

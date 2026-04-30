@@ -36,8 +36,8 @@ export const createSemesterRequestSchema = z
     courseCode: courseCodeSchema.meta({ example: 'INTE2710' }),
     displayName: z.string().trim().min(1).meta({ example: 'Semester 1 2026' }),
     status: z.enum(semesterStatusValues),
-    enrolmentOpenAt: z.string().datetime().optional(),
-    enrolmentCloseAt: z.string().datetime().optional(),
+    enrolmentOpenAt: z.string().datetime().optional().meta({ example: '2026-01-15T00:00:00Z' }),
+    enrolmentCloseAt: z.string().datetime().optional().meta({ example: '2026-03-13T23:59:59Z' }),
   })
   .strict()
   .meta({
@@ -50,9 +50,19 @@ export type CreateSemesterRequest = z.infer<typeof createSemesterRequestSchema>
 
 export const patchSemesterRequestSchema = z
   .object({
-    displayName: z.string().trim().min(1).optional(),
-    enrolmentOpenAt: z.string().datetime().nullable().optional(),
-    enrolmentCloseAt: z.string().datetime().nullable().optional(),
+    displayName: z.string().trim().min(1).optional().meta({ example: 'Semester 1 2026' }),
+    enrolmentOpenAt: z
+      .string()
+      .datetime()
+      .nullable()
+      .optional()
+      .meta({ example: '2026-01-15T00:00:00Z' }),
+    enrolmentCloseAt: z
+      .string()
+      .datetime()
+      .nullable()
+      .optional()
+      .meta({ example: '2026-03-13T23:59:59Z' }),
   })
   .strict()
   .meta({

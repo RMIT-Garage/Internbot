@@ -46,10 +46,7 @@ export class SelectSemesterCommandHandler {
   async handle(cmd: SelectSemesterCommand): Promise<SelectSemesterResult> {
     const platformUser = cmd.actor.platformUser
     if (!platformUser) {
-      throw new ForbiddenError(
-        'Caller has no platform user record. Call POST /api/v1/auth/sync first.',
-        'no_platform_user'
-      )
+      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
     }
     if (platformUser.role !== 'student') {
       // Coordinators have no semester-selection sub-resource. The spec

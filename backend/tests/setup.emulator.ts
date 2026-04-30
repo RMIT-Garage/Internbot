@@ -119,17 +119,26 @@ export async function clearAuthUsers(): Promise<void> {
  * Idempotent Firebase Auth user creation in the emulator. Tracks the uid for
  * cleanup in `clearAuthUsers()`.
  *
- * `setCustomUserClaims` (called by `FirebasePlatformClaimsService`) requires
- * the user to exist — call this before invoking a command handler that sets
- * claims, or before issuing a component-test request that will trigger such a
- * handler.
+ * Always provisions with `emailVerified: true` so the resulting ID token
+ * passes the production `email_verified === true` gate (enforced by both the
+ * `enforceVerifiedEmail` blocking function and the backend token verifier).
+ * Tests that want to exercise the unverified path should call
+ * `auth.updateUser(uid, { emailVerified: false })` explicitly after this
+ * helper returns.
  */
 export async function ensureFirebaseUser(uid: string, email?: string): Promise<void> {
   const auth = requireAuth()
   try {
-    await auth.getUser(uid)
+    const existing = await auth.getUser(uid)
+    if (!existing.emailVerified) {
+      await auth.updateUser(uid, { emailVerified: true })
+    }
   } catch {
-    await auth.createUser({ uid, ...(email ? { email } : {}) })
+    await auth.createUser({
+      uid,
+      ...(email ? { email } : {}),
+      emailVerified: true,
+    })
   }
   trackAuthUser(uid)
 }

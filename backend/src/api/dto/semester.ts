@@ -18,10 +18,10 @@ export const semesterResponseSchema = z
     courseCode: z.string().meta({ example: 'INTE2710' }),
     displayName: z.string().meta({ example: 'Semester 1 2026' }),
     status: z.enum(semesterStatusValues),
-    enrolmentOpenAt: z.string().datetime().nullable(),
-    enrolmentCloseAt: z.string().datetime().nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    enrolmentOpenAt: z.string().datetime().nullable().meta({ example: '2026-01-15T00:00:00Z' }),
+    enrolmentCloseAt: z.string().datetime().nullable().meta({ example: '2026-03-13T23:59:59Z' }),
+    createdAt: z.string().datetime().meta({ example: '2026-04-05T03:14:12Z' }),
+    updatedAt: z.string().datetime().meta({ example: '2026-04-05T03:14:12Z' }),
   })
   .meta({
     id: 'SemesterResponse',

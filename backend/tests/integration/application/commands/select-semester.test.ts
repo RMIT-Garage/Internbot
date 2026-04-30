@@ -5,9 +5,8 @@ import { UpdateUserProfileCommandHandler } from '../../../../src/application/com
 import { CreateSemesterCommandHandler } from '../../../../src/application/commands/create-semester'
 import { TransitionSemesterCommandHandler } from '../../../../src/application/commands/transition-semester'
 import { GetUserQueryHandler } from '../../../../src/application/queries/get-user'
-import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
+import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
-import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
@@ -39,19 +38,13 @@ function uniqueSemesterCode(): string {
 
 async function seedStudent(opts: { complete: boolean }): Promise<{ id: string }> {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-  await ensureFirebaseUser(firebaseUid, email)
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
-  const sync = new SyncUserCommandHandler(
-    new FirestoreUnitOfWork(),
-    new FirebasePlatformClaimsService(),
-    firestoreIdGenerator
-  )
-  const { id } = await sync.handle({
-    actor: { firebaseUid, email, platformUser: null },
-    studentNumber,
-    displayName: undefined,
-  })
+  const email = `${studentNumber}@student.rmit.edu.au`
+  await ensureFirebaseUser(firebaseUid, email)
+  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
+  if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
+  const id = platformUser.id
   trackDoc('users', id)
   if (opts.complete) {
     const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())

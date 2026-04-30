@@ -30,17 +30,17 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 **Document ID:** Firestore auto-generated app-user ID. Do not duplicate `id` inside the document body.
 **Access:** Backend-owned.
 
-| Field             | Type                                      | Required | Description                        |
-| ----------------- | ----------------------------------------- | -------- | ---------------------------------- |
-| `email`           | `string`                                  | Yes      | Email synced from the IdP token    |
-| `displayName`     | `string`                                  | No       | Display name synced from auth/sync |
-| `role`            | `'student' \| 'coordinator'`              | Yes      | App role                           |
-| `status`          | `'active' \| 'inactive' \| 'blocked'`     | Yes      | Account lifecycle                  |
-| `onboardingStage` | `'profile_pending' \| 'profile_complete'` | Yes      | Derived workflow readiness         |
-| `studentProfile`  | `map`                                     | No       | Present for students only          |
-| `createdAt`       | `Timestamp`                               | Yes      | Server creation time               |
-| `updatedAt`       | `Timestamp`                               | Yes      | Server update time                 |
-| `_schemaVersion`  | `1`                                       | Yes      | Schema version                     |
+| Field             | Type                                      | Required | Description                                                                |
+| ----------------- | ----------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `email`           | `string`                                  | Yes      | Email synced from the IdP token                                            |
+| `displayName`     | `string`                                  | No       | Display name copied from the IdP token at JIT bootstrap, mutable via PATCH |
+| `role`            | `'student' \| 'coordinator'`              | Yes      | App role                                                                   |
+| `status`          | `'active' \| 'inactive' \| 'blocked'`     | Yes      | Account lifecycle                                                          |
+| `onboardingStage` | `'profile_pending' \| 'profile_complete'` | Yes      | Derived workflow readiness                                                 |
+| `studentProfile`  | `map`                                     | No       | Present for students only                                                  |
+| `createdAt`       | `Timestamp`                               | Yes      | Server creation time                                                       |
+| `updatedAt`       | `Timestamp`                               | Yes      | Server update time                                                         |
+| `_schemaVersion`  | `1`                                       | Yes      | Schema version                                                             |
 
 ## `userIdentities` Collection
 

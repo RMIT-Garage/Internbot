@@ -14,3 +14,11 @@ github_repository_id = "1187697443"
 # Empty list = any branch can impersonate the deploy SA.
 # For prod, use: github_allowed_refs = ["refs/heads/main"]
 github_allowed_refs = ["refs/heads/develop"]
+
+# Wire the GCIP `beforeCreate` blocking function. Bootstrap order:
+#   1. Leave commented (default false) on first apply — upgrades to GCIP,
+#      no trigger wired.
+#   2. `firebase deploy --only functions:enforceStudentEmail`.
+#   3. Uncomment below, re-apply. Terraform reads the function URL from
+#      the data source and grants the GCIP service agent run.invoker.
+# wire_blocking_function = true

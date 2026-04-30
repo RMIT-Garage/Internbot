@@ -69,7 +69,7 @@ export const getMyProfileOperation: ZodOpenApiOperationObject = {
   operationId: 'getMyProfile',
   summary: "Return the caller's own platform user record",
   description:
-    "Resolves to the caller's platform user from the decoded token's `platformUserId` claim. Returns 401 when the caller has not yet called `POST /auth/sync`. See WORKFLOW-API-SPEC.md §7.2.",
+    "Resolves to the caller's platform user. The auth middleware hydrates identity from Firestore and JIT-creates the record on first call from a verified RMIT student email. Returns 403 `no_platform_user` when JIT cannot run (unverified email, non-student-shape email, or unprovisioned coordinator). See WORKFLOW-API-SPEC.md §7.2.",
   tags: ['Users'],
   security: [{ bearerAuth: [] }],
   responses: getResponses,
