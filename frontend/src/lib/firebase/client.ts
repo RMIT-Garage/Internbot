@@ -86,3 +86,6 @@ export const app: FirebaseApp = lazyProxy(() => getServices().app)
 export const auth: Auth = lazyProxy(() => getServices().auth)
 export const db: Firestore = lazyProxy(() => getServices().db)
 export const storage: FirebaseStorage = lazyProxy(() => getServices().storage)
+export function getFirebaseAuth(): Auth {
+  return getServices().auth
+}

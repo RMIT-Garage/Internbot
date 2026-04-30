@@ -9,6 +9,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth } from './client'
+import { sendEmailVerification } from 'firebase/auth'
 
 const googleProvider = new GoogleAuthProvider()
 googleProvider.addScope('email')
@@ -26,6 +27,7 @@ export async function signUpWithEmail(
 ): Promise<User> {
   const result = await createUserWithEmailAndPassword(auth, email, password)
   await updateProfile(result.user, { displayName })
+  await sendEmailVerification(result.user)
   return result.user
 }
 

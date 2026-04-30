@@ -1,4 +1,5 @@
 import { auth } from '@/lib/firebase/client'
+import { getFirebaseAuth } from '@/lib/firebase/client'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -14,7 +15,7 @@ export class ApiError extends Error {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  const user = auth.currentUser
+  const user = getFirebaseAuth().currentUser
   if (!user) return {}
   const token = await user.getIdToken()
   return { Authorization: `Bearer ${token}` }

@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase/client'
+import { auth } from '@/lib/firebase/client'
+import { apiFetch } from '@/lib/api/client'
 import {
   signInWithEmail as fbSignInWithEmail,
   signUpWithEmail as fbSignUpWithEmail,
@@ -11,47 +11,24 @@ import {
   signOut as fbSignOut,
 } from '@/lib/firebase/auth'
 import type { AuthContextValue } from '@/types/auth'
-import type { UserProfile } from '@/types/firestore'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-async function syncUserProfile(user: User): Promise<UserProfile> {
-  const profileRef = doc(db, 'users', user.uid)
-  const snap = await getDoc(profileRef)
-
-  if (!snap.exists()) {
-    const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
-      uid: user.uid,
-      email: user.email ?? '',
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      role: 'user',
-    }
-    await setDoc(profileRef, {
-      ...newProfile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-    return snap.data() as UserProfile
-  }
-
-  return snap.data() as UserProfile
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser)
-        const userProfile = await syncUserProfile(firebaseUser)
-        setProfile(userProfile)
+        try {
+          await apiFetch('/api/v1/auth/sync', { method: 'POST' })
+        } catch {
+          // non-fatal
+        }
       } else {
         setUser(null)
-        setProfile(null)
       }
       setLoading(false)
     })
@@ -79,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        profile,
+        profile: null,
         loading,
         signInWithEmail,
         signUpWithEmail,
