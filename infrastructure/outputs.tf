@@ -32,3 +32,13 @@ output "hosting_url" {
   description = "Primary Firebase Hosting URL (.web.app) — where the static frontend is served"
   value       = module.hosting.default_url
 }
+
+output "firebase_web_app_id" {
+  description = "Firebase Web App ID — also baked into the firebase-web-config secret"
+  value       = module.web_app.app_id
+}
+
+output "firebase_web_config_secret" {
+  description = "Short name of the Secret Manager secret holding the Firebase web SDK config JSON. The hosting deploy workflow reads it via gcloud."
+  value       = module.web_app.secret_name
+}

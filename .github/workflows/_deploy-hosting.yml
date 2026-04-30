@@ -15,43 +15,11 @@ on:
         description: Email of the deploy service account to impersonate
         required: true
         type: string
-      public_firebase_api_key:
-        description: NEXT_PUBLIC_FIREBASE_API_KEY (not a secret — scoped by Firebase rules + auth domain)
-        required: true
-        type: string
-      public_firebase_auth_domain:
-        description: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-        required: true
-        type: string
-      public_firebase_project_id:
-        description: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-        required: true
-        type: string
-      public_firebase_storage_bucket:
-        description: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-        required: true
-        type: string
-      public_firebase_messaging_sender_id:
-        description: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-        required: true
-        type: string
-      public_firebase_app_id:
-        description: NEXT_PUBLIC_FIREBASE_APP_ID
-        required: true
-        type: string
-      public_api_url:
-        description: NEXT_PUBLIC_API_URL — backend Cloud Functions URL
-        required: true
-        type: string
       public_app_name:
-        description: NEXT_PUBLIC_APP_NAME
+        description: NEXT_PUBLIC_APP_NAME — display name; not env-specific so it stays inline
         required: false
         type: string
         default: Internbot
-      public_app_url:
-        description: NEXT_PUBLIC_APP_URL — canonical hosting URL
-        required: true
-        type: string
 
 permissions:
   id-token: write
@@ -84,23 +52,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend (static export)
-        # NEXT_PUBLIC_* values get baked into the static bundle at build time.
-        # Firebase client API keys are NOT secrets — scoped by Firebase Security
-        # Rules and authDomain allowlist — so they live in the workflow file.
-        env:
-          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ inputs.public_firebase_api_key }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ inputs.public_firebase_auth_domain }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ inputs.public_firebase_project_id }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ inputs.public_firebase_storage_bucket }}
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ inputs.public_firebase_messaging_sender_id }}
-          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ inputs.public_firebase_app_id }}
-          NEXT_PUBLIC_API_URL: ${{ inputs.public_api_url }}
-          NEXT_PUBLIC_APP_NAME: ${{ inputs.public_app_name }}
-          NEXT_PUBLIC_APP_URL: ${{ inputs.public_app_url }}
-          NEXT_PUBLIC_USE_FIREBASE_EMULATOR: 'false'
-        run: pnpm --filter frontend build
-
+      # Authenticate first — the build step depends on values fetched from
+      # Secret Manager, so we need creds before we can build.
       - name: Authenticate to Google Cloud (OIDC)
         id: auth
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
@@ -108,6 +61,51 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.deploy_service_account }}
+
+      - uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f27b62f8e06 # v2
+
+      # Pull the Firebase Web SDK config from Secret Manager. The secret
+      # name is the same in every project (`firebase-web-config`) — only
+      # the project ID varies. Terraform writes it; CI consumes it.
+      # We unpack the JSON once and pipe each NEXT_PUBLIC_* into $GITHUB_ENV
+      # so the next build step can read them as plain env vars.
+      - name: Fetch Firebase web config from Secret Manager
+        run: |
+          set -euo pipefail
+          config_json=$(gcloud secrets versions access latest \
+            --secret=firebase-web-config \
+            --project=${{ inputs.firebase_project_id }})
+
+          # Validate up-front so a malformed secret fails the job here, not
+          # halfway through the build with a confusing Next.js error.
+          # `all(...)` is used over comma-form because `jq -e .a, .b` only
+          # reflects the exit status of the last value — a missing apiKey
+          # with a present appUrl would silently pass.
+          echo "$config_json" | jq -e '
+            [.apiKey, .authDomain, .projectId, .storageBucket, .messagingSenderId, .appId, .apiUrl, .appUrl]
+            | all(type == "string" and length > 0)
+          ' >/dev/null
+
+          {
+            echo "NEXT_PUBLIC_FIREBASE_API_KEY=$(echo "$config_json" | jq -r '.apiKey')"
+            echo "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$(echo "$config_json" | jq -r '.authDomain')"
+            echo "NEXT_PUBLIC_FIREBASE_PROJECT_ID=$(echo "$config_json" | jq -r '.projectId')"
+            echo "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$(echo "$config_json" | jq -r '.storageBucket')"
+            echo "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$(echo "$config_json" | jq -r '.messagingSenderId')"
+            echo "NEXT_PUBLIC_FIREBASE_APP_ID=$(echo "$config_json" | jq -r '.appId')"
+            echo "NEXT_PUBLIC_API_URL=$(echo "$config_json" | jq -r '.apiUrl')"
+            echo "NEXT_PUBLIC_APP_URL=$(echo "$config_json" | jq -r '.appUrl')"
+          } >> "$GITHUB_ENV"
+
+      - name: Build frontend (static export)
+        # NEXT_PUBLIC_* values get baked into the static bundle at build time.
+        # All env-specific values come from $GITHUB_ENV (set in the previous
+        # step from Secret Manager); only the constant non-secret defaults
+        # are inlined here.
+        env:
+          NEXT_PUBLIC_APP_NAME: ${{ inputs.public_app_name }}
+          NEXT_PUBLIC_USE_FIREBASE_EMULATOR: 'false'
+        run: pnpm --filter frontend build
 
       - name: Deploy to Firebase Hosting
         env:

@@ -87,6 +87,26 @@ module "github_oidc" {
   depends_on = [module.firebase_project]
 }
 
+# Firebase Web App + Secret Manager export of its SDK config.
+# The deploy workflow fetches `firebase-web-config` at build time and
+# unpacks it into NEXT_PUBLIC_* env vars — no GitHub repo variables.
+# See infrastructure/modules/web-app/main.tf for the bootstrap dance on
+# projects that already have a Firebase Web App (terraform import).
+module "web_app" {
+  source                       = "./modules/web-app"
+  project_id                   = var.project_id
+  storage_bucket               = module.storage.bucket_name
+  hosting_site_id              = module.hosting.site_id
+  deploy_service_account_email = module.github_oidc.deploy_service_account
+
+  depends_on = [
+    module.firebase_project,
+    module.storage,
+    module.hosting,
+    module.github_oidc,
+  ]
+}
+
 module "functions_housekeeping" {
   source         = "./modules/functions-housekeeping"
   project_id     = var.project_id
