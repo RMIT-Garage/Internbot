@@ -62,7 +62,7 @@ jobs:
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.deploy_service_account }}
 
-      - uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f27b62f8e06 # v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       # Pull the Firebase Web SDK config from Secret Manager. The secret
       # name is the same in every project (`firebase-web-config`) — only
