@@ -33,6 +33,8 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit = {
   const { body, headers, ...rest } = init
   const authHeader = await getAuthHeader()
   const hasBody = body !== undefined
+  console.log('API URL:', process.env.NEXT_PUBLIC_API_URL)
+  console.log('Auth header:', await getAuthHeader())
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
