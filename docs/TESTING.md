@@ -129,6 +129,18 @@ users.findById.mockResolvedValueOnce({ user: …, etag: 'W/"1"' })
 
 For **integration** and **component** tests, DO NOT mock — the whole point is to run against real emulator behaviour. These use `createApp()` with the production defaults.
 
+## Time in tests — fixtures must not date-rot
+
+Several handlers and aggregates read `new Date()` directly (semester window check, `confirmedAt` settle, `createdAt`/`updatedAt` stamping). Fixtures encoded as absolute ISO dates silently expire. We learned this when `enrolmentCloseAt: 2026-05-01` started failing on 2026-05-02 with no code change.
+
+Two patterns, picked by tier:
+
+**Unit tests** — clock is frozen globally in `tests/setup.unit.ts` to `TEST_NOW` (`2026-04-01T00:00:00Z`), via `vi.useFakeTimers({ shouldAdvanceTime: true, now: TEST_NOW })` in `beforeEach`. Every unit test runs with the same wall-clock value forever. Align fixture dates around `TEST_NOW` (`createdAt: TEST_NOW`, `enrolmentOpenAt: addDays(TEST_NOW, -7)`) and assertions stay valid regardless of when the suite runs. Tests that need a different now can call `vi.setSystemTime(...)` mid-test — `afterEach` resets.
+
+**Integration + component tests** — emulator stamps timestamps server-side and runs out-of-process, so `vi.useFakeTimers` is not an option. Use the `ALWAYS_OPEN_WINDOW` / `ALWAYS_CLOSED_WINDOW` sentinels from `tests/setup.emulator.ts` for any window-state fixture. They expand to `2000-01-01 → 2099-12-31` (and vice-versa), so they're unambiguous and won't expire in any reasonable lifetime.
+
+If you need a window with a _specific_ relationship to "now" (e.g., "open until tomorrow"), compute it from `Date.now()` rather than hard-coding a calendar date.
+
 ## What to skip
 
 - Don't unit-test Express itself (routing, body parsing) — that's Express's job

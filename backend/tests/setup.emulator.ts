@@ -22,6 +22,28 @@ const EMULATOR_PROJECT_ID = process.env['FIREBASE_PROJECT_ID'] ?? 'demo-internbo
 const FIRESTORE_HOST = process.env['FIRESTORE_EMULATOR_HOST'] ?? 'localhost:8080'
 const AUTH_HOST = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? 'localhost:9099'
 
+/**
+ * Sentinels for date-window fixtures in integration + component tests.
+ *
+ * Emulator-backed tests can't use vitest's fake timers (the emulator runs
+ * out-of-process and stamps its own server-side timestamps), so we hard-code
+ * "always open" / "always closed" windows instead. Picking dates close to
+ * "now" silently expires tests months later — `2026-01-01 → 2027-01-01` was
+ * the previous pattern and would have started failing on 2027-01-01.
+ *
+ * Use these constants for any window-state fixture that should be
+ * unconditionally open or closed regardless of when the test runs.
+ */
+export const ALWAYS_OPEN_WINDOW = {
+  open: new Date('2000-01-01T00:00:00Z'),
+  close: new Date('2099-12-31T23:59:59Z'),
+} as const
+
+export const ALWAYS_CLOSED_WINDOW = {
+  open: new Date('2000-01-01T00:00:00Z'),
+  close: new Date('2000-12-31T23:59:59Z'),
+} as const
+
 let initialized = false
 let testApp: App | undefined
 let testDb: Firestore | undefined

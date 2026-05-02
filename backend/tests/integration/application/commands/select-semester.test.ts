@@ -9,6 +9,7 @@ import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-us
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
+  ALWAYS_CLOSED_WINDOW,
   initEmulator,
   clearDocs,
   clearAuthUsers,
@@ -195,10 +196,7 @@ describe('SelectSemesterCommandHandler — integration', () => {
 
   it('outside the enrolment window → ConflictError(enrolment_window_closed)', async () => {
     const student = await seedStudent({ complete: true })
-    const semester = await seedActiveSemester({
-      open: new Date('2024-01-01T00:00:00Z'),
-      close: new Date('2024-02-01T00:00:00Z'),
-    })
+    const semester = await seedActiveSemester(ALWAYS_CLOSED_WINDOW)
     const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
 
     await expect(

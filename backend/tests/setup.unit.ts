@@ -1,4 +1,4 @@
-import { vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import type { RequestActor, PlatformUser } from '../src/application/actor'
 import type { VerifyToken, VerifiedIdpToken } from '../src/api/auth/firebase-token-verifier'
 import type { HydrateInput, HydratePlatformUser } from '../src/api/auth/platform-user-hydrator'
@@ -6,6 +6,34 @@ import type { UnitOfWork, UnitOfWorkContext } from '../src/application/ports/uni
 import type { UserRepository } from '../src/domain/repositories/user-repository'
 import type { SemesterRepository } from '../src/domain/repositories/semester-repository'
 import type { IdGenerator } from '../src/application/ports/id-generator'
+
+/**
+ * Frozen wall clock for all unit tests.
+ *
+ * Several handlers and aggregates read `new Date()` directly (semester
+ * window check, `createdAt`/`updatedAt` stamping, `confirmedAt` settle).
+ * Fixtures encoded as absolute ISO dates were silently date-aging — the
+ * `enrolmentCloseAt: 2026-05-01` in `get-user-workflow.test.ts` started
+ * failing on 2026-05-02 even though no code changed. Freezing time here
+ * makes every unit test deterministic regardless of when it runs.
+ *
+ * `shouldAdvanceTime: true` lets `setTimeout`/`setInterval` still tick on
+ * a real timeline so tests using async timers (none today, but cheap
+ * insurance) don't hang. Tests that need a different "now" can call
+ * `vi.setSystemTime(...)` inside the test — the afterEach resets.
+ *
+ * Export `TEST_NOW` so fixtures can align (`createdAt: TEST_NOW`,
+ * `enrolmentOpenAt: addDays(TEST_NOW, -7)` etc.) and stay legible.
+ */
+export const TEST_NOW = new Date('2026-04-01T00:00:00Z')
+
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true, now: TEST_NOW })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 // Prevent Firebase Admin from initializing during unit tests. createApp()
 // accepts DI for every external dep so the admin SDK is never reached, but
