@@ -99,9 +99,9 @@ _(append terse status notes here during implementation)_
 
 ## Phase 2 — Semesters
 
-**Status:** review_ready
+**Status:** done
 **Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58)
-**PR:** —
+**PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26))
 
 ### Scope
 
@@ -132,13 +132,15 @@ _(append terse status notes here during implementation)_
 - Test pyramid: 286 tests across 24 files passing — 220 unit (incl. architecture rules), 31 integration (Firestore emulator), 35 component (Firestore + Auth emulator). One `it(...)` per Phase 2 Success criteria + Bug-finding bullet in `tests/component/routes/semesters.test.ts`.
 - Storage schema accepts `null` on `enrolmentOpenAt` / `enrolmentCloseAt` so PATCH writes can clear the field (mapped back to `undefined` on the domain side).
 - Route-level POST distinguishes `422 missing_required_field` from `400 invalid_body` via Zod v4's `invalid_type` issue + "received undefined" message text (Zod v4 dropped the structured `received` field from its issue payload).
+- Shipped to develop and prod as part of release PR #26 / #41 — running on `internbot-dev-ae3a3` and `internbot-prod`.
 
 ---
 
 ## Phase 3 — Student enrolment + workflow
 
-**Status:** review_ready
-**PR:** —
+**Status:** done
+**Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58) (bundled with Phase 2)
+**PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26))
 
 ### Scope
 
@@ -168,6 +170,7 @@ _(append terse status notes here during implementation)_
 - Application: `SelectSemesterCommandHandler` (3-step validation chain: complete profile → active semester → open enrolment window) + `GetUserWorkflowQueryHandler` (loads referenced semester only when set; tolerant of dangling refs). Both follow Phase 1/2 conventions (inline authz, `metadata.expectedVersion`, returns `{ id }`).
 - API: `PUT /api/v1/users/{id}/semester-selection` + `/me` alias, `GET /api/v1/users/{id}/workflow` + `/me` alias. New schemas, DTOs, mappers, OpenAPI operations. Snapshot `backend/openapi.json` regenerated.
 - Tests: 350 / 350 across 29 files. Unit: `User.selectSemester` (4 tests), `deriveWorkflowState` (7), `SelectSemesterCommandHandler` (11), `GetUserWorkflowQueryHandler` (7). Integration (Firestore emulator): 8 tests covering all 409 paths and the `semesterSelectedAt`-set-once invariant. Component (Firestore + Auth emulators): 11 tests, one `it(...)` per Success-criteria + Bug-finding bullet.
+- Shipped to develop and prod alongside Phase 2 via release PRs #26 / #41 — running on `internbot-dev-ae3a3` and `internbot-prod`.
 
 ---
 
