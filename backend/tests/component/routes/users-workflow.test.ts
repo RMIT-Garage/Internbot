@@ -11,6 +11,8 @@ import request from 'supertest'
 import { randomUUID } from 'node:crypto'
 import { createApp } from '../../../src/api/app'
 import {
+  ALWAYS_CLOSED_WINDOW,
+  ALWAYS_OPEN_WINDOW,
   initEmulator,
   clearDocs,
   clearAuthUsers,
@@ -189,8 +191,7 @@ describe('PUT /api/v1/users/:id/semester-selection — component', () => {
     await completeStudentProfile(app, student)
     const coordinator = await makeCoordinator()
     const semester = await createSemester(app, coordinator, {
-      open: new Date('2024-01-01T00:00:00Z'),
-      close: new Date('2024-02-01T00:00:00Z'),
+      ...ALWAYS_CLOSED_WINDOW,
       transitionTo: 'active',
     })
 
@@ -287,8 +288,7 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
     await completeStudentProfile(app, student)
     const coordinator = await makeCoordinator()
     const semester = await createSemester(app, coordinator, {
-      open: new Date('2026-01-01T00:00:00Z'),
-      close: new Date('2027-01-01T00:00:00Z'),
+      ...ALWAYS_OPEN_WINDOW,
       transitionTo: 'active',
     })
     const select = await request(app)
@@ -366,8 +366,7 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
     // Instead: select an open-window semester, then PATCH the semester
     // via the coordinator to close the window.
     const semester = await createSemester(app, coordinator, {
-      open: new Date('2026-01-01T00:00:00Z'),
-      close: new Date('2027-01-01T00:00:00Z'),
+      ...ALWAYS_OPEN_WINDOW,
       transitionTo: 'active',
     })
     const select = await request(app)
