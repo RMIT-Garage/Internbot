@@ -98,7 +98,7 @@ async function createActiveSemester(): Promise<string> {
     actor,
     payload: {
       semesterCode: `2026-S${randomUUID()
-        .slice(0, 4)
+        .slice(0, 8)
         .replace(/[^A-Za-z0-9]/g, 'a')}`,
       courseCode: `INTE${Math.floor(Math.random() * 9000 + 1000)}`,
       displayName: 'Semester',
@@ -311,18 +311,52 @@ describe('/api/v1/opportunities — component', () => {
     const app = createApp()
     const coordinator = await makeCoordinator()
     const semesterId = await createActiveSemester()
-    const { id } = await createOpportunity(app, coordinator.idToken, semesterId)
+    const { id, etag } = await createOpportunity(app, coordinator.idToken, semesterId)
 
     const res = await request(app)
       .patch(`/api/v1/opportunities/${id}`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ employerName: 'Renamed Pty Ltd', workMode: 'remote', location: null })
+      .set('If-Match', etag)
+      .send({
+        employerName: 'Renamed Pty Ltd',
+        jobTitle: 'Backend Intern',
+        descriptionText: 'Build workflow APIs',
+        workMode: 'remote',
+        location: null,
+        sourceUrl: 'https://careerhub.rmit.edu.au/jobs/456',
+      })
 
     expect(res.status).toBe(200)
     expect(res.body.employerName).toBe('Renamed Pty Ltd')
+    expect(res.body.jobTitle).toBe('Backend Intern')
+    expect(res.body.descriptionText).toBe('Build workflow APIs')
     expect(res.body.workMode).toBe('remote')
     expect(res.body.location).toBeNull()
+    expect(res.body.sourceUrl).toBe('https://careerhub.rmit.edu.au/jobs/456')
     expect(res.headers['etag']).toBe('W/"2"')
+  })
+
+  it('PATCH /:id enforces If-Match parsing and stale-version preconditions', async () => {
+    const app = createApp()
+    const coordinator = await makeCoordinator()
+    const semesterId = await createActiveSemester()
+    const { id } = await createOpportunity(app, coordinator.idToken, semesterId)
+
+    const stale = await request(app)
+      .patch(`/api/v1/opportunities/${id}`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', 'W/"999"')
+      .send({ employerName: 'Stale Pty Ltd' })
+
+    const malformed = await request(app)
+      .patch(`/api/v1/opportunities/${id}`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', 'not-an-etag')
+      .send({ employerName: 'Malformed Pty Ltd' })
+
+    expect(stale.status).toBe(412)
+    expect(malformed.status).toBe(422)
+    expect(malformed.body.error.reason).toBe('invalid_if_match')
   })
 
   it('PATCH /:id attempting to write status/semesterId/type → 400 immutable_field', async () => {
@@ -338,6 +372,34 @@ describe('/api/v1/opportunities — component', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.error.reason).toBe('immutable_field')
+  })
+
+  it('student cannot PATCH, transition, or verify opportunities', async () => {
+    const app = createApp()
+    const coordinator = await makeCoordinator()
+    const semesterId = await createActiveSemester()
+    const student = await makeStudent(semesterId)
+    const { id } = await createOpportunity(app, coordinator.idToken, semesterId)
+
+    const patch = await request(app)
+      .patch(`/api/v1/opportunities/${id}`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .send({ employerName: 'Student Edit Pty Ltd' })
+    const transition = await request(app)
+      .post(`/api/v1/opportunities/${id}/transitions`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .send({ to: 'published' })
+    const verification = await request(app)
+      .post(`/api/v1/opportunities/${id}/verifications`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .send({ decision: 'approved' })
+
+    expect(patch.status).toBe(403)
+    expect(transition.status).toBe(403)
+    expect(verification.status).toBe(403)
+    expect(patch.body.error.reason).toBe('role_restricted_action')
+    expect(transition.body.error.reason).toBe('role_restricted_action')
+    expect(verification.body.error.reason).toBe('role_restricted_action')
   })
 
   it('POST /:id/transitions coordinator draft → published → 201 and activity record written', async () => {
@@ -376,6 +438,24 @@ describe('/api/v1/opportunities — component', () => {
     expect(res.body.error.reason).toBe('invalid_state_transition')
   })
 
+  it('POST /:id/transitions and /:id/verifications unknown id → 404', async () => {
+    const app = createApp()
+    const coordinator = await makeCoordinator()
+    const missingId = `opp_missing_${randomUUID()}`
+
+    const transition = await request(app)
+      .post(`/api/v1/opportunities/${missingId}/transitions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ to: 'published' })
+    const verification = await request(app)
+      .post(`/api/v1/opportunities/${missingId}/verifications`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ decision: 'approved' })
+
+    expect(transition.status).toBe(404)
+    expect(verification.status).toBe(404)
+  })
+
   it('POST /:id/verifications approved → 201 published, verifier set, submitter notification created', async () => {
     const app = createApp()
     const semesterId = await createActiveSemester()
@@ -400,6 +480,28 @@ describe('/api/v1/opportunities — component', () => {
       .get()
     expect(notifications.size).toBe(1)
     expect(notifications.docs[0]!.data()['userId']).toBe(student.platformUserId)
+  })
+
+  it('POST /:id/verifications rejected with comment → 201 rejected notification created', async () => {
+    const app = createApp()
+    const semesterId = await createActiveSemester()
+    const coordinator = await makeCoordinator()
+    const student = await makeStudent(semesterId)
+    const pending = await createOpportunity(app, student.idToken, semesterId)
+
+    const res = await request(app)
+      .post(`/api/v1/opportunities/${pending.id}/verifications`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ decision: 'rejected', comment: 'Not enough detail' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.status).toBe('rejected')
+    const notifications = await adminDb
+      .collection('notifications')
+      .where('relatedOpportunityId', '==', pending.id)
+      .get()
+    expect(notifications.size).toBe(1)
+    expect(notifications.docs[0]!.data()['type']).toBe('opportunity_rejected')
   })
 
   it('POST /:id/verifications rejected without comment → 422 comment_required_for_decision', async () => {
@@ -445,6 +547,57 @@ describe('/api/v1/opportunities — component', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.error.reason).toBe('invalid_query')
+  })
+
+  it('GET list rejects malformed filters and sort/pageToken combinations', async () => {
+    const app = createApp()
+    const coordinator = await makeCoordinator()
+
+    const res = await request(app)
+      .get('/api/v1/opportunities?status=missing&type=missing&sort=jobTitle&pageToken=bad')
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.reason).toBe('invalid_query')
+    expect(res.body.error.fields.map((f: { field: string }) => f.field)).toEqual(
+      expect.arrayContaining(['status', 'type', 'sort', 'pageToken'])
+    )
+  })
+
+  it('GET list paginates with nextPageToken and rejects sort mismatch on reuse', async () => {
+    const app = createApp()
+    const coordinator = await makeCoordinator()
+    const semesterId = await createActiveSemester()
+    await createOpportunity(app, coordinator.idToken, semesterId, { employerName: 'A Pty Ltd' })
+    await createOpportunity(app, coordinator.idToken, semesterId, { employerName: 'B Pty Ltd' })
+
+    const first = await request(app)
+      .get(`/api/v1/opportunities?semesterId=${semesterId}&limit=1&sort=createdAt`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+
+    expect(first.status).toBe(200)
+    expect(first.body.items).toHaveLength(1)
+    expect(first.body.nextPageToken).toEqual(expect.any(String))
+
+    const second = await request(app)
+      .get(
+        `/api/v1/opportunities?semesterId=${semesterId}&limit=1&sort=createdAt&pageToken=${encodeURIComponent(
+          first.body.nextPageToken
+        )}`
+      )
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+    const mismatch = await request(app)
+      .get(
+        `/api/v1/opportunities?semesterId=${semesterId}&limit=1&sort=-createdAt&pageToken=${encodeURIComponent(
+          first.body.nextPageToken
+        )}`
+      )
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+
+    expect(second.status).toBe(200)
+    expect(second.body.items).toHaveLength(1)
+    expect(mismatch.status).toBe(400)
+    expect(mismatch.body.error.fields[0].code).toBe('sort_mismatch')
   })
 
   it('applicationCount computed correctly on list response for coordinators', async () => {

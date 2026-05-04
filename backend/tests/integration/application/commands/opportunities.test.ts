@@ -35,7 +35,7 @@ async function activeSemester(): Promise<string> {
     actor,
     payload: {
       semesterCode: `2026-S${randomUUID()
-        .slice(0, 4)
+        .slice(0, 8)
         .replace(/[^A-Za-z0-9]/g, 'a')}`,
       courseCode: `INTE${Math.floor(Math.random() * 9000 + 1000)}`,
       displayName: 'Semester',

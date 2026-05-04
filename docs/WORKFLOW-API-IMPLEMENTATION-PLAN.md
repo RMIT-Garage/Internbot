@@ -8,9 +8,9 @@ Implementation roadmap for [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
 - **Global definition of done (every backend phase):**
   - `pnpm --filter backend run typecheck` + `lint` pass
   - **Test pyramid** per [docs/TESTING.md](./TESTING.md) — every phase ships all applicable levels:
-    - **Unit tests** for every domain class/rule, every CQRS handler (with mocked UoW), every mapper
-    - **Integration tests** against the Firestore emulator for every new repository method or Firestore query
-    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check.
+    - **Unit tests** only for domain classes/rules. Do not unit-test API routes, API mappers, or CQRS handlers.
+    - **Integration tests** against the Firestore emulator for CQRS handlers, every new repository method, and every Firestore query.
+    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check for routes, wire DTOs, and mappers.
   - No new `eslint-disable` comments
   - Docs updated for any deviation from the spec
   - PR title carries `[IC-XX]` prefix and commits carry an `IC-XX` trailer
@@ -211,7 +211,8 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
-- Implemented full Phase 4 backend vertical slice locally: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and unit/integration/component coverage for every Phase 4 success + bug-finding bullet.
+- Implemented full Phase 4 backend vertical slice locally: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and domain-unit plus integration/component coverage.
+- Coverage policy corrected after merge: Phase 4 keeps domain unit tests only; application/CQRS behavior is covered by integration tests and API/mappers by component tests.
 
 ---
 

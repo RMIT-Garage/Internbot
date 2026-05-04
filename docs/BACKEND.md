@@ -479,6 +479,8 @@ Three tiers + architecture checks. Canonical reference: [docs/TESTING.md](/Users
 | Component    | `backend/tests/component/routes/**`        | **Yes**                       | Full `createApp()` via `supertest`. One `it(...)` per `Success criteria` / `Bug-finding` bullet in the governing phase. |
 | Architecture | `backend/tests/architecture/**`            | No                            | Dep-rule meta checks (no zod in `domain/`, no firebase-admin in `application/`, no `console.log`, etc.)                 |
 
+Do not add API or application unit tests. API routes, DTOs, and mappers are covered by component tests; CQRS handlers are covered by integration tests against the real Firestore UnitOfWork.
+
 **Isolation rules (mandatory):** every test generates its own random IDs via `crypto.randomUUID()`; `trackDoc(collection, id)` every doc; `afterEach(clearDocs)`; no `beforeAll` for mutable state; tests run in parallel.
 
 **Domain test construction:** use `Xxx.rehydrate({...})` (storage-path fixtures) or `Xxx.create({...})` (when you want to exercise validation). Never use `new Xxx(...)` directly — the constructor is private.

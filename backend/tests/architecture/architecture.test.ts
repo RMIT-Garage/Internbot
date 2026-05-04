@@ -9,6 +9,8 @@
  *
  * Also enforces:
  *   - infrastructure/config/firebase-admin is the sole Firebase Admin entry point
+ *   - unit tests stay domain-only; application/api behavior is covered by
+ *     integration/component tests
  *   - No console.log in any src/ file
  */
 
@@ -17,6 +19,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 const SRC = path.resolve(__dirname, '../../src')
+const TESTS = path.resolve(__dirname, '..')
 
 function getFiles(dir: string, ext = '.ts'): string[] {
   if (!fs.existsSync(dir)) return []
@@ -315,6 +318,27 @@ describe('Architecture boundaries', () => {
         ).toBe(true)
       })
     }
+  })
+
+  describe('test pyramid — unit tests stay domain-only', () => {
+    const unitDir = path.join(TESTS, 'unit')
+    const files = getFiles(unitDir).filter((file) => file.endsWith('.test.ts'))
+
+    if (files.length === 0) {
+      it('tests/unit/ has no test files yet (skip)', () => expect(true).toBe(true))
+      return
+    }
+
+    it('has no API or application unit tests', () => {
+      const violations = files
+        .map((file) => path.relative(unitDir, file))
+        .filter((rel) => !rel.startsWith(`domain${path.sep}`))
+
+      expect(
+        violations,
+        `Unit tests must stay under tests/unit/domain/**. Cover application handlers with integration tests and API/mappers with component tests. Violations: ${violations.join(', ') || 'none'}`
+      ).toEqual([])
+    })
   })
 
   describe('no console.log in source files', () => {
