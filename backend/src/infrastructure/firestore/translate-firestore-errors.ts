@@ -32,13 +32,21 @@ export type FirestoreOp =
   | 'semesters.list'
   | 'semesters.create'
   | 'semesters.save'
+  | 'opportunities.findById'
+  | 'opportunities.list'
+  | 'opportunities.countApplications'
+  | 'opportunities.listAttachments'
+  | 'opportunities.create'
+  | 'opportunities.save'
+  | 'notifications.create'
+  | 'notifications.save'
 
 /**
  * Singular domain resource label used in `NotFoundError` messages
  * (`"${resource} '${id}' not found"`). Stays aligned with the names the
  * API surfaces in problem-detail responses.
  */
-export type FirestoreResource = 'User' | 'Semester'
+export type FirestoreResource = 'User' | 'Semester' | 'Opportunity' | 'Notification'
 
 export interface FirestoreOpContext {
   op: FirestoreOp

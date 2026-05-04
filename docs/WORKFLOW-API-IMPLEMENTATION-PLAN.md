@@ -176,7 +176,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 4 — Opportunities
 
-**Status:** pending
+**Status:** implemented locally (unmerged)
 **PR:** —
 
 ### Scope
@@ -210,6 +210,8 @@ _(append terse status notes here during implementation)_
 - Transition + verification cannot both succeed if fired concurrently on the same doc.
 
 ### Notes
+
+- Implemented full Phase 4 backend vertical slice locally: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and unit/integration/component coverage for every Phase 4 success + bug-finding bullet.
 
 ---
 

@@ -1,5 +1,7 @@
 import type { UserRepository } from '../../domain/repositories/user-repository'
 import type { SemesterRepository } from '../../domain/repositories/semester-repository'
+import type { OpportunityRepository } from '../../domain/repositories/opportunity-repository'
+import type { NotificationRepository } from '../../domain/repositories/notification-repository'
 
 /**
  * UnitOfWork — coordinates a session of related reads and writes.
@@ -27,4 +29,6 @@ export interface UnitOfWork {
 export interface UnitOfWorkContext {
   readonly users: UserRepository
   readonly semesters: SemesterRepository
+  readonly opportunities: OpportunityRepository
+  readonly notifications: NotificationRepository
 }

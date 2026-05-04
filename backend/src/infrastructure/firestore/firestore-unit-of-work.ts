@@ -2,6 +2,8 @@ import type { UnitOfWork, UnitOfWorkContext } from '../../application/ports/unit
 import { adminDb } from '../config/firebase-admin'
 import { FirestoreUserRepository } from './firestore-user-repository'
 import { FirestoreSemesterRepository } from './firestore-semester-repository'
+import { FirestoreOpportunityRepository } from './firestore-opportunity-repository'
+import { FirestoreNotificationRepository } from './firestore-notification-repository'
 
 /**
  * Firestore implementation of `UnitOfWork`.
@@ -20,6 +22,8 @@ export class FirestoreUnitOfWork implements UnitOfWork {
       const ctx: UnitOfWorkContext = {
         users: new FirestoreUserRepository(txn),
         semesters: new FirestoreSemesterRepository(txn),
+        opportunities: new FirestoreOpportunityRepository(txn),
+        notifications: new FirestoreNotificationRepository(txn),
       }
       return work(ctx)
     })

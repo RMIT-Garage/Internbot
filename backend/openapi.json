@@ -17,6 +17,10 @@
     {
       "name": "Semesters",
       "description": "Semester records and lifecycle transitions."
+    },
+    {
+      "name": "Opportunities",
+      "description": "Semester-scoped internship opportunities."
     }
   ],
   "paths": {
@@ -1314,6 +1318,555 @@
           }
         }
       }
+    },
+    "/api/v1/opportunities": {
+      "get": {
+        "operationId": "listOpportunities",
+        "summary": "List opportunities visible to the caller",
+        "description": "Students are server-filtered to published opportunities in their selected semester. Coordinators can filter by semester, status, and type. See WORKFLOW-API-SPEC.md §7.3.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "semesterId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["draft", "pending_verification", "published", "rejected", "archived"]
+              }
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": ["pre_approved", "custom"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageToken",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Default `-createdAt`. Prefix with `-` for descending.",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt"]
+            },
+            "description": "Default `-createdAt`. Prefix with `-` for descending."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of opportunities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed query string or student attempted to widen semester filter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Student caller has no selected semester.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOpportunity",
+        "summary": "Create an opportunity",
+        "description": "Coordinator-created opportunities start as draft. Student submissions become custom opportunities pending verification.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOpportunityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Opportunity created.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body or lifecycle fields supplied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Student has no selected semester or semester is not active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing required fields or Career Hub URL not on allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/opportunities/{id}": {
+      "get": {
+        "operationId": "getOpportunity",
+        "summary": "Return an opportunity by id",
+        "description": "Coordinators can read any opportunity. Students can read only published opportunities in their selected semester.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opportunity found.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Student cannot see this opportunity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No opportunity exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchOpportunity",
+        "summary": "Update opportunity metadata",
+        "description": "Coordinator-only. Lifecycle fields are immutable through PATCH.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchOpportunityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Opportunity updated.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body contains immutable or unknown fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a coordinator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No opportunity exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale `If-Match`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Empty body or domain validation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/opportunities/{id}/transitions": {
+      "post": {
+        "operationId": "transitionOpportunity",
+        "summary": "Advance an opportunity's coordinator-controlled status",
+        "description": "Coordinator-only. Allowed: draft → published, draft → archived, published → archived. Pending-verification opportunities use /verifications.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionOpportunityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transition applied; activity record written.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Disallowed state transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale `If-Match`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/opportunities/{id}/verifications": {
+      "post": {
+        "operationId": "verifyOpportunity",
+        "summary": "Verify or reject a student-submitted opportunity",
+        "description": "Coordinator-only. Applies only to pending_verification opportunities and creates a notification for the submitter.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOpportunityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Verification applied.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Opportunity is not pending verification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale `If-Match`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rejected verification missing comment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1541,6 +2094,133 @@
         "required": ["to"],
         "additionalProperties": false,
         "description": "Body for POST /api/v1/semesters/:id/transitions. See WORKFLOW-API-SPEC.md §7.5."
+      },
+      "CreateOpportunityRequest": {
+        "type": "object",
+        "properties": {
+          "semesterId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": ["pre_approved", "custom"]
+          },
+          "employerName": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Example Pty Ltd"
+          },
+          "jobTitle": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Software Intern"
+          },
+          "descriptionText": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workMode": {
+            "type": "string",
+            "enum": ["onsite", "hybrid", "remote"]
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceUrl": {
+            "example": "https://careerhub.rmit.edu.au/jobs/12345",
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": ["employerName", "jobTitle", "descriptionText"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/opportunities. Coordinator and student callers have different server-side defaults. See WORKFLOW-API-SPEC.md §7.3."
+      },
+      "PatchOpportunityRequest": {
+        "type": "object",
+        "properties": {
+          "employerName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "jobTitle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "descriptionText": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["onsite", "hybrid", "remote"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body for PATCH /api/v1/opportunities/:id. Lifecycle fields are rejected with 400. See WORKFLOW-API-SPEC.md §7.3."
+      },
+      "TransitionOpportunityRequest": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": ["published", "archived"]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["to"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/opportunities/:id/transitions. See WORKFLOW-API-SPEC.md §7.3."
+      },
+      "VerifyOpportunityRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approved", "rejected"]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["decision"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/opportunities/:id/verifications. See WORKFLOW-API-SPEC.md §7.3."
       },
       "HealthResponse": {
         "type": "object",
@@ -2047,6 +2727,226 @@
         ],
         "additionalProperties": false,
         "description": "Semester record (see WORKFLOW-API-SPEC.md §7.5 / §8.5)."
+      },
+      "OpportunityListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpportunityResponse"
+            }
+          },
+          "nextPageToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["items", "nextPageToken"],
+        "additionalProperties": false,
+        "description": "Paginated list of opportunities."
+      },
+      "OpportunityResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "opp_042"
+          },
+          "semesterId": {
+            "type": "string",
+            "example": "sem_aBc123XyZ"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["pre_approved", "custom"]
+          },
+          "employerName": {
+            "type": "string",
+            "example": "Example Pty Ltd"
+          },
+          "jobTitle": {
+            "type": "string",
+            "example": "Software Intern"
+          },
+          "descriptionText": {
+            "type": "string"
+          },
+          "workMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["onsite", "hybrid", "remote"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "pending_verification", "published", "rejected", "archived"]
+          },
+          "applicationCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdByUserId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submittedByUserId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verifiedByUserId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verifiedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attachmentUploadPathPrefix": {
+            "type": "string",
+            "example": "opportunities/opp_042/attachments/"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpportunityAttachmentResponse"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-04T09:00:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-04T09:00:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "semesterId",
+          "type",
+          "employerName",
+          "jobTitle",
+          "descriptionText",
+          "workMode",
+          "location",
+          "sourceUrl",
+          "status",
+          "applicationCount",
+          "createdByUserId",
+          "submittedByUserId",
+          "verifiedByUserId",
+          "verifiedAt",
+          "attachmentUploadPathPrefix",
+          "attachments",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "Opportunity record (see WORKFLOW-API-SPEC.md §7.3 / §8.3)."
+      },
+      "OpportunityAttachmentResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "att_001"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "position-description.pdf"
+          },
+          "contentType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "application/pdf"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-04T09:05:00Z"
+          }
+        },
+        "required": ["id", "fileName", "contentType", "uploadedAt"],
+        "additionalProperties": false,
+        "description": "Attachment metadata for an opportunity position-description file."
       }
     },
     "securitySchemes": {

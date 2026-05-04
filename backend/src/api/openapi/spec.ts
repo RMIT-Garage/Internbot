@@ -17,6 +17,14 @@ import {
   patchSemesterOperation,
   transitionSemesterOperation,
 } from './operations/semesters'
+import {
+  listOpportunitiesOperation,
+  getOpportunityOperation,
+  createOpportunityOperation,
+  patchOpportunityOperation,
+  transitionOpportunityOperation,
+  verifyOpportunityOperation,
+} from './operations/opportunities'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
 type OpenapiServer = NonNullable<ZodOpenApiObject['servers']>[number]
@@ -48,6 +56,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       { name: 'Health', description: 'Public health probe.' },
       { name: 'Users', description: 'Platform user records.' },
       { name: 'Semesters', description: 'Semester records and lifecycle transitions.' },
+      { name: 'Opportunities', description: 'Semester-scoped internship opportunities.' },
     ],
     components: {
       securitySchemes: {
@@ -71,6 +80,16 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       '/api/v1/semesters': { get: listSemestersOperation, post: createSemesterOperation },
       '/api/v1/semesters/{id}': { get: getSemesterOperation, patch: patchSemesterOperation },
       '/api/v1/semesters/{id}/transitions': { post: transitionSemesterOperation },
+      '/api/v1/opportunities': {
+        get: listOpportunitiesOperation,
+        post: createOpportunityOperation,
+      },
+      '/api/v1/opportunities/{id}': {
+        get: getOpportunityOperation,
+        patch: patchOpportunityOperation,
+      },
+      '/api/v1/opportunities/{id}/transitions': { post: transitionOpportunityOperation },
+      '/api/v1/opportunities/{id}/verifications': { post: verifyOpportunityOperation },
     },
   })
 }

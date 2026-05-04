@@ -5,6 +5,8 @@ import type { HydrateInput, HydratePlatformUser } from '../src/api/auth/platform
 import type { UnitOfWork, UnitOfWorkContext } from '../src/application/ports/unit-of-work'
 import type { UserRepository } from '../src/domain/repositories/user-repository'
 import type { SemesterRepository } from '../src/domain/repositories/semester-repository'
+import type { OpportunityRepository } from '../src/domain/repositories/opportunity-repository'
+import type { NotificationRepository } from '../src/domain/repositories/notification-repository'
 import type { IdGenerator } from '../src/application/ports/id-generator'
 
 /**
@@ -130,20 +132,58 @@ export function buildMockSemesterRepository(): MockSemesterRepository {
   }
 }
 
+export interface MockOpportunityRepository {
+  findById: ReturnType<typeof vi.fn>
+  list: ReturnType<typeof vi.fn>
+  countApplications: ReturnType<typeof vi.fn>
+  listAttachments: ReturnType<typeof vi.fn>
+  create: ReturnType<typeof vi.fn>
+  save: ReturnType<typeof vi.fn>
+}
+
+export function buildMockOpportunityRepository(): MockOpportunityRepository {
+  return {
+    findById: vi.fn(),
+    list: vi.fn(),
+    countApplications: vi.fn().mockResolvedValue(0),
+    listAttachments: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    save: vi.fn(),
+  }
+}
+
+export interface MockNotificationRepository {
+  create: ReturnType<typeof vi.fn>
+  save: ReturnType<typeof vi.fn>
+}
+
+export function buildMockNotificationRepository(): MockNotificationRepository {
+  return {
+    create: vi.fn(),
+    save: vi.fn(),
+  }
+}
+
 export function buildMockUow(
   users: MockUserRepository = buildMockUserRepository(),
-  semesters: MockSemesterRepository = buildMockSemesterRepository()
+  semesters: MockSemesterRepository = buildMockSemesterRepository(),
+  opportunities: MockOpportunityRepository = buildMockOpportunityRepository(),
+  notifications: MockNotificationRepository = buildMockNotificationRepository()
 ): {
   uow: UnitOfWork
   users: MockUserRepository
   semesters: MockSemesterRepository
+  opportunities: MockOpportunityRepository
+  notifications: MockNotificationRepository
 } {
   const uow: UnitOfWork = {
     execute: async (work) =>
       work({
         users: users as unknown as UserRepository,
         semesters: semesters as unknown as SemesterRepository,
+        opportunities: opportunities as unknown as OpportunityRepository,
+        notifications: notifications as unknown as NotificationRepository,
       } as UnitOfWorkContext),
   }
-  return { uow, users, semesters }
+  return { uow, users, semesters, opportunities, notifications }
 }
