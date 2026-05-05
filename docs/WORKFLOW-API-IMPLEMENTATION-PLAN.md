@@ -322,8 +322,8 @@ _(append terse status notes here during implementation)_
 
 ## Phase 8 — Notifications (Firestore only, no email)
 
-**Status:** implemented locally
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/53
 
 ### Scope
 
