@@ -25,6 +25,10 @@
     {
       "name": "Internships",
       "description": "Student internship applications and offer workflow."
+    },
+    {
+      "name": "Notifications",
+      "description": "User notification feed and read state."
     }
   ],
   "paths": {
@@ -2757,6 +2761,220 @@
           }
         }
       }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "summary": "List the caller's notifications",
+        "description": "Returns only notifications owned by the authenticated platform user, newest first. `unreadCount` is total unread across all pages. See WORKFLOW-API-SPEC.md §7.8.",
+        "tags": ["Notifications"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unreadOnly",
+            "schema": {
+              "description": "When true, return only unread notifications.",
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "description": "When true, return only unread notifications."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of notifications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed query string or page token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "markAllNotificationsRead",
+        "summary": "Mark all caller notifications as read",
+        "description": "Scopes the bulk operation to the authenticated platform user's unread notifications. See WORKFLOW-API-SPEC.md §7.8.",
+        "tags": ["Notifications"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkAllNotificationsReadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk mark-read completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkAllNotificationsReadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body contains unsupported fields or `read` is not true.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{id}": {
+      "patch": {
+        "operationId": "markNotificationRead",
+        "summary": "Mark a notification as read",
+        "description": "Owner-only. The only supported mutation is `read: true`; resetting to unread is not supported in v1. See WORKFLOW-API-SPEC.md §7.8.",
+        "tags": ["Notifications"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "nt_001",
+              "description": "Platform notification id."
+            },
+            "required": true,
+            "description": "Platform notification id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkNotificationReadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notification marked read, or already read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body contains unsupported fields or `read` is not true.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not the notification owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Notification does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3211,6 +3429,23 @@
         "required": ["decision"],
         "additionalProperties": false,
         "description": "Body for POST /api/v1/internships/:id/decisions."
+      },
+      "MarkAllNotificationsReadRequest": {
+        "description": "Body for PUT /api/v1/notifications.",
+        "$ref": "#/components/schemas/MarkNotificationReadRequest"
+      },
+      "MarkNotificationReadRequest": {
+        "type": "object",
+        "properties": {
+          "read": {
+            "type": "boolean",
+            "const": true,
+            "description": "Must be true. Resetting notifications to unread is not supported in v1."
+          }
+        },
+        "required": ["read"],
+        "additionalProperties": false,
+        "description": "Body for PATCH /api/v1/notifications/:id."
       },
       "HealthResponse": {
         "type": "object",
@@ -4515,6 +4750,164 @@
         "required": ["id", "type", "authorUserId", "authorRole", "text", "createdAt"],
         "additionalProperties": false,
         "description": "Activity entry under internships/{id}/activity."
+      },
+      "NotificationListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationResponse"
+            }
+          },
+          "nextPageToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unreadCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["items", "nextPageToken", "unreadCount"],
+        "additionalProperties": false,
+        "description": "Paginated notifications plus total unread count for the caller."
+      },
+      "NotificationResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "nt_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "offer_decision",
+              "opportunity_verified",
+              "opportunity_rejected",
+              "new_application",
+              "ticket_reply"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "example": "Offer approved"
+          },
+          "body": {
+            "type": "string",
+            "example": "Your internship offer has been approved."
+          },
+          "relatedInternshipId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "int_001"
+          },
+          "relatedOpportunityId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "opp_042"
+          },
+          "relatedTicketId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "tkt_001"
+          },
+          "emailDeliveryStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["pending", "sent", "failed", "skipped"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailDeliveredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "readAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "body",
+          "relatedInternshipId",
+          "relatedOpportunityId",
+          "relatedTicketId",
+          "emailDeliveryStatus",
+          "emailDeliveredAt",
+          "readAt",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "User notification record."
+      },
+      "MarkAllNotificationsReadResponse": {
+        "type": "object",
+        "properties": {
+          "markedReadCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["markedReadCount"],
+        "additionalProperties": false,
+        "description": "Result of bulk mark-all-notifications-read."
       }
     },
     "securitySchemes": {

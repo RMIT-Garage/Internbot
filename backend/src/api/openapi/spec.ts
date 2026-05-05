@@ -36,6 +36,11 @@ import {
   addInternshipCommentOperation,
   decideInternshipOfferOperation,
 } from './operations/internships'
+import {
+  listNotificationsOperation,
+  markAllNotificationsReadOperation,
+  markNotificationReadOperation,
+} from './operations/notifications'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
 type OpenapiServer = NonNullable<ZodOpenApiObject['servers']>[number]
@@ -69,6 +74,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       { name: 'Semesters', description: 'Semester records and lifecycle transitions.' },
       { name: 'Opportunities', description: 'Semester-scoped internship opportunities.' },
       { name: 'Internships', description: 'Student internship applications and offer workflow.' },
+      { name: 'Notifications', description: 'User notification feed and read state.' },
     ],
     components: {
       securitySchemes: {
@@ -117,6 +123,11 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       },
       '/api/v1/internships/{id}/comments': { post: addInternshipCommentOperation },
       '/api/v1/internships/{id}/decisions': { post: decideInternshipOfferOperation },
+      '/api/v1/notifications': {
+        get: listNotificationsOperation,
+        put: markAllNotificationsReadOperation,
+      },
+      '/api/v1/notifications/{id}': { patch: markNotificationReadOperation },
     },
   })
 }

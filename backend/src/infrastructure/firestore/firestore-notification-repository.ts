@@ -1,7 +1,17 @@
 import { z } from 'zod'
-import { Timestamp, type Transaction } from 'firebase-admin/firestore'
+import {
+  Timestamp,
+  type Query,
+  type QueryDocumentSnapshot,
+  type Transaction,
+} from 'firebase-admin/firestore'
 import { FieldValue, Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
-import type { NotificationRepository } from '../../domain/repositories/notification-repository'
+import type {
+  NotificationListCursor,
+  NotificationListFilter,
+  NotificationListPage,
+  NotificationRepository,
+} from '../../domain/repositories/notification-repository'
 import { Notification, NOTIFICATION_SCHEMA_VERSION } from '../../domain/entities/notification'
 import {
   emailDeliveryStatusValues,
@@ -112,8 +122,85 @@ function notificationToCreatePayload(notification: Notification): NotificationCr
   return out
 }
 
+function notificationToUpdatePayload(
+  notification: Notification,
+  nextVersion: number
+): NotificationUpdateWrite {
+  return {
+    readAt: notification.readAt ? FsTimestamp.fromDate(notification.readAt) : null,
+    emailDeliveryStatus: notification.emailDeliveryStatus ?? null,
+    emailDeliveredAt: notification.emailDeliveredAt
+      ? FsTimestamp.fromDate(notification.emailDeliveredAt)
+      : null,
+    version: nextVersion,
+  }
+}
+
 export class FirestoreNotificationRepository implements NotificationRepository {
   constructor(private readonly txn: Transaction) {}
+
+  async findById(id: string): Promise<Notification | null> {
+    return translateFirestoreErrors(
+      async () => {
+        const ref = adminDb.collection(COLLECTION).doc(id)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) return null
+        return parseNotification(snap.id, snap.data())
+      },
+      { op: 'notifications.findById', resource: 'Notification', id }
+    )
+  }
+
+  async list(filter: NotificationListFilter): Promise<NotificationListPage> {
+    return translateFirestoreErrors(
+      async () => {
+        let q: Query = adminDb.collection(COLLECTION).where('userId', '==', filter.userId)
+        if (filter.unreadOnly) q = q.where('readAt', '==', null)
+
+        q = q.orderBy('createdAt', 'desc').orderBy('__name__', 'desc')
+
+        if (filter.cursor) {
+          q = q.startAfter(FsTimestamp.fromDate(filter.cursor.lastValue), filter.cursor.lastDocId)
+        }
+
+        q = q.limit(filter.limit + 1)
+        const result = await this.txn.get(q)
+        const hasMore = result.size > filter.limit
+        const docs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
+        const items = docs.map((doc) => parseNotification(doc.id, doc.data()))
+
+        let nextCursor: NotificationListCursor | null = null
+        if (hasMore) {
+          const last = docs[docs.length - 1]!
+          nextCursor = {
+            sortField: 'createdAt',
+            sortDirection: 'desc',
+            lastValue: timestampField(last, 'createdAt').toDate(),
+            lastDocId: last.id,
+          }
+        }
+
+        return { items, nextCursor }
+      },
+      { op: 'notifications.list', resource: 'Notification' }
+    )
+  }
+
+  async countUnreadByUserId(userId: string): Promise<number> {
+    return translateFirestoreErrors(
+      async () => {
+        const snap = await this.txn.get(
+          adminDb
+            .collection(COLLECTION)
+            .where('userId', '==', userId)
+            .where('readAt', '==', null)
+            .orderBy('createdAt', 'desc')
+        )
+        return snap.size
+      },
+      { op: 'notifications.countUnreadByUserId', resource: 'Notification' }
+    )
+  }
 
   async create(notification: Notification): Promise<void> {
     await translateFirestoreErrors(
@@ -143,12 +230,7 @@ export class FirestoreNotificationRepository implements NotificationRepository {
         }
 
         const update: NotificationUpdateDoc = {
-          readAt: notification.readAt ? FsTimestamp.fromDate(notification.readAt) : null,
-          emailDeliveryStatus: notification.emailDeliveryStatus ?? null,
-          emailDeliveredAt: notification.emailDeliveredAt
-            ? FsTimestamp.fromDate(notification.emailDeliveredAt)
-            : null,
-          version: stored + 1,
+          ...notificationToUpdatePayload(notification, stored + 1),
           updatedAt: FieldValue.serverTimestamp(),
         }
         this.txn.update(ref, update)
@@ -156,6 +238,41 @@ export class FirestoreNotificationRepository implements NotificationRepository {
       { op: 'notifications.save', resource: 'Notification', id: notification.id }
     )
   }
+
+  async markUnreadAsReadByUserId(userId: string, now: Date): Promise<number> {
+    return translateFirestoreErrors(
+      async () => {
+        const snap = await this.txn.get(
+          adminDb
+            .collection(COLLECTION)
+            .where('userId', '==', userId)
+            .where('readAt', '==', null)
+            .orderBy('createdAt', 'desc')
+        )
+
+        for (const doc of snap.docs) {
+          const notification = parseNotification(doc.id, doc.data())
+          notification.markRead(now)
+          const update: NotificationUpdateDoc = {
+            ...notificationToUpdatePayload(notification, notification.version + 1),
+            updatedAt: FieldValue.serverTimestamp(),
+          }
+          this.txn.update(doc.ref, update)
+        }
+
+        return snap.size
+      },
+      { op: 'notifications.markUnreadAsReadByUserId', resource: 'Notification' }
+    )
+  }
+}
+
+function timestampField(doc: QueryDocumentSnapshot, field: string): Timestamp {
+  const value = doc.data()[field]
+  if (!(value instanceof Timestamp)) {
+    throw new Error(`${doc.ref.path}.${field} is not a Firestore Timestamp`)
+  }
+  return value
 }
 
 export function parseNotification(id: string, raw: unknown): Notification {

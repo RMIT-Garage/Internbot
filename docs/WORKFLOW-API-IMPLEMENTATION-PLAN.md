@@ -322,7 +322,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 8 — Notifications (Firestore only, no email)
 
-**Status:** pending
+**Status:** implemented locally
 **PR:** —
 
 ### Scope
@@ -349,6 +349,8 @@ _(append terse status notes here during implementation)_
 - Caller cannot mark another user's notifications read via `PUT`.
 
 ### Notes
+
+- Implemented Phase 8 notifications slice: `/api/v1/notifications` GET/PATCH/PUT, owner-scoped list/read/bulk-read commands, Firestore notification repository queries/indexes, nullable/absent email delivery fields preserved for future email delivery, OpenAPI operations, and coverage via domain-unit plus integration/component tests only (no API/application unit tests per coverage policy).
 
 ---
 

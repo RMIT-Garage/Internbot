@@ -49,8 +49,12 @@ export type FirestoreOp =
   | 'internships.save'
   | 'internships.addActivity'
   | 'activityFeed.listByAuthor'
+  | 'notifications.findById'
+  | 'notifications.list'
+  | 'notifications.countUnreadByUserId'
   | 'notifications.create'
   | 'notifications.save'
+  | 'notifications.markUnreadAsReadByUserId'
 
 /**
  * Singular domain resource label used in `NotFoundError` messages

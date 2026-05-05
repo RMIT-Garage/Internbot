@@ -359,6 +359,43 @@ describe('Architecture boundaries', () => {
         'GET /users/:id/activity?sort=createdAt needs collection-group activity index: authorUserId ASC + createdAt ASC'
       ).toBe(true)
     })
+
+    it('declares the Phase 8 notifications list and unread indexes', () => {
+      const manifest = JSON.parse(getContent(indexesFile)) as {
+        indexes?: Array<{
+          collectionGroup?: string
+          queryScope?: string
+          fields?: Array<{ fieldPath?: string; order?: string }>
+        }>
+      }
+      const hasNotificationIndex = (fields: Array<{ fieldPath: string; order: string }>) =>
+        manifest.indexes?.some(
+          (index) =>
+            index.collectionGroup === 'notifications' &&
+            index.queryScope === 'COLLECTION' &&
+            fields.every((expected) =>
+              index.fields?.some(
+                (field) => field.fieldPath === expected.fieldPath && field.order === expected.order
+              )
+            )
+        ) ?? false
+
+      expect(
+        hasNotificationIndex([
+          { fieldPath: 'userId', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ]),
+        'GET /notifications needs userId ASC + createdAt DESC'
+      ).toBe(true)
+      expect(
+        hasNotificationIndex([
+          { fieldPath: 'userId', order: 'ASCENDING' },
+          { fieldPath: 'readAt', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ]),
+        'GET /notifications?unreadOnly=true and PUT /notifications need userId ASC + readAt ASC + createdAt DESC'
+      ).toBe(true)
+    })
   })
 
   describe('test pyramid — unit tests stay domain-only', () => {
