@@ -291,8 +291,8 @@ _(append terse status notes here during implementation)_
 
 ## Phase 7 — Activity feed
 
-**Status:** implemented locally (unmerged)
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/52
 
 ### Scope
 
