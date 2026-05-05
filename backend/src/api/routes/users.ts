@@ -11,14 +11,18 @@ import {
   toUpdateUserProfileCommand,
   toSelectSemesterCommand,
   toUserResponse,
+  toUserActivityFeedResponse,
   toUserWorkflowResponse,
+  parseListUserActivityQuery,
   etagFrom,
 } from '../mappers/user'
 import { GetUserQueryHandler } from '../../application/queries/get-user'
 import { GetUserWorkflowQueryHandler } from '../../application/queries/get-user-workflow'
+import { ListUserActivityQueryHandler } from '../../application/queries/list-user-activity'
 import { UpdateUserProfileCommandHandler } from '../../application/commands/update-user-profile'
 import { SelectSemesterCommandHandler } from '../../application/commands/select-semester'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
+import { clampLimit } from '../utils/pagination'
 
 export interface UsersRouterDeps {
   uow: UnitOfWork
@@ -40,6 +44,7 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
   const getUser = new GetUserQueryHandler(deps.uow)
   const getUserWorkflow = new GetUserWorkflowQueryHandler(deps.uow)
+  const listUserActivity = new ListUserActivityQueryHandler(deps.uow)
   const updateUserProfile = new UpdateUserProfileCommandHandler(deps.uow)
   const selectSemester = new SelectSemesterCommandHandler(deps.uow)
 
@@ -68,6 +73,20 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
     }
   })
 
+  router.get('/me/activity', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const userId = actor.platformUser?.id
+      if (!userId) {
+        next(unsyncedError())
+        return
+      }
+      await handleGetActivity(req, res, next, userId, listUserActivity, actor)
+    } catch (err) {
+      next(err)
+    }
+  })
+
   router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { actor } = req as AuthenticatedRequest
@@ -77,6 +96,15 @@ export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
       res.setHeader('ETag', etagFrom(result))
       res.setHeader('Cache-Control', 'private, no-cache')
       res.status(200).json(toUserResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.get('/:id/activity', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      await handleGetActivity(req, res, next, paramId(req), listUserActivity, actor)
     } catch (err) {
       next(err)
     }
@@ -184,6 +212,31 @@ function unsyncedError(): ApiError {
     'Cannot resolve `me`: caller has no platform user record.',
     { reason: 'no_platform_user' }
   )
+}
+
+async function handleGetActivity(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  userId: string,
+  listUserActivity: ListUserActivityQueryHandler,
+  actor: AuthenticatedRequest['actor']
+): Promise<void> {
+  const limit = clampLimit(req.query['limit'])
+  const parsed = parseListUserActivityQuery(req.query as Record<string, unknown>, limit)
+  if (parsed.errors.length > 0) {
+    next(
+      new ApiError(400, 'Bad Request', parsed.errors[0]!.message, {
+        reason: 'invalid_query',
+        fields: parsed.errors,
+      })
+    )
+    return
+  }
+
+  const result = await listUserActivity.handle({ actor, userId, filter: parsed.query })
+  res.setHeader('Cache-Control', 'private, no-cache')
+  res.status(200).json(toUserActivityFeedResponse(result))
 }
 
 /**

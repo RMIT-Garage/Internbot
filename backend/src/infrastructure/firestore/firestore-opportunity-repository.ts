@@ -112,6 +112,8 @@ type OpportunityActivityWrite = {
   from: OpportunityStatus
   to: OpportunityStatus
   actorUserId: string
+  authorUserId: string
+  authorRole: 'coordinator'
   comment?: string
   decision?: string
   _schemaVersion: typeof OPPORTUNITY_SCHEMA_VERSION
@@ -186,6 +188,8 @@ function transitionToActivityPayload(t: OpportunityTransition): OpportunityActiv
     from: t.from,
     to: t.to,
     actorUserId: t.actorUserId,
+    authorUserId: t.actorUserId,
+    authorRole: 'coordinator',
     ...(t.comment !== undefined ? { comment: t.comment } : {}),
     _schemaVersion: OPPORTUNITY_SCHEMA_VERSION,
   }
@@ -198,6 +202,8 @@ function verificationToActivityPayload(v: OpportunityVerification): OpportunityA
     to: v.to,
     decision: v.decision,
     actorUserId: v.actorUserId,
+    authorUserId: v.actorUserId,
+    authorRole: 'coordinator',
     ...(v.comment !== undefined ? { comment: v.comment } : {}),
     _schemaVersion: OPPORTUNITY_SCHEMA_VERSION,
   }

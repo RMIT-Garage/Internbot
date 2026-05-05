@@ -411,6 +411,22 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "lastSubmittedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "activity",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "authorUserId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "activity",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "authorUserId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

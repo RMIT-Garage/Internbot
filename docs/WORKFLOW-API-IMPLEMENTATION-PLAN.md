@@ -291,7 +291,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 7 — Activity feed
 
-**Status:** pending
+**Status:** implemented locally (unmerged)
 **PR:** —
 
 ### Scope
@@ -315,6 +315,8 @@ _(append terse status notes here during implementation)_
 - Activity created in Phase 4/5/6 side-effects appears in the feed immediately.
 
 ### Notes
+
+- Implemented Phase 7 activity feed slice: `GET /api/v1/users/{id}/activity` and `/users/me/activity` enforce owner-only access, read through a Firestore `activity` collection-group query keyed by `authorUserId`, derive resource ids from parent paths, support `createdAt` sorting and cursor pagination, and surface internship plus opportunity workflow activity. Added the required collection-group indexes and coverage through integration/component tests; no API/application unit tests added per coverage policy.
 
 ---
 

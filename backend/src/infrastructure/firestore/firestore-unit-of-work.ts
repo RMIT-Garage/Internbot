@@ -5,6 +5,7 @@ import { FirestoreSemesterRepository } from './firestore-semester-repository'
 import { FirestoreOpportunityRepository } from './firestore-opportunity-repository'
 import { FirestoreInternshipRepository } from './firestore-internship-repository'
 import { FirestoreNotificationRepository } from './firestore-notification-repository'
+import { FirestoreActivityFeedRepository } from './firestore-activity-feed-repository'
 
 /**
  * Firestore implementation of `UnitOfWork`.
@@ -26,6 +27,7 @@ export class FirestoreUnitOfWork implements UnitOfWork {
         opportunities: new FirestoreOpportunityRepository(txn),
         internships: new FirestoreInternshipRepository(txn),
         notifications: new FirestoreNotificationRepository(txn),
+        activityFeed: new FirestoreActivityFeedRepository(txn),
       }
       return work(ctx)
     })

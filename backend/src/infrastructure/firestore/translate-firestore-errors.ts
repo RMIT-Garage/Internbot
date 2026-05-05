@@ -48,6 +48,7 @@ export type FirestoreOp =
   | 'internships.create'
   | 'internships.save'
   | 'internships.addActivity'
+  | 'activityFeed.listByAuthor'
   | 'notifications.create'
   | 'notifications.save'
 
@@ -56,7 +57,13 @@ export type FirestoreOp =
  * (`"${resource} '${id}' not found"`). Stays aligned with the names the
  * API surfaces in problem-detail responses.
  */
-export type FirestoreResource = 'User' | 'Semester' | 'Opportunity' | 'Internship' | 'Notification'
+export type FirestoreResource =
+  | 'User'
+  | 'Semester'
+  | 'Opportunity'
+  | 'Internship'
+  | 'Notification'
+  | 'Activity'
 
 export interface FirestoreOpContext {
   op: FirestoreOp

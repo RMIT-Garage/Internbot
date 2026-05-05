@@ -278,7 +278,10 @@ describe('Architecture boundaries', () => {
 
   describe('Repository invariants — version bump on save', () => {
     const reposDir = path.join(SRC, 'infrastructure', 'firestore')
-    const files = getFiles(reposDir).filter((f) => /firestore-.*-repository\.ts$/.test(f))
+    const files = getFiles(reposDir).filter(
+      (f) =>
+        /firestore-.*-repository\.ts$/.test(f) && !/firestore-activity-feed-repository\.ts$/.test(f)
+    )
 
     if (files.length === 0) {
       it('infrastructure/firestore/ has no repository files yet (skip)', () =>
@@ -318,6 +321,44 @@ describe('Architecture boundaries', () => {
         ).toBe(true)
       })
     }
+  })
+
+  describe('Firestore indexes', () => {
+    const indexesFile = path.resolve(
+      __dirname,
+      '../../../docker/firebase-emulator/firebase/firestore.indexes.json'
+    )
+
+    it('declares the Phase 7 activity-feed collection-group index', () => {
+      const manifest = JSON.parse(getContent(indexesFile)) as {
+        indexes?: Array<{
+          collectionGroup?: string
+          queryScope?: string
+          fields?: Array<{ fieldPath?: string; order?: string }>
+        }>
+      }
+      const hasActivityIndex = (createdAtOrder: 'ASCENDING' | 'DESCENDING') =>
+        manifest.indexes?.some(
+          (index) =>
+            index.collectionGroup === 'activity' &&
+            index.queryScope === 'COLLECTION_GROUP' &&
+            index.fields?.some(
+              (field) => field.fieldPath === 'authorUserId' && field.order === 'ASCENDING'
+            ) &&
+            index.fields?.some(
+              (field) => field.fieldPath === 'createdAt' && field.order === createdAtOrder
+            )
+        ) ?? false
+
+      expect(
+        hasActivityIndex('DESCENDING'),
+        'GET /users/:id/activity needs collection-group activity index: authorUserId ASC + createdAt DESC'
+      ).toBe(true)
+      expect(
+        hasActivityIndex('ASCENDING'),
+        'GET /users/:id/activity?sort=createdAt needs collection-group activity index: authorUserId ASC + createdAt ASC'
+      ).toBe(true)
+    })
   })
 
   describe('test pyramid — unit tests stay domain-only', () => {

@@ -9,6 +9,8 @@ import {
   putUserSemesterSelectionOperation,
   getMyWorkflowOperation,
   getUserWorkflowOperation,
+  getMyActivityOperation,
+  getUserActivityOperation,
 } from './operations/users'
 import {
   listSemestersOperation,
@@ -83,9 +85,11 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       '/api/health': { get: healthOperation },
       '/api/v1/users/me': { get: getMyProfileOperation, patch: patchMyProfileOperation },
       '/api/v1/users/me/workflow': { get: getMyWorkflowOperation },
+      '/api/v1/users/me/activity': { get: getMyActivityOperation },
       '/api/v1/users/me/semester-selection': { put: putMySemesterSelectionOperation },
       '/api/v1/users/{id}': { get: getUserOperation, patch: patchUserOperation },
       '/api/v1/users/{id}/workflow': { get: getUserWorkflowOperation },
+      '/api/v1/users/{id}/activity': { get: getUserActivityOperation },
       '/api/v1/users/{id}/semester-selection': { put: putUserSemesterSelectionOperation },
       '/api/v1/semesters': { get: listSemestersOperation, post: createSemesterOperation },
       '/api/v1/semesters/{id}': { get: getSemesterOperation, patch: patchSemesterOperation },

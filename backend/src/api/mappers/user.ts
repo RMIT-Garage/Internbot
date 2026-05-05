@@ -1,15 +1,21 @@
 import type { RequestActor } from '../../application/actor'
 import type { UserResult } from '../../application/models/user'
+import type {
+  UserActivityFeedCursor,
+  UserActivityFeedResultWithCursor,
+} from '../../application/models/user-activity'
 import type { UserWorkflowResult } from '../../application/models/user-workflow'
 import type {
   AcademicInfoPatch,
   UpdateUserProfileCommand,
 } from '../../application/commands/update-user-profile'
 import type { SelectSemesterCommand } from '../../application/commands/select-semester'
+import type { ListUserActivityQuery } from '../../application/queries/list-user-activity'
 import type { PatchUserRequest, PutSemesterSelectionRequest } from '../schemas/user'
 import type {
   AcademicInfoResponse,
   StudentProfileResponse,
+  UserActivityFeedResponse,
   UserResponse,
   UserWorkflowResponse,
 } from '../dto/user'
@@ -17,6 +23,7 @@ import type { AcademicInfo } from '../../domain/value-objects/academic-info'
 import type { StudentProfile } from '../../domain/value-objects/student-profile'
 import { deriveWorkflowState } from '../../domain/services/workflow-derivation'
 import { formatETag, parseIfMatch } from '../utils/etag'
+import { decodePageToken, encodePageToken } from '../utils/pagination'
 
 /**
  * Mappers between api wire shapes and application/domain types. Ensures the
@@ -69,6 +76,75 @@ export function toUpdateUserProfileCommand(
     patch,
     ...(expectedVersion !== undefined ? { metadata: { expectedVersion } } : {}),
   }
+}
+
+export interface ParsedListUserActivityQuery {
+  query: ListUserActivityQuery['filter']
+  errors: { field: string; code: string; message: string }[]
+}
+
+const DEFAULT_ACTIVITY_SORT = { direction: 'desc' as const }
+
+export function parseListUserActivityQuery(
+  raw: Record<string, unknown>,
+  limit: number
+): ParsedListUserActivityQuery {
+  const errors: ParsedListUserActivityQuery['errors'] = []
+  const sort = parseActivitySort(raw['sort'], errors)
+
+  let cursor: UserActivityFeedCursor | undefined
+  if (typeof raw['pageToken'] === 'string' && raw['pageToken'].length > 0) {
+    try {
+      const decoded = decodePageToken(raw['pageToken'])
+      const expectedSort = `createdAt:${sort.direction}`
+      const lastCreatedAt = new Date(String(decoded.values[0]))
+      if (decoded.sort !== undefined && decoded.sort !== expectedSort) {
+        errors.push({
+          field: 'pageToken',
+          code: 'sort_mismatch',
+          message: `pageToken was issued for sort=${decoded.sort} but request specifies ${expectedSort}`,
+        })
+      } else if (Number.isNaN(lastCreatedAt.getTime())) {
+        errors.push({ field: 'pageToken', code: 'invalid', message: 'pageToken is malformed' })
+      } else {
+        cursor = {
+          sortDirection: sort.direction,
+          lastCreatedAt,
+          lastDocPath: decoded.path,
+        }
+      }
+    } catch {
+      errors.push({ field: 'pageToken', code: 'invalid', message: 'pageToken is malformed' })
+    }
+  }
+
+  return {
+    query: {
+      limit,
+      sortDirection: sort.direction,
+      cursor,
+    },
+    errors,
+  }
+}
+
+function parseActivitySort(
+  v: unknown,
+  errors: ParsedListUserActivityQuery['errors']
+): { direction: 'asc' | 'desc' } {
+  if (v === undefined) return DEFAULT_ACTIVITY_SORT
+  if (typeof v !== 'string') {
+    errors.push({ field: 'sort', code: 'invalid', message: 'sort must be a string' })
+    return DEFAULT_ACTIVITY_SORT
+  }
+  if (v === 'createdAt') return { direction: 'asc' }
+  if (v === '-createdAt') return { direction: 'desc' }
+  errors.push({
+    field: 'sort',
+    code: 'invalid',
+    message: 'sort must be one of: createdAt, -createdAt',
+  })
+  return DEFAULT_ACTIVITY_SORT
 }
 
 // ------------------------------ result → response ------------------------------
@@ -143,6 +219,37 @@ export function toUserWorkflowResponse(result: UserWorkflowResult): UserWorkflow
     currentWorkflowStep: result.workflow.currentWorkflowStep,
     internshipStatus: result.workflow.internshipStatus,
     semesterEnrolmentState: result.workflow.semesterEnrolmentState,
+  }
+}
+
+export function toUserActivityFeedResponse(
+  result: UserActivityFeedResultWithCursor
+): UserActivityFeedResponse {
+  let nextPageToken: string | null = null
+  if (result.cursor) {
+    nextPageToken = encodePageToken({
+      path: result.cursor.lastDocPath,
+      values: [result.cursor.lastCreatedAt.toISOString()],
+      sort: `createdAt:${result.cursor.sortDirection}`,
+    })
+  }
+
+  return {
+    items: result.items.map((item) => ({
+      id: item.id,
+      resourceType: item.resourceType,
+      internshipId: item.internshipId ?? null,
+      opportunityId: item.opportunityId ?? null,
+      type: item.type,
+      authorUserId: item.authorUserId,
+      authorRole: item.authorRole,
+      text: item.text ?? null,
+      from: item.from ?? null,
+      to: item.to ?? null,
+      decision: item.decision ?? null,
+      createdAt: item.createdAt.toISOString(),
+    })),
+    nextPageToken,
   }
 }
 

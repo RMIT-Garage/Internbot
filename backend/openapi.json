@@ -263,6 +263,99 @@
         }
       }
     },
+    "/api/v1/users/me/activity": {
+      "get": {
+        "operationId": "getMyActivity",
+        "summary": "Return the caller's activity feed",
+        "description": "Resolves to the caller's platform user and returns activity authored by that user across internship and opportunity workflows. See WORKFLOW-API-SPEC.md §7.2.",
+        "tags": ["Users"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageToken",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Default `-createdAt`. Prefix with `-` for descending.",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt"]
+            },
+            "description": "Default `-createdAt`. Prefix with `-` for descending."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated activity feed authored by the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserActivityFeedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed query string or page token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not the referenced user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No user exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/me/semester-selection": {
       "put": {
         "operationId": "putMySemesterSelection",
@@ -647,6 +740,110 @@
           },
           "404": {
             "description": "No user exists with the supplied id, OR the user is a coordinator (workflow sub-resource only exists for students).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/activity": {
+      "get": {
+        "operationId": "getUserActivity",
+        "summary": "Return an activity feed by user id",
+        "description": "Owner-only. The `{id}` path segment must match the authenticated platform user. Callers targeting themselves should prefer `GET /users/me/activity`. See WORKFLOW-API-SPEC.md §7.2.",
+        "tags": ["Users"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "usr_aBc123XyZ",
+              "description": "Platform user id."
+            },
+            "required": true,
+            "description": "Platform user id."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageToken",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Default `-createdAt`. Prefix with `-` for descending.",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt"]
+            },
+            "description": "Default `-createdAt`. Prefix with `-` for descending."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated activity feed authored by the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserActivityFeedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed query string or page token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not the referenced user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No user exists with the supplied id.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3420,6 +3617,173 @@
         "type": "string",
         "enum": ["not_enrolled", "enrolled", "window_closed"],
         "description": "Derived display state for the semester enrolment step (see WORKFLOW-API-SPEC.md §7.2)."
+      },
+      "UserActivityFeedResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserActivityFeedItemResponse"
+            }
+          },
+          "nextPageToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["items", "nextPageToken"],
+        "additionalProperties": false,
+        "description": "Paginated activity feed for the caller."
+      },
+      "UserActivityFeedItemResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "act_xYz789aBc"
+          },
+          "resourceType": {
+            "type": "string",
+            "enum": ["internship", "opportunity"]
+          },
+          "internshipId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "int_001"
+          },
+          "opportunityId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "opp_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "submit_offer",
+              "comment",
+              "approve_offer",
+              "request_changes",
+              "reject",
+              "edit",
+              "transition",
+              "verification"
+            ]
+          },
+          "authorUserId": {
+            "type": "string",
+            "example": "usr_coord01"
+          },
+          "authorRole": {
+            "type": "string",
+            "enum": ["student", "coordinator"]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "Offer looks good, approved."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "offer_pending_review",
+                  "offer_changes_requested",
+                  "offer_approved",
+                  "rejected",
+                  "draft",
+                  "pending_verification",
+                  "published",
+                  "archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "offer_pending_review",
+                  "offer_changes_requested",
+                  "offer_approved",
+                  "rejected",
+                  "draft",
+                  "pending_verification",
+                  "published",
+                  "archived"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["approved", "rejected"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T10:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "resourceType",
+          "internshipId",
+          "opportunityId",
+          "type",
+          "authorUserId",
+          "authorRole",
+          "text",
+          "from",
+          "to",
+          "decision",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "One activity-feed entry authored by the caller."
       },
       "SemesterListResponse": {
         "type": "object",
