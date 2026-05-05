@@ -1,4 +1,5 @@
 import type { Semester } from '../entities/semester'
+import type { Internship } from '../entities/internship'
 import type { User } from '../entities/user'
 import type {
   CurrentWorkflowStep,
@@ -7,22 +8,13 @@ import type {
 } from '../value-objects/workflow-state'
 
 /**
- * Derive workflow state from a student User aggregate (and optionally the
- * semester they have selected).
- *
- * **Phase 3 scope.** Internship records do not exist yet (Phase 5), so the
- * fine `internshipStatus` collapses to `no_semester` /
- * `browsing_opportunities` and the coarse `currentWorkflowStep` collapses
- * to `profile` / `semester_selection` / `opportunity_browsing`. Once
- * Phase 5+ lands, this function gains an `internships` parameter and
- * implements the full §7.1 / §9.2 tables. The derivation lives in one
- * place so later phases extend a single function rather than duplicating
- * branching across mappers and handlers.
+ * Derive workflow state from a student User aggregate, their selected
+ * semester, and their internship applications.
  *
  * `semester` is optional because `studentProfile.semesterId` may point at
- * a semester the caller didn't (or couldn't) load. Pass `undefined` and
- * the result reports `not_enrolled` even when a `semesterId` is set —
- * defensive degradation for read paths that don't need the window check.
+ * a semester that is unavailable. Passing `undefined` reports
+ * `not_enrolled` even when a `semesterId` is set, while still deriving the
+ * coarse step from the student's selected semester id.
  */
 export interface WorkflowState {
   currentWorkflowStep: CurrentWorkflowStep
@@ -33,7 +25,8 @@ export interface WorkflowState {
 export function deriveWorkflowState(
   user: User,
   semester: Semester | undefined,
-  now: Date
+  now: Date,
+  internships: readonly Internship[] = []
 ): WorkflowState {
   if (!user.isStudent()) {
     throw new Error('deriveWorkflowState may only be called on a student user')
@@ -44,10 +37,8 @@ export function deriveWorkflowState(
   if (profile.profileStatus !== 'complete') {
     return {
       currentWorkflowStep: 'profile',
-      // §9.2 starts at `no_semester` once profile is complete; while still
-      // incomplete the fine status is undefined per the spec table — we
-      // return `no_semester` as the safe pre-enrolment value because the
-      // wire schema requires a non-null string.
+      // The fine workflow vocabulary only starts once the profile is complete.
+      // Use the pre-enrolment value while the student is still in profile setup.
       internshipStatus: 'no_semester',
       semesterEnrolmentState: 'not_enrolled',
     }
@@ -62,8 +53,7 @@ export function deriveWorkflowState(
   }
 
   return {
-    currentWorkflowStep: 'opportunity_browsing',
-    internshipStatus: 'browsing_opportunities',
+    ...deriveInternshipProgress(internships),
     semesterEnrolmentState: deriveSemesterEnrolmentState(semester, now),
   }
 }
@@ -74,4 +64,24 @@ function deriveSemesterEnrolmentState(
 ): SemesterEnrolmentState {
   if (!semester) return 'not_enrolled'
   return semester.isEnrolmentOpen(now) ? 'enrolled' : 'window_closed'
+}
+
+function deriveInternshipProgress(
+  internships: readonly Internship[]
+): Pick<WorkflowState, 'currentWorkflowStep' | 'internshipStatus'> {
+  const statuses = internships.map((internship) => internship.status)
+
+  if (statuses.includes('offer_approved')) {
+    return { currentWorkflowStep: 'completed', internshipStatus: 'offer_approved' }
+  }
+  if (statuses.includes('offer_changes_requested')) {
+    return { currentWorkflowStep: 'offer_stage', internshipStatus: 'offer_changes_requested' }
+  }
+  if (statuses.includes('offer_pending_review')) {
+    return { currentWorkflowStep: 'offer_stage', internshipStatus: 'offer_in_review' }
+  }
+  if (statuses.length > 0 && statuses.every((status) => status === 'rejected')) {
+    return { currentWorkflowStep: 'opportunity_browsing', internshipStatus: 'all_rejected' }
+  }
+  return { currentWorkflowStep: 'opportunity_browsing', internshipStatus: 'browsing_opportunities' }
 }

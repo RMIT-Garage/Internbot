@@ -3,21 +3,18 @@
  *
  * Two layered vocabularies, both derived (never persisted):
  *
- *   - **Coarse** `currentWorkflowStep` — frontend routing vocabulary, defined
- *     in WORKFLOW-API-SPEC.md §7.1. Returned by `GET /users/{id}` and
- *     `GET /users/{id}/workflow`.
+ *   - **Coarse** `currentWorkflowStep` — routing vocabulary for the student's
+ *     next workflow area.
  *
- *   - **Fine** `internshipStatus` — display-state vocabulary, defined in
- *     WORKFLOW-API-SPEC.md §9.2. Returned by `GET /users/{id}/workflow`.
+ *   - **Fine** `internshipStatus` — display-state vocabulary for the student's
+ *     internship progress.
  *
- * `semesterEnrolmentState` is a third derived display state (also returned
- * by `GET /users/{id}/workflow`) that reports whether the student has
- * enrolled in a semester and whether the enrolment window is still open.
+ * `semesterEnrolmentState` is a third derived display state that reports
+ * whether the student has enrolled in a semester and whether the enrolment
+ * window is still open.
  *
- * All three are **derived** at response time from the user aggregate (and,
- * for `semesterEnrolmentState`, the referenced semester aggregate). Nothing
- * here is stored on Firestore — the source of truth is `studentProfile`
- * + `internships` + `semesters`.
+ * All three are **derived** from the user aggregate, the student's internships,
+ * and, for `semesterEnrolmentState`, the referenced semester aggregate.
  */
 
 export const currentWorkflowStepValues = [

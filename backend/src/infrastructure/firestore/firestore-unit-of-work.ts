@@ -3,6 +3,7 @@ import { adminDb } from '../config/firebase-admin'
 import { FirestoreUserRepository } from './firestore-user-repository'
 import { FirestoreSemesterRepository } from './firestore-semester-repository'
 import { FirestoreOpportunityRepository } from './firestore-opportunity-repository'
+import { FirestoreInternshipRepository } from './firestore-internship-repository'
 import { FirestoreNotificationRepository } from './firestore-notification-repository'
 
 /**
@@ -23,6 +24,7 @@ export class FirestoreUnitOfWork implements UnitOfWork {
         users: new FirestoreUserRepository(txn),
         semesters: new FirestoreSemesterRepository(txn),
         opportunities: new FirestoreOpportunityRepository(txn),
+        internships: new FirestoreInternshipRepository(txn),
         notifications: new FirestoreNotificationRepository(txn),
       }
       return work(ctx)

@@ -19,7 +19,7 @@ import {
   trackDoc,
   mintEmulatorIdToken,
 } from '../../setup.emulator'
-import { adminAuth } from '../../../src/infrastructure/config/firebase-admin'
+import { adminAuth, adminDb, Timestamp } from '../../../src/infrastructure/config/firebase-admin'
 import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { User } from '../../../src/domain/entities/user'
 import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
@@ -307,6 +307,48 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
       internshipStatus: 'browsing_opportunities',
       semesterEnrolmentState: 'enrolled',
     })
+  })
+
+  it('workflow reflects the furthest active internship state once internships exist', async () => {
+    const app = createApp()
+    const student = await syncStudent(app)
+    await completeStudentProfile(app, student)
+    const coordinator = await makeCoordinator()
+    const semester = await createSemester(app, coordinator, {
+      ...ALWAYS_OPEN_WINDOW,
+      transitionTo: 'active',
+    })
+    const select = await request(app)
+      .put('/api/v1/users/me/semester-selection')
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .send({ semesterId: semester.id })
+    expect(select.status).toBe(200)
+
+    const internshipId = `int_${randomUUID()}`
+    const now = Timestamp.fromDate(new Date())
+    await adminDb
+      .collection('internships')
+      .doc(internshipId)
+      .set({
+        userId: student.id,
+        opportunityId: `opp_${randomUUID()}`,
+        status: 'offer_pending_review',
+        version: 1,
+        lastSubmittedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        _schemaVersion: 1,
+      })
+    trackDoc('internships', internshipId)
+
+    const res = await request(app)
+      .get(`/api/v1/users/${student.id}/workflow`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.currentWorkflowStep).toBe('offer_stage')
+    expect(res.body.internshipStatus).toBe('offer_in_review')
+    expect(res.body.semesterEnrolmentState).toBe('enrolled')
   })
 
   it('coordinator target → 404', async () => {

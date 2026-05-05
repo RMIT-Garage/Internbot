@@ -218,8 +218,8 @@ _(append terse status notes here during implementation)_
 
 ## Phase 5 — Internships (student path)
 
-**Status:** pending
-**PR:** —
+**Status:** implemented locally (unmerged)
+**PR:** https://github.com/giatinhuynh/Internbot/pull/50
 
 ### Scope
 
@@ -250,6 +250,8 @@ _(append terse status notes here during implementation)_
 - Student cannot read another student's internship (`403`).
 
 ### Notes
+
+- Implemented full Phase 5 backend vertical slice locally: Internship aggregate + activity value object, duplicate-application sentinel, Firestore repository with attachments/activity support, application handlers and query read models, `/api/v1/internships` routes, OpenAPI operations, workflow derivation from internship states, Firestore indexes, and domain-unit plus integration/component coverage.
 
 ---
 

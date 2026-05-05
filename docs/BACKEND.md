@@ -222,7 +222,10 @@ export interface UnitOfWork {
 
 export interface UnitOfWorkContext {
   readonly users: UserRepository;
-  // Future phases extend: opportunities, internships, semesters, …
+  readonly semesters: SemesterRepository;
+  readonly opportunities: OpportunityRepository;
+  readonly internships: InternshipRepository;
+  readonly notifications: NotificationRepository;
 }
 ```
 

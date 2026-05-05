@@ -53,7 +53,8 @@ export class GetUserWorkflowQueryHandler {
         ? ((await ctx.semesters.findById(user.studentProfile.semesterId)) ?? undefined)
         : undefined
 
-      const workflow = deriveWorkflowState(user, semester, new Date())
+      const internships = await ctx.internships.listByUserId(user.id)
+      const workflow = deriveWorkflowState(user, semester, new Date(), internships)
       return { workflow }
     })
   }

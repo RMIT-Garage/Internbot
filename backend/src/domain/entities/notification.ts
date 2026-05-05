@@ -70,6 +70,31 @@ export class Notification {
     })
   }
 
+  static forNewApplication(props: {
+    id: string
+    userId: string
+    internshipId: string
+    opportunityId: string
+    now: Date
+  }): Notification {
+    return Notification.create({
+      id: props.id,
+      version: 0,
+      userId: props.userId,
+      type: 'new_application',
+      title: 'New internship application',
+      body: 'A student has applied to an opportunity.',
+      relatedInternshipId: props.internshipId,
+      relatedOpportunityId: props.opportunityId,
+      relatedTicketId: undefined,
+      emailDeliveryStatus: undefined,
+      emailDeliveredAt: undefined,
+      readAt: undefined,
+      createdAt: props.now,
+      updatedAt: props.now,
+    })
+  }
+
   get id(): string {
     return this.#props.id
   }

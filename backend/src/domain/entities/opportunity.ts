@@ -7,7 +7,6 @@ import type {
 } from '../value-objects/opportunity-enums'
 import { OpportunityTransition } from '../value-objects/opportunity-transition'
 import { OpportunityVerification } from '../value-objects/opportunity-verification'
-import { isCareerHubUrlAllowed } from '../services/career-hub-url-allowlist'
 import { ConflictError, ValidationError } from '../errors'
 
 export interface OpportunityProps {
@@ -239,6 +238,15 @@ function validateSourceUrl(type: OpportunityType, sourceUrl: string | undefined)
         },
       ]
     )
+  }
+}
+
+function isCareerHubUrlAllowed(sourceUrl: string): boolean {
+  try {
+    const parsed = new URL(sourceUrl)
+    return parsed.protocol === 'https:' && parsed.hostname === 'careerhub.rmit.edu.au'
+  } catch {
+    return false
   }
 }
 

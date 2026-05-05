@@ -25,6 +25,7 @@ import { NotFoundError, ConflictError } from '../../domain/errors'
 export type FirestoreOp =
   | 'users.findById'
   | 'users.findByIdentity'
+  | 'users.listCoordinators'
   | 'users.create'
   | 'users.save'
   | 'semesters.findById'
@@ -38,6 +39,15 @@ export type FirestoreOp =
   | 'opportunities.listAttachments'
   | 'opportunities.create'
   | 'opportunities.save'
+  | 'internships.findById'
+  | 'internships.findByUserIdAndOpportunityId'
+  | 'internships.list'
+  | 'internships.listByUserId'
+  | 'internships.listAttachments'
+  | 'internships.hasAttachments'
+  | 'internships.create'
+  | 'internships.save'
+  | 'internships.addActivity'
   | 'notifications.create'
   | 'notifications.save'
 
@@ -46,7 +56,7 @@ export type FirestoreOp =
  * (`"${resource} '${id}' not found"`). Stays aligned with the names the
  * API surfaces in problem-detail responses.
  */
-export type FirestoreResource = 'User' | 'Semester' | 'Opportunity' | 'Notification'
+export type FirestoreResource = 'User' | 'Semester' | 'Opportunity' | 'Internship' | 'Notification'
 
 export interface FirestoreOpContext {
   op: FirestoreOp
