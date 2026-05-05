@@ -176,7 +176,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 4 — Opportunities
 
-**Status:** implemented locally (unmerged)
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -211,14 +211,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
-- Implemented full Phase 4 backend vertical slice locally: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and domain-unit plus integration/component coverage.
+- Implemented full Phase 4 backend vertical slice: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and domain-unit plus integration/component coverage.
 - Coverage policy corrected after merge: Phase 4 keeps domain unit tests only; application/CQRS behavior is covered by integration tests and API/mappers by component tests.
 
 ---
 
 ## Phase 5 — Internships (student path)
 
-**Status:** implemented locally (unmerged)
+**Status:** implemented
 **PR:** https://github.com/giatinhuynh/Internbot/pull/50
 
 ### Scope
@@ -251,7 +251,7 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
-- Implemented full Phase 5 backend vertical slice locally: Internship aggregate + activity value object, duplicate-application sentinel, Firestore repository with attachments/activity support, application handlers and query read models, `/api/v1/internships` routes, OpenAPI operations, workflow derivation from internship states, Firestore indexes, and domain-unit plus integration/component coverage.
+- Implemented full Phase 5 backend vertical slice: Internship aggregate + activity value object, duplicate-application sentinel, Firestore repository with attachments/activity support, application handlers and query read models, `/api/v1/internships` routes, OpenAPI operations, workflow derivation from internship states, Firestore indexes, and domain-unit plus integration/component coverage.
 
 ---
 
