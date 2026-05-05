@@ -19,7 +19,7 @@ function actorFor(role: 'student' | 'coordinator', id = `usr_${randomUUID()}`): 
 async function seedSemester(): Promise<{ id: string }> {
   const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
   const code = `2026-S${randomUUID()
-    .slice(0, 4)
+    .slice(0, 8)
     .replace(/[^A-Za-z0-9]/g, 'a')}`
   const { id } = await create.handle({
     actor: actorFor('coordinator'),

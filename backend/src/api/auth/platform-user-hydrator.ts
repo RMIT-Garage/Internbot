@@ -4,7 +4,7 @@ import type { IdGenerator } from '../../application/ports/id-generator'
 import { User } from '../../domain/entities/user'
 import { UserIdentity } from '../../domain/value-objects/user-identity'
 import { StudentProfile } from '../../domain/value-objects/student-profile'
-import { parseStudentNumberFromEmail } from '../../domain/services/student-number-derivation'
+import { parseStudentNumberFromEmail } from '../../domain/value-objects/student-number'
 
 /**
  * Edge-identity hydration with just-in-time student bootstrap.

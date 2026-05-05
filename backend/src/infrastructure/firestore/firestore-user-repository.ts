@@ -358,6 +358,18 @@ export class FirestoreUserRepository implements UserRepository {
     )
   }
 
+  async listCoordinators(): Promise<readonly User[]> {
+    return translateFirestoreErrors(
+      async () => {
+        const snap = await this.txn.get(
+          adminDb.collection(COLLECTION).where('role', '==', 'coordinator')
+        )
+        return snap.docs.map((doc) => parseUser(doc.id, doc.data()))
+      },
+      { op: 'users.listCoordinators', resource: 'User' }
+    )
+  }
+
   /**
    * Insert a freshly-constructed aggregate. Called from the auth-edge JIT
    * bootstrap on first request from a verified student email. The aggregate

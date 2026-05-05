@@ -35,7 +35,7 @@
     "firebase-functions": "7.2.5",
     "helmet": "8.1.0",
     "swagger-ui-express": "^5.0.1",
-    "zod": "4.3.6",
+    "zod": "4.4.2",
     "zod-openapi": "^5.4.6"
   },
   "devDependencies": {

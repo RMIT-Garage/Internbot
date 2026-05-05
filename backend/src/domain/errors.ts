@@ -58,6 +58,18 @@ export class ForbiddenError extends DomainError {
   }
 }
 
+export class InvalidQueryError extends DomainError {
+  constructor(
+    message = 'Invalid query',
+    reason?: string,
+    fields?: FieldIssue[],
+    options?: DomainErrorOptions
+  ) {
+    super(message, 'INVALID_QUERY', reason, fields, options)
+    this.name = 'InvalidQueryError'
+  }
+}
+
 export class ConflictError extends DomainError {
   constructor(message: string, reason?: string, options?: DomainErrorOptions) {
     super(message, 'CONFLICT', reason, undefined, options)

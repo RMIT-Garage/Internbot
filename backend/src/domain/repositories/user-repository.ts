@@ -21,6 +21,7 @@ export type { IdentityProvider, UserIdentityLookup }
 export interface UserRepository {
   findById(id: string): Promise<User | null>
   findByIdentity(identity: UserIdentityLookup): Promise<User | null>
+  listCoordinators(): Promise<readonly User[]>
 
   /**
    * Insert a freshly-constructed `User` aggregate. Used by the auth-edge

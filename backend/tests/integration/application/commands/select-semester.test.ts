@@ -33,7 +33,7 @@ function actorFor(id: string, role: 'student' | 'coordinator'): RequestActor {
 
 function uniqueSemesterCode(): string {
   return `2026-S${randomUUID()
-    .slice(0, 4)
+    .slice(0, 8)
     .replace(/[^A-Za-z0-9]/g, 'a')}`
 }
 

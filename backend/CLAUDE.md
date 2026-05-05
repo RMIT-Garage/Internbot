@@ -99,6 +99,8 @@ Three tiers; emulator required for integration + component. Full details: [docs/
 | Component    | `backend/tests/component/routes/**`        | Yes      |
 | Architecture | `backend/tests/architecture/**`            | No       |
 
+Unit tests are domain-only. Do not add API/application unit tests; cover CQRS handlers in integration and routes/mappers in component tests.
+
 **Isolation rules (mandatory):** every test generates its own random IDs via `crypto.randomUUID()`; `trackDoc(collection, id)` every doc; `afterEach(clearDocs)`; no `beforeAll` for mutable state; tests run in parallel.
 
 **Domain test construction:** `Xxx.rehydrate({...})` or `Xxx.create({...})` — never `new Xxx(...)` (private constructor).

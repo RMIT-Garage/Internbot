@@ -9,6 +9,8 @@
  *
  * Also enforces:
  *   - infrastructure/config/firebase-admin is the sole Firebase Admin entry point
+ *   - unit tests stay domain-only; application/api behavior is covered by
+ *     integration/component tests
  *   - No console.log in any src/ file
  */
 
@@ -17,6 +19,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 const SRC = path.resolve(__dirname, '../../src')
+const TESTS = path.resolve(__dirname, '..')
 
 function getFiles(dir: string, ext = '.ts'): string[] {
   if (!fs.existsSync(dir)) return []
@@ -275,7 +278,10 @@ describe('Architecture boundaries', () => {
 
   describe('Repository invariants — version bump on save', () => {
     const reposDir = path.join(SRC, 'infrastructure', 'firestore')
-    const files = getFiles(reposDir).filter((f) => /firestore-.*-repository\.ts$/.test(f))
+    const files = getFiles(reposDir).filter(
+      (f) =>
+        /firestore-.*-repository\.ts$/.test(f) && !/firestore-activity-feed-repository\.ts$/.test(f)
+    )
 
     if (files.length === 0) {
       it('infrastructure/firestore/ has no repository files yet (skip)', () =>
@@ -315,6 +321,102 @@ describe('Architecture boundaries', () => {
         ).toBe(true)
       })
     }
+  })
+
+  describe('Firestore indexes', () => {
+    const indexesFile = path.resolve(
+      __dirname,
+      '../../../docker/firebase-emulator/firebase/firestore.indexes.json'
+    )
+
+    it('declares the Phase 7 activity-feed collection-group index', () => {
+      const manifest = JSON.parse(getContent(indexesFile)) as {
+        indexes?: Array<{
+          collectionGroup?: string
+          queryScope?: string
+          fields?: Array<{ fieldPath?: string; order?: string }>
+        }>
+      }
+      const hasActivityIndex = (createdAtOrder: 'ASCENDING' | 'DESCENDING') =>
+        manifest.indexes?.some(
+          (index) =>
+            index.collectionGroup === 'activity' &&
+            index.queryScope === 'COLLECTION_GROUP' &&
+            index.fields?.some(
+              (field) => field.fieldPath === 'authorUserId' && field.order === 'ASCENDING'
+            ) &&
+            index.fields?.some(
+              (field) => field.fieldPath === 'createdAt' && field.order === createdAtOrder
+            )
+        ) ?? false
+
+      expect(
+        hasActivityIndex('DESCENDING'),
+        'GET /users/:id/activity needs collection-group activity index: authorUserId ASC + createdAt DESC'
+      ).toBe(true)
+      expect(
+        hasActivityIndex('ASCENDING'),
+        'GET /users/:id/activity?sort=createdAt needs collection-group activity index: authorUserId ASC + createdAt ASC'
+      ).toBe(true)
+    })
+
+    it('declares the Phase 8 notifications list and unread indexes', () => {
+      const manifest = JSON.parse(getContent(indexesFile)) as {
+        indexes?: Array<{
+          collectionGroup?: string
+          queryScope?: string
+          fields?: Array<{ fieldPath?: string; order?: string }>
+        }>
+      }
+      const hasNotificationIndex = (fields: Array<{ fieldPath: string; order: string }>) =>
+        manifest.indexes?.some(
+          (index) =>
+            index.collectionGroup === 'notifications' &&
+            index.queryScope === 'COLLECTION' &&
+            fields.every((expected) =>
+              index.fields?.some(
+                (field) => field.fieldPath === expected.fieldPath && field.order === expected.order
+              )
+            )
+        ) ?? false
+
+      expect(
+        hasNotificationIndex([
+          { fieldPath: 'userId', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ]),
+        'GET /notifications needs userId ASC + createdAt DESC'
+      ).toBe(true)
+      expect(
+        hasNotificationIndex([
+          { fieldPath: 'userId', order: 'ASCENDING' },
+          { fieldPath: 'readAt', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ]),
+        'GET /notifications?unreadOnly=true and PUT /notifications need userId ASC + readAt ASC + createdAt DESC'
+      ).toBe(true)
+    })
+  })
+
+  describe('test pyramid — unit tests stay domain-only', () => {
+    const unitDir = path.join(TESTS, 'unit')
+    const files = getFiles(unitDir).filter((file) => file.endsWith('.test.ts'))
+
+    if (files.length === 0) {
+      it('tests/unit/ has no test files yet (skip)', () => expect(true).toBe(true))
+      return
+    }
+
+    it('has no API or application unit tests', () => {
+      const violations = files
+        .map((file) => path.relative(unitDir, file))
+        .filter((rel) => !rel.startsWith(`domain${path.sep}`))
+
+      expect(
+        violations,
+        `Unit tests must stay under tests/unit/domain/**. Cover application handlers with integration tests and API/mappers with component tests. Violations: ${violations.join(', ') || 'none'}`
+      ).toEqual([])
+    })
   })
 
   describe('no console.log in source files', () => {

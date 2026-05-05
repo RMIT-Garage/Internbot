@@ -1,7 +1,11 @@
 import type { ZodOpenApiOperationObject } from 'zod-openapi'
 import { z } from 'zod'
 import { patchUserRequestSchema, putSemesterSelectionRequestSchema } from '../../schemas/user'
-import { userResponseSchema, userWorkflowResponseSchema } from '../../dto/user'
+import {
+  userActivityFeedResponseSchema,
+  userResponseSchema,
+  userWorkflowResponseSchema,
+} from '../../dto/user'
 import { errorResponseSchema } from '../common'
 
 const userIdPathParamsSchema = z.object({
@@ -15,6 +19,15 @@ const ifMatchHeaderSchema = z.object({
   'if-match': z.string().optional().meta({
     description: 'Opt-in optimistic concurrency — the current ETag from a prior GET.',
   }),
+})
+
+const activityFeedQuerySchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
+  pageToken: z.string().optional(),
+  sort: z
+    .enum(['createdAt', '-createdAt'])
+    .optional()
+    .meta({ description: 'Default `-createdAt`. Prefix with `-` for descending.' }),
 })
 
 /** Shared 200/401 shape used by both `/users/me` and `/users/:id` getters. */
@@ -185,6 +198,29 @@ const workflowResponses: ZodOpenApiOperationObject['responses'] = {
   },
 }
 
+const activityFeedResponses: ZodOpenApiOperationObject['responses'] = {
+  '200': {
+    description: 'Paginated activity feed authored by the caller.',
+    content: { 'application/json': { schema: userActivityFeedResponseSchema } },
+  },
+  '400': {
+    description: 'Malformed query string or page token.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '401': {
+    description: 'Missing or invalid Firebase ID token.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '403': {
+    description: 'Caller is not the referenced user.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '404': {
+    description: 'No user exists with the supplied id.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+}
+
 export const putMySemesterSelectionOperation: ZodOpenApiOperationObject = {
   operationId: 'putMySemesterSelection',
   summary: 'Enrol the caller in a semester',
@@ -234,6 +270,28 @@ export const getUserWorkflowOperation: ZodOpenApiOperationObject = {
   security: [{ bearerAuth: [] }],
   requestParams: { path: userIdPathParamsSchema },
   responses: workflowResponses,
+}
+
+export const getMyActivityOperation: ZodOpenApiOperationObject = {
+  operationId: 'getMyActivity',
+  summary: "Return the caller's activity feed",
+  description:
+    "Resolves to the caller's platform user and returns activity authored by that user across internship and opportunity workflows. See WORKFLOW-API-SPEC.md §7.2.",
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { query: activityFeedQuerySchema },
+  responses: activityFeedResponses,
+}
+
+export const getUserActivityOperation: ZodOpenApiOperationObject = {
+  operationId: 'getUserActivity',
+  summary: 'Return an activity feed by user id',
+  description:
+    'Owner-only. The `{id}` path segment must match the authenticated platform user. Callers targeting themselves should prefer `GET /users/me/activity`. See WORKFLOW-API-SPEC.md §7.2.',
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: userIdPathParamsSchema, query: activityFeedQuerySchema },
+  responses: activityFeedResponses,
 }
 
 export { userIdPathParamsSchema, ifMatchHeaderSchema }

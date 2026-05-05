@@ -64,6 +64,8 @@ export default defineConfig({
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
           env: emulatorEnv,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
           // Bumped — when the whole pyramid runs in parallel, integration +
           // component both hit the same Firestore+Auth emulator and first
           // tests in a file bear emulator-connection setup cost under load.
@@ -78,6 +80,8 @@ export default defineConfig({
           include: ['tests/component/**/*.test.ts'],
           environment: 'node',
           env: emulatorEnv,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
           testTimeout: 30_000,
           hookTimeout: 30_000,
         },

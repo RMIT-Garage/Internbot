@@ -20,7 +20,7 @@ async function seedThree(courseCode: string): Promise<string[]> {
   const ids: string[] = []
   for (let i = 0; i < 3; i++) {
     const code = `2026-S${randomUUID()
-      .slice(0, 4)
+      .slice(0, 8)
       .replace(/[^A-Za-z0-9]/g, 'a')}`
     const { id } = await create.handle({
       actor: actorFor('coordinator'),
@@ -118,7 +118,7 @@ describe('ListSemestersQueryHandler — integration', () => {
       actor: actorFor('coordinator'),
       payload: {
         semesterCode: `2026-S${randomUUID()
-          .slice(0, 4)
+          .slice(0, 8)
           .replace(/[^A-Za-z0-9]/g, 'a')}`,
         courseCode,
         displayName: 'Has window',
@@ -133,7 +133,7 @@ describe('ListSemestersQueryHandler — integration', () => {
       actor: actorFor('coordinator'),
       payload: {
         semesterCode: `2026-S${randomUUID()
-          .slice(0, 4)
+          .slice(0, 8)
           .replace(/[^A-Za-z0-9]/g, 'a')}`,
         courseCode,
         displayName: 'No window',
