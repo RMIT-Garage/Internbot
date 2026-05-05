@@ -4,6 +4,7 @@ import type { CreateInternshipCommand } from '../../application/commands/create-
 import type { UpdateInternshipCommand } from '../../application/commands/update-internship'
 import type { SubmitInternshipOfferCommand } from '../../application/commands/submit-internship-offer'
 import type { AddInternshipCommentCommand } from '../../application/commands/add-internship-comment'
+import type { DecideInternshipOfferCommand } from '../../application/commands/decide-internship-offer'
 import type { ListInternshipsQuery } from '../../application/queries/list-internships'
 import type {
   InternshipActivityResult,
@@ -17,6 +18,7 @@ import { internshipStatusValues } from '../../domain/value-objects/internship-en
 import type {
   AddInternshipCommentRequest,
   CreateInternshipRequest,
+  DecideInternshipOfferRequest,
   PatchInternshipRequest,
   SubmitInternshipOfferRequest,
 } from '../schemas/internship'
@@ -95,6 +97,24 @@ export function toAddInternshipCommentCommand(
     actor,
     internshipId,
     text: body.text,
+  }
+}
+
+export function toDecideInternshipOfferCommand(
+  actor: RequestActor,
+  internshipId: string,
+  ifMatch: string | undefined,
+  body: DecideInternshipOfferRequest
+): DecideInternshipOfferCommand {
+  const expectedVersion = parseIfMatch(ifMatch)
+  return {
+    actor,
+    internshipId,
+    payload: {
+      decision: body.decision,
+      comment: body.comment,
+    },
+    ...(expectedVersion !== undefined ? { metadata: { expectedVersion } } : {}),
   }
 }
 

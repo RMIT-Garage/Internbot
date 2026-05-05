@@ -1,7 +1,7 @@
 /**
- * Component — `/api/v1/internships` routes (Phase 5).
+ * Component — `/api/v1/internships` routes.
  *
- * One `it(...)` per bullet in Phase 5's Success criteria + Bug-finding cases
+ * One `it(...)` per bullet in Phase 5/6 Success criteria + Bug-finding cases
  * in WORKFLOW-API-IMPLEMENTATION-PLAN.md.
  */
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -195,6 +195,32 @@ const offerBody = {
   offerDate: '2026-05-01T00:00:00.000Z',
   startDate: '2026-06-01T00:00:00.000Z',
   endDate: '2026-07-01T00:00:00.000Z',
+}
+
+async function submitOfferForReview(
+  app: ReturnType<typeof createApp>,
+  studentToken: string,
+  internshipId: string,
+  ifMatch: string
+): Promise<{ etag: string }> {
+  await addAttachment(internshipId)
+  const res = await request(app)
+    .post(`/api/v1/internships/${internshipId}/offer-submissions`)
+    .set('Authorization', `Bearer ${studentToken}`)
+    .set('If-Match', ifMatch)
+    .send(offerBody)
+  expect(res.status).toBe(201)
+  return { etag: res.headers['etag'] as string }
+}
+
+async function setupReviewableInternship(app: ReturnType<typeof createApp>) {
+  const coordinator = await makeCoordinator()
+  const semesterId = await createActiveSemester()
+  const student = await makeStudent(semesterId)
+  const opportunityId = await createPublishedOpportunity(app, coordinator.idToken, semesterId)
+  const internship = await applyToOpportunity(app, student.idToken, opportunityId)
+  const submitted = await submitOfferForReview(app, student.idToken, internship.id, internship.etag)
+  return { coordinator, student, internship: { id: internship.id, etag: submitted.etag } }
 }
 
 describe('/api/v1/internships — component', () => {
@@ -555,5 +581,183 @@ describe('/api/v1/internships — component', () => {
 
     expect(res.status).toBe(403)
     expect(res.body.error.reason).toBe('student_not_owner')
+  })
+
+  it('POST /:id/decisions approved from offer_pending_review → 201 approved + metadata + activity', async () => {
+    const app = createApp()
+    const { coordinator, student, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'approved' })
+
+    expect(res.status).toBe(201)
+    expect(res.headers['location']).toBe(`/api/v1/internships/${internship.id}`)
+    expect(res.headers['etag']).toBe('W/"3"')
+    expect(res.body.status).toBe('offer_approved')
+    expect(res.body.coordinatorDecision).toBe('approved')
+    expect(res.body.reviewedByUserId).toBe(coordinator.platformUserId)
+    expect(res.body.reviewedAt).toBeTruthy()
+
+    const [doc, activity, notifications] = await Promise.all([
+      adminDb.collection('internships').doc(internship.id).get(),
+      adminDb.collection('internships').doc(internship.id).collection('activity').get(),
+      adminDb.collection('notifications').where('relatedInternshipId', '==', internship.id).get(),
+    ])
+    expect(doc.data()?.['coordinatorDecision']).toBe('approved')
+    expect(doc.data()?.['reviewedByUserId']).toBe(coordinator.platformUserId)
+    expect(doc.data()?.['reviewedAt']).toBeDefined()
+    expect(activity.docs.map((item) => item.data()['type'])).toContain('approve_offer')
+    expect(
+      notifications.docs.some(
+        (item) =>
+          item.data()['type'] === 'offer_decision' &&
+          item.data()['userId'] === student.platformUserId
+      )
+    ).toBe(true)
+  })
+
+  it('POST /:id/decisions changes_requested without comment → 422', async () => {
+    const app = createApp()
+    const { coordinator, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'changes_requested' })
+
+    expect(res.status).toBe(422)
+    expect(res.body.error.reason).toBe('comment_required_for_decision')
+  })
+
+  it('POST /:id/decisions rejected without comment → 422', async () => {
+    const app = createApp()
+    const { coordinator, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'rejected' })
+
+    expect(res.status).toBe(422)
+    expect(res.body.error.reason).toBe('comment_required_for_decision')
+  })
+
+  it('POST /:id/decisions changes_requested from offer_pending_review → 201 request_changes', async () => {
+    const app = createApp()
+    const { coordinator, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'changes_requested', comment: 'Add supervisor details.' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.status).toBe('offer_changes_requested')
+    expect(res.body.coordinatorDecision).toBe('changes_requested')
+    expect(res.body.coordinatorComment).toBe('Add supervisor details.')
+
+    const activity = await adminDb
+      .collection('internships')
+      .doc(internship.id)
+      .collection('activity')
+      .get()
+    const activities = activity.docs.map((item) => item.data())
+    expect(activities.some((item) => item['type'] === 'request_changes')).toBe(true)
+    expect(activities.some((item) => item['text'] === 'Add supervisor details.')).toBe(true)
+  })
+
+  it('POST /:id/decisions rejected → 201 rejected + reject activity', async () => {
+    const app = createApp()
+    const { coordinator, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'rejected', comment: 'Program mismatch.' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.status).toBe('rejected')
+    expect(res.body.coordinatorDecision).toBe('rejected')
+
+    const activity = await adminDb
+      .collection('internships')
+      .doc(internship.id)
+      .collection('activity')
+      .get()
+    expect(activity.docs.map((item) => item.data()['type'])).toContain('reject')
+  })
+
+  it('POST /:id/decisions on non-reviewable state → 409 invalid_state_transition', async () => {
+    const app = createApp()
+    const coordinator = await makeCoordinator()
+    const semesterId = await createActiveSemester()
+    const student = await makeStudent(semesterId)
+    const opportunityId = await createPublishedOpportunity(app, coordinator.idToken, semesterId)
+    const internship = await applyToOpportunity(app, student.idToken, opportunityId)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'approved' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.reason).toBe('invalid_state_transition')
+  })
+
+  it('POST /:id/decisions by student → 403 role_restricted_action', async () => {
+    const app = createApp()
+    const { student, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'approved' })
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.reason).toBe('role_restricted_action')
+  })
+
+  it('POST /:id/decisions stale If-Match → 412', async () => {
+    const app = createApp()
+    const { coordinator, internship } = await setupReviewableInternship(app)
+
+    const res = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', 'W/"1"')
+      .send({ decision: 'approved' })
+
+    expect(res.status).toBe(412)
+    expect(res.body.error.reason).toBe('etag_mismatch')
+  })
+
+  it('two coordinators racing on the same offer: second decision with stale If-Match → 412', async () => {
+    const app = createApp()
+    const { coordinator, internship } = await setupReviewableInternship(app)
+    const secondCoordinator = await makeCoordinator()
+
+    const first = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'approved' })
+    const second = await request(app)
+      .post(`/api/v1/internships/${internship.id}/decisions`)
+      .set('Authorization', `Bearer ${secondCoordinator.idToken}`)
+      .set('If-Match', internship.etag)
+      .send({ decision: 'rejected', comment: 'Program mismatch.' })
+
+    expect(first.status).toBe(201)
+    expect(second.status).toBe(412)
+    expect(second.body.error.reason).toBe('etag_mismatch')
   })
 })

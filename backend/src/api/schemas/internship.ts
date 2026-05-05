@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { internshipStatusValues } from '../../domain/value-objects/internship-enums'
+import {
+  internshipCoordinatorDecisionValues,
+  internshipStatusValues,
+} from '../../domain/value-objects/internship-enums'
 
 const nonEmptyText = z.string().trim().min(1)
 const isoDateTime = z.string().datetime()
@@ -56,6 +59,19 @@ export const addInternshipCommentRequestSchema = z
   })
 
 export type AddInternshipCommentRequest = z.infer<typeof addInternshipCommentRequestSchema>
+
+export const decideInternshipOfferRequestSchema = z
+  .object({
+    decision: z.enum(internshipCoordinatorDecisionValues),
+    comment: nonEmptyText.optional(),
+  })
+  .strict()
+  .meta({
+    id: 'DecideInternshipOfferRequest',
+    description: 'Body for POST /api/v1/internships/:id/decisions.',
+  })
+
+export type DecideInternshipOfferRequest = z.infer<typeof decideInternshipOfferRequestSchema>
 
 export const FORBIDDEN_CREATE_INTERNSHIP_FIELDS: ReadonlySet<string> = new Set([
   'id',

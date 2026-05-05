@@ -2441,6 +2441,125 @@
           }
         }
       }
+    },
+    "/api/v1/internships/{id}/decisions": {
+      "post": {
+        "operationId": "decideInternshipOffer",
+        "summary": "Submit a coordinator decision for an internship offer",
+        "description": "Coordinator-only. Transitions offer_pending_review to approved, changes requested, or rejected and writes an activity plus student notification.",
+        "tags": ["Internships"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "int_042",
+              "description": "Platform internship id."
+            },
+            "required": true,
+            "description": "Platform internship id."
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideInternshipOfferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Decision recorded.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternshipResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a coordinator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No internship exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Internship is not pending offer review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale `If-Match`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing comment for changes_requested or rejected decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2879,6 +2998,22 @@
         "required": ["text"],
         "additionalProperties": false,
         "description": "Body for POST /api/v1/internships/:id/comments."
+      },
+      "DecideInternshipOfferRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approved", "rejected", "changes_requested"]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["decision"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/internships/:id/decisions."
       },
       "HealthResponse": {
         "type": "object",

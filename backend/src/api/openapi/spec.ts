@@ -32,6 +32,7 @@ import {
   patchInternshipOperation,
   submitInternshipOfferOperation,
   addInternshipCommentOperation,
+  decideInternshipOfferOperation,
 } from './operations/internships'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
@@ -111,6 +112,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
         post: submitInternshipOfferOperation,
       },
       '/api/v1/internships/{id}/comments': { post: addInternshipCommentOperation },
+      '/api/v1/internships/{id}/decisions': { post: decideInternshipOfferOperation },
     },
   })
 }

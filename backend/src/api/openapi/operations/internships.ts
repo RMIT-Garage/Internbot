@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   addInternshipCommentRequestSchema,
   createInternshipRequestSchema,
+  decideInternshipOfferRequestSchema,
   patchInternshipRequestSchema,
   submitInternshipOfferRequestSchema,
 } from '../../schemas/internship'
@@ -239,6 +240,50 @@ export const addInternshipCommentOperation: ZodOpenApiOperationObject = {
     },
     '422': {
       description: 'Missing or empty text.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
+export const decideInternshipOfferOperation: ZodOpenApiOperationObject = {
+  operationId: 'decideInternshipOffer',
+  summary: 'Submit a coordinator decision for an internship offer',
+  description:
+    'Coordinator-only. Transitions offer_pending_review to approved, changes requested, or rejected and writes an activity plus student notification.',
+  tags: ['Internships'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: internshipIdPathParams, header: ifMatchHeaderSchema },
+  requestBody: {
+    required: true,
+    content: { 'application/json': { schema: decideInternshipOfferRequestSchema } },
+  },
+  responses: {
+    '201': {
+      description: 'Decision recorded.',
+      headers: {
+        Location: { schema: { type: 'string' } },
+        ETag: { schema: { type: 'string' } },
+      },
+      content: { 'application/json': { schema: internshipResponseSchema } },
+    },
+    '403': {
+      description: 'Caller is not a coordinator.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No internship exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '409': {
+      description: 'Internship is not pending offer review.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '412': {
+      description: 'Stale `If-Match`.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '422': {
+      description: 'Missing comment for changes_requested or rejected decisions.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

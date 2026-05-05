@@ -1,4 +1,5 @@
 import type { EmailDeliveryStatus, NotificationType } from '../value-objects/notification-enums'
+import type { InternshipCoordinatorDecision } from '../value-objects/internship-enums'
 import { ValidationError } from '../errors'
 
 export interface NotificationProps {
@@ -95,6 +96,32 @@ export class Notification {
     })
   }
 
+  static forOfferDecision(props: {
+    id: string
+    userId: string
+    internshipId: string
+    opportunityId: string
+    decision: InternshipCoordinatorDecision
+    now: Date
+  }): Notification {
+    return Notification.create({
+      id: props.id,
+      version: 0,
+      userId: props.userId,
+      type: 'offer_decision',
+      title: offerDecisionTitle(props.decision),
+      body: offerDecisionBody(props.decision),
+      relatedInternshipId: props.internshipId,
+      relatedOpportunityId: props.opportunityId,
+      relatedTicketId: undefined,
+      emailDeliveryStatus: undefined,
+      emailDeliveredAt: undefined,
+      readAt: undefined,
+      createdAt: props.now,
+      updatedAt: props.now,
+    })
+  }
+
   get id(): string {
     return this.#props.id
   }
@@ -142,6 +169,18 @@ export class Notification {
     if (this.#props.readAt !== undefined) return
     this.#props = { ...this.#props, readAt: now }
   }
+}
+
+function offerDecisionTitle(decision: InternshipCoordinatorDecision): string {
+  if (decision === 'approved') return 'Internship offer approved'
+  if (decision === 'changes_requested') return 'Internship offer changes requested'
+  return 'Internship offer rejected'
+}
+
+function offerDecisionBody(decision: InternshipCoordinatorDecision): string {
+  if (decision === 'approved') return 'Your internship offer has been approved.'
+  if (decision === 'changes_requested') return 'Changes were requested for your internship offer.'
+  return 'Your internship offer was rejected.'
 }
 
 function validateRequiredText(field: string, value: string): void {

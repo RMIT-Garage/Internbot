@@ -62,6 +62,36 @@ export class InternshipActivity {
     return InternshipActivity.create({ ...props, type: 'comment' })
   }
 
+  static approveOffer(props: {
+    id: string
+    authorUserId: string
+    authorRole: Role
+    text: string | undefined
+    createdAt: Date
+  }): InternshipActivity {
+    return InternshipActivity.create({ ...props, type: 'approve_offer' })
+  }
+
+  static requestChanges(props: {
+    id: string
+    authorUserId: string
+    authorRole: Role
+    text: string
+    createdAt: Date
+  }): InternshipActivity {
+    return InternshipActivity.create({ ...props, type: 'request_changes' })
+  }
+
+  static reject(props: {
+    id: string
+    authorUserId: string
+    authorRole: Role
+    text: string
+    createdAt: Date
+  }): InternshipActivity {
+    return InternshipActivity.create({ ...props, type: 'reject' })
+  }
+
   get id(): string {
     return this.#props.id
   }
@@ -91,7 +121,7 @@ function validateRequiredText(field: string, value: string): void {
 }
 
 function validateCommentText(type: InternshipActivityType, text: string | undefined): void {
-  if (type !== 'comment') return
+  if (type !== 'comment' && type !== 'request_changes' && type !== 'reject') return
   if (text === undefined || text.trim().length === 0) {
     throw new ValidationError('text is required', 'missing_required_field', [
       { field: 'text', code: 'required', message: 'text cannot be empty' },

@@ -109,4 +109,76 @@ describe('Internship', () => {
       expect.objectContaining({ reason: 'missing_required_field' })
     )
   })
+
+  it('approved decision moves pending review → offer_approved and stages approve_offer activity', () => {
+    const entity = internship('offer_pending_review')
+
+    entity.decideOffer(
+      { decision: 'approved', comment: undefined },
+      'act_decision',
+      'usr_coord',
+      LATER
+    )
+
+    expect(entity.status).toBe('offer_approved')
+    expect(entity.coordinatorDecision).toBe('approved')
+    expect(entity.reviewedByUserId).toBe('usr_coord')
+    expect(entity.reviewedAt).toBe(LATER)
+    expect(entity.pendingActivity?.type).toBe('approve_offer')
+    expect(entity.pendingActivity?.authorRole).toBe('coordinator')
+  })
+
+  it('changes_requested decision requires a comment', () => {
+    expect(() =>
+      internship('offer_pending_review').decideOffer(
+        { decision: 'changes_requested', comment: ' ' },
+        'act_decision',
+        'usr_coord',
+        LATER
+      )
+    ).toThrow(expect.objectContaining({ reason: 'comment_required_for_decision' }))
+  })
+
+  it('changes_requested decision moves pending review → offer_changes_requested', () => {
+    const entity = internship('offer_pending_review')
+
+    entity.decideOffer(
+      { decision: 'changes_requested', comment: 'Add supervision details.' },
+      'act_decision',
+      'usr_coord',
+      LATER
+    )
+
+    expect(entity.status).toBe('offer_changes_requested')
+    expect(entity.coordinatorDecision).toBe('changes_requested')
+    expect(entity.coordinatorComment).toBe('Add supervision details.')
+    expect(entity.pendingActivity?.type).toBe('request_changes')
+    expect(entity.pendingActivity?.text).toBe('Add supervision details.')
+  })
+
+  it('rejected decision moves pending review → rejected', () => {
+    const entity = internship('offer_pending_review')
+
+    entity.decideOffer(
+      { decision: 'rejected', comment: 'Program mismatch.' },
+      'act_decision',
+      'usr_coord',
+      LATER
+    )
+
+    expect(entity.status).toBe('rejected')
+    expect(entity.coordinatorDecision).toBe('rejected')
+    expect(entity.pendingActivity?.type).toBe('reject')
+  })
+
+  it('decision rejects non-reviewable states', () => {
+    expect(() =>
+      internship('applied').decideOffer(
+        { decision: 'approved', comment: undefined },
+        'act_decision',
+        'usr_coord',
+        LATER
+      )
+    ).toThrow(expect.objectContaining({ reason: 'invalid_state_transition' }))
+  })
 })

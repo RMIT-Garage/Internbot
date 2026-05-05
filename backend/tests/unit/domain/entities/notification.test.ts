@@ -55,3 +55,23 @@ describe('Notification.markRead', () => {
     expect(notification.readAt?.toISOString()).toBe(first.toISOString())
   })
 })
+
+describe('Notification.forOfferDecision', () => {
+  it('creates an offer_decision notification linked to the internship and opportunity', () => {
+    const now = new Date('2026-04-01T00:00:00Z')
+
+    const notification = Notification.forOfferDecision({
+      id: 'nt_offer',
+      userId: 'usr_student',
+      internshipId: 'int_test',
+      opportunityId: 'opp_test',
+      decision: 'changes_requested',
+      now,
+    })
+
+    expect(notification.type).toBe('offer_decision')
+    expect(notification.title).toBe('Internship offer changes requested')
+    expect(notification.relatedInternshipId).toBe('int_test')
+    expect(notification.relatedOpportunityId).toBe('opp_test')
+  })
+})

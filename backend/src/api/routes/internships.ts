@@ -6,6 +6,7 @@ import { ApiError } from '../errors'
 import {
   addInternshipCommentRequestSchema,
   createInternshipRequestSchema,
+  decideInternshipOfferRequestSchema,
   patchInternshipRequestSchema,
   submitInternshipOfferRequestSchema,
   FORBIDDEN_CREATE_INTERNSHIP_FIELDS,
@@ -19,6 +20,7 @@ import {
   toInternshipActivityResponse,
   toInternshipListResponse,
   toInternshipResponse,
+  toDecideInternshipOfferCommand,
   toSubmitInternshipOfferCommand,
   toUpdateInternshipCommand,
 } from '../mappers/internship'
@@ -26,6 +28,7 @@ import { CreateInternshipCommandHandler } from '../../application/commands/creat
 import { UpdateInternshipCommandHandler } from '../../application/commands/update-internship'
 import { SubmitInternshipOfferCommandHandler } from '../../application/commands/submit-internship-offer'
 import { AddInternshipCommentCommandHandler } from '../../application/commands/add-internship-comment'
+import { DecideInternshipOfferCommandHandler } from '../../application/commands/decide-internship-offer'
 import { GetInternshipQueryHandler } from '../../application/queries/get-internship'
 import { ListInternshipsQueryHandler } from '../../application/queries/list-internships'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
@@ -43,6 +46,7 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
   const updateInternship = new UpdateInternshipCommandHandler(deps.uow, deps.idGenerator)
   const submitOffer = new SubmitInternshipOfferCommandHandler(deps.uow, deps.idGenerator)
   const addComment = new AddInternshipCommentCommandHandler(deps.uow, deps.idGenerator)
+  const decideOffer = new DecideInternshipOfferCommandHandler(deps.uow, deps.idGenerator)
   const getInternship = new GetInternshipQueryHandler(deps.uow)
   const listInternships = new ListInternshipsQueryHandler(deps.uow)
 
@@ -194,6 +198,30 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
     }
   })
 
+  router.post('/:id/decisions', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const internshipId = paramId(req)
+      const parsed = decideInternshipOfferRequestSchema.safeParse(req.body)
+      if (!parsed.success) {
+        next(zodBodyError(parsed.error))
+        return
+      }
+
+      const { id } = await decideOffer.handle(
+        toDecideInternshipOfferCommand(actor, internshipId, req.header('If-Match'), parsed.data)
+      )
+      const result = await getInternship.handle({ actor, internshipId: id })
+
+      res.setHeader('Location', `/api/v1/internships/${id}`)
+      res.setHeader('ETag', etagFromInternship(result))
+      res.setHeader('Cache-Control', 'private, no-cache')
+      res.status(201).json(toInternshipResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
   return router
 }
 
@@ -226,7 +254,9 @@ function zodBodyError(error: ZodError, detectMissing = true): ApiError {
     detectMissing &&
     issue?.code === 'invalid_type' &&
     /received undefined/.test(issue.message ?? '')
-  const isEmptyText = issue?.code === 'too_small' && issue.path.join('.') === 'text'
+  const issuePath = issue?.path.join('.')
+  const isEmptyText =
+    issue?.code === 'too_small' && (issuePath === 'text' || issuePath === 'comment')
   const status = isMissing || isEmptyText ? 422 : 400
   const reason = isMissing
     ? 'missing_required_field'

@@ -7,6 +7,7 @@ import { TransitionOpportunityCommandHandler } from '../../../../src/application
 import { CreateInternshipCommandHandler } from '../../../../src/application/commands/create-internship'
 import { SubmitInternshipOfferCommandHandler } from '../../../../src/application/commands/submit-internship-offer'
 import { AddInternshipCommentCommandHandler } from '../../../../src/application/commands/add-internship-comment'
+import { DecideInternshipOfferCommandHandler } from '../../../../src/application/commands/decide-internship-offer'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import { adminDb, Timestamp } from '../../../../src/infrastructure/config/firebase-admin'
@@ -141,6 +142,22 @@ async function addAttachment(internshipId: string): Promise<void> {
     })
 }
 
+async function submitForReview(studentId: string, internshipId: string): Promise<void> {
+  await addAttachment(internshipId)
+  await new SubmitInternshipOfferCommandHandler(
+    new FirestoreUnitOfWork(),
+    firestoreIdGenerator
+  ).handle({
+    actor: actorFor('student', studentId),
+    internshipId,
+    payload: {
+      offerDate: new Date('2026-05-01T00:00:00Z'),
+      startDate: new Date('2026-06-01T00:00:00Z'),
+      endDate: undefined,
+    },
+  })
+}
+
 describe('Internship commands — integration', () => {
   beforeAll(() => initEmulator())
   afterEach(async () => {
@@ -266,5 +283,85 @@ describe('Internship commands — integration', () => {
     expect(after.data()?.['version']).toBe(before.data()?.['version'])
     expect(comment.data()?.['type']).toBe('comment')
     expect(comment.data()?.['text']).toBe('Please upload the offer letter.')
+  })
+
+  it('coordinator approved decision persists review metadata, activity, and student notification', async () => {
+    const semesterId = await activeSemester()
+    const coordinatorId = `usr_coord_${randomUUID()}`
+    const studentId = `usr_student_${randomUUID()}`
+    await seedUser('coordinator', coordinatorId)
+    await seedUser('student', studentId, semesterId)
+    const opportunityId = await publishedOpportunity(semesterId)
+    const internshipId = await createAppliedInternship(studentId, opportunityId)
+    await submitForReview(studentId, internshipId)
+
+    await new DecideInternshipOfferCommandHandler(
+      new FirestoreUnitOfWork(),
+      firestoreIdGenerator
+    ).handle({
+      actor: actorFor('coordinator', coordinatorId),
+      internshipId,
+      payload: { decision: 'approved', comment: undefined },
+      metadata: { expectedVersion: 2 },
+    })
+
+    const [internship, activity, notification] = await Promise.all([
+      adminDb.collection('internships').doc(internshipId).get(),
+      adminDb.collection('internships').doc(internshipId).collection('activity').get(),
+      adminDb.collection('notifications').where('relatedInternshipId', '==', internshipId).get(),
+    ])
+    expect(internship.data()?.['status']).toBe('offer_approved')
+    expect(internship.data()?.['version']).toBe(3)
+    expect(internship.data()?.['coordinatorDecision']).toBe('approved')
+    expect(internship.data()?.['reviewedByUserId']).toBe(coordinatorId)
+    expect(internship.data()?.['reviewedAt']).toBeDefined()
+    expect(activity.docs.map((doc) => doc.data()['type'])).toContain('approve_offer')
+    expect(
+      notification.docs.some(
+        (doc) => doc.data()['type'] === 'offer_decision' && doc.data()['userId'] === studentId
+      )
+    ).toBe(true)
+  })
+
+  it('coordinator rejected decision requires a comment', async () => {
+    const semesterId = await activeSemester()
+    const coordinatorId = `usr_coord_${randomUUID()}`
+    const studentId = `usr_student_${randomUUID()}`
+    await seedUser('coordinator', coordinatorId)
+    await seedUser('student', studentId, semesterId)
+    const opportunityId = await publishedOpportunity(semesterId)
+    const internshipId = await createAppliedInternship(studentId, opportunityId)
+    await submitForReview(studentId, internshipId)
+
+    await expect(
+      new DecideInternshipOfferCommandHandler(
+        new FirestoreUnitOfWork(),
+        firestoreIdGenerator
+      ).handle({
+        actor: actorFor('coordinator', coordinatorId),
+        internshipId,
+        payload: { decision: 'rejected', comment: undefined },
+      })
+    ).rejects.toMatchObject({ reason: 'comment_required_for_decision' })
+  })
+
+  it('student cannot decide an internship offer', async () => {
+    const semesterId = await activeSemester()
+    const studentId = `usr_student_${randomUUID()}`
+    await seedUser('student', studentId, semesterId)
+    const opportunityId = await publishedOpportunity(semesterId)
+    const internshipId = await createAppliedInternship(studentId, opportunityId)
+    await submitForReview(studentId, internshipId)
+
+    await expect(
+      new DecideInternshipOfferCommandHandler(
+        new FirestoreUnitOfWork(),
+        firestoreIdGenerator
+      ).handle({
+        actor: actorFor('student', studentId),
+        internshipId,
+        payload: { decision: 'approved', comment: undefined },
+      })
+    ).rejects.toMatchObject({ reason: 'role_restricted_action' })
   })
 })

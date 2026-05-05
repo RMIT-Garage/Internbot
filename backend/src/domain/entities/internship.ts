@@ -36,6 +36,11 @@ export interface InternshipOfferSubmissionDetails {
   readonly endDate: Date | undefined
 }
 
+export interface InternshipDecisionDetails {
+  readonly decision: InternshipCoordinatorDecision
+  readonly comment: string | undefined
+}
+
 export class Internship {
   #props: InternshipProps
   #pendingActivity: InternshipActivity | undefined
@@ -216,11 +221,96 @@ export class Internship {
     })
   }
 
+  decideOffer(
+    details: InternshipDecisionDetails,
+    activityId: string,
+    reviewerUserId: string,
+    now: Date
+  ): void {
+    if (this.#props.status !== 'offer_pending_review') {
+      throw new ConflictError('Internship is not pending offer review', 'invalid_state_transition')
+    }
+
+    const comment = details.comment?.trim()
+    if (
+      (details.decision === 'changes_requested' || details.decision === 'rejected') &&
+      (comment === undefined || comment.length === 0)
+    ) {
+      throw new ValidationError(
+        'comment is required for this decision',
+        'comment_required_for_decision',
+        [
+          {
+            field: 'comment',
+            code: 'required',
+            message: 'comment is required when decision is changes_requested or rejected',
+          },
+        ]
+      )
+    }
+
+    const status: InternshipStatus =
+      details.decision === 'approved'
+        ? 'offer_approved'
+        : details.decision === 'changes_requested'
+          ? 'offer_changes_requested'
+          : 'rejected'
+
+    this.#props = {
+      ...this.#props,
+      status,
+      coordinatorDecision: details.decision,
+      coordinatorComment: comment,
+      reviewedByUserId: reviewerUserId,
+      reviewedAt: now,
+    }
+    this.#pendingActivity = decisionActivity(details.decision, {
+      id: activityId,
+      authorUserId: reviewerUserId,
+      text: comment,
+      createdAt: now,
+    })
+  }
+
   #assertEditable(): void {
     if (this.#props.status === 'offer_approved' || this.#props.status === 'rejected') {
       throw new ConflictError('Internship is in a non-editable state', 'internship_not_editable')
     }
   }
+}
+
+function decisionActivity(
+  decision: InternshipCoordinatorDecision,
+  props: {
+    id: string
+    authorUserId: string
+    text: string | undefined
+    createdAt: Date
+  }
+): InternshipActivity {
+  if (decision === 'approved') {
+    return InternshipActivity.approveOffer({ ...props, authorRole: 'coordinator' })
+  }
+  const text = props.text
+  if (text === undefined) {
+    throw new Error('Decision feedback text missing after validation')
+  }
+  if (decision === 'changes_requested') {
+    return InternshipActivity.requestChanges({
+      id: props.id,
+      authorUserId: props.authorUserId,
+      authorRole: 'coordinator',
+      text,
+      createdAt: props.createdAt,
+    })
+  }
+  return InternshipActivity.reject({
+    id: props.id,
+    authorUserId: props.authorUserId,
+    authorRole: 'coordinator',
+    text,
+    createdAt: props.createdAt,
+  })
 }
 
 function validateRequiredText(field: string, value: string): void {

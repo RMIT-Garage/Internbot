@@ -13,6 +13,7 @@ import type { InternshipActivity } from '../../domain/value-objects/internship-a
 import {
   internshipCoordinatorDecisionValues,
   internshipStatusValues,
+  type InternshipCoordinatorDecision,
   type InternshipActivityType,
   type InternshipStatus,
 } from '../../domain/value-objects/internship-enums'
@@ -72,6 +73,10 @@ type InternshipUpdateWrite = {
   offerDate: Timestamp | DeleteField
   startDate: Timestamp | DeleteField
   endDate: Timestamp | DeleteField
+  coordinatorDecision: InternshipCoordinatorDecision | DeleteField
+  coordinatorComment: string | DeleteField
+  reviewedByUserId: string | DeleteField
+  reviewedAt: Timestamp | DeleteField
   lastSubmittedAt: Timestamp | DeleteField
 }
 type InternshipUpdateDoc = InternshipUpdateWrite & { updatedAt: ServerTimestamp }
@@ -150,6 +155,10 @@ function internshipToUpdatePayload(
     offerDate: dateToWrite(internship.offerDate),
     startDate: dateToWrite(internship.startDate),
     endDate: dateToWrite(internship.endDate),
+    coordinatorDecision: internship.coordinatorDecision ?? FieldValue.delete(),
+    coordinatorComment: internship.coordinatorComment ?? FieldValue.delete(),
+    reviewedByUserId: internship.reviewedByUserId ?? FieldValue.delete(),
+    reviewedAt: dateToWrite(internship.reviewedAt),
     lastSubmittedAt: dateToWrite(internship.lastSubmittedAt),
   }
 }
