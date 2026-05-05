@@ -257,7 +257,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 6 — Coordinator decisions
 
-**Status:** implemented locally (unmerged)
+**Status:** implemented
 **PR:** https://github.com/giatinhuynh/Internbot/pull/51
 
 ### Scope
@@ -285,7 +285,7 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
-- Implemented Phase 6 coordinator decision slice locally: `Internship.decideOffer(...)` owns review-state transitions and comment requirements; `POST /api/v1/internships/{id}/decisions` records `approve_offer` / `request_changes` / `reject` activity, persists coordinator review metadata, rotates the internship `ETag`, and creates an `offer_decision` notification for the student. Coverage follows the domain-unit + integration + component split.
+- Implemented Phase 6 coordinator decision slice: `Internship.decideOffer(...)` owns review-state transitions and comment requirements; `POST /api/v1/internships/{id}/decisions` records `approve_offer` / `request_changes` / `reject` activity, persists coordinator review metadata, rotates the internship `ETag`, and creates an `offer_decision` notification for the student. Coverage follows the domain-unit + integration + component split.
 
 ---
 
