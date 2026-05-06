@@ -48,7 +48,7 @@ export type FirestoreOp =
   | 'internships.listAttachments'
   | 'internships.findAttachmentById'
   | 'internships.hasAttachments'
-  | 'internships.replaceAttachmentsFromStorage'
+  | 'internships.saveAttachmentFromStorage'
   | 'internships.create'
   | 'internships.save'
   | 'internships.addActivity'

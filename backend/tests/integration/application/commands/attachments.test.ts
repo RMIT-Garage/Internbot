@@ -211,45 +211,34 @@ describe('Attachments — integration', () => {
     expect(await listAttachmentPaths('internships', internshipId)).toEqual([])
   })
 
-  it('Internship re-submit replaces old attachment records and files', async () => {
+  it('Internship finalize stages a new file alongside existing staged files (no auto-delete)', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
-    await seedAttachment(
-      'internships',
-      internshipId,
-      'att_old_a',
-      `users/${ownerId}/internships/${internshipId}/attachments/old-a.pdf`
-    )
-    await seedAttachment(
-      'internships',
-      internshipId,
-      'att_old_b',
-      `users/${ownerId}/internships/${internshipId}/attachments/old-b.pdf`
-    )
+    const firstPath = `users/${ownerId}/internships/${internshipId}/attachments/first.pdf`
+    const secondPath = `users/${ownerId}/internships/${internshipId}/attachments/second.pdf`
 
-    const latestPath = `users/${ownerId}/internships/${internshipId}/attachments/latest.pdf`
-    const result = await new SyncStorageAttachmentCommandHandler(
-      new FirestoreUnitOfWork(),
-      storage
-    ).handle({
-      filePath: latestPath,
+    const sync = new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage)
+    await sync.handle({
+      filePath: firstPath,
       contentType: 'application/pdf',
       finalizedAt: new Date('2026-04-04T00:00:00Z'),
     })
+    const second = await sync.handle({
+      filePath: secondPath,
+      contentType: 'application/pdf',
+      finalizedAt: new Date('2026-04-04T00:01:00Z'),
+    })
 
-    expect(result).toEqual({ reflected: true, reason: 'synced' })
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([latestPath])
-    expect(storage.deleted.sort()).toEqual([
-      `users/${ownerId}/internships/${internshipId}/attachments/old-a.pdf`,
-      `users/${ownerId}/internships/${internshipId}/attachments/old-b.pdf`,
-    ])
+    expect(second).toEqual({ reflected: true, reason: 'synced' })
+    expect(await listAttachmentPaths('internships', internshipId)).toEqual([firstPath, secondPath])
+    expect(storage.deleted).toEqual([])
   })
 
-  it('Offer submission blocks until an attachment has been synced via the trigger', async () => {
+  it('Offer submission blocks until at least one attachment has been synced via the trigger', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const semesterId = `sem_${randomUUID()}`

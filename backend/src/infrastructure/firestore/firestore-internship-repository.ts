@@ -287,12 +287,13 @@ export class FirestoreInternshipRepository implements InternshipRepository {
   async listAttachments(internshipId: string): Promise<readonly InternshipAttachment[]> {
     return translateFirestoreErrors(
       async () => {
-        const snap = await adminDb
-          .collection(COLLECTION)
-          .doc(internshipId)
-          .collection('attachments')
-          .orderBy('uploadedAt', 'asc')
-          .get()
+        const snap = await this.txn.get(
+          adminDb
+            .collection(COLLECTION)
+            .doc(internshipId)
+            .collection('attachments')
+            .orderBy('uploadedAt', 'asc')
+        )
         return snap.docs.map((doc) => parseAttachment(doc.id, doc.data()))
       },
       { op: 'internships.listAttachments', resource: 'Internship', id: internshipId }
@@ -334,36 +335,28 @@ export class FirestoreInternshipRepository implements InternshipRepository {
     )
   }
 
-  async replaceAttachmentsFromStorage(
+  async saveAttachmentFromStorage(
     internshipId: string,
     userId: string,
     attachment: Attachment
-  ): Promise<{ reflected: boolean; deletedFilePaths: readonly string[] }> {
+  ): Promise<{ reflected: boolean }> {
     return translateFirestoreErrors(
       async () => {
         const parentRef = adminDb.collection(COLLECTION).doc(internshipId)
         const parent = await this.txn.get(parentRef)
-        if (!parent.exists) return { reflected: false, deletedFilePaths: [] }
+        if (!parent.exists) return { reflected: false }
 
         const parsedParent = parseInternship(parent.id, parent.data())
-        if (parsedParent.userId !== userId) return { reflected: false, deletedFilePaths: [] }
+        if (parsedParent.userId !== userId) return { reflected: false }
 
-        const attachmentsRef = parentRef.collection('attachments')
-        const existing = await this.txn.get(attachmentsRef)
-        const deletedFilePaths: string[] = []
-        for (const doc of existing.docs) {
-          const existingAttachment = parseAttachment(doc.id, doc.data())
-          if (existingAttachment.filePath !== attachment.filePath) {
-            deletedFilePaths.push(existingAttachment.filePath)
-          }
-          this.txn.delete(doc.ref)
-        }
-
-        this.txn.set(attachmentsRef.doc(attachment.id), attachmentToPayload(attachment))
-        return { reflected: true, deletedFilePaths }
+        this.txn.set(
+          parentRef.collection('attachments').doc(attachment.id),
+          attachmentToPayload(attachment)
+        )
+        return { reflected: true }
       },
       {
-        op: 'internships.replaceAttachmentsFromStorage',
+        op: 'internships.saveAttachmentFromStorage',
         resource: 'Internship',
         id: internshipId,
       }

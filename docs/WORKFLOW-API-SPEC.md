@@ -350,7 +350,7 @@ Rules:
 - Cloud Storage upload completion should not, by itself, start review. It only synchronizes file metadata into Firestore.
 - The backend should be the source of truth for saved attachment metadata. Frontend should not be trusted as the final source of attachment records.
 - The Storage-triggered function should verify that each file path matches the expected user-owned upload prefix before saving attachment metadata.
-- When an internship is edited and resubmitted, old attachment records and files should be replaced so the attachment subcollection stores only the latest active files.
+- Attachments are append-only on finalize: the storage trigger never deletes prior files. A student may upload multiple files before submitting; resubmission does not remove previously uploaded attachments. Cleanup of obsolete files (if needed) is a separate concern outside the upload trigger.
 - If upload fails, the record remains in its current state.
 - If submit fails, the frontend may retry submit without recreating the draft.
 - A record in review remains editable until the coordinator makes a final decision.

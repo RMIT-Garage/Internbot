@@ -57,18 +57,12 @@ export class SyncStorageAttachmentCommandHandler {
     }
 
     const outcome = await this.uow.execute((ctx) =>
-      ctx.internships.replaceAttachmentsFromStorage(parsed.internshipId, parsed.userId, attachment)
+      ctx.internships.saveAttachmentFromStorage(parsed.internshipId, parsed.userId, attachment)
     )
     if (!outcome.reflected) {
       await this.attachmentStorage.deleteObject(cmd.filePath)
       return { reflected: false, reason: 'prefix_owner_mismatch' }
     }
-
-    await Promise.all(
-      [...new Set(outcome.deletedFilePaths)].map((filePath) =>
-        this.attachmentStorage.deleteObject(filePath)
-      )
-    )
     return { reflected: true, reason: 'synced' }
   }
 }

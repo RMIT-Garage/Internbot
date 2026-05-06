@@ -129,26 +129,27 @@ describe('SyncAttachmentMetadataWorker — component', () => {
     expect(await listAttachmentPaths('opportunities', opportunityId)).toEqual([filePath])
   })
 
-  it('replaces a previous internship attachment when a new finalize event arrives', async () => {
+  it('stages a second internship attachment alongside the first (no auto-delete)', async () => {
     const ownerId = `usr_owner_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
-    const oldPath = `users/${ownerId}/internships/${internshipId}/attachments/old.pdf`
-    const newPath = `users/${ownerId}/internships/${internshipId}/attachments/new-${randomUUID().slice(0, 6)}.pdf`
+    const firstPath = `users/${ownerId}/internships/${internshipId}/attachments/first.pdf`
+    const secondPath = `users/${ownerId}/internships/${internshipId}/attachments/second-${randomUUID().slice(0, 6)}.pdf`
     const storage = new RecordingAttachmentStorage()
     const worker = buildWorker(storage)
 
     await worker.handle({
-      data: { name: oldPath, contentType: 'application/pdf' },
+      data: { name: firstPath, contentType: 'application/pdf' },
     })
     await worker.handle({
-      data: { name: newPath, contentType: 'application/pdf' },
+      data: { name: secondPath, contentType: 'application/pdf' },
     })
 
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([newPath])
-    expect(storage.deleted).toEqual([oldPath])
+    const paths = (await listAttachmentPaths('internships', internshipId)).sort()
+    expect(paths).toEqual([firstPath, secondPath].sort())
+    expect(storage.deleted).toEqual([])
   })
 
   it('does nothing when the event has no object name', async () => {

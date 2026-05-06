@@ -38,11 +38,11 @@ export interface InternshipRepository {
     attachmentId: string
   ): Promise<InternshipAttachment | null>
   hasAttachments(internshipId: string): Promise<boolean>
-  replaceAttachmentsFromStorage(
+  saveAttachmentFromStorage(
     internshipId: string,
     userId: string,
     attachment: Attachment
-  ): Promise<{ reflected: boolean; deletedFilePaths: readonly string[] }>
+  ): Promise<{ reflected: boolean }>
   create(internship: Internship): Promise<void>
   save(internship: Internship): Promise<void>
   addActivity(internshipId: string, activity: InternshipActivity): Promise<void>
