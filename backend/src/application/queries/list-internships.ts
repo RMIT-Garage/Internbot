@@ -7,7 +7,7 @@ import type {
 } from '../../domain/repositories/internship-repository'
 import type { InternshipStatus } from '../../domain/value-objects/internship-enums'
 import { ForbiddenError, InvalidQueryError } from '../../domain/errors'
-import { buildInternshipReadModel } from './internship-read-model'
+import { buildInternshipReadModel } from '../read-models/internship'
 
 export interface ListInternshipsQuery {
   actor: RequestActor

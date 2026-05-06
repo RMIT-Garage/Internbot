@@ -29,6 +29,10 @@
     {
       "name": "Notifications",
       "description": "User notification feed and read state."
+    },
+    {
+      "name": "Tickets",
+      "description": "Student support tickets to coordinators."
     }
   ],
   "paths": {
@@ -2975,6 +2979,431 @@
           }
         }
       }
+    },
+    "/api/v1/tickets": {
+      "get": {
+        "operationId": "listTickets",
+        "summary": "List tickets visible to the caller",
+        "description": "Students are server-filtered to their own tickets; coordinators see all. See WORKFLOW-API-SPEC.md §7.10.",
+        "tags": ["Tickets"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": ["open", "in_progress", "resolved", "closed"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageToken",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Default `-createdAt`. Prefix with `-` for descending.",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt"]
+            },
+            "description": "Default `-createdAt`. Prefix with `-` for descending."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of tickets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed query string or page token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Firebase ID token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTicket",
+        "summary": "Open a support ticket",
+        "description": "Student-only. Creates a ticket in `open` state and notifies coordinators.",
+        "tags": ["Tickets"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTicketRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket created.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body contains immutable or unknown fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a student.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing subject or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}": {
+      "get": {
+        "operationId": "getTicket",
+        "summary": "Return a ticket by id",
+        "description": "Ticket owner or coordinator.",
+        "tags": ["Tickets"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "tkt_001",
+              "description": "Platform ticket id."
+            },
+            "required": true,
+            "description": "Platform ticket id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket found.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Student caller is not the ticket owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No ticket exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}/replies": {
+      "post": {
+        "operationId": "postTicketReply",
+        "summary": "Append a reply to a ticket",
+        "description": "Ticket owner or coordinator. Bumps `updatedAt` but does not rotate the ticket ETag. Notifies the counterparty.",
+        "tags": ["Tickets"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "tkt_001",
+              "description": "Platform ticket id."
+            },
+            "required": true,
+            "description": "Platform ticket id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostTicketReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reply created.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketReplyResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Student caller is not the ticket owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No ticket exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or empty text.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}/transitions": {
+      "post": {
+        "operationId": "transitionTicket",
+        "summary": "Move a ticket through its support-workflow lifecycle",
+        "description": "Allowed (from, to) pairs and per-pair role rules per WORKFLOW-API-SPEC.md §7.10. Activity recorded under `tickets/{id}/activity`.",
+        "tags": ["Tickets"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "tkt_001",
+              "description": "Platform ticket id."
+            },
+            "required": true,
+            "description": "Platform ticket id."
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionTicketRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transition applied.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`to` is missing or not one of the allowed status values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller does not own the ticket, or the role is not permitted to perform this transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No ticket exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Current status plus requested `to` is not a permitted transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale `If-Match`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3446,6 +3875,57 @@
         "required": ["read"],
         "additionalProperties": false,
         "description": "Body for PATCH /api/v1/notifications/:id."
+      },
+      "CreateTicketRequest": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Question about study load requirement"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "example": "I am currently part-time…"
+          },
+          "category": {
+            "example": "eligibility",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["subject", "body"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/tickets. See WORKFLOW-API-SPEC.md §7.10."
+      },
+      "PostTicketReplyRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["text"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/tickets/:id/replies."
+      },
+      "TransitionTicketRequest": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": ["open", "in_progress", "resolved", "closed"]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["to"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/tickets/:id/transitions."
       },
       "HealthResponse": {
         "type": "object",
@@ -4794,7 +5274,9 @@
               "opportunity_verified",
               "opportunity_rejected",
               "new_application",
-              "ticket_reply"
+              "new_ticket",
+              "ticket_reply",
+              "ticket_transition"
             ]
           },
           "title": {
@@ -4908,6 +5390,173 @@
         "required": ["markedReadCount"],
         "additionalProperties": false,
         "description": "Result of bulk mark-all-notifications-read."
+      },
+      "TicketListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketListItemResponse"
+            }
+          },
+          "nextPageToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["items", "nextPageToken"],
+        "additionalProperties": false,
+        "description": "Paginated list of tickets."
+      },
+      "TicketListItemResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tkt_001"
+          },
+          "userId": {
+            "type": "string",
+            "example": "usr_aBc123XyZ"
+          },
+          "subject": {
+            "type": "string",
+            "example": "Question about study load requirement"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "eligibility"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "in_progress", "resolved", "closed"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
+          }
+        },
+        "required": ["id", "userId", "subject", "category", "status", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "description": "Support ticket list item — body is omitted from list responses."
+      },
+      "TicketResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "tkt_001"
+          },
+          "userId": {
+            "type": "string",
+            "example": "usr_aBc123XyZ"
+          },
+          "subject": {
+            "type": "string",
+            "example": "Question about study load requirement"
+          },
+          "body": {
+            "type": "string",
+            "example": "I'm currently part-time but planning to switch to full-time next semester."
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "eligibility"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "in_progress", "resolved", "closed"]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T03:14:12Z"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "subject",
+          "body",
+          "category",
+          "status",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "Support ticket record (see WORKFLOW-API-SPEC.md §7.10 / §8.7)."
+      },
+      "TicketReplyResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "rep_001"
+          },
+          "authorUserId": {
+            "type": "string",
+            "example": "usr_DeF456UvW"
+          },
+          "authorRole": {
+            "type": "string",
+            "enum": ["student", "coordinator"]
+          },
+          "text": {
+            "type": "string",
+            "example": "Yes, you can apply now."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T04:00:00Z"
+          }
+        },
+        "required": ["id", "authorUserId", "authorRole", "text", "createdAt"],
+        "additionalProperties": false,
+        "description": "Reply on a ticket conversation thread."
       }
     },
     "securitySchemes": {

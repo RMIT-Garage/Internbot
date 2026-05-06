@@ -9,9 +9,9 @@ import type { ListInternshipsQuery } from '../../application/queries/list-intern
 import type {
   InternshipActivityResult,
   InternshipListResultWithCursor,
-  InternshipReadModel,
   InternshipResult,
 } from '../../application/models/internship'
+import type { InternshipReadModel } from '../../application/read-models/internship'
 import type { InternshipListCursor } from '../../domain/repositories/internship-repository'
 import type { InternshipStatus } from '../../domain/value-objects/internship-enums'
 import { internshipStatusValues } from '../../domain/value-objects/internship-enums'

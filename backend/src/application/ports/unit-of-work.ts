@@ -3,6 +3,7 @@ import type { SemesterRepository } from '../../domain/repositories/semester-repo
 import type { OpportunityRepository } from '../../domain/repositories/opportunity-repository'
 import type { NotificationRepository } from '../../domain/repositories/notification-repository'
 import type { InternshipRepository } from '../../domain/repositories/internship-repository'
+import type { TicketRepository } from '../../domain/repositories/ticket-repository'
 import type { ActivityFeedRepository } from './activity-feed-repository'
 
 /**
@@ -34,5 +35,6 @@ export interface UnitOfWorkContext {
   readonly opportunities: OpportunityRepository
   readonly internships: InternshipRepository
   readonly notifications: NotificationRepository
+  readonly tickets: TicketRepository
   readonly activityFeed: ActivityFeedRepository
 }

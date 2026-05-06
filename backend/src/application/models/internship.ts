@@ -1,20 +1,6 @@
-import type { Internship } from '../../domain/entities/internship'
-import type {
-  InternshipAttachment,
-  InternshipListCursor,
-} from '../../domain/repositories/internship-repository'
+import type { InternshipListCursor } from '../../domain/repositories/internship-repository'
 import type { InternshipActivity } from '../../domain/value-objects/internship-activity'
-import type { OpportunityType } from '../../domain/value-objects/opportunity-enums'
-
-export interface InternshipReadModel {
-  internship: Internship
-  studentProgramCode: string | undefined
-  opportunityEmployerName: string
-  opportunityJobTitle: string
-  opportunityType: OpportunityType
-  opportunitySourceUrl: string | undefined
-  attachments: readonly InternshipAttachment[]
-}
+import type { InternshipReadModel } from '../read-models/internship'
 
 export type InternshipResult = InternshipReadModel
 

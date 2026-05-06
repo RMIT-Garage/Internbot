@@ -55,6 +55,11 @@ export type FirestoreOp =
   | 'notifications.create'
   | 'notifications.save'
   | 'notifications.markUnreadAsReadByUserId'
+  | 'tickets.findById'
+  | 'tickets.list'
+  | 'tickets.create'
+  | 'tickets.applyTransition'
+  | 'tickets.addReply'
 
 /**
  * Singular domain resource label used in `NotFoundError` messages
@@ -68,6 +73,7 @@ export type FirestoreResource =
   | 'Internship'
   | 'Notification'
   | 'Activity'
+  | 'Ticket'
 
 export interface FirestoreOpContext {
   op: FirestoreOp

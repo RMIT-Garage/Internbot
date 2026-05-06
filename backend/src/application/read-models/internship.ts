@@ -1,7 +1,18 @@
 import type { UnitOfWorkContext } from '../ports/unit-of-work'
-import type { InternshipReadModel } from '../models/internship'
 import type { Internship } from '../../domain/entities/internship'
+import type { InternshipAttachment } from '../../domain/repositories/internship-repository'
+import type { OpportunityType } from '../../domain/value-objects/opportunity-enums'
 import { NotFoundError } from '../../domain/errors'
+
+export interface InternshipReadModel {
+  internship: Internship
+  studentProgramCode: string | undefined
+  opportunityEmployerName: string
+  opportunityJobTitle: string
+  opportunityType: OpportunityType
+  opportunitySourceUrl: string | undefined
+  attachments: readonly InternshipAttachment[]
+}
 
 export async function buildInternshipReadModel(
   ctx: UnitOfWorkContext,

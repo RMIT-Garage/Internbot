@@ -41,6 +41,13 @@ import {
   markAllNotificationsReadOperation,
   markNotificationReadOperation,
 } from './operations/notifications'
+import {
+  createTicketOperation,
+  getTicketOperation,
+  listTicketsOperation,
+  postTicketReplyOperation,
+  transitionTicketOperation,
+} from './operations/tickets'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
 type OpenapiServer = NonNullable<ZodOpenApiObject['servers']>[number]
@@ -75,6 +82,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       { name: 'Opportunities', description: 'Semester-scoped internship opportunities.' },
       { name: 'Internships', description: 'Student internship applications and offer workflow.' },
       { name: 'Notifications', description: 'User notification feed and read state.' },
+      { name: 'Tickets', description: 'Student support tickets to coordinators.' },
     ],
     components: {
       securitySchemes: {
@@ -128,6 +136,10 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
         put: markAllNotificationsReadOperation,
       },
       '/api/v1/notifications/{id}': { patch: markNotificationReadOperation },
+      '/api/v1/tickets': { get: listTicketsOperation, post: createTicketOperation },
+      '/api/v1/tickets/{id}': { get: getTicketOperation },
+      '/api/v1/tickets/{id}/replies': { post: postTicketReplyOperation },
+      '/api/v1/tickets/{id}/transitions': { post: transitionTicketOperation },
     },
   })
 }

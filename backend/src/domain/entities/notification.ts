@@ -1,5 +1,7 @@
 import type { EmailDeliveryStatus, NotificationType } from '../value-objects/notification-enums'
 import type { InternshipCoordinatorDecision } from '../value-objects/internship-enums'
+import type { Role } from '../value-objects/user-enums'
+import type { TicketStatus } from '../value-objects/ticket-enums'
 import { ValidationError } from '../errors'
 
 export interface NotificationProps {
@@ -114,6 +116,83 @@ export class Notification {
       relatedInternshipId: props.internshipId,
       relatedOpportunityId: props.opportunityId,
       relatedTicketId: undefined,
+      emailDeliveryStatus: undefined,
+      emailDeliveredAt: undefined,
+      readAt: undefined,
+      createdAt: props.now,
+      updatedAt: props.now,
+    })
+  }
+
+  static forNewTicket(props: {
+    id: string
+    userId: string
+    ticketId: string
+    subject: string
+    now: Date
+  }): Notification {
+    return Notification.create({
+      id: props.id,
+      version: 0,
+      userId: props.userId,
+      type: 'new_ticket',
+      title: 'New support ticket',
+      body: `A student opened a support ticket: ${props.subject}`,
+      relatedInternshipId: undefined,
+      relatedOpportunityId: undefined,
+      relatedTicketId: props.ticketId,
+      emailDeliveryStatus: undefined,
+      emailDeliveredAt: undefined,
+      readAt: undefined,
+      createdAt: props.now,
+      updatedAt: props.now,
+    })
+  }
+
+  static forTicketReply(props: {
+    id: string
+    userId: string
+    ticketId: string
+    replierRole: Role
+    now: Date
+  }): Notification {
+    const fromLabel = props.replierRole === 'coordinator' ? 'A coordinator' : 'The student'
+    return Notification.create({
+      id: props.id,
+      version: 0,
+      userId: props.userId,
+      type: 'ticket_reply',
+      title: 'New ticket reply',
+      body: `${fromLabel} replied to your support ticket.`,
+      relatedInternshipId: undefined,
+      relatedOpportunityId: undefined,
+      relatedTicketId: props.ticketId,
+      emailDeliveryStatus: undefined,
+      emailDeliveredAt: undefined,
+      readAt: undefined,
+      createdAt: props.now,
+      updatedAt: props.now,
+    })
+  }
+
+  static forTicketTransition(props: {
+    id: string
+    userId: string
+    ticketId: string
+    from: TicketStatus
+    to: TicketStatus
+    now: Date
+  }): Notification {
+    return Notification.create({
+      id: props.id,
+      version: 0,
+      userId: props.userId,
+      type: 'ticket_transition',
+      title: 'Support ticket status changed',
+      body: `Ticket status changed from ${props.from} to ${props.to}.`,
+      relatedInternshipId: undefined,
+      relatedOpportunityId: undefined,
+      relatedTicketId: props.ticketId,
       emailDeliveryStatus: undefined,
       emailDeliveredAt: undefined,
       readAt: undefined,

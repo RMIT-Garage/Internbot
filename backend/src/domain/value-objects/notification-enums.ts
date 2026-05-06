@@ -3,7 +3,9 @@ export const notificationTypeValues = [
   'opportunity_verified',
   'opportunity_rejected',
   'new_application',
+  'new_ticket',
   'ticket_reply',
+  'ticket_transition',
 ] as const
 export type NotificationType = (typeof notificationTypeValues)[number]
 

@@ -6,6 +6,7 @@ import { createSemestersRouter } from './semesters'
 import { createOpportunitiesRouter } from './opportunities'
 import { createInternshipsRouter } from './internships'
 import { createNotificationsRouter } from './notifications'
+import { createTicketsRouter } from './tickets'
 
 export interface ApiRouterDeps {
   uow: UnitOfWork
@@ -26,5 +27,6 @@ export function createApiRouter(deps: ApiRouterDeps): ExpressRouter {
     createInternshipsRouter({ uow: deps.uow, idGenerator: deps.idGenerator })
   )
   router.use('/notifications', createNotificationsRouter({ uow: deps.uow }))
+  router.use('/tickets', createTicketsRouter({ uow: deps.uow, idGenerator: deps.idGenerator }))
   return router
 }

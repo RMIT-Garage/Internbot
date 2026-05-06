@@ -356,7 +356,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 9 — Tickets
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -387,6 +387,12 @@ _(append terse status notes here during implementation)_
 - Transition records land in an `activity` subcollection with `actorRole` populated.
 
 ### Notes
+
+- Spec deviation: added two notification types not in §7.8 — `new_ticket` (fanout to all coordinators on creation) and `ticket_transition` (sent to the counterparty on state change). `ticket_reply` is parameterized by replier role and routed to the counterparty (student → all coordinators, coordinator → ticket owner).
+- Ticket activity uses `actorUserId` (not `authorUserId`), so the Phase 7 cross-resource activity-feed query never matches ticket activity docs — keeps tickets out of the user activity feed deliberately.
+- Firestore subcollections present: `tickets/{id}/replies` and `tickets/{id}/activity`. Spec §8.1A only listed `replies`; schema is now broader than the doc suggests.
+- Added 6 composite indexes for `tickets` (userId/createdAt asc+desc, status/createdAt asc+desc, userId+status+createdAt asc+desc) plus a `body` field exemption.
+- Repository `applyTransition` rotates `version` (used as ETag); `addReply` only bumps `updatedAt` so replies don't invalidate concurrent edits to the parent.
 
 ---
 

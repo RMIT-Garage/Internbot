@@ -2,7 +2,7 @@ import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { InternshipResult } from '../models/internship'
 import { ForbiddenError, NotFoundError } from '../../domain/errors'
-import { buildInternshipReadModel } from './internship-read-model'
+import { buildInternshipReadModel } from '../read-models/internship'
 
 export interface GetInternshipQuery {
   actor: RequestActor
