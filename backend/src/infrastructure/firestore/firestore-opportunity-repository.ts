@@ -8,6 +8,11 @@ import type {
   OpportunityListPage,
   OpportunityRepository,
 } from '../../domain/repositories/opportunity-repository'
+import {
+  Attachment,
+  ATTACHMENT_SCHEMA_VERSION,
+  type AttachmentProps,
+} from '../../domain/value-objects/attachment'
 import { Opportunity, OPPORTUNITY_SCHEMA_VERSION } from '../../domain/entities/opportunity'
 import type { OpportunityTransition } from '../../domain/value-objects/opportunity-transition'
 import type { OpportunityVerification } from '../../domain/value-objects/opportunity-verification'
@@ -106,6 +111,13 @@ type OpportunityCreateDoc = OpportunityCreateWrite & {
 type OpportunityUpdateDoc = OpportunityUpdateWrite & { updatedAt: ServerTimestamp }
 type OpportunityTransitionDoc = OpportunityTransitionWrite & { updatedAt: ServerTimestamp }
 type OpportunityVerificationDoc = OpportunityVerificationWrite & { updatedAt: ServerTimestamp }
+type AttachmentWrite = {
+  filePath: string
+  fileName?: string
+  contentType?: string
+  _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
+}
+type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
 
 type OpportunityActivityWrite = {
   type: OpportunityActivityType
@@ -303,6 +315,50 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
     )
   }
 
+  async findAttachmentById(
+    opportunityId: string,
+    attachmentId: string
+  ): Promise<OpportunityAttachment | null> {
+    return translateFirestoreErrors(
+      async () => {
+        const ref = adminDb
+          .collection(COLLECTION)
+          .doc(opportunityId)
+          .collection('attachments')
+          .doc(attachmentId)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) return null
+        return parseAttachment(snap.id, snap.data())
+      },
+      {
+        op: 'opportunities.findAttachmentById',
+        resource: 'Opportunity',
+        id: `${opportunityId}/attachments/${attachmentId}`,
+      }
+    )
+  }
+
+  async saveAttachmentFromStorage(opportunityId: string, attachment: Attachment): Promise<boolean> {
+    return translateFirestoreErrors(
+      async () => {
+        const parentRef = adminDb.collection(COLLECTION).doc(opportunityId)
+        const parent = await this.txn.get(parentRef)
+        if (!parent.exists) return false
+
+        this.txn.set(
+          parentRef.collection('attachments').doc(attachment.id),
+          attachmentToPayload(attachment)
+        )
+        return true
+      },
+      {
+        op: 'opportunities.saveAttachmentFromStorage',
+        resource: 'Opportunity',
+        id: opportunityId,
+      }
+    )
+  }
+
   async create(opportunity: Opportunity): Promise<void> {
     await translateFirestoreErrors(
       async () => {
@@ -391,10 +447,22 @@ function parseAttachment(id: string, raw: unknown): OpportunityAttachment {
     )
   }
   const data: AttachmentStorage = parsed.data
-  return {
+  const props: AttachmentProps = {
     id,
+    filePath: data.filePath,
     fileName: data.fileName,
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
+  }
+  return Attachment.rehydrate(props)
+}
+
+function attachmentToPayload(attachment: Attachment): AttachmentDoc {
+  return {
+    filePath: attachment.filePath,
+    ...(attachment.fileName !== undefined ? { fileName: attachment.fileName } : {}),
+    ...(attachment.contentType !== undefined ? { contentType: attachment.contentType } : {}),
+    uploadedAt: FsTimestamp.fromDate(attachment.uploadedAt),
+    _schemaVersion: ATTACHMENT_SCHEMA_VERSION,
   }
 }

@@ -1,12 +1,8 @@
 import type { Opportunity } from '../entities/opportunity'
+import type { Attachment } from '../value-objects/attachment'
 import type { OpportunityStatus, OpportunityType } from '../value-objects/opportunity-enums'
 
-export interface OpportunityAttachment {
-  readonly id: string
-  readonly fileName: string | undefined
-  readonly contentType: string | undefined
-  readonly uploadedAt: Date
-}
+export type OpportunityAttachment = Attachment
 
 export interface OpportunityListCursor {
   readonly sortField: 'createdAt'
@@ -35,6 +31,11 @@ export interface OpportunityRepository {
   list(filter: OpportunityListFilter): Promise<OpportunityListPage>
   countApplications(opportunityId: string): Promise<number>
   listAttachments(opportunityId: string): Promise<readonly OpportunityAttachment[]>
+  findAttachmentById(
+    opportunityId: string,
+    attachmentId: string
+  ): Promise<OpportunityAttachment | null>
+  saveAttachmentFromStorage(opportunityId: string, attachment: Attachment): Promise<boolean>
   create(opportunity: Opportunity): Promise<void>
   save(opportunity: Opportunity): Promise<void>
 }

@@ -218,6 +218,17 @@ The frontend bundle correspondingly does **not** initialise `getFirestore()` —
 
 Do **not** add an `allow` rule. Expose the collection through a backend route (handler → application command → repository → admin SDK) and apply DTO redaction on the response.
 
+## Cloud Storage Security Rules
+
+Storage is default-deny for reads. Attachment reads go through backend `GET /api/v1/.../attachments/{attachmentId}`, which authorizes against the parent resource and returns a short-lived V4 signed URL.
+
+Direct client writes are allowed only for upload prefixes returned by the API:
+
+- `opportunities/{opportunityId}/attachments/{fileName}` for the opportunity creator/submitter
+- `users/{userId}/internships/{internshipId}/attachments/{fileName}` for the student owner
+
+Rules resolve the caller through `userIdentities/firebase__{uid}` instead of custom JWT claims, matching the API's no-custom-claims auth model. The Storage finalize trigger re-validates the parsed prefix before reflecting metadata to Firestore; invalid paths are deleted and never become attachment records.
+
 ### Deploying rules
 
 ```bash

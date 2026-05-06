@@ -8,6 +8,11 @@ import type {
   InternshipListPage,
   InternshipRepository,
 } from '../../domain/repositories/internship-repository'
+import {
+  Attachment,
+  ATTACHMENT_SCHEMA_VERSION,
+  type AttachmentProps,
+} from '../../domain/value-objects/attachment'
 import { Internship, INTERNSHIP_SCHEMA_VERSION } from '../../domain/entities/internship'
 import type { InternshipActivity } from '../../domain/value-objects/internship-activity'
 import {
@@ -99,6 +104,13 @@ type InternshipActivityWrite = {
 type InternshipActivityDoc = InternshipActivityWrite & {
   createdAt: Timestamp | ServerTimestamp
 }
+type AttachmentWrite = {
+  filePath: string
+  fileName?: string
+  contentType?: string
+  _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
+}
+type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
 
 const COLLECTION = 'internships'
 const SENTINEL_COLLECTION = 'internshipApplications'
@@ -287,6 +299,29 @@ export class FirestoreInternshipRepository implements InternshipRepository {
     )
   }
 
+  async findAttachmentById(
+    internshipId: string,
+    attachmentId: string
+  ): Promise<InternshipAttachment | null> {
+    return translateFirestoreErrors(
+      async () => {
+        const ref = adminDb
+          .collection(COLLECTION)
+          .doc(internshipId)
+          .collection('attachments')
+          .doc(attachmentId)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) return null
+        return parseAttachment(snap.id, snap.data())
+      },
+      {
+        op: 'internships.findAttachmentById',
+        resource: 'Internship',
+        id: `${internshipId}/attachments/${attachmentId}`,
+      }
+    )
+  }
+
   async hasAttachments(internshipId: string): Promise<boolean> {
     return translateFirestoreErrors(
       async () => {
@@ -296,6 +331,42 @@ export class FirestoreInternshipRepository implements InternshipRepository {
         return !snap.empty
       },
       { op: 'internships.hasAttachments', resource: 'Internship', id: internshipId }
+    )
+  }
+
+  async replaceAttachmentsFromStorage(
+    internshipId: string,
+    userId: string,
+    attachment: Attachment
+  ): Promise<{ reflected: boolean; deletedFilePaths: readonly string[] }> {
+    return translateFirestoreErrors(
+      async () => {
+        const parentRef = adminDb.collection(COLLECTION).doc(internshipId)
+        const parent = await this.txn.get(parentRef)
+        if (!parent.exists) return { reflected: false, deletedFilePaths: [] }
+
+        const parsedParent = parseInternship(parent.id, parent.data())
+        if (parsedParent.userId !== userId) return { reflected: false, deletedFilePaths: [] }
+
+        const attachmentsRef = parentRef.collection('attachments')
+        const existing = await this.txn.get(attachmentsRef)
+        const deletedFilePaths: string[] = []
+        for (const doc of existing.docs) {
+          const existingAttachment = parseAttachment(doc.id, doc.data())
+          if (existingAttachment.filePath !== attachment.filePath) {
+            deletedFilePaths.push(existingAttachment.filePath)
+          }
+          this.txn.delete(doc.ref)
+        }
+
+        this.txn.set(attachmentsRef.doc(attachment.id), attachmentToPayload(attachment))
+        return { reflected: true, deletedFilePaths }
+      },
+      {
+        op: 'internships.replaceAttachmentsFromStorage',
+        resource: 'Internship',
+        id: internshipId,
+      }
     )
   }
 
@@ -402,10 +473,22 @@ function parseAttachment(id: string, raw: unknown): InternshipAttachment {
     )
   }
   const data: AttachmentStorage = parsed.data
-  return {
+  const props: AttachmentProps = {
     id,
+    filePath: data.filePath,
     fileName: data.fileName,
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
+  }
+  return Attachment.rehydrate(props)
+}
+
+function attachmentToPayload(attachment: Attachment): AttachmentDoc {
+  return {
+    filePath: attachment.filePath,
+    ...(attachment.fileName !== undefined ? { fileName: attachment.fileName } : {}),
+    ...(attachment.contentType !== undefined ? { contentType: attachment.contentType } : {}),
+    uploadedAt: FsTimestamp.fromDate(attachment.uploadedAt),
+    _schemaVersion: ATTACHMENT_SCHEMA_VERSION,
   }
 }

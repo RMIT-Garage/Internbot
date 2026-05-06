@@ -398,7 +398,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 10 — Attachments + Storage trigger
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -423,3 +423,5 @@ _(append terse status notes here during implementation)_
 - Coordinator cannot write attachments directly (no PUT/POST attachment route exists in v1).
 
 ### Notes
+
+- Implemented Phase 10 attachments slice: signed download endpoints, Storage finalize worker, attachment value objects/path parsing, Firestore attachment sync with internship replacement semantics, default-deny Storage rules, OpenAPI/docs, and coverage via domain-unit plus integration/component tests only (no API/application unit tests per coverage policy).

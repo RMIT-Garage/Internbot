@@ -15,6 +15,7 @@ import {
   etagFromOpportunity,
   parseListOpportunitiesQuery,
   toCreateOpportunityCommand,
+  toOpportunityAttachmentDownloadResponse,
   toOpportunityListResponse,
   toOpportunityResponse,
   toTransitionOpportunityCommand,
@@ -26,14 +27,18 @@ import { UpdateOpportunityCommandHandler } from '../../application/commands/upda
 import { TransitionOpportunityCommandHandler } from '../../application/commands/transition-opportunity'
 import { VerifyOpportunityCommandHandler } from '../../application/commands/verify-opportunity'
 import { GetOpportunityQueryHandler } from '../../application/queries/get-opportunity'
+import { GetOpportunityAttachmentQueryHandler } from '../../application/queries/get-opportunity-attachment'
 import { ListOpportunitiesQueryHandler } from '../../application/queries/list-opportunities'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { IdGenerator } from '../../application/ports/id-generator'
+import type { AttachmentStorage } from '../../application/ports/attachment-storage'
 import { clampLimit } from '../utils/pagination'
 
 export interface OpportunitiesRouterDeps {
   uow: UnitOfWork
   idGenerator: IdGenerator
+  attachmentStorage: AttachmentStorage
+  attachmentDownloadTtlMs?: number
 }
 
 export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): ExpressRouter {
@@ -43,6 +48,11 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
   const transitionOpportunity = new TransitionOpportunityCommandHandler(deps.uow)
   const verifyOpportunity = new VerifyOpportunityCommandHandler(deps.uow, deps.idGenerator)
   const getOpportunity = new GetOpportunityQueryHandler(deps.uow)
+  const getOpportunityAttachment = new GetOpportunityAttachmentQueryHandler(
+    deps.uow,
+    deps.attachmentStorage,
+    { ttlMs: deps.attachmentDownloadTtlMs }
+  )
   const listOpportunities = new ListOpportunitiesQueryHandler(deps.uow)
 
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -78,6 +88,24 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
       next(err)
     }
   })
+
+  router.get(
+    '/:id/attachments/:attachmentId',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { actor } = req as AuthenticatedRequest
+        const result = await getOpportunityAttachment.handle({
+          actor,
+          opportunityId: paramId(req),
+          attachmentId: paramAttachmentId(req),
+        })
+        res.setHeader('Cache-Control', 'private, no-store')
+        res.status(200).json(toOpportunityAttachmentDownloadResponse(result))
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
 
   router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -198,6 +226,11 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
 
 function paramId(req: Request): string {
   const raw = req.params['id']
+  return Array.isArray(raw) ? raw[0]! : raw!
+}
+
+function paramAttachmentId(req: Request): string {
+  const raw = req.params['attachmentId']
   return Array.isArray(raw) ? raw[0]! : raw!
 }
 

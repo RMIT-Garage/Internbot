@@ -69,6 +69,18 @@ module "storage" {
   depends_on = [module.firebase_project]
 }
 
+resource "google_project_iam_member" "firebase_rules_firestore_cross_service" {
+  project = var.project_id
+  role    = "roles/firebaserules.firestoreServiceAgent"
+  member  = "serviceAccount:service-${data.google_project.this.number}@firebase-rules.iam.gserviceaccount.com"
+
+  depends_on = [
+    module.firebase_project,
+    module.firestore,
+    module.storage,
+  ]
+}
+
 module "hosting" {
   source     = "./modules/hosting"
   project_id = var.project_id

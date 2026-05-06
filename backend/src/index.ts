@@ -1,9 +1,17 @@
 import { onRequest } from 'firebase-functions/v2/https'
 import { beforeUserCreated, HttpsError } from 'firebase-functions/v2/identity'
+import { onObjectFinalized } from 'firebase-functions/v2/storage'
 import type { BlockingFunction } from 'firebase-functions/v1'
 import { createApp } from './api/app'
+import { SyncStorageAttachmentCommandHandler } from './application/commands/sync-storage-attachment'
+import { firestoreUnitOfWork } from './infrastructure/firestore/firestore-unit-of-work'
+import { gcsAttachmentStorage } from './infrastructure/storage/gcs-attachment-storage'
+import { SyncAttachmentMetadataWorker } from './workers/sync-attachment-metadata'
 
 const app = createApp()
+const syncAttachmentMetadataWorker = new SyncAttachmentMetadataWorker(
+  new SyncStorageAttachmentCommandHandler(firestoreUnitOfWork, gcsAttachmentStorage)
+)
 
 /**
  * Main API Cloud Function — Express fat-lambda pattern.
@@ -23,6 +31,33 @@ export const api = onRequest(
     cors: true,
   },
   app
+)
+
+/**
+ * Cloud Storage finalize trigger — synchronizes trusted attachment metadata
+ * into Firestore after the frontend uploads directly to Storage.
+ *
+ * Flow: Storage rules gate the upload (only the owning student or the
+ * opportunity creator/submitter can write under the expected prefix). Cloud
+ * Storage emits OBJECT_FINALIZE, Eventarc delivers it, this function parses
+ * the path and validates the parent + ownership invariants, then writes the
+ * Firestore attachment doc.
+ *
+ * `retry: true` opts the underlying Eventarc subscription into retry-on-error
+ * (default Pub/Sub backoff, 7-day TTL). Transient Firestore / Storage failures
+ * propagate as exceptions and are redelivered; deterministic logical failures
+ * (invalid path, parent missing) are absorbed inside the handler so they do
+ * not loop.
+ */
+export const syncAttachmentMetadata = onObjectFinalized(
+  {
+    region: 'australia-southeast1',
+    maxInstances: 10,
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    retry: true,
+  },
+  (event) => syncAttachmentMetadataWorker.handle(event)
 )
 
 /**

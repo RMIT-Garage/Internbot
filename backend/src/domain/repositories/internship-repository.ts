@@ -1,13 +1,9 @@
 import type { Internship } from '../entities/internship'
+import type { Attachment } from '../value-objects/attachment'
 import type { InternshipActivity } from '../value-objects/internship-activity'
 import type { InternshipStatus } from '../value-objects/internship-enums'
 
-export interface InternshipAttachment {
-  readonly id: string
-  readonly fileName: string | undefined
-  readonly contentType: string | undefined
-  readonly uploadedAt: Date
-}
+export type InternshipAttachment = Attachment
 
 export interface InternshipListCursor {
   readonly sortField: 'createdAt' | 'lastSubmittedAt'
@@ -37,7 +33,16 @@ export interface InternshipRepository {
   list(filter: InternshipListFilter): Promise<InternshipListPage>
   listByUserId(userId: string): Promise<readonly Internship[]>
   listAttachments(internshipId: string): Promise<readonly InternshipAttachment[]>
+  findAttachmentById(
+    internshipId: string,
+    attachmentId: string
+  ): Promise<InternshipAttachment | null>
   hasAttachments(internshipId: string): Promise<boolean>
+  replaceAttachmentsFromStorage(
+    internshipId: string,
+    userId: string,
+    attachment: Attachment
+  ): Promise<{ reflected: boolean; deletedFilePaths: readonly string[] }>
   create(internship: Internship): Promise<void>
   save(internship: Internship): Promise<void>
   addActivity(internshipId: string, activity: InternshipActivity): Promise<void>

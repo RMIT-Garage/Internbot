@@ -19,6 +19,21 @@ export const opportunityAttachmentResponseSchema = z
 
 export type OpportunityAttachmentResponse = z.infer<typeof opportunityAttachmentResponseSchema>
 
+export const opportunityAttachmentDownloadResponseSchema = opportunityAttachmentResponseSchema
+  .extend({
+    downloadUrl: z.string().url(),
+    downloadUrlExpiresAt: z.string().datetime(),
+  })
+  .meta({
+    id: 'OpportunityAttachmentDownloadResponse',
+    description:
+      'Opportunity attachment metadata with a fresh short-lived Cloud Storage signed URL.',
+  })
+
+export type OpportunityAttachmentDownloadResponse = z.infer<
+  typeof opportunityAttachmentDownloadResponseSchema
+>
+
 export const opportunityResponseSchema = z
   .object({
     id: z.string().meta({ example: 'opp_042' }),

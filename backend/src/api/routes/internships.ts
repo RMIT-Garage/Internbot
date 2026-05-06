@@ -18,6 +18,7 @@ import {
   toAddInternshipCommentCommand,
   toCreateInternshipCommand,
   toInternshipActivityResponse,
+  toInternshipAttachmentDownloadResponse,
   toInternshipListResponse,
   toInternshipResponse,
   toDecideInternshipOfferCommand,
@@ -30,14 +31,18 @@ import { SubmitInternshipOfferCommandHandler } from '../../application/commands/
 import { AddInternshipCommentCommandHandler } from '../../application/commands/add-internship-comment'
 import { DecideInternshipOfferCommandHandler } from '../../application/commands/decide-internship-offer'
 import { GetInternshipQueryHandler } from '../../application/queries/get-internship'
+import { GetInternshipAttachmentQueryHandler } from '../../application/queries/get-internship-attachment'
 import { ListInternshipsQueryHandler } from '../../application/queries/list-internships'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { IdGenerator } from '../../application/ports/id-generator'
+import type { AttachmentStorage } from '../../application/ports/attachment-storage'
 import { clampLimit } from '../utils/pagination'
 
 export interface InternshipsRouterDeps {
   uow: UnitOfWork
   idGenerator: IdGenerator
+  attachmentStorage: AttachmentStorage
+  attachmentDownloadTtlMs?: number
 }
 
 export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRouter {
@@ -48,6 +53,11 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
   const addComment = new AddInternshipCommentCommandHandler(deps.uow, deps.idGenerator)
   const decideOffer = new DecideInternshipOfferCommandHandler(deps.uow, deps.idGenerator)
   const getInternship = new GetInternshipQueryHandler(deps.uow)
+  const getInternshipAttachment = new GetInternshipAttachmentQueryHandler(
+    deps.uow,
+    deps.attachmentStorage,
+    { ttlMs: deps.attachmentDownloadTtlMs }
+  )
   const listInternships = new ListInternshipsQueryHandler(deps.uow)
 
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -83,6 +93,24 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
       next(err)
     }
   })
+
+  router.get(
+    '/:id/attachments/:attachmentId',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { actor } = req as AuthenticatedRequest
+        const result = await getInternshipAttachment.handle({
+          actor,
+          internshipId: paramId(req),
+          attachmentId: paramAttachmentId(req),
+        })
+        res.setHeader('Cache-Control', 'private, no-store')
+        res.status(200).json(toInternshipAttachmentDownloadResponse(result))
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
 
   router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -227,6 +255,11 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
 
 function paramId(req: Request): string {
   const raw = req.params['id']
+  return Array.isArray(raw) ? raw[0]! : raw!
+}
+
+function paramAttachmentId(req: Request): string {
+  const raw = req.params['attachmentId']
   return Array.isArray(raw) ? raw[0]! : raw!
 }
 

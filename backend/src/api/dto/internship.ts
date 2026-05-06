@@ -21,6 +21,21 @@ export const internshipAttachmentResponseSchema = z
 
 export type InternshipAttachmentResponse = z.infer<typeof internshipAttachmentResponseSchema>
 
+export const internshipAttachmentDownloadResponseSchema = internshipAttachmentResponseSchema
+  .extend({
+    downloadUrl: z.string().url(),
+    downloadUrlExpiresAt: z.string().datetime(),
+  })
+  .meta({
+    id: 'InternshipAttachmentDownloadResponse',
+    description:
+      'Internship attachment metadata with a fresh short-lived Cloud Storage signed URL.',
+  })
+
+export type InternshipAttachmentDownloadResponse = z.infer<
+  typeof internshipAttachmentDownloadResponseSchema
+>
+
 export const internshipResponseSchema = z
   .object({
     id: z.string().meta({ example: 'int_042' }),

@@ -11,14 +11,18 @@ import { verifyFirebaseToken, type VerifyToken } from './auth/firebase-token-ver
 import { createPlatformUserHydrator, type HydratePlatformUser } from './auth/platform-user-hydrator'
 import { firestoreUnitOfWork } from '../infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../infrastructure/firestore/firestore-id-generator'
+import { gcsAttachmentStorage } from '../infrastructure/storage/gcs-attachment-storage'
 import type { UnitOfWork } from '../application/ports/unit-of-work'
 import type { IdGenerator } from '../application/ports/id-generator'
+import type { AttachmentStorage } from '../application/ports/attachment-storage'
 
 export interface AppOptions {
   verifyToken?: VerifyToken
   hydratePlatformUser?: HydratePlatformUser
   uow?: UnitOfWork
   idGenerator?: IdGenerator
+  attachmentStorage?: AttachmentStorage
+  attachmentDownloadTtlMs?: number
 }
 
 /** Global rate limiter — 300 requests per 15 min per IP. */
@@ -49,6 +53,7 @@ const globalLimiter = rateLimit({
 export function createApp(options: AppOptions = {}): Express {
   const uow = options.uow ?? firestoreUnitOfWork
   const idGenerator = options.idGenerator ?? firestoreIdGenerator
+  const attachmentStorage = options.attachmentStorage ?? gcsAttachmentStorage
   const verifyToken = options.verifyToken ?? verifyFirebaseToken
   const hydratePlatformUser =
     options.hydratePlatformUser ?? createPlatformUserHydrator(uow, idGenerator)
@@ -67,7 +72,16 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api', createOpenapiRouter()) // /api/openapi.json + /api/docs
 
   // Protected routes — Firebase ID token required
-  app.use('/api/v1', authMiddleware, createApiRouter({ uow, idGenerator }))
+  app.use(
+    '/api/v1',
+    authMiddleware,
+    createApiRouter({
+      uow,
+      idGenerator,
+      attachmentStorage,
+      attachmentDownloadTtlMs: options.attachmentDownloadTtlMs,
+    })
+  )
 
   // 404 handler for unmatched paths
   app.use((_req, res) => {

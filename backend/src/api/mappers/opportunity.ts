@@ -4,6 +4,7 @@ import type {
   OpportunityReadModel,
   OpportunityResult,
 } from '../../application/models/opportunity'
+import type { AttachmentDownloadResult } from '../../application/models/attachment'
 import type { CreateOpportunityCommand } from '../../application/commands/create-opportunity'
 import type { UpdateOpportunityCommand } from '../../application/commands/update-opportunity'
 import type { TransitionOpportunityCommand } from '../../application/commands/transition-opportunity'
@@ -24,7 +25,11 @@ import type {
   TransitionOpportunityRequest,
   VerifyOpportunityRequest,
 } from '../schemas/opportunity'
-import type { OpportunityListResponse, OpportunityResponse } from '../dto/opportunity'
+import type {
+  OpportunityAttachmentDownloadResponse,
+  OpportunityListResponse,
+  OpportunityResponse,
+} from '../dto/opportunity'
 import { formatETag, parseIfMatch } from '../utils/etag'
 import { decodePageToken, encodePageToken } from '../utils/pagination'
 
@@ -265,6 +270,19 @@ function readModelToResponse(model: OpportunityReadModel): OpportunityResponse {
 
 export function toOpportunityResponse(result: OpportunityResult): OpportunityResponse {
   return readModelToResponse(result)
+}
+
+export function toOpportunityAttachmentDownloadResponse(
+  result: AttachmentDownloadResult
+): OpportunityAttachmentDownloadResponse {
+  return {
+    id: result.attachment.id,
+    fileName: result.attachment.fileName ?? null,
+    contentType: result.attachment.contentType ?? null,
+    uploadedAt: result.attachment.uploadedAt.toISOString(),
+    downloadUrl: result.downloadUrl,
+    downloadUrlExpiresAt: result.downloadUrlExpiresAt.toISOString(),
+  }
 }
 
 export function toOpportunityListResponse(

@@ -22,6 +22,7 @@ import {
 import {
   listOpportunitiesOperation,
   getOpportunityOperation,
+  getOpportunityAttachmentOperation,
   createOpportunityOperation,
   patchOpportunityOperation,
   transitionOpportunityOperation,
@@ -30,6 +31,7 @@ import {
 import {
   listInternshipsOperation,
   getInternshipOperation,
+  getInternshipAttachmentOperation,
   createInternshipOperation,
   patchInternshipOperation,
   submitInternshipOfferOperation,
@@ -116,6 +118,9 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
         get: getOpportunityOperation,
         patch: patchOpportunityOperation,
       },
+      '/api/v1/opportunities/{id}/attachments/{attachmentId}': {
+        get: getOpportunityAttachmentOperation,
+      },
       '/api/v1/opportunities/{id}/transitions': { post: transitionOpportunityOperation },
       '/api/v1/opportunities/{id}/verifications': { post: verifyOpportunityOperation },
       '/api/v1/internships': {
@@ -125,6 +130,9 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       '/api/v1/internships/{id}': {
         get: getInternshipOperation,
         patch: patchInternshipOperation,
+      },
+      '/api/v1/internships/{id}/attachments/{attachmentId}': {
+        get: getInternshipAttachmentOperation,
       },
       '/api/v1/internships/{id}/offer-submissions': {
         post: submitInternshipOfferOperation,

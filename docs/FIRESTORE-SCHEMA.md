@@ -59,6 +59,21 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 `userIdentities` is the uniqueness rule for IdP users. JIT provisioning creates `users/{userId}` and the matching identity document in one transaction.
 
+## Attachment Subcollections
+
+Attachment metadata is backend-synced from Cloud Storage finalize events. Clients upload files to the Storage path prefix returned by the parent resource, then the trigger writes the matching Firestore metadata document.
+
+`/opportunities/{opportunityId}/attachments/{attachmentId}` stores optional position-description metadata.
+`/internships/{internshipId}/attachments/{attachmentId}` stores offer-document metadata. Internship attachment sync uses replacement semantics: the latest finalized upload replaces older attachment records and the trigger deletes older files.
+
+| Field            | Type        | Required | Description                 |
+| ---------------- | ----------- | -------- | --------------------------- |
+| `filePath`       | `string`    | Yes      | Cloud Storage object path   |
+| `fileName`       | `string`    | No       | Display filename            |
+| `contentType`    | `string`    | No       | MIME type                   |
+| `uploadedAt`     | `Timestamp` | Yes      | Upload/sync timestamp       |
+| `_schemaVersion` | `1`         | No       | Schema version when written |
+
 ## `internships` Collection
 
 **Path:** `/internships/{internshipId}`
@@ -87,13 +102,7 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 `/internships/{internshipId}/attachments/{attachmentId}` stores synced offer-document metadata:
 
-| Field            | Type        | Required | Description                 |
-| ---------------- | ----------- | -------- | --------------------------- |
-| `filePath`       | `string`    | Yes      | Cloud Storage object path   |
-| `fileName`       | `string`    | No       | Display filename            |
-| `contentType`    | `string`    | No       | MIME type                   |
-| `uploadedAt`     | `Timestamp` | Yes      | Upload/sync timestamp       |
-| `_schemaVersion` | `1`         | No       | Schema version when written |
+See [Attachment Subcollections](#attachment-subcollections).
 
 `/internships/{internshipId}/activity/{activityId}` stores timeline events:
 

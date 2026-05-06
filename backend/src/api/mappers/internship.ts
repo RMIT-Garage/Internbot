@@ -11,6 +11,7 @@ import type {
   InternshipListResultWithCursor,
   InternshipResult,
 } from '../../application/models/internship'
+import type { AttachmentDownloadResult } from '../../application/models/attachment'
 import type { InternshipReadModel } from '../../application/read-models/internship'
 import type { InternshipListCursor } from '../../domain/repositories/internship-repository'
 import type { InternshipStatus } from '../../domain/value-objects/internship-enums'
@@ -24,6 +25,7 @@ import type {
 } from '../schemas/internship'
 import type {
   InternshipActivityResponse,
+  InternshipAttachmentDownloadResponse,
   InternshipListItemResponse,
   InternshipListResponse,
   InternshipResponse,
@@ -287,6 +289,19 @@ function readModelToListItem(model: InternshipReadModel): InternshipListItemResp
 
 export function toInternshipResponse(result: InternshipResult): InternshipResponse {
   return readModelToResponse(result)
+}
+
+export function toInternshipAttachmentDownloadResponse(
+  result: AttachmentDownloadResult
+): InternshipAttachmentDownloadResponse {
+  return {
+    id: result.attachment.id,
+    fileName: result.attachment.fileName ?? null,
+    contentType: result.attachment.contentType ?? null,
+    uploadedAt: result.attachment.uploadedAt.toISOString(),
+    downloadUrl: result.downloadUrl,
+    downloadUrlExpiresAt: result.downloadUrlExpiresAt.toISOString(),
+  }
 }
 
 export function toInternshipListResponse(

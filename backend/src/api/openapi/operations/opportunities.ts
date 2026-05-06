@@ -6,7 +6,11 @@ import {
   transitionOpportunityRequestSchema,
   verifyOpportunityRequestSchema,
 } from '../../schemas/opportunity'
-import { opportunityListResponseSchema, opportunityResponseSchema } from '../../dto/opportunity'
+import {
+  opportunityAttachmentDownloadResponseSchema,
+  opportunityListResponseSchema,
+  opportunityResponseSchema,
+} from '../../dto/opportunity'
 import { errorResponseSchema } from '../common'
 import {
   opportunityStatusValues,
@@ -15,6 +19,10 @@ import {
 
 const opportunityIdPathParams = z.object({
   id: z.string().meta({ example: 'opp_042', description: 'Platform opportunity id.' }),
+})
+
+const opportunityAttachmentPathParams = opportunityIdPathParams.extend({
+  attachmentId: z.string().meta({ example: 'att_001', description: 'Attachment id.' }),
 })
 
 const ifMatchHeaderSchema = z.object({
@@ -83,6 +91,30 @@ export const getOpportunityOperation: ZodOpenApiOperationObject = {
     },
     '404': {
       description: 'No opportunity exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
+export const getOpportunityAttachmentOperation: ZodOpenApiOperationObject = {
+  operationId: 'getOpportunityAttachment',
+  summary: 'Return an opportunity attachment download resource',
+  description:
+    'Returns attachment metadata with a fresh short-lived V4 signed Cloud Storage URL. Students can read only attachments on visible opportunities.',
+  tags: ['Opportunities'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: opportunityAttachmentPathParams },
+  responses: {
+    '200': {
+      description: 'Attachment found with a fresh signed download URL.',
+      content: { 'application/json': { schema: opportunityAttachmentDownloadResponseSchema } },
+    },
+    '403': {
+      description: 'Student cannot see the parent opportunity.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No opportunity or attachment exists with the supplied id.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },
