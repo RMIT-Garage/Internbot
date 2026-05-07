@@ -5,6 +5,8 @@ import { GetNotificationQueryHandler } from '../../../../src/application/queries
 import { MarkNotificationReadCommandHandler } from '../../../../src/application/commands/mark-notification-read'
 import { MarkAllNotificationsReadCommandHandler } from '../../../../src/application/commands/mark-all-notifications-read'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
+import { firestoreNotificationQueryService } from '../../../../src/infrastructure/firestore/firestore-notification-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { adminDb, Timestamp } from '../../../../src/infrastructure/config/firebase-admin'
 import { clearDocs, initEmulator, trackDoc } from '../../../setup.emulator'
 import type { RequestActor } from '../../../../src/application/actor'
@@ -95,7 +97,10 @@ describe('Notifications queries and commands — integration', () => {
       createdAt: new Date('2026-04-05T13:00:00Z'),
     })
 
-    const handler = new ListNotificationsQueryHandler(new FirestoreUnitOfWork())
+    const handler = new ListNotificationsQueryHandler(
+      firestoreNotificationQueryService,
+      defaultAuthorizationService
+    )
     const first = await handler.handle({
       actor: actorFor('student', userId),
       filter: { unreadOnly: false, limit: 1, cursor: undefined },
@@ -127,7 +132,10 @@ describe('Notifications queries and commands — integration', () => {
       readAt: new Date('2026-04-05T11:05:00Z'),
     })
 
-    const result = await new ListNotificationsQueryHandler(new FirestoreUnitOfWork()).handle({
+    const result = await new ListNotificationsQueryHandler(
+      firestoreNotificationQueryService,
+      defaultAuthorizationService
+    ).handle({
       actor: actorFor('student', userId),
       filter: { unreadOnly: true, limit: 50, cursor: undefined },
     })
@@ -143,7 +151,10 @@ describe('Notifications queries and commands — integration', () => {
       createdAt: new Date('2026-04-05T12:00:00Z'),
       omitEmailFields: true,
     })
-    const handler = new MarkNotificationReadCommandHandler(new FirestoreUnitOfWork())
+    const handler = new MarkNotificationReadCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     const actor = actorFor('student', userId)
 
     await handler.handle({ actor, notificationId })
@@ -170,10 +181,16 @@ describe('Notifications queries and commands — integration', () => {
     const actor = actorFor('student', callerId)
 
     await expect(
-      new GetNotificationQueryHandler(new FirestoreUnitOfWork()).handle({ actor, notificationId })
+      new GetNotificationQueryHandler(
+        firestoreNotificationQueryService,
+        defaultAuthorizationService
+      ).handle({ actor, notificationId })
     ).rejects.toMatchObject({ reason: 'notification_not_owner' })
     await expect(
-      new MarkNotificationReadCommandHandler(new FirestoreUnitOfWork()).handle({
+      new MarkNotificationReadCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService
+      ).handle({
         actor,
         notificationId,
       })
@@ -203,7 +220,8 @@ describe('Notifications queries and commands — integration', () => {
     })
 
     const result = await new MarkAllNotificationsReadCommandHandler(
-      new FirestoreUnitOfWork()
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
     ).handle({ actor: actorFor('student', userId) })
 
     const [read, first, second, other] = await Promise.all([
@@ -230,7 +248,8 @@ describe('Notifications queries and commands — integration', () => {
     })
 
     const result = await new MarkAllNotificationsReadCommandHandler(
-      new FirestoreUnitOfWork()
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
     ).handle({ actor: actorFor('student', userId) })
 
     expect(result.markedReadCount).toBe(0)

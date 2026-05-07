@@ -1,9 +1,9 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { SemesterStatus } from '../../domain/value-objects/semester-enums'
 import { Semester } from '../../domain/entities/semester'
-import { ForbiddenError } from '../../domain/errors'
 
 /**
  * POST /api/v1/semesters command.
@@ -37,20 +37,13 @@ export interface CreateSemesterResult {
 export class CreateSemesterCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: CreateSemesterCommand): Promise<CreateSemesterResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-    if (platformUser.role !== 'coordinator') {
-      throw new ForbiddenError('Only coordinators may create semesters', 'role_restricted_action')
-    }
+    this.authz.requireRole(cmd.actor, 'coordinator')
 
-    // Mint the id up-front (outside the transaction) — application layer
-    // owns identity orchestration. Aggregate is whole at construction.
     const newSemesterId = this.idGenerator.next()
     const now = new Date()
     const semester = Semester.create({
@@ -67,7 +60,7 @@ export class CreateSemesterCommandHandler {
     })
 
     return this.uow.execute(async (ctx) => {
-      await ctx.semesters.create(semester)
+      await ctx.semesters.save(semester)
       return { id: newSemesterId }
     })
   }

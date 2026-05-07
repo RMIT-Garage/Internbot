@@ -2,13 +2,13 @@ import type { RequestActor } from '../../application/actor'
 import type { CreateTicketCommand } from '../../application/commands/create-ticket'
 import type { PostTicketReplyCommand } from '../../application/commands/post-ticket-reply'
 import type { TransitionTicketCommand } from '../../application/commands/transition-ticket'
-import type { ListTicketsQuery } from '../../application/queries/list-tickets'
 import type {
+  ListTicketsQuery,
   TicketListResultWithCursor,
-  TicketReplyResult,
-  TicketResult,
-} from '../../application/models/ticket'
-import type { TicketListCursor } from '../../domain/repositories/ticket-repository'
+} from '../../application/queries/list-tickets'
+import type { TicketResult } from '../../application/queries/get-ticket'
+import type { TicketReplyResult } from '../../application/commands/post-ticket-reply'
+import type { TicketListCursor } from '../../application/read-models/ticket'
 import type { TicketStatus } from '../../domain/value-objects/ticket-enums'
 import { ticketStatusValues } from '../../domain/value-objects/ticket-enums'
 import type {

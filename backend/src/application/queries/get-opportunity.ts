@@ -1,7 +1,11 @@
 import type { RequestActor } from '../actor'
-import type { UnitOfWork, UnitOfWorkContext } from '../ports/unit-of-work'
-import type { OpportunityResult } from '../models/opportunity'
+import type { OpportunityQueryService } from '../ports/queries/opportunity-query-service'
+import type { UserQueryService } from '../ports/queries/user-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { OpportunityReadModel } from '../read-models/opportunity'
 import { ConflictError, ForbiddenError, NotFoundError } from '../../domain/errors'
+
+export type OpportunityResult = OpportunityReadModel
 
 export interface GetOpportunityQuery {
   actor: RequestActor
@@ -9,45 +13,47 @@ export interface GetOpportunityQuery {
 }
 
 export class GetOpportunityQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly opportunityQueries: OpportunityQueryService,
+    private readonly userQueries: UserQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: GetOpportunityQuery): Promise<OpportunityResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
+    const platformUser = this.authz.requirePlatformUser(q.actor)
+
+    const opportunity = await this.opportunityQueries.findById(q.opportunityId)
+    if (!opportunity) throw new NotFoundError('Opportunity', q.opportunityId)
+
+    if (platformUser.role === 'student') {
+      const semesterId = await this.selectedSemesterId(platformUser.id)
+      const canReadPublished =
+        opportunity.status === 'published' && opportunity.semesterId === semesterId
+      const canReadOwnSubmission = opportunity.submittedByUserId === platformUser.id
+      if (!canReadPublished && !canReadOwnSubmission) {
+        throw new ForbiddenError(
+          'Opportunity is not visible to this student',
+          'opportunity_not_visible'
+        )
+      }
     }
 
-    return this.uow.execute(async (ctx) => {
-      const opportunity = await ctx.opportunities.findById(q.opportunityId)
-      if (!opportunity) throw new NotFoundError('Opportunity', q.opportunityId)
-
-      if (platformUser.role === 'student') {
-        const semesterId = await selectedSemesterId(ctx, platformUser.id)
-        const canReadPublished =
-          opportunity.status === 'published' && opportunity.semesterId === semesterId
-        const canReadOwnSubmission = opportunity.submittedByUserId === platformUser.id
-        if (!canReadPublished && !canReadOwnSubmission) {
-          throw new ForbiddenError(
-            'Opportunity is not visible to this student',
-            'opportunity_not_visible'
-          )
-        }
-      }
-
-      const [applicationCount, attachments] = await Promise.all([
-        ctx.opportunities.countApplications(opportunity.id),
-        ctx.opportunities.listAttachments(opportunity.id),
-      ])
-      return { opportunity, applicationCount, attachments }
-    })
+    const [applicationCount, attachments] = await Promise.all([
+      this.opportunityQueries.countApplications(opportunity.id),
+      this.opportunityQueries.listAttachments(opportunity.id),
+    ])
+    return { opportunity, applicationCount, attachments }
   }
-}
 
-async function selectedSemesterId(ctx: UnitOfWorkContext, userId: string): Promise<string> {
-  const user = await ctx.users.findById(userId)
-  const semesterId = user?.studentProfile?.semesterId
-  if (!user || user.role !== 'student' || semesterId === undefined) {
-    throw new ConflictError('Student has no selected semester', 'student_has_no_selected_semester')
+  private async selectedSemesterId(userId: string): Promise<string> {
+    const user = await this.userQueries.findById(userId)
+    const semesterId = user?.studentProfile?.semesterId
+    if (!user || user.role !== 'student' || semesterId === undefined) {
+      throw new ConflictError(
+        'Student has no selected semester',
+        'student_has_no_selected_semester'
+      )
+    }
+    return semesterId
   }
-  return semesterId
 }

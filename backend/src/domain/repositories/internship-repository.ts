@@ -1,49 +1,28 @@
 import type { Internship } from '../entities/internship'
-import type { Attachment } from '../value-objects/attachment'
-import type { InternshipActivity } from '../value-objects/internship-activity'
-import type { InternshipStatus } from '../value-objects/internship-enums'
 
-export type InternshipAttachment = Attachment
-
-export interface InternshipListCursor {
-  readonly sortField: 'createdAt' | 'lastSubmittedAt'
-  readonly sortDirection: 'asc' | 'desc'
-  readonly lastValue: Date | null
-  readonly lastDocId: string
-}
-
-export interface InternshipListFilter {
-  readonly userId: string | undefined
-  readonly opportunityId: string | undefined
-  readonly status: readonly InternshipStatus[] | undefined
-  readonly limit: number
-  readonly sortField: 'createdAt' | 'lastSubmittedAt'
-  readonly sortDirection: 'asc' | 'desc'
-  readonly cursor: InternshipListCursor | undefined
-}
-
-export interface InternshipListPage {
-  readonly items: readonly Internship[]
-  readonly nextCursor: InternshipListCursor | null
-}
-
+/**
+ * Write-side port over the `internships` aggregate. Pure-DDD/CQRS surface
+ * (`findById` / `save` / `delete`) plus the narrow
+ * `findByUserIdAndOpportunityId` read used by `CreateInternshipCommand` to
+ * enforce duplicate-application uniqueness inside the same Firestore
+ * transaction (no separate sentinel doc).
+ *
+ *   - `findById` — eager-loads the aggregate with its sub-entities so
+ *     invariant checks are self-contained.
+ *   - `save`     — upsert: when `aggregate.version === 0` the impl performs
+ *     the first-write path; otherwise it enforces optimistic concurrency
+ *     against the persisted version.
+ *   - `delete`   — hard-delete escape hatch for ops/migrations. Routine
+ *     "delete attachment" flows are soft-delete via the aggregate root.
+ *   - `findByUserIdAndOpportunityId` — txn-bound uniqueness guard for
+ *     create-internship; not exposed by any read endpoint.
+ *
+ * Read-side queries (list, listByUserId, listAttachments,
+ * findAttachmentById) live on `InternshipQueryService`.
+ */
 export interface InternshipRepository {
   findById(id: string): Promise<Internship | null>
-  findByUserIdAndOpportunityId(userId: string, opportunityId: string): Promise<Internship | null>
-  list(filter: InternshipListFilter): Promise<InternshipListPage>
-  listByUserId(userId: string): Promise<readonly Internship[]>
-  listAttachments(internshipId: string): Promise<readonly InternshipAttachment[]>
-  findAttachmentById(
-    internshipId: string,
-    attachmentId: string
-  ): Promise<InternshipAttachment | null>
-  hasAttachments(internshipId: string): Promise<boolean>
-  saveAttachmentFromStorage(
-    internshipId: string,
-    userId: string,
-    attachment: Attachment
-  ): Promise<{ reflected: boolean }>
-  create(internship: Internship): Promise<void>
   save(internship: Internship): Promise<void>
-  addActivity(internshipId: string, activity: InternshipActivity): Promise<void>
+  delete(id: string): Promise<void>
+  findByUserIdAndOpportunityId(userId: string, opportunityId: string): Promise<Internship | null>
 }

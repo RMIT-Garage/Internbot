@@ -1,16 +1,16 @@
 import type { RequestActor } from '../../application/actor'
-import type { UserResult } from '../../application/models/user'
+import type { UserResult } from '../../application/queries/get-user'
+import type { UserActivityFeedCursor } from '../../application/read-models/user-activity'
 import type {
-  UserActivityFeedCursor,
+  ListUserActivityQuery,
   UserActivityFeedResultWithCursor,
-} from '../../application/models/user-activity'
-import type { UserWorkflowResult } from '../../application/models/user-workflow'
+} from '../../application/queries/list-user-activity'
+import type { UserWorkflowResult } from '../../application/queries/get-user-workflow'
 import type {
   AcademicInfoPatch,
   UpdateUserProfileCommand,
 } from '../../application/commands/update-user-profile'
 import type { SelectSemesterCommand } from '../../application/commands/select-semester'
-import type { ListUserActivityQuery } from '../../application/queries/list-user-activity'
 import type { PatchUserRequest, PutSemesterSelectionRequest } from '../schemas/user'
 import type {
   AcademicInfoResponse,

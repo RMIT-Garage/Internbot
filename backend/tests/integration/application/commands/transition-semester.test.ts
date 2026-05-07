@@ -5,6 +5,8 @@ import { TransitionSemesterCommandHandler } from '../../../../src/application/co
 import { GetSemesterQueryHandler } from '../../../../src/application/queries/get-semester'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreSemesterQueryService } from '../../../../src/infrastructure/firestore/firestore-semester-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { initEmulator, clearDocs, trackDoc } from '../../../setup.emulator'
 import { adminDb } from '../../../../src/infrastructure/config/firebase-admin'
 import type { RequestActor } from '../../../../src/application/actor'
@@ -19,7 +21,11 @@ function actorFor(role: 'student' | 'coordinator', id = `usr_${randomUUID()}`): 
 }
 
 async function seedSemester(status: SemesterStatus = 'draft'): Promise<{ id: string }> {
-  const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const create = new CreateSemesterCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const code = `2026-S${randomUUID()
     .slice(0, 6)
     .replace(/[^A-Za-z0-9]/g, 'a')}`
@@ -37,7 +43,10 @@ async function seedSemester(status: SemesterStatus = 'draft'): Promise<{ id: str
   trackDoc('semesters', id)
 
   if (status !== 'draft') {
-    const transition = new TransitionSemesterCommandHandler(new FirestoreUnitOfWork())
+    const transition = new TransitionSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await transition.handle({
       actor: actorFor('coordinator'),
       semesterId: id,
@@ -62,8 +71,14 @@ describe('TransitionSemesterCommandHandler — integration', () => {
 
   it('draft → active updates parent status and writes an activity record', async () => {
     const { id } = await seedSemester('draft')
-    const handler = new TransitionSemesterCommandHandler(new FirestoreUnitOfWork())
-    const get = new GetSemesterQueryHandler(new FirestoreUnitOfWork())
+    const handler = new TransitionSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const get = new GetSemesterQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
 
     const coord = actorFor('coordinator', `usr_${randomUUID()}`)
     await handler.handle({
@@ -88,7 +103,11 @@ describe('TransitionSemesterCommandHandler — integration', () => {
   it('archived → active throws ConflictError invalid_state_transition', async () => {
     // Seed a semester directly in archived state via two transitions
     // (draft → active is not a path to archived, so use draft → archived).
-    const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
+    const create = new CreateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    )
     const code = `2026-S${randomUUID()
       .slice(0, 6)
       .replace(/[^A-Za-z0-9]/g, 'a')}`
@@ -105,7 +124,10 @@ describe('TransitionSemesterCommandHandler — integration', () => {
     })
     trackDoc('semesters', id)
 
-    const handler = new TransitionSemesterCommandHandler(new FirestoreUnitOfWork())
+    const handler = new TransitionSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await handler.handle({
       actor: actorFor('coordinator'),
       semesterId: id,
@@ -125,7 +147,10 @@ describe('TransitionSemesterCommandHandler — integration', () => {
 
   it('stale expectedVersion throws PreconditionFailedError', async () => {
     const { id } = await seedSemester('draft')
-    const handler = new TransitionSemesterCommandHandler(new FirestoreUnitOfWork())
+    const handler = new TransitionSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await expect(
       handler.handle({
         actor: actorFor('coordinator'),

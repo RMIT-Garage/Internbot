@@ -4,7 +4,8 @@ import type {
 } from '../value-objects/internship-enums'
 import type { Role } from '../value-objects/user-enums'
 import { InternshipActivity } from '../value-objects/internship-activity'
-import { ConflictError, ValidationError } from '../errors'
+import type { Attachment } from '../value-objects/attachment'
+import { ConflictError, NotFoundError, ValidationError } from '../errors'
 
 export interface InternshipProps {
   readonly id: string
@@ -41,12 +42,34 @@ export interface InternshipDecisionDetails {
   readonly comment: string | undefined
 }
 
+export interface PendingAttachmentSoftDelete {
+  readonly attachmentId: string
+  readonly deletedAt: Date
+  readonly deletedByUserId: string
+}
+
 export class Internship {
   #props: InternshipProps
   #pendingActivity: InternshipActivity | undefined
+  #attachments: Attachment[]
+  #pendingAttachmentSoftDeletes: PendingAttachmentSoftDelete[] = []
+  #pendingAttachmentAdds: Attachment[] = []
+  /**
+   * True when a domain command mutated parent-level state (offer fields,
+   * status, decision, or attachment tombstones). Drives the repo's `save()`:
+   * parent-mutation saves rotate `version` and write the full parent payload;
+   * comment-only saves append the activity row without rotating the ETag,
+   * matching the historical "comments don't break OCC" behavior.
+   */
+  #hasParentMutation = false
 
-  private constructor(props: InternshipProps, pendingActivity?: InternshipActivity) {
+  private constructor(
+    props: InternshipProps,
+    attachments: readonly Attachment[] = [],
+    pendingActivity?: InternshipActivity
+  ) {
     this.#props = props
+    this.#attachments = [...attachments]
     this.#pendingActivity = pendingActivity
   }
 
@@ -90,8 +113,8 @@ export class Internship {
     return new Internship(props)
   }
 
-  static rehydrate(props: InternshipProps): Internship {
-    return new Internship(props)
+  static rehydrate(props: InternshipProps, attachments: readonly Attachment[] = []): Internship {
+    return new Internship(props, attachments)
   }
 
   get id(): string {
@@ -142,6 +165,29 @@ export class Internship {
   get pendingActivity(): InternshipActivity | undefined {
     return this.#pendingActivity
   }
+  get attachments(): readonly Attachment[] {
+    return this.#attachments
+  }
+  /**
+   * Visible attachments — what list/get attachment queries should return.
+   * Excludes soft-deleted entries.
+   */
+  get activeAttachments(): readonly Attachment[] {
+    return this.#attachments.filter((a) => !a.isDeleted)
+  }
+  get pendingAttachmentSoftDeletes(): readonly PendingAttachmentSoftDelete[] {
+    return this.#pendingAttachmentSoftDeletes
+  }
+  get pendingAttachmentAdds(): readonly Attachment[] {
+    return this.#pendingAttachmentAdds
+  }
+  hasActiveAttachments(): boolean {
+    return this.#attachments.some((a) => !a.isDeleted)
+  }
+
+  get hasParentMutation(): boolean {
+    return this.#hasParentMutation
+  }
 
   updateOfferDetails(details: InternshipOfferDetails, activityId: string, now: Date): void {
     this.#assertEditable()
@@ -153,6 +199,7 @@ export class Internship {
     }
     validateOfferDates(next)
     this.#props = next
+    this.#hasParentMutation = true
     this.#pendingActivity = InternshipActivity.edit({
       id: activityId,
       authorUserId: this.#props.userId,
@@ -197,6 +244,7 @@ export class Internship {
     }
     validateOfferDates(next)
     this.#props = next
+    this.#hasParentMutation = true
     this.#pendingActivity = InternshipActivity.submitOffer({
       id: activityId,
       authorUserId: this.#props.userId,
@@ -205,6 +253,12 @@ export class Internship {
     })
   }
 
+  /**
+   * Stage a comment on this internship's activity timeline. Comments do not
+   * mutate parent fields and do not rotate `version` — `save()` writes the
+   * activity row only. Returns the staged VO so callers can surface it in
+   * their HTTP response without re-reading `pendingActivity`.
+   */
   comment(
     activityId: string,
     actorUserId: string,
@@ -212,13 +266,15 @@ export class Internship {
     text: string,
     now: Date
   ): InternshipActivity {
-    return InternshipActivity.comment({
+    const activity = InternshipActivity.comment({
       id: activityId,
       authorUserId: actorUserId,
       authorRole: actorRole,
       text,
       createdAt: now,
     })
+    this.#pendingActivity = activity
+    return activity
   }
 
   decideOffer(
@@ -264,6 +320,7 @@ export class Internship {
       reviewedByUserId: reviewerUserId,
       reviewedAt: now,
     }
+    this.#hasParentMutation = true
     this.#pendingActivity = decisionActivity(details.decision, {
       id: activityId,
       authorUserId: reviewerUserId,
@@ -272,12 +329,61 @@ export class Internship {
     })
   }
 
+  /**
+   * Soft-deletes an attachment owned by this internship. Allowed only while
+   * the offer is still in the student's hands (`applied` or
+   * `offer_changes_requested`). The Firestore row remains; a future outbox
+   * worker hard-deletes the GCS object using the captured `storageGeneration`.
+   */
+  softDeleteAttachment(attachmentId: string, deletedByUserId: string, now: Date): void {
+    if (!INTERNSHIP_ATTACHMENT_DELETABLE_STATUSES.has(this.#props.status)) {
+      throw new ConflictError(
+        'Attachments are locked once the offer is under review or finalised',
+        'attachment_locked_in_status'
+      )
+    }
+
+    const index = this.#attachments.findIndex((a) => a.id === attachmentId)
+    const existing = index >= 0 ? this.#attachments[index] : undefined
+    if (!existing || existing.isDeleted) {
+      throw new NotFoundError('Attachment', attachmentId)
+    }
+
+    this.#attachments[index] = existing.markDeleted(deletedByUserId, now)
+    this.#pendingAttachmentSoftDeletes.push({
+      attachmentId,
+      deletedAt: now,
+      deletedByUserId,
+    })
+    this.#hasParentMutation = true
+  }
+
+  /**
+   * Adopt an attachment finalized by the storage trigger. Validates that the
+   * trigger's path-derived owner matches this internship's `userId` and that
+   * we haven't already absorbed an attachment with the same id (idempotent).
+   * Returns true if the attachment was newly added; false otherwise. Stages
+   * the addition so the repo's `save()` writes the subdoc atomically.
+   */
+  recordSyncedAttachment(attachment: Attachment, expectedUserId: string): boolean {
+    if (this.#props.userId !== expectedUserId) return false
+    if (this.#attachments.some((a) => a.id === attachment.id)) return false
+    this.#attachments.push(attachment)
+    this.#pendingAttachmentAdds.push(attachment)
+    return true
+  }
+
   #assertEditable(): void {
     if (this.#props.status === 'offer_approved' || this.#props.status === 'rejected') {
       throw new ConflictError('Internship is in a non-editable state', 'internship_not_editable')
     }
   }
 }
+
+const INTERNSHIP_ATTACHMENT_DELETABLE_STATUSES: ReadonlySet<InternshipStatus> = new Set([
+  'applied',
+  'offer_changes_requested',
+])
 
 function decisionActivity(
   decision: InternshipCoordinatorDecision,

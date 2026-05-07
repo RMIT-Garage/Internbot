@@ -1,13 +1,7 @@
 import { z } from 'zod'
-import { Timestamp, type Query, type Transaction } from 'firebase-admin/firestore'
+import { Timestamp, type Transaction } from 'firebase-admin/firestore'
 import { FieldValue, Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
-import type {
-  InternshipAttachment,
-  InternshipListCursor,
-  InternshipListFilter,
-  InternshipListPage,
-  InternshipRepository,
-} from '../../domain/repositories/internship-repository'
+import type { InternshipRepository } from '../../domain/repositories/internship-repository'
 import {
   Attachment,
   ATTACHMENT_SCHEMA_VERSION,
@@ -28,7 +22,7 @@ import { translateFirestoreErrors } from './translate-firestore-errors'
 
 const firestoreTimestamp = z.instanceof(Timestamp)
 
-const internshipStorageSchema = z.object({
+export const internshipStorageSchema = z.object({
   userId: z.string().min(1),
   opportunityId: z.string().min(1),
   offerDate: firestoreTimestamp.optional(),
@@ -46,16 +40,19 @@ const internshipStorageSchema = z.object({
   _schemaVersion: z.literal(1),
 })
 
-const attachmentStorageSchema = z.object({
+export const internshipAttachmentStorageSchema = z.object({
   filePath: z.string().min(1),
   fileName: z.string().optional(),
   contentType: z.string().optional(),
   uploadedAt: firestoreTimestamp,
+  storageGeneration: z.string().optional(),
+  deletedAt: firestoreTimestamp.optional(),
+  deletedByUserId: z.string().optional(),
   _schemaVersion: z.number().int().optional(),
 })
 
 type InternshipStorage = z.infer<typeof internshipStorageSchema>
-type AttachmentStorage = z.infer<typeof attachmentStorageSchema>
+type AttachmentStorage = z.infer<typeof internshipAttachmentStorageSchema>
 
 type ServerTimestamp = ReturnType<typeof FieldValue.serverTimestamp>
 type DeleteField = ReturnType<typeof FieldValue.delete>
@@ -108,18 +105,23 @@ type AttachmentWrite = {
   filePath: string
   fileName?: string
   contentType?: string
+  storageGeneration?: string
   _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
 }
 type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
+type AttachmentSoftDeleteUpdate = {
+  deletedAt: Timestamp
+  deletedByUserId: string
+}
 
-const COLLECTION = 'internships'
-const SENTINEL_COLLECTION = 'internshipApplications'
+export const INTERNSHIP_COLLECTION = 'internships'
+export const INTERNSHIP_SENTINEL_COLLECTION = 'internshipApplications'
 
 function tsToDate(ts: Timestamp | null | undefined): Date | undefined {
   return ts ? ts.toDate() : undefined
 }
 
-function sentinelDocId(userId: string, opportunityId: string): string {
+export function sentinelDocId(userId: string, opportunityId: string): string {
   return `${encodeURIComponent(userId)}__${encodeURIComponent(opportunityId)}`
 }
 
@@ -127,24 +129,31 @@ function dateToWrite(date: Date | undefined): Timestamp | DeleteField {
   return date ? FsTimestamp.fromDate(date) : FieldValue.delete()
 }
 
-function mapStorageToInternship(id: string, storage: InternshipStorage): Internship {
-  return Internship.rehydrate({
-    id,
-    version: storage.version,
-    userId: storage.userId,
-    opportunityId: storage.opportunityId,
-    offerDate: tsToDate(storage.offerDate),
-    startDate: tsToDate(storage.startDate),
-    endDate: tsToDate(storage.endDate),
-    status: storage.status,
-    coordinatorDecision: storage.coordinatorDecision ?? undefined,
-    coordinatorComment: storage.coordinatorComment ?? undefined,
-    reviewedByUserId: storage.reviewedByUserId ?? undefined,
-    reviewedAt: tsToDate(storage.reviewedAt),
-    lastSubmittedAt: tsToDate(storage.lastSubmittedAt),
-    createdAt: storage.createdAt.toDate(),
-    updatedAt: storage.updatedAt.toDate(),
-  })
+function mapStorageToInternship(
+  id: string,
+  storage: InternshipStorage,
+  attachments: readonly Attachment[]
+): Internship {
+  return Internship.rehydrate(
+    {
+      id,
+      version: storage.version,
+      userId: storage.userId,
+      opportunityId: storage.opportunityId,
+      offerDate: tsToDate(storage.offerDate),
+      startDate: tsToDate(storage.startDate),
+      endDate: tsToDate(storage.endDate),
+      status: storage.status,
+      coordinatorDecision: storage.coordinatorDecision ?? undefined,
+      coordinatorComment: storage.coordinatorComment ?? undefined,
+      reviewedByUserId: storage.reviewedByUserId ?? undefined,
+      reviewedAt: tsToDate(storage.reviewedAt),
+      lastSubmittedAt: tsToDate(storage.lastSubmittedAt),
+      createdAt: storage.createdAt.toDate(),
+      updatedAt: storage.updatedAt.toDate(),
+    },
+    attachments
+  )
 }
 
 function internshipToCreatePayload(internship: Internship): InternshipCreateWrite {
@@ -185,16 +194,40 @@ function activityToPayload(activity: InternshipActivity): InternshipActivityWrit
   }
 }
 
+function attachmentToPayload(attachment: Attachment): AttachmentDoc {
+  return {
+    filePath: attachment.filePath,
+    ...(attachment.fileName !== undefined ? { fileName: attachment.fileName } : {}),
+    ...(attachment.contentType !== undefined ? { contentType: attachment.contentType } : {}),
+    ...(attachment.storageGeneration !== undefined
+      ? { storageGeneration: attachment.storageGeneration }
+      : {}),
+    uploadedAt: FsTimestamp.fromDate(attachment.uploadedAt),
+    _schemaVersion: ATTACHMENT_SCHEMA_VERSION,
+  }
+}
+
 export class FirestoreInternshipRepository implements InternshipRepository {
   constructor(private readonly txn: Transaction) {}
 
   async findById(id: string): Promise<Internship | null> {
     return translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(id)
-        const snap = await this.txn.get(ref)
-        if (!snap.exists) return null
-        return parseInternship(snap.id, snap.data())
+        const ref = adminDb.collection(INTERNSHIP_COLLECTION).doc(id)
+        // All reads must precede writes within a Firestore transaction;
+        // eager-loading attachments here keeps the aggregate self-contained
+        // for invariant checks (e.g. `softDeleteAttachment`, `submitOffer`'s
+        // attachment requirement) without leaking a second `txn.get` into
+        // every handler.
+        const [parentSnap, attachmentSnap] = await Promise.all([
+          this.txn.get(ref),
+          this.txn.get(ref.collection('attachments').orderBy('uploadedAt', 'asc')),
+        ])
+        if (!parentSnap.exists) return null
+        const attachments = attachmentSnap.docs.map((doc) =>
+          parseInternshipAttachment(doc.id, doc.data())
+        )
+        return parseInternship(parentSnap.id, parentSnap.data(), attachments)
       },
       { op: 'internships.findById', resource: 'Internship', id }
     )
@@ -206,169 +239,58 @@ export class FirestoreInternshipRepository implements InternshipRepository {
   ): Promise<Internship | null> {
     return translateFirestoreErrors(
       async () => {
-        const snap = await this.txn.get(
-          adminDb
-            .collection(COLLECTION)
-            .where('userId', '==', userId)
-            .where('opportunityId', '==', opportunityId)
-            .limit(1)
-        )
+        const query = adminDb
+          .collection(INTERNSHIP_COLLECTION)
+          .where('userId', '==', userId)
+          .where('opportunityId', '==', opportunityId)
+          .limit(1)
+        const snap = await this.txn.get(query)
         const doc = snap.docs[0]
-        return doc ? parseInternship(doc.id, doc.data()) : null
+        if (!doc) return null
+        // Uniqueness check, not full hydration — callers that mutate
+        // should re-load via findById to get the attachments subcollection.
+        return parseInternship(doc.id, doc.data(), [])
       },
-      {
-        op: 'internships.findByUserIdAndOpportunityId',
-        resource: 'Internship',
-      }
+      { op: 'internships.findByUserIdAndOpportunityId', resource: 'Internship' }
     )
   }
 
-  async list(filter: InternshipListFilter): Promise<InternshipListPage> {
-    return translateFirestoreErrors(
-      async () => {
-        let q: Query = adminDb.collection(COLLECTION)
-
-        if (filter.userId !== undefined) q = q.where('userId', '==', filter.userId)
-        if (filter.opportunityId !== undefined) {
-          q = q.where('opportunityId', '==', filter.opportunityId)
-        }
-        if (filter.status && filter.status.length > 0) {
-          q =
-            filter.status.length === 1
-              ? q.where('status', '==', filter.status[0])
-              : q.where('status', 'in', [...filter.status])
-        }
-
-        q = q
-          .orderBy(filter.sortField, filter.sortDirection)
-          .orderBy('__name__', filter.sortDirection)
-
-        if (filter.cursor) {
-          q = q.startAfter(filter.cursor.lastValue ?? null, filter.cursor.lastDocId)
-        }
-
-        q = q.limit(filter.limit + 1)
-        const result = await q.get()
-        const hasMore = result.size > filter.limit
-        const docs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
-        const items = docs.map((doc) => parseInternship(doc.id, doc.data()))
-
-        let nextCursor: InternshipListCursor | null = null
-        if (hasMore) {
-          const last = docs[docs.length - 1]!
-          const value = last.data()[filter.sortField]
-          const lastValue = value && typeof value.toDate === 'function' ? value.toDate() : null
-          nextCursor = {
-            sortField: filter.sortField,
-            sortDirection: filter.sortDirection,
-            lastValue,
-            lastDocId: last.id,
-          }
-        }
-
-        return { items, nextCursor }
-      },
-      { op: 'internships.list', resource: 'Internship' }
-    )
+  /** Upsert. `version === 0` → first-write; else optimistic-lock update. */
+  async save(internship: Internship): Promise<void> {
+    if (internship.version === 0) {
+      await this.insertNew(internship)
+      return
+    }
+    await this.updateExisting(internship)
   }
 
-  async listByUserId(userId: string): Promise<readonly Internship[]> {
-    return translateFirestoreErrors(
-      async () => {
-        const snap = await this.txn.get(
-          adminDb.collection(COLLECTION).where('userId', '==', userId)
-        )
-        return snap.docs.map((doc) => parseInternship(doc.id, doc.data()))
-      },
-      { op: 'internships.listByUserId', resource: 'Internship' }
-    )
-  }
-
-  async listAttachments(internshipId: string): Promise<readonly InternshipAttachment[]> {
-    return translateFirestoreErrors(
-      async () => {
-        const snap = await this.txn.get(
-          adminDb
-            .collection(COLLECTION)
-            .doc(internshipId)
-            .collection('attachments')
-            .orderBy('uploadedAt', 'asc')
-        )
-        return snap.docs.map((doc) => parseAttachment(doc.id, doc.data()))
-      },
-      { op: 'internships.listAttachments', resource: 'Internship', id: internshipId }
-    )
-  }
-
-  async findAttachmentById(
-    internshipId: string,
-    attachmentId: string
-  ): Promise<InternshipAttachment | null> {
-    return translateFirestoreErrors(
-      async () => {
-        const ref = adminDb
-          .collection(COLLECTION)
-          .doc(internshipId)
-          .collection('attachments')
-          .doc(attachmentId)
-        const snap = await this.txn.get(ref)
-        if (!snap.exists) return null
-        return parseAttachment(snap.id, snap.data())
-      },
-      {
-        op: 'internships.findAttachmentById',
-        resource: 'Internship',
-        id: `${internshipId}/attachments/${attachmentId}`,
-      }
-    )
-  }
-
-  async hasAttachments(internshipId: string): Promise<boolean> {
-    return translateFirestoreErrors(
-      async () => {
-        const snap = await this.txn.get(
-          adminDb.collection(COLLECTION).doc(internshipId).collection('attachments').limit(1)
-        )
-        return !snap.empty
-      },
-      { op: 'internships.hasAttachments', resource: 'Internship', id: internshipId }
-    )
-  }
-
-  async saveAttachmentFromStorage(
-    internshipId: string,
-    userId: string,
-    attachment: Attachment
-  ): Promise<{ reflected: boolean }> {
-    return translateFirestoreErrors(
-      async () => {
-        const parentRef = adminDb.collection(COLLECTION).doc(internshipId)
-        const parent = await this.txn.get(parentRef)
-        if (!parent.exists) return { reflected: false }
-
-        const parsedParent = parseInternship(parent.id, parent.data())
-        if (parsedParent.userId !== userId) return { reflected: false }
-
-        this.txn.set(
-          parentRef.collection('attachments').doc(attachment.id),
-          attachmentToPayload(attachment)
-        )
-        return { reflected: true }
-      },
-      {
-        op: 'internships.saveAttachmentFromStorage',
-        resource: 'Internship',
-        id: internshipId,
-      }
-    )
-  }
-
-  async create(internship: Internship): Promise<void> {
+  async delete(id: string): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(internship.id)
+        const ref = adminDb.collection(INTERNSHIP_COLLECTION).doc(id)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) throw new NotFoundError('Internship', id)
+        const data = snap.data()
+        const userId = data?.['userId'] as string | undefined
+        const opportunityId = data?.['opportunityId'] as string | undefined
+        if (userId && opportunityId) {
+          const sentinelRef = adminDb
+            .collection(INTERNSHIP_SENTINEL_COLLECTION)
+            .doc(sentinelDocId(userId, opportunityId))
+          this.txn.delete(sentinelRef)
+        }
+        this.txn.delete(ref)
+      },
+      { op: 'internships.delete', resource: 'Internship', id }
+    )
+  }
+
+  private async insertNew(internship: Internship): Promise<void> {
+    await translateFirestoreErrors(
+      async () => {
+        const ref = adminDb.collection(INTERNSHIP_COLLECTION).doc(internship.id)
         const sentinelRef = adminDb
-          .collection(SENTINEL_COLLECTION)
+          .collection(INTERNSHIP_SENTINEL_COLLECTION)
           .doc(sentinelDocId(internship.userId, internship.opportunityId))
         const doc: InternshipCreateDoc = {
           ...internshipToCreatePayload(internship),
@@ -394,7 +316,7 @@ export class FirestoreInternshipRepository implements InternshipRepository {
         }
       },
       {
-        op: 'internships.create',
+        op: 'internships.save',
         resource: 'Internship',
         id: internship.id,
         conflictReason: 'duplicate_application',
@@ -402,10 +324,10 @@ export class FirestoreInternshipRepository implements InternshipRepository {
     )
   }
 
-  async save(internship: Internship): Promise<void> {
+  private async updateExisting(internship: Internship): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(internship.id)
+        const ref = adminDb.collection(INTERNSHIP_COLLECTION).doc(internship.id)
         const snap = await this.txn.get(ref)
         if (!snap.exists) throw new NotFoundError('Internship', internship.id)
 
@@ -414,11 +336,17 @@ export class FirestoreInternshipRepository implements InternshipRepository {
           throw new PreconditionFailedError('Resource version does not match')
         }
 
-        const update: InternshipUpdateDoc = {
-          ...internshipToUpdatePayload(internship, stored + 1),
-          updatedAt: FieldValue.serverTimestamp(),
+        // Parent-mutation saves rotate version + write the full update doc.
+        // Comment-only saves (pendingActivity set without hasParentMutation)
+        // append the activity row without touching parent state, matching
+        // the historical `addActivity` ETag-stable semantics.
+        if (internship.hasParentMutation) {
+          const update: InternshipUpdateDoc = {
+            ...internshipToUpdatePayload(internship, stored + 1),
+            updatedAt: FieldValue.serverTimestamp(),
+          }
+          this.txn.update(ref, update)
         }
-        this.txn.update(ref, update)
 
         const activity = internship.pendingActivity
         if (activity) {
@@ -427,39 +355,38 @@ export class FirestoreInternshipRepository implements InternshipRepository {
             createdAt: FieldValue.serverTimestamp(),
           } satisfies InternshipActivityDoc)
         }
+
+        for (const added of internship.pendingAttachmentAdds) {
+          this.txn.set(ref.collection('attachments').doc(added.id), attachmentToPayload(added))
+        }
+
+        for (const tombstone of internship.pendingAttachmentSoftDeletes) {
+          const attachmentRef = ref.collection('attachments').doc(tombstone.attachmentId)
+          this.txn.update(attachmentRef, {
+            deletedAt: FsTimestamp.fromDate(tombstone.deletedAt),
+            deletedByUserId: tombstone.deletedByUserId,
+          } satisfies AttachmentSoftDeleteUpdate)
+        }
       },
       { op: 'internships.save', resource: 'Internship', id: internship.id }
     )
   }
-
-  async addActivity(internshipId: string, activity: InternshipActivity): Promise<void> {
-    await translateFirestoreErrors(
-      async () => {
-        const ref = adminDb
-          .collection(COLLECTION)
-          .doc(internshipId)
-          .collection('activity')
-          .doc(activity.id)
-        this.txn.set(ref, {
-          ...activityToPayload(activity),
-          createdAt: FieldValue.serverTimestamp(),
-        } satisfies InternshipActivityDoc)
-      },
-      { op: 'internships.addActivity', resource: 'Internship', id: internshipId }
-    )
-  }
 }
 
-function parseInternship(id: string, raw: unknown): Internship {
+export function parseInternship(
+  id: string,
+  raw: unknown,
+  attachments: readonly Attachment[] = []
+): Internship {
   const parsed = internshipStorageSchema.safeParse(raw)
   if (!parsed.success) {
     throw new Error(`internships/${id} storage-shape validation failed: ${parsed.error.message}`)
   }
-  return mapStorageToInternship(id, parsed.data)
+  return mapStorageToInternship(id, parsed.data, attachments)
 }
 
-function parseAttachment(id: string, raw: unknown): InternshipAttachment {
-  const parsed = attachmentStorageSchema.safeParse(raw)
+export function parseInternshipAttachment(id: string, raw: unknown): Attachment {
+  const parsed = internshipAttachmentStorageSchema.safeParse(raw)
   if (!parsed.success) {
     throw new Error(
       `internships/*/attachments/${id} storage-shape validation failed: ${parsed.error.message}`
@@ -472,16 +399,9 @@ function parseAttachment(id: string, raw: unknown): InternshipAttachment {
     fileName: data.fileName,
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
+    storageGeneration: data.storageGeneration,
+    deletedAt: data.deletedAt ? data.deletedAt.toDate() : undefined,
+    deletedByUserId: data.deletedByUserId,
   }
   return Attachment.rehydrate(props)
-}
-
-function attachmentToPayload(attachment: Attachment): AttachmentDoc {
-  return {
-    filePath: attachment.filePath,
-    ...(attachment.fileName !== undefined ? { fileName: attachment.fileName } : {}),
-    ...(attachment.contentType !== undefined ? { contentType: attachment.contentType } : {}),
-    uploadedAt: FsTimestamp.fromDate(attachment.uploadedAt),
-    _schemaVersion: ATTACHMENT_SCHEMA_VERSION,
-  }
 }

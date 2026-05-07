@@ -11,6 +11,9 @@ describe('Attachment', () => {
       fileName: 'offer.pdf',
       contentType: 'application/pdf',
       uploadedAt,
+      storageGeneration: '1700000000000001',
+      deletedAt: undefined,
+      deletedByUserId: undefined,
     })
 
     expect(attachment.id).toBe('att_001')
@@ -18,6 +21,22 @@ describe('Attachment', () => {
     expect(attachment.fileName).toBe('offer.pdf')
     expect(attachment.contentType).toBe('application/pdf')
     expect(attachment.uploadedAt).toBe(uploadedAt)
+    expect(attachment.storageGeneration).toBe('1700000000000001')
+  })
+
+  it('allows omitting storageGeneration for legacy / pre-trigger metadata', () => {
+    const attachment = Attachment.create({
+      id: 'att_002',
+      filePath: 'opportunities/opp_001/attachments/position.pdf',
+      fileName: 'position.pdf',
+      contentType: 'application/pdf',
+      uploadedAt: new Date(),
+      storageGeneration: undefined,
+      deletedAt: undefined,
+      deletedByUserId: undefined,
+    })
+
+    expect(attachment.storageGeneration).toBeUndefined()
   })
 
   it('rejects empty ids and paths', () => {
@@ -28,6 +47,9 @@ describe('Attachment', () => {
         fileName: 'position.pdf',
         contentType: 'application/pdf',
         uploadedAt: new Date(),
+        storageGeneration: undefined,
+        deletedAt: undefined,
+        deletedByUserId: undefined,
       })
     ).toThrow(expect.objectContaining({ reason: 'invalid_attachment' }))
 
@@ -38,6 +60,9 @@ describe('Attachment', () => {
         fileName: 'position.pdf',
         contentType: 'application/pdf',
         uploadedAt: new Date(),
+        storageGeneration: undefined,
+        deletedAt: undefined,
+        deletedByUserId: undefined,
       })
     ).toThrow(expect.objectContaining({ reason: 'invalid_attachment' }))
   })

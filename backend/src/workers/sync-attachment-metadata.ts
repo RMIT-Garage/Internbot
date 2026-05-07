@@ -11,6 +11,7 @@ export interface StorageObjectFinalizedEvent {
     readonly name?: string
     readonly contentType?: string
     readonly timeCreated?: string | Date
+    readonly generation?: string | number
   }
 }
 
@@ -43,10 +44,19 @@ export class SyncAttachmentMetadataWorker {
           ? new Date(timeCreated)
           : undefined
 
+    const rawGeneration = event.data.generation
+    const generation =
+      typeof rawGeneration === 'string'
+        ? rawGeneration
+        : typeof rawGeneration === 'number'
+          ? String(rawGeneration)
+          : undefined
+
     await this.syncAttachments.handle({
       filePath,
       contentType: event.data.contentType,
       finalizedAt,
+      generation,
     })
   }
 }

@@ -8,6 +8,14 @@ export interface SyncStorageAttachmentCommand {
   readonly filePath: string
   readonly contentType: string | undefined
   readonly finalizedAt: Date | undefined
+  /**
+   * GCS object generation from the OBJECT_FINALIZE event. Persisted on the
+   * Firestore attachment doc so the future outbox-driven hard-delete worker
+   * can issue the GCS delete with `ifGenerationMatch` and avoid clobbering
+   * a re-upload that happened after the soft-delete. Optional only because
+   * some legacy event shapes / tests omit it; new uploads always populate it.
+   */
+  readonly generation: string | undefined
 }
 
 export interface SyncStorageAttachmentResult {
@@ -43,12 +51,20 @@ export class SyncStorageAttachmentCommandHandler {
       fileName: parsed.fileName,
       contentType: normalizeOptionalText(cmd.contentType),
       uploadedAt: cmd.finalizedAt ?? new Date(),
+      storageGeneration: cmd.generation,
+      deletedAt: undefined,
+      deletedByUserId: undefined,
     })
 
     if (parsed.kind === 'opportunity') {
-      const reflected = await this.uow.execute((ctx) =>
-        ctx.opportunities.saveAttachmentFromStorage(parsed.opportunityId, attachment)
-      )
+      const reflected = await this.uow.execute(async (ctx) => {
+        const opportunity = await ctx.opportunities.findById(parsed.opportunityId)
+        if (!opportunity) return false
+        const added = opportunity.recordSyncedAttachment(attachment)
+        if (!added) return true
+        await ctx.opportunities.save(opportunity)
+        return true
+      })
       if (!reflected) {
         await this.attachmentStorage.deleteObject(cmd.filePath)
         return { reflected: false, reason: 'parent_not_found' }
@@ -56,10 +72,15 @@ export class SyncStorageAttachmentCommandHandler {
       return { reflected: true, reason: 'synced' }
     }
 
-    const outcome = await this.uow.execute((ctx) =>
-      ctx.internships.saveAttachmentFromStorage(parsed.internshipId, parsed.userId, attachment)
-    )
-    if (!outcome.reflected) {
+    const reflected = await this.uow.execute(async (ctx) => {
+      const internship = await ctx.internships.findById(parsed.internshipId)
+      if (!internship) return false
+      const added = internship.recordSyncedAttachment(attachment, parsed.userId)
+      if (!added) return internship.userId === parsed.userId
+      await ctx.internships.save(internship)
+      return true
+    })
+    if (!reflected) {
       await this.attachmentStorage.deleteObject(cmd.filePath)
       return { reflected: false, reason: 'prefix_owner_mismatch' }
     }

@@ -2,13 +2,9 @@ import type { RequestActor } from '../actor'
 import type { CommandMetadata } from '../command-metadata'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { InternshipOfferDetails } from '../../domain/entities/internship'
-import {
-  ForbiddenError,
-  MethodNotAllowedError,
-  NotFoundError,
-  PreconditionFailedError,
-} from '../../domain/errors'
+import { MethodNotAllowedError, NotFoundError, PreconditionFailedError } from '../../domain/errors'
 
 export interface UpdateInternshipCommand {
   actor: RequestActor
@@ -24,14 +20,16 @@ export interface UpdateInternshipResult {
 export class UpdateInternshipCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: UpdateInternshipCommand): Promise<UpdateInternshipResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const platformUser = this.authz.requirePlatformUser(cmd.actor)
+    // Method-resolution (not authz): coordinators have no PATCH on internships,
+    // so we surface 405 with `Allow: GET` instead of a 403. Kept inline because
+    // the AuthorizationService primitives only model authz denials (403), not
+    // HTTP method gating.
     if (platformUser.role === 'coordinator') {
       throw new MethodNotAllowedError(
         'GET',
@@ -43,12 +41,7 @@ export class UpdateInternshipCommandHandler {
     return this.uow.execute(async (ctx) => {
       const internship = await ctx.internships.findById(cmd.internshipId)
       if (!internship) throw new NotFoundError('Internship', cmd.internshipId)
-      if (internship.userId !== platformUser.id) {
-        throw new ForbiddenError(
-          'Students may only edit their own internships',
-          'student_not_owner'
-        )
-      }
+      this.authz.requireSelfOrRole(cmd.actor, internship.userId, [], 'student_not_owner')
 
       const expected = cmd.metadata?.expectedVersion
       if (expected !== undefined && expected !== internship.version) {

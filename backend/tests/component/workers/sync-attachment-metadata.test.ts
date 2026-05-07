@@ -39,6 +39,10 @@ function buildWorker(storage: AttachmentStorage = new RecordingAttachmentStorage
 
 async function seedOpportunity(opportunityId: string): Promise<void> {
   const now = Timestamp.fromDate(new Date('2026-04-01T00:00:00Z'))
+  // Pre-approved opportunities have no `createdByUserId` / `submittedByUserId`
+  // / `verifiedByUserId` / `verifiedAt` — the production repo omits the
+  // optional fields rather than persisting `null`, and the storage zod
+  // schema only accepts `optional()` (undefined), not nullable.
   await adminDb
     .collection('opportunities')
     .doc(opportunityId)
@@ -50,10 +54,6 @@ async function seedOpportunity(opportunityId: string): Promise<void> {
       descriptionText: 'Build software',
       status: 'published',
       applicationCount: 0,
-      createdByUserId: null,
-      submittedByUserId: null,
-      verifiedByUserId: null,
-      verifiedAt: null,
       version: 1,
       createdAt: now,
       updatedAt: now,

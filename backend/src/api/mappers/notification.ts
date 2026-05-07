@@ -1,11 +1,9 @@
 import type { RequestActor } from '../../application/actor'
-import type {
-  NotificationListResultWithCursor,
-  NotificationResult,
-} from '../../application/models/notification'
+import type { NotificationListResultWithCursor } from '../../application/queries/list-notifications'
+import type { NotificationResult } from '../../application/queries/get-notification'
 import type { MarkNotificationReadCommand } from '../../application/commands/mark-notification-read'
 import type { MarkAllNotificationsReadCommand } from '../../application/commands/mark-all-notifications-read'
-import type { NotificationListCursor } from '../../domain/repositories/notification-repository'
+import type { NotificationListCursor } from '../../application/read-models/notification'
 import type {
   MarkAllNotificationsReadResponse,
   NotificationListResponse,

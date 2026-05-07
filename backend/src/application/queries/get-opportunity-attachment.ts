@@ -1,8 +1,12 @@
 import type { RequestActor } from '../actor'
-import type { AttachmentDownloadResult } from '../models/attachment'
+import type { OpportunityQueryService } from '../ports/queries/opportunity-query-service'
+import type { UserQueryService } from '../ports/queries/user-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { AttachmentStorage } from '../ports/attachment-storage'
-import type { UnitOfWork, UnitOfWorkContext } from '../ports/unit-of-work'
 import { ConflictError, ForbiddenError, NotFoundError } from '../../domain/errors'
+
+export type { AttachmentDownloadResult } from './get-internship-attachment'
+import type { AttachmentDownloadResult } from './get-internship-attachment'
 
 export interface GetOpportunityAttachmentQuery {
   readonly actor: RequestActor
@@ -22,7 +26,9 @@ export class GetOpportunityAttachmentQueryHandler {
   private readonly now: () => Date
 
   constructor(
-    private readonly uow: UnitOfWork,
+    private readonly opportunityQueries: OpportunityQueryService,
+    private readonly userQueries: UserQueryService,
+    private readonly authz: AuthorizationService,
     private readonly attachmentStorage: AttachmentStorage,
     options: AttachmentDownloadOptions = {}
   ) {
@@ -31,32 +37,29 @@ export class GetOpportunityAttachmentQueryHandler {
   }
 
   async handle(q: GetOpportunityAttachmentQuery): Promise<AttachmentDownloadResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
+    const platformUser = this.authz.requirePlatformUser(q.actor)
+
+    const opportunity = await this.opportunityQueries.findById(q.opportunityId)
+    if (!opportunity) throw new NotFoundError('Opportunity', q.opportunityId)
+
+    if (platformUser.role === 'student') {
+      const semesterId = await this.selectedSemesterId(platformUser.id)
+      const canRead =
+        (opportunity.status === 'published' && opportunity.semesterId === semesterId) ||
+        opportunity.submittedByUserId === platformUser.id
+      if (!canRead) {
+        throw new ForbiddenError(
+          'Opportunity is not visible to this student',
+          'opportunity_not_visible'
+        )
+      }
     }
 
-    const attachment = await this.uow.execute(async (ctx) => {
-      const opportunity = await ctx.opportunities.findById(q.opportunityId)
-      if (!opportunity) throw new NotFoundError('Opportunity', q.opportunityId)
-
-      if (platformUser.role === 'student') {
-        const semesterId = await selectedSemesterId(ctx, platformUser.id)
-        const canRead =
-          (opportunity.status === 'published' && opportunity.semesterId === semesterId) ||
-          opportunity.submittedByUserId === platformUser.id
-        if (!canRead) {
-          throw new ForbiddenError(
-            'Opportunity is not visible to this student',
-            'opportunity_not_visible'
-          )
-        }
-      }
-
-      const found = await ctx.opportunities.findAttachmentById(q.opportunityId, q.attachmentId)
-      if (!found) throw new NotFoundError('Attachment', q.attachmentId)
-      return found
-    })
+    const attachment = await this.opportunityQueries.findAttachmentById(
+      q.opportunityId,
+      q.attachmentId
+    )
+    if (!attachment) throw new NotFoundError('Attachment', q.attachmentId)
 
     const downloadUrlExpiresAt = new Date(this.now().getTime() + this.ttlMs)
     const downloadUrl = await this.attachmentStorage.createReadUrl(
@@ -65,13 +68,16 @@ export class GetOpportunityAttachmentQueryHandler {
     )
     return { attachment, downloadUrl, downloadUrlExpiresAt }
   }
-}
 
-async function selectedSemesterId(ctx: UnitOfWorkContext, userId: string): Promise<string> {
-  const user = await ctx.users.findById(userId)
-  const semesterId = user?.studentProfile?.semesterId
-  if (!user || user.role !== 'student' || semesterId === undefined) {
-    throw new ConflictError('Student has no selected semester', 'student_has_no_selected_semester')
+  private async selectedSemesterId(userId: string): Promise<string> {
+    const user = await this.userQueries.findById(userId)
+    const semesterId = user?.studentProfile?.semesterId
+    if (!user || user.role !== 'student' || semesterId === undefined) {
+      throw new ConflictError(
+        'Student has no selected semester',
+        'student_has_no_selected_semester'
+      )
+    }
+    return semesterId
   }
-  return semesterId
 }

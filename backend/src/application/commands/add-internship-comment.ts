@@ -1,8 +1,13 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
-import type { InternshipActivityResult } from '../models/internship'
-import { ForbiddenError, NotFoundError } from '../../domain/errors'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { InternshipActivity } from '../../domain/value-objects/internship-activity'
+import { NotFoundError } from '../../domain/errors'
+
+export interface InternshipActivityResult {
+  activity: InternshipActivity
+}
 
 export interface AddInternshipCommentCommand {
   actor: RequestActor
@@ -13,24 +18,20 @@ export interface AddInternshipCommentCommand {
 export class AddInternshipCommentCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: AddInternshipCommentCommand): Promise<InternshipActivityResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-
     return this.uow.execute(async (ctx) => {
       const internship = await ctx.internships.findById(cmd.internshipId)
       if (!internship) throw new NotFoundError('Internship', cmd.internshipId)
-      if (platformUser.role === 'student' && internship.userId !== platformUser.id) {
-        throw new ForbiddenError(
-          'Students may only comment on their own internships',
-          'student_not_owner'
-        )
-      }
+      const platformUser = this.authz.requireSelfOrRole(
+        cmd.actor,
+        internship.userId,
+        ['coordinator'],
+        'student_not_owner'
+      )
 
       const activity = internship.comment(
         this.idGenerator.next(),
@@ -39,7 +40,7 @@ export class AddInternshipCommentCommandHandler {
         cmd.text,
         new Date()
       )
-      await ctx.internships.addActivity(internship.id, activity)
+      await ctx.internships.save(internship)
       return { activity }
     })
   }

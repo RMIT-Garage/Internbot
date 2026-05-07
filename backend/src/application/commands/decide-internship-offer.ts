@@ -2,9 +2,10 @@ import type { RequestActor } from '../actor'
 import type { CommandMetadata } from '../command-metadata'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { InternshipDecisionDetails } from '../../domain/entities/internship'
 import { Notification } from '../../domain/entities/notification'
-import { ForbiddenError, NotFoundError, PreconditionFailedError } from '../../domain/errors'
+import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 
 export interface DecideInternshipOfferCommand {
   actor: RequestActor
@@ -20,20 +21,12 @@ export interface DecideInternshipOfferResult {
 export class DecideInternshipOfferCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: DecideInternshipOfferCommand): Promise<DecideInternshipOfferResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-    if (platformUser.role !== 'coordinator') {
-      throw new ForbiddenError(
-        'Only coordinators may decide internship offers',
-        'role_restricted_action'
-      )
-    }
+    const platformUser = this.authz.requireRole(cmd.actor, 'coordinator')
 
     return this.uow.execute(async (ctx) => {
       const internship = await ctx.internships.findById(cmd.internshipId)
@@ -47,7 +40,7 @@ export class DecideInternshipOfferCommandHandler {
       const now = new Date()
       internship.decideOffer(cmd.payload, this.idGenerator.next(), platformUser.id, now)
       await ctx.internships.save(internship)
-      await ctx.notifications.create(
+      await ctx.notifications.save(
         Notification.forOfferDecision({
           id: this.idGenerator.next(),
           userId: internship.userId,

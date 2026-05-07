@@ -1,4 +1,4 @@
-import { ValidationError } from '../errors'
+import { ConflictError, ValidationError } from '../errors'
 
 export interface AttachmentProps {
   readonly id: string
@@ -6,6 +6,14 @@ export interface AttachmentProps {
   readonly fileName: string | undefined
   readonly contentType: string | undefined
   readonly uploadedAt: Date
+  readonly storageGeneration: string | undefined
+  /**
+   * Soft-delete tombstone timestamp. When set, list/get queries hide this
+   * attachment from API responses; the doc remains so a future outbox-driven
+   * worker can delete the GCS object and (optionally) hard-delete the row.
+   */
+  readonly deletedAt: Date | undefined
+  readonly deletedByUserId: string | undefined
 }
 
 export class Attachment {
@@ -45,6 +53,34 @@ export class Attachment {
 
   get uploadedAt(): Date {
     return this.#props.uploadedAt
+  }
+
+  get storageGeneration(): string | undefined {
+    return this.#props.storageGeneration
+  }
+
+  get deletedAt(): Date | undefined {
+    return this.#props.deletedAt
+  }
+
+  get deletedByUserId(): string | undefined {
+    return this.#props.deletedByUserId
+  }
+
+  get isDeleted(): boolean {
+    return this.#props.deletedAt !== undefined
+  }
+
+  /**
+   * Returns a new Attachment marked deleted. Throws if already deleted so the
+   * aggregate can surface a clean 404 (the storage row remains until a future
+   * outbox worker hard-deletes the GCS object).
+   */
+  markDeleted(deletedByUserId: string, deletedAt: Date): Attachment {
+    if (this.#props.deletedAt !== undefined) {
+      throw new ConflictError('Attachment already deleted', 'attachment_already_deleted')
+    }
+    return new Attachment({ ...this.#props, deletedAt, deletedByUserId })
   }
 }
 

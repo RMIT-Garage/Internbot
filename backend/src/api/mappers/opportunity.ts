@@ -1,16 +1,18 @@
 import type { RequestActor } from '../../application/actor'
 import type {
+  ListOpportunitiesQuery,
   OpportunityListResultWithCursor,
-  OpportunityReadModel,
-  OpportunityResult,
-} from '../../application/models/opportunity'
-import type { AttachmentDownloadResult } from '../../application/models/attachment'
+} from '../../application/queries/list-opportunities'
+import type { OpportunityResult } from '../../application/queries/get-opportunity'
+import type { AttachmentDownloadResult } from '../../application/queries/get-internship-attachment'
 import type { CreateOpportunityCommand } from '../../application/commands/create-opportunity'
 import type { UpdateOpportunityCommand } from '../../application/commands/update-opportunity'
 import type { TransitionOpportunityCommand } from '../../application/commands/transition-opportunity'
 import type { VerifyOpportunityCommand } from '../../application/commands/verify-opportunity'
-import type { ListOpportunitiesQuery } from '../../application/queries/list-opportunities'
-import type { OpportunityListCursor } from '../../domain/repositories/opportunity-repository'
+import type {
+  OpportunityListCursor,
+  OpportunityReadModel,
+} from '../../application/read-models/opportunity'
 import type {
   OpportunityStatus,
   OpportunityType,

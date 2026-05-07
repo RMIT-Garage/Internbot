@@ -12,6 +12,7 @@ import { CreateSemesterCommandHandler } from '../../../src/application/commands/
 import { TransitionSemesterCommandHandler } from '../../../src/application/commands/transition-semester'
 import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../src/infrastructure/firestore/firestore-id-generator'
+import { defaultAuthorizationService } from '../../../src/infrastructure/authorization/default-authorization-service'
 import { adminDb, Timestamp } from '../../../src/infrastructure/config/firebase-admin'
 import { User } from '../../../src/domain/entities/user'
 import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
@@ -33,7 +34,7 @@ async function provisionUser(
 ): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id: platformUserId,
         version: 0,
@@ -87,8 +88,12 @@ async function makeStudent(semesterId?: string) {
 
 async function createActiveSemester(): Promise<string> {
   const uow = new FirestoreUnitOfWork()
-  const create = new CreateSemesterCommandHandler(uow, firestoreIdGenerator)
-  const transition = new TransitionSemesterCommandHandler(uow)
+  const create = new CreateSemesterCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
+  const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
   const actor = {
     firebaseUid: `fb_${randomUUID()}`,
     email: 'coord@rmit.edu.au',

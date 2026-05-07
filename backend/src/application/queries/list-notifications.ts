@@ -1,8 +1,18 @@
 import type { RequestActor } from '../actor'
-import type { NotificationListResultWithCursor } from '../models/notification'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import type { NotificationListCursor } from '../../domain/repositories/notification-repository'
-import { ForbiddenError } from '../../domain/errors'
+import type { NotificationQueryService } from '../ports/queries/notification-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { Notification } from '../../domain/entities/notification'
+import type { NotificationListCursor } from '../read-models/notification'
+
+export interface NotificationListResult {
+  readonly items: readonly Notification[]
+  readonly nextPageToken: string | null
+  readonly unreadCount: number
+}
+
+export interface NotificationListResultWithCursor extends NotificationListResult {
+  readonly cursor: NotificationListCursor | null
+}
 
 export interface ListNotificationsQuery {
   actor: RequestActor
@@ -14,28 +24,26 @@ export interface ListNotificationsQuery {
 }
 
 export class ListNotificationsQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly notificationQueries: NotificationQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: ListNotificationsQuery): Promise<NotificationListResultWithCursor> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const platformUser = this.authz.requirePlatformUser(q.actor)
 
-    return this.uow.execute(async (ctx) => {
-      const page = await ctx.notifications.list({
-        userId: platformUser.id,
-        unreadOnly: q.filter.unreadOnly,
-        limit: q.filter.limit,
-        cursor: q.filter.cursor,
-      })
-      const unreadCount = await ctx.notifications.countUnreadByUserId(platformUser.id)
-      return {
-        items: page.items,
-        nextPageToken: null,
-        unreadCount,
-        cursor: page.nextCursor,
-      }
+    const page = await this.notificationQueries.list({
+      userId: platformUser.id,
+      unreadOnly: q.filter.unreadOnly,
+      limit: q.filter.limit,
+      cursor: q.filter.cursor,
     })
+    const unreadCount = await this.notificationQueries.countUnreadByUserId(platformUser.id)
+    return {
+      items: page.items,
+      nextPageToken: null,
+      unreadCount,
+      cursor: page.nextCursor,
+    }
   }
 }

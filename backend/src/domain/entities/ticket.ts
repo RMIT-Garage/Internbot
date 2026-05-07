@@ -44,10 +44,15 @@ const ALLOWED_TRANSITIONS: readonly AllowedTransition[] = [
  * fields, so every write is a `transition` activity row plus a status change.
  * Reply threads live under `tickets/{id}/replies` and are independent of the
  * ticket's own ETag (replies do not rotate `version`).
+ *
+ * The aggregate stages mutations transactionally via `#pendingActivity`
+ * (state transitions — rotate version) and `#pendingReply` (conversation
+ * thread — no version rotation). The repository's `save()` drains both.
  */
 export class Ticket {
   #props: TicketProps
   #pendingActivity: TicketActivity | undefined
+  #pendingReply: TicketReply | undefined
 
   private constructor(props: TicketProps, pendingActivity?: TicketActivity) {
     this.#props = props
@@ -124,18 +129,22 @@ export class Ticket {
   get pendingActivity(): TicketActivity | undefined {
     return this.#pendingActivity
   }
+  get pendingReply(): TicketReply | undefined {
+    return this.#pendingReply
+  }
 
   /**
    * Apply a state transition. Throws when the (from → to) pair is not in the
    * allowed table, or when the actor's role is not permitted to perform the
-   * transition. Returns the activity record so callers can persist it.
+   * transition. Stages an activity record on `#pendingActivity` for the
+   * repository's `save()` to persist atomically with the parent doc update.
    */
   transition(
     details: TicketTransitionDetails,
     actor: { userId: string; role: Role; isOwner: boolean },
     activityId: string,
     now: Date
-  ): TicketActivity {
+  ): void {
     const allowed = ALLOWED_TRANSITIONS.find(
       (t) => t.from === this.#props.status && t.to === details.to
     )
@@ -160,27 +169,28 @@ export class Ticket {
       )
     }
 
-    const activity = TicketActivity.transition({
+    const from = this.#props.status
+    this.#props = { ...this.#props, status: details.to, updatedAt: now }
+    this.#pendingActivity = TicketActivity.transition({
       id: activityId,
-      from: this.#props.status,
+      from,
       to: details.to,
       actorUserId: actor.userId,
       actorRole: actor.role,
       comment: details.comment,
       createdAt: now,
     })
-    this.#props = { ...this.#props, status: details.to, updatedAt: now }
-    this.#pendingActivity = activity
-    return activity
   }
 
   /**
-   * Build a reply VO scoped to this ticket. The aggregate stays unchanged
-   * apart from `updatedAt`; callers persist the reply separately so that
-   * adding a reply does not rotate the ticket's ETag.
+   * Stage a reply on this ticket. Bumps `updatedAt` but does *not* rotate
+   * `version` — replies are conversation-thread items, not state mutations.
+   * Drained by the repository's `save()` alongside the `updatedAt` write.
+   * Returns the staged VO so callers that need to surface it in their HTTP
+   * response (e.g. POST replies) don't have to re-read `pendingReply`.
    */
-  reply(
-    activityId: string,
+  addReply(
+    replyId: string,
     actor: { userId: string; role: Role; isOwner: boolean },
     text: string,
     now: Date
@@ -189,17 +199,16 @@ export class Ticket {
       throw new ForbiddenError('Students may only reply to their own tickets', 'student_not_owner')
     }
 
-    return TicketReply.create({
-      id: activityId,
+    const reply = TicketReply.create({
+      id: replyId,
       authorUserId: actor.userId,
       authorRole: actor.role,
       text,
       createdAt: now,
     })
-  }
-
-  bumpUpdatedAt(now: Date): void {
+    this.#pendingReply = reply
     this.#props = { ...this.#props, updatedAt: now }
+    return reply
   }
 }
 

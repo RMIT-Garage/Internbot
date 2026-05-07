@@ -1,12 +1,8 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { CommandMetadata } from '../command-metadata'
-import {
-  NotFoundError,
-  ForbiddenError,
-  MethodNotAllowedError,
-  PreconditionFailedError,
-} from '../../domain/errors'
+import type { AuthorizationService } from '../ports/authorization-service'
+import { NotFoundError, MethodNotAllowedError, PreconditionFailedError } from '../../domain/errors'
 import { AcademicInfo } from '../../domain/value-objects/academic-info'
 
 /**
@@ -19,10 +15,10 @@ import { AcademicInfo } from '../../domain/value-objects/academic-info'
  *   - `academicInfo.confirmedAt` is set exactly once on the first write
  *     that transitions profileStatus from incomplete to complete
  *
- * Authz is inline — each handler owns its rules. Domain logic is delegated
- * to the `User` aggregate's mutation methods; the handler only translates
- * patch keys to method calls and saves. Strict CQRS: returns `{ id }` only;
- * the route runs a follow-up `GetUserQueryHandler` for the response body.
+ * Domain logic is delegated to the `User` aggregate's mutation methods;
+ * the handler only translates patch keys to method calls and saves. Strict
+ * CQRS: returns `{ id }` only; the route runs a follow-up `GetUserQueryHandler`
+ * for the response body.
  */
 export interface AcademicInfoPatch {
   programName: string
@@ -54,17 +50,17 @@ export interface UpdateUserProfileResult {
 }
 
 export class UpdateUserProfileCommandHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(cmd: UpdateUserProfileCommand): Promise<UpdateUserProfileResult> {
-    // Authz (transport-concern, stays in handler):
-    //   - caller must be synced (has platformUser)
-    //   - coordinators have no writable fields here → 405
-    //   - students may only edit their own record
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const platformUser = this.authz.requirePlatformUser(cmd.actor)
+    // Method-resolution (not authz): coordinators have no PATCH on /users/:id,
+    // so we surface 405 with `Allow: GET` instead of a 403. Kept inline because
+    // the AuthorizationService primitives only model authz denials (403), not
+    // HTTP method gating.
     if (platformUser.role === 'coordinator') {
       throw new MethodNotAllowedError(
         'GET',
@@ -72,28 +68,17 @@ export class UpdateUserProfileCommandHandler {
         'role_restricted_action'
       )
     }
-    if (platformUser.id !== cmd.userId) {
-      throw new ForbiddenError('Students may only update their own record', 'student_not_owner')
-    }
+    this.authz.requireSelfOrRole(cmd.actor, cmd.userId, [], 'student_not_owner')
 
     return this.uow.execute(async (uow) => {
       const user = await uow.users.findById(cmd.userId)
       if (!user) throw new NotFoundError('User', cmd.userId)
 
-      // Optimistic concurrency: the client's If-Match token (parsed into
-      // `metadata.expectedVersion` at the api boundary) is checked against
-      // the loaded aggregate's version. The repository's `save()` will
-      // double-check atomically at write time, but we throw early here to
-      // produce a clean 412 without mutating the aggregate on stale input.
       const expected = cmd.metadata?.expectedVersion
       if (expected !== undefined && expected !== user.version) {
         throw new PreconditionFailedError('Resource version does not match')
       }
 
-      // Domain mutations — delegated to the aggregate. Each method
-      // enforces its own invariants (e.g. student-only, studentNumber
-      // immutability) and reconciles derived state (profileStatus,
-      // onboardingStage, confirmedAt stamping).
       if (cmd.patch.studentNumber !== undefined) {
         user.ensureStudentNumberMatches(cmd.patch.studentNumber)
       }

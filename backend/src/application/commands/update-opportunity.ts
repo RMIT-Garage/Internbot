@@ -1,8 +1,9 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { CommandMetadata } from '../command-metadata'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { WorkMode } from '../../domain/value-objects/opportunity-enums'
-import { ForbiddenError, NotFoundError, PreconditionFailedError } from '../../domain/errors'
+import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 
 export interface UpdateOpportunityCommand {
   actor: RequestActor
@@ -23,19 +24,13 @@ export interface UpdateOpportunityResult {
 }
 
 export class UpdateOpportunityCommandHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(cmd: UpdateOpportunityCommand): Promise<UpdateOpportunityResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-    if (platformUser.role !== 'coordinator') {
-      throw new ForbiddenError(
-        'Only coordinators may update opportunities',
-        'role_restricted_action'
-      )
-    }
+    this.authz.requireRole(cmd.actor, 'coordinator')
 
     return this.uow.execute(async (ctx) => {
       const opportunity = await ctx.opportunities.findById(cmd.opportunityId)

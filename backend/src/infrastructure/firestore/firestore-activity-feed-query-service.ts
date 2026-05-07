@@ -1,17 +1,12 @@
 import { z } from 'zod'
-import {
-  Timestamp,
-  type Query,
-  type QueryDocumentSnapshot,
-  type Transaction,
-} from 'firebase-admin/firestore'
+import { Timestamp, type Query, type QueryDocumentSnapshot } from 'firebase-admin/firestore'
 import { Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
+import type { ActivityFeedQueryService } from '../../application/ports/queries/activity-feed-query-service'
 import type {
-  ActivityFeedRepository,
   UserActivityFeedFilter,
+  UserActivityFeedItem,
   UserActivityFeedPage,
-} from '../../application/ports/activity-feed-repository'
-import type { UserActivityFeedItem } from '../../application/models/user-activity'
+} from '../../application/read-models/user-activity'
 import { internshipActivityTypeValues } from '../../domain/value-objects/internship-enums'
 import {
   opportunityActivityTypeValues,
@@ -48,9 +43,16 @@ const opportunityActivityStorageSchema = z.object({
 type InternshipActivityStorage = z.infer<typeof internshipActivityStorageSchema>
 type OpportunityActivityStorage = z.infer<typeof opportunityActivityStorageSchema>
 
-export class FirestoreActivityFeedRepository implements ActivityFeedRepository {
-  constructor(private readonly txn: Transaction) {}
-
+/**
+ * Firestore impl of the read-side `ActivityFeedQueryService`. Singleton —
+ * not bound to a Firestore Transaction, so list traffic does not pay the
+ * per-read transactional overhead.
+ *
+ * The feed is a read-model projection across the `internships/*\/activity`
+ * and `opportunities/*\/activity` collection groups — there is no
+ * "activity aggregate", so this has no write-side counterpart.
+ */
+export class FirestoreActivityFeedQueryService implements ActivityFeedQueryService {
   async listByAuthor(filter: UserActivityFeedFilter): Promise<UserActivityFeedPage> {
     return translateFirestoreErrors(
       async () => {
@@ -69,7 +71,7 @@ export class FirestoreActivityFeedRepository implements ActivityFeedRepository {
           }
 
           q = q.limit(filter.limit + 1)
-          const result = await this.txn.get(q)
+          const result = await q.get()
           const hasMore = result.size > filter.limit
           const docs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
           const items = docs.map(parseActivityDocument)
@@ -187,3 +189,7 @@ function isFailedPrecondition(err: unknown): boolean {
     (err as { code?: unknown }).code === 'failed-precondition'
   )
 }
+
+/** Production singleton. */
+export const firestoreActivityFeedQueryService: ActivityFeedQueryService =
+  new FirestoreActivityFeedQueryService()

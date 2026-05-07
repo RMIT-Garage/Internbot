@@ -1,8 +1,15 @@
 import type { RequestActor } from '../actor'
-import type { AttachmentDownloadResult } from '../models/attachment'
+import type { InternshipQueryService } from '../ports/queries/internship-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { Attachment } from '../../domain/value-objects/attachment'
 import type { AttachmentStorage } from '../ports/attachment-storage'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import { ForbiddenError, NotFoundError } from '../../domain/errors'
+import { NotFoundError } from '../../domain/errors'
+
+export interface AttachmentDownloadResult {
+  readonly attachment: Attachment
+  readonly downloadUrl: string
+  readonly downloadUrlExpiresAt: Date
+}
 
 export interface GetInternshipAttachmentQuery {
   readonly actor: RequestActor
@@ -22,7 +29,8 @@ export class GetInternshipAttachmentQueryHandler {
   private readonly now: () => Date
 
   constructor(
-    private readonly uow: UnitOfWork,
+    private readonly internshipQueries: InternshipQueryService,
+    private readonly authz: AuthorizationService,
     private readonly attachmentStorage: AttachmentStorage,
     options: AttachmentDownloadOptions = {}
   ) {
@@ -31,25 +39,16 @@ export class GetInternshipAttachmentQueryHandler {
   }
 
   async handle(q: GetInternshipAttachmentQuery): Promise<AttachmentDownloadResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const internship = await this.internshipQueries.findById(q.internshipId)
+    if (!internship) throw new NotFoundError('Internship', q.internshipId)
 
-    const attachment = await this.uow.execute(async (ctx) => {
-      const internship = await ctx.internships.findById(q.internshipId)
-      if (!internship) throw new NotFoundError('Internship', q.internshipId)
-      if (platformUser.role === 'student' && internship.userId !== platformUser.id) {
-        throw new ForbiddenError(
-          'Students may only read their own internships',
-          'student_not_owner'
-        )
-      }
+    this.authz.requireSelfOrRole(q.actor, internship.userId, 'coordinator', 'student_not_owner')
 
-      const found = await ctx.internships.findAttachmentById(q.internshipId, q.attachmentId)
-      if (!found) throw new NotFoundError('Attachment', q.attachmentId)
-      return found
-    })
+    const attachment = await this.internshipQueries.findAttachmentById(
+      q.internshipId,
+      q.attachmentId
+    )
+    if (!attachment) throw new NotFoundError('Attachment', q.attachmentId)
 
     const downloadUrlExpiresAt = new Date(this.now().getTime() + this.ttlMs)
     const downloadUrl = await this.attachmentStorage.createReadUrl(

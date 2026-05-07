@@ -120,6 +120,27 @@ export const getOpportunityAttachmentOperation: ZodOpenApiOperationObject = {
   },
 }
 
+export const deleteOpportunityAttachmentOperation: ZodOpenApiOperationObject = {
+  operationId: 'deleteOpportunityAttachment',
+  summary: 'Delete an opportunity attachment',
+  description:
+    'Coordinator-only. Atomically removes the attachment metadata, then deletes the GCS object using `ifGenerationMatch` so a concurrent re-upload on the same path is preserved.',
+  tags: ['Opportunities'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: opportunityAttachmentPathParams },
+  responses: {
+    '204': { description: 'Attachment deleted.' },
+    '403': {
+      description: 'Caller is not a coordinator.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No opportunity or attachment exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
 export const createOpportunityOperation: ZodOpenApiOperationObject = {
   operationId: 'createOpportunity',
   summary: 'Create an opportunity',

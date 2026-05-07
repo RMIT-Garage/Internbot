@@ -39,7 +39,7 @@ async function provisionUser(
 ): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id: platformUserId,
         version: 0,
@@ -292,6 +292,7 @@ describe('/api/v1 attachments — component', () => {
       filePath: `users/${student.platformUserId}/internships/${internshipId}/attachments/offer.pdf`,
       contentType: 'application/pdf',
       finalizedAt: new Date('2026-04-04T00:00:00Z'),
+      generation: '1700000000000001',
     })
 
     const submitted = await request(app)
@@ -303,6 +304,72 @@ describe('/api/v1 attachments — component', () => {
     expect(blocked.body.error.reason).toBe('offer_attachment_missing')
     expect(submitted.status).toBe(201)
     expect(submitted.body.attachments).toHaveLength(1)
+  })
+
+  it('Owner can DELETE an internship attachment while applied; backend then returns 404 on a follow-up GET', async () => {
+    const semesterId = `sem_${randomUUID()}`
+    const student = await makeStudent(semesterId)
+    const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    const attachmentId = 'att_offer'
+    const filePath = `users/${student.platformUserId}/internships/${internshipId}/attachments/offer.pdf`
+    await seedOpportunity(opportunityId, { semesterId, status: 'published' })
+    await seedInternship(internshipId, student.platformUserId, opportunityId)
+    await seedAttachment('internships', internshipId, attachmentId, filePath)
+    const app = createApp()
+
+    const deleted = await request(app)
+      .delete(`/api/v1/internships/${internshipId}/attachments/${attachmentId}`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+    const fetched = await request(app)
+      .get(`/api/v1/internships/${internshipId}/attachments/${attachmentId}`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+
+    expect(deleted.status).toBe(204)
+    expect(fetched.status).toBe(404)
+  })
+
+  it("Non-owner student cannot DELETE another student's internship attachment", async () => {
+    const semesterId = `sem_${randomUUID()}`
+    const owner = await makeStudent(semesterId)
+    const intruder = await makeStudent(semesterId)
+    const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    const attachmentId = 'att_offer'
+    const filePath = `users/${owner.platformUserId}/internships/${internshipId}/attachments/offer.pdf`
+    await seedOpportunity(opportunityId, { semesterId, status: 'published' })
+    await seedInternship(internshipId, owner.platformUserId, opportunityId)
+    await seedAttachment('internships', internshipId, attachmentId, filePath)
+
+    const res = await request(createApp())
+      .delete(`/api/v1/internships/${internshipId}/attachments/${attachmentId}`)
+      .set('Authorization', `Bearer ${intruder.idToken}`)
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.reason).toBe('student_not_owner')
+  })
+
+  it('Coordinator can DELETE an opportunity attachment; student attempt returns 403', async () => {
+    const semesterId = `sem_${randomUUID()}`
+    const coordinator = await makeCoordinator()
+    const student = await makeStudent(semesterId)
+    const opportunityId = `opp_${randomUUID()}`
+    const attachmentId = 'att_jd'
+    const filePath = `opportunities/${opportunityId}/attachments/jd.pdf`
+    await seedOpportunity(opportunityId, { semesterId, status: 'published' })
+    await seedAttachment('opportunities', opportunityId, attachmentId, filePath)
+    const app = createApp()
+
+    const studentAttempt = await request(app)
+      .delete(`/api/v1/opportunities/${opportunityId}/attachments/${attachmentId}`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+    const coordinatorDelete = await request(app)
+      .delete(`/api/v1/opportunities/${opportunityId}/attachments/${attachmentId}`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+
+    expect(studentAttempt.status).toBe(403)
+    expect(studentAttempt.body.error.reason).toBe('role_restricted_action')
+    expect(coordinatorDelete.status).toBe(204)
   })
 
   it('Coordinator cannot write attachments directly because v1 exposes no POST or PUT attachment route', async () => {

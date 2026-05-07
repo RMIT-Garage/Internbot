@@ -6,14 +6,17 @@ import { FirestoreOpportunityRepository } from './firestore-opportunity-reposito
 import { FirestoreInternshipRepository } from './firestore-internship-repository'
 import { FirestoreNotificationRepository } from './firestore-notification-repository'
 import { FirestoreTicketRepository } from './firestore-ticket-repository'
-import { FirestoreActivityFeedRepository } from './firestore-activity-feed-repository'
 
 /**
  * Firestore implementation of `UnitOfWork`.
  *
  * Every `execute(work)` call opens a Firestore transaction, constructs
- * session-scoped repositories bound to that transaction, runs the caller's
- * work function, and commits on return. Throwing inside `work` rolls back.
+ * session-scoped **write-side** repositories bound to that transaction,
+ * runs the caller's work function, and commits on return. Throwing inside
+ * `work` rolls back.
+ *
+ * Read-side query services are **not** on the UoW — they're singletons
+ * injected directly into query handlers (see `firestore-*-query-service.ts`).
  *
  * Firestore transactions **cannot re-read a document after a write in the
  * same transaction** — command handlers therefore call `uow.execute(...)`
@@ -29,7 +32,6 @@ export class FirestoreUnitOfWork implements UnitOfWork {
         internships: new FirestoreInternshipRepository(txn),
         notifications: new FirestoreNotificationRepository(txn),
         tickets: new FirestoreTicketRepository(txn),
-        activityFeed: new FirestoreActivityFeedRepository(txn),
       }
       return work(ctx)
     })

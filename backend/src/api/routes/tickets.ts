@@ -26,20 +26,28 @@ import { GetTicketQueryHandler } from '../../application/queries/get-ticket'
 import { ListTicketsQueryHandler } from '../../application/queries/list-tickets'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { IdGenerator } from '../../application/ports/id-generator'
+import type { AuthorizationService } from '../../application/ports/authorization-service'
+import type { TicketQueryService } from '../../application/ports/queries/ticket-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface TicketsRouterDeps {
   uow: UnitOfWork
   idGenerator: IdGenerator
+  authz: AuthorizationService
+  ticketQueries: TicketQueryService
 }
 
 export function createTicketsRouter(deps: TicketsRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
-  const createTicket = new CreateTicketCommandHandler(deps.uow, deps.idGenerator)
-  const postReply = new PostTicketReplyCommandHandler(deps.uow, deps.idGenerator)
-  const transitionTicket = new TransitionTicketCommandHandler(deps.uow, deps.idGenerator)
-  const getTicket = new GetTicketQueryHandler(deps.uow)
-  const listTickets = new ListTicketsQueryHandler(deps.uow)
+  const createTicket = new CreateTicketCommandHandler(deps.uow, deps.authz, deps.idGenerator)
+  const postReply = new PostTicketReplyCommandHandler(deps.uow, deps.authz, deps.idGenerator)
+  const transitionTicket = new TransitionTicketCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator
+  )
+  const getTicket = new GetTicketQueryHandler(deps.ticketQueries, deps.authz)
+  const listTickets = new ListTicketsQueryHandler(deps.ticketQueries, deps.authz)
 
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {

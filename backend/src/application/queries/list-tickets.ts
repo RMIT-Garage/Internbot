@@ -1,12 +1,18 @@
 import type { RequestActor } from '../actor'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import type { TicketListResultWithCursor } from '../models/ticket'
-import type {
-  TicketListCursor,
-  TicketListFilter,
-} from '../../domain/repositories/ticket-repository'
+import type { TicketQueryService } from '../ports/queries/ticket-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { Ticket } from '../../domain/entities/ticket'
+import type { TicketListCursor, TicketListFilter } from '../read-models/ticket'
 import type { TicketStatus } from '../../domain/value-objects/ticket-enums'
-import { ForbiddenError } from '../../domain/errors'
+
+export interface TicketListResult {
+  readonly items: readonly Ticket[]
+  readonly nextPageToken: string | null
+}
+
+export interface TicketListResultWithCursor extends TicketListResult {
+  readonly cursor: TicketListCursor | null
+}
 
 export interface ListTicketsQuery {
   actor: RequestActor
@@ -19,24 +25,22 @@ export interface ListTicketsQuery {
 }
 
 export class ListTicketsQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly ticketQueries: TicketQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: ListTicketsQuery): Promise<TicketListResultWithCursor> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const platformUser = this.authz.requirePlatformUser(q.actor)
 
-    return this.uow.execute(async (ctx) => {
-      const filter: TicketListFilter = {
-        userId: platformUser.role === 'student' ? platformUser.id : undefined,
-        status: q.filter.status,
-        limit: q.filter.limit,
-        sortDirection: q.filter.sortDirection,
-        cursor: q.filter.cursor,
-      }
-      const page = await ctx.tickets.list(filter)
-      return { items: page.items, nextPageToken: null, cursor: page.nextCursor }
-    })
+    const filter: TicketListFilter = {
+      userId: platformUser.role === 'student' ? platformUser.id : undefined,
+      status: q.filter.status,
+      limit: q.filter.limit,
+      sortDirection: q.filter.sortDirection,
+      cursor: q.filter.cursor,
+    }
+    const page = await this.ticketQueries.list(filter)
+    return { items: page.items, nextPageToken: null, cursor: page.nextCursor }
   }
 }

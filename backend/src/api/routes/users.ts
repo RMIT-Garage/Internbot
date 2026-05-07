@@ -22,10 +22,20 @@ import { ListUserActivityQueryHandler } from '../../application/queries/list-use
 import { UpdateUserProfileCommandHandler } from '../../application/commands/update-user-profile'
 import { SelectSemesterCommandHandler } from '../../application/commands/select-semester'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
+import type { AuthorizationService } from '../../application/ports/authorization-service'
+import type { UserQueryService } from '../../application/ports/queries/user-query-service'
+import type { SemesterQueryService } from '../../application/ports/queries/semester-query-service'
+import type { InternshipQueryService } from '../../application/ports/queries/internship-query-service'
+import type { ActivityFeedQueryService } from '../../application/ports/queries/activity-feed-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface UsersRouterDeps {
   uow: UnitOfWork
+  authz: AuthorizationService
+  userQueries: UserQueryService
+  semesterQueries: SemesterQueryService
+  internshipQueries: InternshipQueryService
+  activityFeedQueries: ActivityFeedQueryService
 }
 
 /**
@@ -42,11 +52,20 @@ export interface UsersRouterDeps {
  */
 export function createUsersRouter(deps: UsersRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
-  const getUser = new GetUserQueryHandler(deps.uow)
-  const getUserWorkflow = new GetUserWorkflowQueryHandler(deps.uow)
-  const listUserActivity = new ListUserActivityQueryHandler(deps.uow)
-  const updateUserProfile = new UpdateUserProfileCommandHandler(deps.uow)
-  const selectSemester = new SelectSemesterCommandHandler(deps.uow)
+  const getUser = new GetUserQueryHandler(deps.userQueries, deps.authz)
+  const getUserWorkflow = new GetUserWorkflowQueryHandler(
+    deps.userQueries,
+    deps.internshipQueries,
+    deps.semesterQueries,
+    deps.authz
+  )
+  const listUserActivity = new ListUserActivityQueryHandler(
+    deps.activityFeedQueries,
+    deps.userQueries,
+    deps.authz
+  )
+  const updateUserProfile = new UpdateUserProfileCommandHandler(deps.uow, deps.authz)
+  const selectSemester = new SelectSemesterCommandHandler(deps.uow, deps.authz)
 
   // ---------- GET ----------
   router.get('/me', async (req: Request, res: Response, next: NextFunction) => {

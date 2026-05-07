@@ -36,7 +36,7 @@ async function provisionUser(
 ): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id: platformUserId,
         version: 0,

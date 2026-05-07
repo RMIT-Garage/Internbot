@@ -1,9 +1,10 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork, UnitOfWorkContext } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { OpportunityType, WorkMode } from '../../domain/value-objects/opportunity-enums'
 import { Opportunity } from '../../domain/entities/opportunity'
-import { ConflictError, ForbiddenError, ValidationError } from '../../domain/errors'
+import { ConflictError, ValidationError } from '../../domain/errors'
 
 export interface CreateOpportunityCommand {
   actor: RequestActor
@@ -26,14 +27,12 @@ export interface CreateOpportunityResult {
 export class CreateOpportunityCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: CreateOpportunityCommand): Promise<CreateOpportunityResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const platformUser = this.authz.requirePlatformUser(cmd.actor)
 
     const newOpportunityId = this.idGenerator.next()
     const now = new Date()
@@ -71,7 +70,7 @@ export class CreateOpportunityCommandHandler {
         updatedAt: now,
       })
 
-      await ctx.opportunities.create(opportunity)
+      await ctx.opportunities.save(opportunity)
       return { id: newOpportunityId }
     })
   }

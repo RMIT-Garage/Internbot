@@ -7,6 +7,8 @@ import { GetTicketQueryHandler } from '../../../../src/application/queries/get-t
 import { ListTicketsQueryHandler } from '../../../../src/application/queries/list-tickets'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreTicketQueryService } from '../../../../src/infrastructure/firestore/firestore-ticket-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { adminDb, Timestamp } from '../../../../src/infrastructure/config/firebase-admin'
 import { User } from '../../../../src/domain/entities/user'
 import { UserIdentity } from '../../../../src/domain/value-objects/user-identity'
@@ -28,7 +30,7 @@ function actorFor(
 async function seedUser(role: 'student' | 'coordinator', id: string): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id,
         version: 0,
@@ -65,6 +67,7 @@ async function seedUser(role: 'student' | 'coordinator', id: string): Promise<vo
 async function createOpenTicket(studentId: string): Promise<string> {
   const { id } = await new CreateTicketCommandHandler(
     new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
     firestoreIdGenerator
   ).handle({
     actor: actorFor('student', studentId),
@@ -113,6 +116,7 @@ describe('Tickets — integration', () => {
 
     const { id } = await new CreateTicketCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('student', studentId),
@@ -142,7 +146,10 @@ describe('Tickets — integration', () => {
     const aTicket = await createOpenTicket(studentA)
     const bTicket = await createOpenTicket(studentB)
 
-    const list = new ListTicketsQueryHandler(new FirestoreUnitOfWork())
+    const list = new ListTicketsQueryHandler(
+      firestoreTicketQueryService,
+      defaultAuthorizationService
+    )
     const studentList = await list.handle({
       actor: actorFor('student', studentA),
       filter: { status: undefined, limit: 50, sortDirection: 'desc', cursor: undefined },
@@ -167,6 +174,7 @@ describe('Tickets — integration', () => {
 
     const handler = new PostTicketReplyCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     await handler.handle({
@@ -200,13 +208,15 @@ describe('Tickets — integration', () => {
     const ticketId = await createOpenTicket(studentId)
     const before = await readTicket(ticketId)
 
-    await new PostTicketReplyCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle(
-      {
-        actor: actorFor('coordinator', coordId),
-        ticketId,
-        text: 'hi',
-      }
-    )
+    await new PostTicketReplyCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    ).handle({
+      actor: actorFor('coordinator', coordId),
+      ticketId,
+      text: 'hi',
+    })
 
     const after = await readTicket(ticketId)
     expect(before['version']).toBe(after['version'])
@@ -224,6 +234,7 @@ describe('Tickets — integration', () => {
 
     await new TransitionTicketCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('coordinator', coordId),
@@ -254,7 +265,11 @@ describe('Tickets — integration', () => {
     const ticketId = await createOpenTicket(studentId)
 
     await expect(
-      new TransitionTicketCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new TransitionTicketCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: actorFor('coordinator', coordId),
         ticketId,
         payload: { to: 'in_progress', comment: undefined },
@@ -271,7 +286,7 @@ describe('Tickets — integration', () => {
     const ticketId = await createOpenTicket(ownerId)
 
     await expect(
-      new GetTicketQueryHandler(new FirestoreUnitOfWork()).handle({
+      new GetTicketQueryHandler(firestoreTicketQueryService, defaultAuthorizationService).handle({
         actor: actorFor('student', otherId),
         ticketId,
       })
@@ -286,7 +301,11 @@ describe('Tickets — integration', () => {
     const ticketId = await createOpenTicket(ownerId)
 
     await expect(
-      new PostTicketReplyCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new PostTicketReplyCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: actorFor('student', otherId),
         ticketId,
         text: 'snooping',
@@ -302,7 +321,11 @@ describe('Tickets — integration', () => {
     const ticketId = await createOpenTicket(ownerId)
 
     await expect(
-      new TransitionTicketCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new TransitionTicketCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: actorFor('student', otherId),
         ticketId,
         payload: { to: 'closed', comment: undefined },
@@ -320,6 +343,7 @@ describe('Tickets — integration', () => {
     const t3 = await createOpenTicket(studentId)
     await new TransitionTicketCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('coordinator', coordId),
@@ -327,7 +351,10 @@ describe('Tickets — integration', () => {
       payload: { to: 'in_progress', comment: undefined },
     })
 
-    const list = new ListTicketsQueryHandler(new FirestoreUnitOfWork())
+    const list = new ListTicketsQueryHandler(
+      firestoreTicketQueryService,
+      defaultAuthorizationService
+    )
     const inProgress = await list.handle({
       actor: actorFor('coordinator', coordId),
       filter: { status: 'in_progress', limit: 50, sortDirection: 'desc', cursor: undefined },
@@ -357,21 +384,29 @@ describe('Tickets — integration', () => {
   })
 
   it('Handlers reject actors without a platformUser record', async () => {
-    const noUser = {
+    const noUser: RequestActor = {
       firebaseUid: `fb_${randomUUID()}`,
       email: 'ghost@rmit.edu.au',
-      platformUser: undefined,
-    } as const
+      platformUser: null,
+    }
 
     await expect(
-      new CreateTicketCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new CreateTicketCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: noUser,
         payload: { subject: 's', body: 'b', category: undefined },
       })
     ).rejects.toMatchObject({ reason: 'no_platform_user' })
 
     await expect(
-      new PostTicketReplyCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new PostTicketReplyCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: noUser,
         ticketId: 'whatever',
         text: 'hi',
@@ -379,7 +414,11 @@ describe('Tickets — integration', () => {
     ).rejects.toMatchObject({ reason: 'no_platform_user' })
 
     await expect(
-      new TransitionTicketCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new TransitionTicketCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: noUser,
         ticketId: 'whatever',
         payload: { to: 'closed', comment: undefined },
@@ -387,14 +426,14 @@ describe('Tickets — integration', () => {
     ).rejects.toMatchObject({ reason: 'no_platform_user' })
 
     await expect(
-      new GetTicketQueryHandler(new FirestoreUnitOfWork()).handle({
+      new GetTicketQueryHandler(firestoreTicketQueryService, defaultAuthorizationService).handle({
         actor: noUser,
         ticketId: 'whatever',
       })
     ).rejects.toMatchObject({ reason: 'no_platform_user' })
 
     await expect(
-      new ListTicketsQueryHandler(new FirestoreUnitOfWork()).handle({
+      new ListTicketsQueryHandler(firestoreTicketQueryService, defaultAuthorizationService).handle({
         actor: noUser,
         filter: { status: undefined, limit: 50, sortDirection: 'desc', cursor: undefined },
       })

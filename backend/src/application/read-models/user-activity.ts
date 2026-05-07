@@ -34,11 +34,14 @@ export interface UserActivityFeedCursor {
   readonly lastDocPath: string
 }
 
-export interface UserActivityFeedResult {
-  readonly items: readonly UserActivityFeedItem[]
-  readonly nextPageToken: string | null
+export interface UserActivityFeedFilter {
+  readonly authorUserId: string
+  readonly limit: number
+  readonly sortDirection: 'asc' | 'desc'
+  readonly cursor: UserActivityFeedCursor | undefined
 }
 
-export interface UserActivityFeedResultWithCursor extends UserActivityFeedResult {
-  readonly cursor: UserActivityFeedCursor | null
+export interface UserActivityFeedPage {
+  readonly items: readonly UserActivityFeedItem[]
+  readonly nextCursor: UserActivityFeedCursor | null
 }

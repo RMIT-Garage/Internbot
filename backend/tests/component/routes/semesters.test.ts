@@ -61,7 +61,7 @@ async function provisionUser(
       displayName: undefined,
       studentProfile: undefined,
     })
-    await ctx.users.create(user)
+    await ctx.users.save(user)
   })
   trackDoc('users', platformUserId)
 }
@@ -106,7 +106,7 @@ async function createDraftSemester(
     .send(body)
   expect(res.status).toBe(201)
   trackDoc('semesters', res.body.id)
-  return { id: res.body.id, etag: res.headers['etag'], body }
+  return { id: res.body.id, etag: res.headers['etag']!, body }
 }
 
 describe('POST /api/v1/semesters — component', () => {
@@ -201,11 +201,8 @@ describe('POST /api/v1/semesters — component', () => {
         .send(body),
     ])
     const responses = settled
-      .filter(
-        (s): s is PromiseFulfilledResult<{ status: number; body: { id?: string } }> =>
-          s.status === 'fulfilled'
-      )
-      .map((s) => s.value)
+      .filter((s) => s.status === 'fulfilled')
+      .map((s) => (s as PromiseFulfilledResult<{ status: number; body: { id?: string } }>).value)
     expect(responses.length).toBe(2)
 
     const successes = responses.filter((r) => r.status === 201)

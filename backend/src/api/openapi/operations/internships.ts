@@ -114,6 +114,31 @@ export const getInternshipAttachmentOperation: ZodOpenApiOperationObject = {
   },
 }
 
+export const deleteInternshipAttachmentOperation: ZodOpenApiOperationObject = {
+  operationId: 'deleteInternshipAttachment',
+  summary: 'Delete an internship attachment',
+  description:
+    'Owner-only (the student whose internship it is). Allowed only while the internship is `applied` or `offer_changes_requested`. Atomically removes the attachment metadata, then deletes the GCS object using `ifGenerationMatch` so a concurrent re-upload on the same path is preserved.',
+  tags: ['Internships'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: internshipAttachmentPathParams },
+  responses: {
+    '204': { description: 'Attachment deleted.' },
+    '403': {
+      description: 'Caller is not the owning student.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No internship or attachment exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '409': {
+      description: 'Internship status does not permit attachment deletion.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
 export const createInternshipOperation: ZodOpenApiOperationObject = {
   operationId: 'createInternship',
   summary: 'Apply to an opportunity',

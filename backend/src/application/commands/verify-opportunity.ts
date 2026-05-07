@@ -2,9 +2,10 @@ import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
 import type { CommandMetadata } from '../command-metadata'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { OpportunityVerificationDecision } from '../../domain/value-objects/opportunity-enums'
 import { Notification } from '../../domain/entities/notification'
-import { ForbiddenError, NotFoundError, PreconditionFailedError } from '../../domain/errors'
+import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 
 export interface VerifyOpportunityCommand {
   actor: RequestActor
@@ -21,20 +22,12 @@ export interface VerifyOpportunityResult {
 export class VerifyOpportunityCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: VerifyOpportunityCommand): Promise<VerifyOpportunityResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-    if (platformUser.role !== 'coordinator') {
-      throw new ForbiddenError(
-        'Only coordinators may verify opportunities',
-        'role_restricted_action'
-      )
-    }
+    const platformUser = this.authz.requireRole(cmd.actor, 'coordinator')
 
     return this.uow.execute(async (ctx) => {
       const opportunity = await ctx.opportunities.findById(cmd.opportunityId)
@@ -49,7 +42,7 @@ export class VerifyOpportunityCommandHandler {
       opportunity.verify(cmd.decision, platformUser.id, cmd.comment, now)
       await ctx.opportunities.save(opportunity)
       if (opportunity.submittedByUserId !== undefined) {
-        await ctx.notifications.create(
+        await ctx.notifications.save(
           Notification.forOpportunityVerification({
             id: this.idGenerator.next(),
             userId: opportunity.submittedByUserId,

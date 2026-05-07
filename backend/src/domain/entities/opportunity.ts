@@ -5,9 +5,16 @@ import type {
   OpportunityVerificationDecision,
   WorkMode,
 } from '../value-objects/opportunity-enums'
+import type { Attachment } from '../value-objects/attachment'
 import { OpportunityTransition } from '../value-objects/opportunity-transition'
 import { OpportunityVerification } from '../value-objects/opportunity-verification'
-import { ConflictError, ValidationError } from '../errors'
+import { ConflictError, NotFoundError, ValidationError } from '../errors'
+
+export interface PendingAttachmentSoftDelete {
+  readonly attachmentId: string
+  readonly deletedAt: Date
+  readonly deletedByUserId: string
+}
 
 export interface OpportunityProps {
   readonly id: string
@@ -38,11 +45,15 @@ export interface OpportunityProps {
  */
 export class Opportunity {
   #props: OpportunityProps
+  #attachments: Attachment[]
+  #pendingAttachmentSoftDeletes: PendingAttachmentSoftDelete[] = []
+  #pendingAttachmentAdds: Attachment[] = []
   #pendingTransition: OpportunityTransition | undefined
   #pendingVerification: OpportunityVerification | undefined
 
-  private constructor(props: OpportunityProps) {
+  private constructor(props: OpportunityProps, attachments: readonly Attachment[] = []) {
     this.#props = props
+    this.#attachments = [...attachments]
   }
 
   static create(props: OpportunityProps): Opportunity {
@@ -54,8 +65,8 @@ export class Opportunity {
     return new Opportunity(props)
   }
 
-  static rehydrate(props: OpportunityProps): Opportunity {
-    return new Opportunity(props)
+  static rehydrate(props: OpportunityProps, attachments: readonly Attachment[] = []): Opportunity {
+    return new Opportunity(props, attachments)
   }
 
   get id(): string {
@@ -114,6 +125,51 @@ export class Opportunity {
   }
   get pendingVerification(): OpportunityVerification | undefined {
     return this.#pendingVerification
+  }
+  get attachments(): readonly Attachment[] {
+    return this.#attachments
+  }
+  /** Visible attachments — excludes soft-deleted entries. */
+  get activeAttachments(): readonly Attachment[] {
+    return this.#attachments.filter((a) => !a.isDeleted)
+  }
+  get pendingAttachmentSoftDeletes(): readonly PendingAttachmentSoftDelete[] {
+    return this.#pendingAttachmentSoftDeletes
+  }
+  get pendingAttachmentAdds(): readonly Attachment[] {
+    return this.#pendingAttachmentAdds
+  }
+
+  /**
+   * Soft-deletes an opportunity attachment. Coordinator-only — the handler
+   * enforces role; the aggregate enforces existence and the not-already-deleted
+   * invariant. Storage row stays for the outbox worker to GC.
+   */
+  softDeleteAttachment(attachmentId: string, deletedByUserId: string, now: Date): void {
+    const index = this.#attachments.findIndex((a) => a.id === attachmentId)
+    const existing = index >= 0 ? this.#attachments[index] : undefined
+    if (!existing || existing.isDeleted) {
+      throw new NotFoundError('Attachment', attachmentId)
+    }
+
+    this.#attachments[index] = existing.markDeleted(deletedByUserId, now)
+    this.#pendingAttachmentSoftDeletes.push({
+      attachmentId,
+      deletedAt: now,
+      deletedByUserId,
+    })
+  }
+
+  /**
+   * Adopt an attachment finalized by the storage trigger. Idempotent — adding
+   * an attachment id we've already absorbed is a no-op. Stages the addition
+   * for the repo's `save()` to write the subdoc atomically.
+   */
+  recordSyncedAttachment(attachment: Attachment): boolean {
+    if (this.#attachments.some((a) => a.id === attachment.id)) return false
+    this.#attachments.push(attachment)
+    this.#pendingAttachmentAdds.push(attachment)
+    return true
   }
 
   changeEmployerName(employerName: string): void {
