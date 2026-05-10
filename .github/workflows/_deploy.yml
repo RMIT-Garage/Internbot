@@ -72,8 +72,13 @@ jobs:
         # own config under docker/firebase-emulator/firebase.json.
         # Public-invoker IAM is declared in backend/src/index.ts via
         # `invoker: 'public'` — Firebase deploy sets it automatically.
+        # FIREBASE_PROJECT_ID is consumed by `resolveStorageBucket()` in
+        # backend/src/infrastructure/config/storage-bucket.ts when the
+        # firebase CLI parses function configs to discover the bucket for
+        # the `syncAttachmentMetadata` storage trigger.
         env:
           FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
+          FIREBASE_PROJECT_ID: ${{ inputs.firebase_project_id }}
         run: |
           npx --yes firebase-tools@15 deploy \
             --only ${{ inputs.deploy_targets }} \
