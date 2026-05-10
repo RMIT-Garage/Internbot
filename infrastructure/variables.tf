@@ -95,5 +95,10 @@ variable "deploy_sa_roles" {
     "roles/iam.serviceAccountUser",
     "roles/run.admin",
     "roles/serviceusage.serviceUsageConsumer",
+    # Required by `firebase deploy` to grant Eventarc / Pub-Sub / Storage
+    # service-agent bindings during a storage-trigger (`onObjectFinalized`)
+    # deploy. Without this the CLI's IAM pre-flight fails with
+    # "We failed to modify the IAM policy for the project".
+    "roles/resourcemanager.projectIamAdmin",
   ]
 }
