@@ -71,6 +71,7 @@ export default function LoginPage() {
                     emailLabel="Institutional Email"
                     emailPlaceholder="s1234567@student.rmit.edu.au"
                     submitLabel="Sign in with RMIT Student ID"
+                    showForgotPassword
                   />
                   <p className="text-center text-xs text-zinc-500">
                     Don&apos;t have an account?{' '}

@@ -57,12 +57,28 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit = {
     : await response.text()
 
   if (!response.ok) {
-    const message =
-      typeof parsed === 'object' && parsed && 'message' in parsed
-        ? String((parsed as { message: unknown }).message)
-        : `Request failed with status ${response.status}`
-    throw new ApiError(response.status, parsed, message)
+    throw new ApiError(response.status, parsed, extractErrorMessage(parsed, response.status))
   }
 
   return parsed as T
+}
+
+/**
+ * Pick a human-readable message out of the backend's RFC 9457 error body
+ * (see backend/src/api/middleware/error-handler.ts):
+ *   { type, title, status, detail, error: { code, message, reason?, fields? } }
+ * Falls back through `detail` → `error.message` → `message` → status string.
+ */
+function extractErrorMessage(body: unknown, status: number): string {
+  if (typeof body === 'object' && body !== null) {
+    const b = body as { detail?: unknown; message?: unknown; error?: unknown }
+    if (typeof b.detail === 'string' && b.detail) return b.detail
+    if (typeof b.error === 'object' && b.error !== null) {
+      const inner = (b.error as { message?: unknown }).message
+      if (typeof inner === 'string' && inner) return inner
+    }
+    if (typeof b.message === 'string' && b.message) return b.message
+  }
+  if (typeof body === 'string' && body) return body
+  return `Request failed with status ${status}`
 }

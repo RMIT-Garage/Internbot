@@ -32,9 +32,14 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
 }
 
 function extractReason(body: unknown): string | undefined {
-  if (typeof body === 'object' && body !== null && 'reason' in body) {
-    const reason = (body as { reason: unknown }).reason
-    if (typeof reason === 'string') return reason
+  // Backend response shape (RFC 9457 + sub-codes, see backend/src/api/middleware/error-handler.ts):
+  //   { type, title, status, detail, error: { code, message, reason?, fields? } }
+  if (typeof body !== 'object' || body === null) return undefined
+  const top = body as { reason?: unknown; error?: unknown }
+  if (typeof top.reason === 'string') return top.reason
+  if (typeof top.error === 'object' && top.error !== null) {
+    const inner = (top.error as { reason?: unknown }).reason
+    if (typeof inner === 'string') return inner
   }
   return undefined
 }
