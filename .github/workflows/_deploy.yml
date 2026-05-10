@@ -79,8 +79,14 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
           FIREBASE_PROJECT_ID: ${{ inputs.firebase_project_id }}
+        # `--force` bypasses the "function has a retry/failure policy"
+        # confirmation prompt. `syncAttachmentMetadata` sets `retry: true`
+        # on its `onObjectFinalized` trigger so transient Firestore /
+        # Storage failures are redelivered by Eventarc; that policy is
+        # intentional but Firebase CLI requires explicit acknowledgement.
         run: |
           npx --yes firebase-tools@15 deploy \
             --only ${{ inputs.deploy_targets }} \
             --project ${{ inputs.firebase_project_id }} \
-            --non-interactive
+            --non-interactive \
+            --force
