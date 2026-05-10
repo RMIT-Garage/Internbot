@@ -104,6 +104,24 @@ describe('getAuthErrorMessage', () => {
     }
   })
 
+  it('extracts the specific reason from a Firebase password-policy error message', () => {
+    const err = new FirebaseError(
+      'auth/password-does-not-meet-requirements',
+      'Firebase: Missing password requirements: [Password must contain a non-alphanumeric character] (auth/password-does-not-meet-requirements).'
+    )
+    expect(getAuthErrorMessage(err)).toBe(
+      "Password doesn't meet requirements: password must contain a non-alphanumeric character."
+    )
+  })
+
+  it('falls back to a generic policy message when the bracketed reason is missing', () => {
+    const err = new FirebaseError(
+      'auth/password-does-not-meet-requirements',
+      'Firebase: weird format (auth/password-does-not-meet-requirements).'
+    )
+    expect(getAuthErrorMessage(err)).toMatch(/security requirements/i)
+  })
+
   it('returns the supplied fallback for unknown codes', () => {
     expect(
       getAuthErrorMessage(new FirebaseError('auth/something-weird', 'x'), 'custom fallback')

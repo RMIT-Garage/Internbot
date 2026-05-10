@@ -55,8 +55,8 @@ describe('RegisterForm', () => {
     render(<RegisterForm />)
 
     await user.type(screen.getByLabelText(/institutional email/i), 's5000001@student.rmit.edu.au')
-    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234')
-    await user.type(screen.getByLabelText(/confirm/i), 'Different1')
+    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234!')
+    await user.type(screen.getByLabelText(/confirm/i), 'Different1!')
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument()
@@ -69,14 +69,14 @@ describe('RegisterForm', () => {
     render(<RegisterForm />)
 
     await user.type(screen.getByLabelText(/institutional email/i), 's5000001@student.rmit.edu.au')
-    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234')
-    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234')
+    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234!')
+    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234!')
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() =>
       expect(signUpWithEmailMock).toHaveBeenCalledWith(
         's5000001@student.rmit.edu.au',
-        'Abcd1234',
+        'Abcd1234!',
         's5000001'
       )
     )
@@ -90,8 +90,8 @@ describe('RegisterForm', () => {
     render(<RegisterForm />)
 
     await user.type(screen.getByLabelText(/institutional email/i), 's5000001@student.rmit.edu.au')
-    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234')
-    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234')
+    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234!')
+    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234!')
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled())
@@ -104,12 +104,35 @@ describe('RegisterForm', () => {
     render(<RegisterForm />)
 
     await user.type(screen.getByLabelText(/institutional email/i), 's5000001@student.rmit.edu.au')
-    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234')
-    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234')
+    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234!')
+    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234!')
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() =>
       expect(toastErrorMock).toHaveBeenCalledWith('An account with this email already exists.')
+    )
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a Firebase password-policy violation to the user', async () => {
+    signUpWithEmailMock.mockRejectedValue(
+      new FirebaseError(
+        'auth/password-does-not-meet-requirements',
+        'Firebase: Missing password requirements: [Password must contain a non-alphanumeric character] (auth/password-does-not-meet-requirements).'
+      )
+    )
+    const user = userEvent.setup()
+    render(<RegisterForm />)
+
+    await user.type(screen.getByLabelText(/institutional email/i), 's5000001@student.rmit.edu.au')
+    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234!')
+    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234!')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        expect.stringMatching(/non-alphanumeric character/i)
+      )
     )
     expect(pushMock).not.toHaveBeenCalled()
   })

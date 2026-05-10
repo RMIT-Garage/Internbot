@@ -32,8 +32,22 @@ export function getAuthErrorMessage(
   fallback = 'Sign-in failed. Please try again.'
 ): string {
   const code = getFirebaseErrorCode(error)
+  if (code === 'auth/password-does-not-meet-requirements') {
+    return formatPasswordPolicyError(error)
+  }
   if (code && MESSAGES[code]) return MESSAGES[code]
   return fallback
+}
+
+function formatPasswordPolicyError(error: unknown): string {
+  const msg =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as { message: unknown }).message ?? '')
+      : ''
+  // Firebase phrases this as: "Firebase: Missing password requirements: [<reason>] (auth/...)"
+  const match = msg.match(/\[([^\]]+)\]/)
+  if (match?.[1]) return `Password doesn't meet requirements: ${match[1].toLowerCase()}.`
+  return "Password doesn't meet the project's security requirements."
 }
 
 export function getFirebaseErrorCode(error: unknown): string | null {

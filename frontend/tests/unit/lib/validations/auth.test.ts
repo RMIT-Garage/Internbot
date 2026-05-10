@@ -21,8 +21,8 @@ describe('loginSchema', () => {
 describe('registerSchema', () => {
   const valid = {
     email: 's5000001@student.rmit.edu.au',
-    password: 'Abcd1234',
-    confirmPassword: 'Abcd1234',
+    password: 'Abcd1234!',
+    confirmPassword: 'Abcd1234!',
   }
 
   it('accepts a valid RMIT student email and matching strong passwords', () => {
@@ -52,14 +52,26 @@ describe('registerSchema', () => {
   it('rejects passwords without a number', () => {
     const r = registerSchema.safeParse({
       ...valid,
-      password: 'Abcdefgh',
-      confirmPassword: 'Abcdefgh',
+      password: 'Abcdefgh!',
+      confirmPassword: 'Abcdefgh!',
     })
     expect(r.success).toBe(false)
   })
 
+  it('rejects passwords without a special character (matches Firebase password policy)', () => {
+    const r = registerSchema.safeParse({
+      ...valid,
+      password: 'Abcd1234',
+      confirmPassword: 'Abcd1234',
+    })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(r.error.issues.some((i) => /special character/i.test(i.message))).toBe(true)
+    }
+  })
+
   it('rejects mismatched confirm password', () => {
-    const r = registerSchema.safeParse({ ...valid, confirmPassword: 'Different1' })
+    const r = registerSchema.safeParse({ ...valid, confirmPassword: 'Different1!' })
     expect(r.success).toBe(false)
     if (!r.success) {
       expect(r.error.issues.some((i) => i.path.includes('confirmPassword'))).toBe(true)
