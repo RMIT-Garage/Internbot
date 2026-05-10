@@ -1,8 +1,6 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   sendEmailVerification,
@@ -10,10 +8,6 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth } from './client'
-
-const googleProvider = new GoogleAuthProvider()
-googleProvider.addScope('email')
-googleProvider.addScope('profile')
 
 export async function signInWithEmail(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(auth, email, password)
@@ -42,11 +36,6 @@ export async function resendVerificationEmail(): Promise<void> {
   const user = auth.currentUser
   if (!user) throw new Error('No signed-in user to send a verification email to.')
   await sendEmailVerification(user)
-}
-
-export async function signInWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider)
-  return result.user
 }
 
 export async function signOut(): Promise<void> {

@@ -4,8 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRedirectIfAuthed } from '@/hooks/useRequireAuth'
 import { AuthLogo } from '@/features/auth/components/AuthLogo'
-import { StaffLoginForm } from '@/features/auth/components/StaffLoginForm'
-import { StudentSsoButton } from '@/features/auth/components/StudentSsoButton'
+import { EmailPasswordLoginForm } from '@/features/auth/components/EmailPasswordLoginForm'
 
 type Tab = 'student' | 'staff'
 
@@ -67,7 +66,12 @@ export default function LoginPage() {
                     Access your career dashboard, track internship progress, and manage your
                     professional portfolio.
                   </p>
-                  <StudentSsoButton />
+                  <EmailPasswordLoginForm
+                    idPrefix="student"
+                    emailLabel="Institutional Email"
+                    emailPlaceholder="s1234567@student.rmit.edu.au"
+                    submitLabel="Sign in with RMIT Student ID"
+                  />
                   <p className="text-center text-xs text-zinc-500">
                     Don&apos;t have an account?{' '}
                     <Link href="/register" className="text-brand-600 font-medium hover:underline">
@@ -88,7 +92,13 @@ export default function LoginPage() {
                       Access the administrative dashboard.
                     </p>
                   </div>
-                  <StaffLoginForm />
+                  <EmailPasswordLoginForm
+                    idPrefix="staff"
+                    emailLabel="Staff Email"
+                    emailPlaceholder="e.g. j.doe@rmit.edu.au"
+                    submitLabel="Sign in with Staff ID"
+                    showForgotPassword
+                  />
                 </section>
               )}
             </div>

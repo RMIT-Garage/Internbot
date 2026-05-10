@@ -20,7 +20,6 @@ vi.mock('@/hooks/useAuth', () => ({
     loading: false,
     signInWithEmail: vi.fn(),
     signUpWithEmail: signUpWithEmailMock,
-    signInWithGoogle: vi.fn(),
     signOut: vi.fn(),
   }),
 }))

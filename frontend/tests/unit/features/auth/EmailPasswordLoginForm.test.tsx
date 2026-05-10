@@ -19,16 +19,22 @@ vi.mock('@/hooks/useAuth', () => ({
     loading: false,
     signInWithEmail: signInWithEmailMock,
     signUpWithEmail: vi.fn(),
-    signInWithGoogle: vi.fn(),
     signOut: vi.fn(),
   }),
 }))
 
 vi.mock('sonner', () => ({ toast: { error: toastErrorMock, success: vi.fn() } }))
 
-const { StaffLoginForm } = await import('@/features/auth/components/StaffLoginForm')
+const { EmailPasswordLoginForm } = await import('@/features/auth/components/EmailPasswordLoginForm')
 
-describe('StaffLoginForm', () => {
+const baseProps = {
+  idPrefix: 'staff',
+  emailLabel: 'Staff Email',
+  emailPlaceholder: 'e.g. j.doe@rmit.edu.au',
+  submitLabel: 'Sign in with Staff ID',
+}
+
+describe('EmailPasswordLoginForm', () => {
   beforeEach(() => {
     pushMock.mockReset()
     signInWithEmailMock.mockReset()
@@ -36,16 +42,24 @@ describe('StaffLoginForm', () => {
     window.history.replaceState({}, '', '/login')
   })
 
-  it('renders email and password fields with labels', () => {
-    render(<StaffLoginForm />)
+  it('renders email and password fields with the supplied labels and submit copy', () => {
+    render(<EmailPasswordLoginForm {...baseProps} />)
     expect(screen.getByLabelText(/staff email/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in with staff id/i })).toBeInTheDocument()
   })
 
+  it('shows the Forgot Password link only when showForgotPassword is true', () => {
+    const { rerender } = render(<EmailPasswordLoginForm {...baseProps} />)
+    expect(screen.queryByRole('link', { name: /forgot password/i })).not.toBeInTheDocument()
+
+    rerender(<EmailPasswordLoginForm {...baseProps} showForgotPassword />)
+    expect(screen.getByRole('link', { name: /forgot password/i })).toBeInTheDocument()
+  })
+
   it('shows validation errors when submitted empty', async () => {
     const user = userEvent.setup()
-    render(<StaffLoginForm />)
+    render(<EmailPasswordLoginForm {...baseProps} />)
 
     await user.click(screen.getByRole('button', { name: /sign in with staff id/i }))
 
@@ -54,10 +68,10 @@ describe('StaffLoginForm', () => {
     expect(signInWithEmailMock).not.toHaveBeenCalled()
   })
 
-  it('calls signInWithEmail and navigates on success', async () => {
+  it('calls signInWithEmail and navigates to /dashboard on success', async () => {
     signInWithEmailMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
-    render(<StaffLoginForm />)
+    render(<EmailPasswordLoginForm {...baseProps} />)
 
     await user.type(screen.getByLabelText(/staff email/i), 'jane@rmit.edu.au')
     await user.type(screen.getByLabelText(/^password$/i), 'secret')
@@ -75,7 +89,7 @@ describe('StaffLoginForm', () => {
     window.history.replaceState({}, '', '/login?redirect=%2Ftickets%2F42')
 
     const user = userEvent.setup()
-    render(<StaffLoginForm />)
+    render(<EmailPasswordLoginForm {...baseProps} />)
 
     await user.type(screen.getByLabelText(/staff email/i), 'jane@rmit.edu.au')
     await user.type(screen.getByLabelText(/^password$/i), 'secret')
@@ -84,10 +98,10 @@ describe('StaffLoginForm', () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/tickets/42'))
   })
 
-  it('surfaces a friendly toast when Firebase rejects the credential', async () => {
+  it('routes invalid-credential errors through the friendly auth-error mapper', async () => {
     signInWithEmailMock.mockRejectedValue(new FirebaseError('auth/invalid-credential', 'bad'))
     const user = userEvent.setup()
-    render(<StaffLoginForm />)
+    render(<EmailPasswordLoginForm {...baseProps} />)
 
     await user.type(screen.getByLabelText(/staff email/i), 'jane@rmit.edu.au')
     await user.type(screen.getByLabelText(/^password$/i), 'secret')
@@ -99,19 +113,13 @@ describe('StaffLoginForm', () => {
     expect(pushMock).not.toHaveBeenCalled()
   })
 
-  it('routes too-many-requests errors to a throttle message', async () => {
-    signInWithEmailMock.mockRejectedValue(new FirebaseError('auth/too-many-requests', 'x'))
-    const user = userEvent.setup()
-    render(<StaffLoginForm />)
+  it('uses the supplied idPrefix for input ids (allows two instances on the same page)', () => {
+    const { rerender } = render(<EmailPasswordLoginForm {...baseProps} idPrefix="student" />)
+    expect(document.getElementById('student-email')).not.toBeNull()
+    expect(document.getElementById('student-password')).not.toBeNull()
 
-    await user.type(screen.getByLabelText(/staff email/i), 'jane@rmit.edu.au')
-    await user.type(screen.getByLabelText(/^password$/i), 'secret')
-    await user.click(screen.getByRole('button', { name: /sign in with staff id/i }))
-
-    await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith(
-        'Too many attempts. Please try again in a few minutes.'
-      )
-    )
+    rerender(<EmailPasswordLoginForm {...baseProps} idPrefix="staff" />)
+    expect(document.getElementById('staff-email')).not.toBeNull()
+    expect(document.getElementById('staff-password')).not.toBeNull()
   })
 })

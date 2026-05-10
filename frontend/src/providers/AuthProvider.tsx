@@ -7,7 +7,6 @@ import { auth, db } from '@/lib/firebase/client'
 import {
   signInWithEmail as fbSignInWithEmail,
   signUpWithEmail as fbSignUpWithEmail,
-  signInWithGoogle as fbSignInWithGoogle,
   signOut as fbSignOut,
 } from '@/lib/firebase/auth'
 import type { AuthContextValue } from '@/types/auth'
@@ -67,10 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fbSignUpWithEmail(email, password, displayName)
   }
 
-  const signInWithGoogle = async () => {
-    await fbSignInWithGoogle()
-  }
-
   const signOut = async () => {
     await fbSignOut()
   }
@@ -83,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         signInWithEmail,
         signUpWithEmail,
-        signInWithGoogle,
         signOut,
       }}
     >
