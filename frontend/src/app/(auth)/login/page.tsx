@@ -1,16 +1,12 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { useRedirectIfAuthed } from '@/hooks/useRequireAuth'
 import { AuthLogo } from '@/features/auth/components/AuthLogo'
 import { EmailPasswordLoginForm } from '@/features/auth/components/EmailPasswordLoginForm'
 
-type Tab = 'student' | 'staff'
-
 export default function LoginPage() {
   useRedirectIfAuthed()
-  const [tab, setTab] = useState<Tab>('student')
 
   return (
     <div className="relative isolate flex min-h-screen flex-col bg-zinc-950 text-white">
@@ -20,7 +16,7 @@ export default function LoginPage() {
       />
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 -z-10 h-1/3 bg-gradient-to-t from-black/80 to-transparent"
+        className="absolute inset-x-0 bottom-0 -z-10 h-1/3 bg-linear-to-t from-black/80 to-transparent"
       />
 
       <main className="flex flex-1 items-center justify-center px-4 py-10 sm:py-14">
@@ -35,73 +31,28 @@ export default function LoginPage() {
           </div>
 
           <div className="rounded-xl bg-white p-6 text-zinc-900 shadow-2xl ring-1 ring-black/5 sm:p-8">
-            <div role="tablist" aria-label="Sign in role" className="flex border-b border-zinc-200">
-              <TabButton
-                id="tab-student"
-                panelId="panel-student"
-                active={tab === 'student'}
-                onClick={() => setTab('student')}
-              >
-                Student Login
-              </TabButton>
-              <TabButton
-                id="tab-staff"
-                panelId="panel-staff"
-                active={tab === 'staff'}
-                onClick={() => setTab('staff')}
-              >
-                Staff Login
-              </TabButton>
+            <div className="flex flex-col items-center gap-2">
+              <AuthLogo />
+              <p className="text-center text-sm leading-6 text-zinc-500">
+                Sign in to access your dashboard, manage internship progress, and track your
+                placements.
+              </p>
             </div>
 
-            <div className="pt-6">
-              {tab === 'student' ? (
-                <section
-                  id="panel-student"
-                  role="tabpanel"
-                  aria-labelledby="tab-student"
-                  className="space-y-6"
-                >
-                  <p className="text-center text-sm leading-6 text-zinc-500">
-                    Access your career dashboard, track internship progress, and manage your
-                    professional portfolio.
-                  </p>
-                  <EmailPasswordLoginForm
-                    idPrefix="student"
-                    emailLabel="Institutional Email"
-                    emailPlaceholder="s1234567@student.rmit.edu.au"
-                    submitLabel="Sign in with RMIT Student ID"
-                    showForgotPassword
-                  />
-                  <p className="text-center text-xs text-zinc-500">
-                    Don&apos;t have an account?{' '}
-                    <Link href="/register" className="text-brand-600 font-medium hover:underline">
-                      Create one
-                    </Link>
-                  </p>
-                </section>
-              ) : (
-                <section
-                  id="panel-staff"
-                  role="tabpanel"
-                  aria-labelledby="tab-staff"
-                  className="space-y-6"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <AuthLogo />
-                    <p className="text-center text-sm text-zinc-500">
-                      Access the administrative dashboard.
-                    </p>
-                  </div>
-                  <EmailPasswordLoginForm
-                    idPrefix="staff"
-                    emailLabel="Staff Email"
-                    emailPlaceholder="e.g. j.doe@rmit.edu.au"
-                    submitLabel="Sign in with Staff ID"
-                    showForgotPassword
-                  />
-                </section>
-              )}
+            <div className="mt-6 space-y-6">
+              <EmailPasswordLoginForm
+                idPrefix="login"
+                emailLabel="Email"
+                emailPlaceholder="you@rmit.edu.au"
+                submitLabel="Sign in"
+                showForgotPassword
+              />
+              <p className="text-center text-xs text-zinc-500">
+                Don&apos;t have an account?{' '}
+                <Link href="/register" className="text-brand-600 font-medium hover:underline">
+                  Create one
+                </Link>
+              </p>
             </div>
 
             <div className="mt-6 flex items-center justify-center gap-4 border-t border-zinc-100 pt-4 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
@@ -122,38 +73,6 @@ export default function LoginPage() {
         </div>
       </main>
     </div>
-  )
-}
-
-function TabButton({
-  id,
-  panelId,
-  active,
-  onClick,
-  children,
-}: {
-  id: string
-  panelId: string
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={id}
-      aria-controls={panelId}
-      aria-selected={active}
-      onClick={onClick}
-      className={`-mb-px flex-1 border-b-2 px-3 py-2 text-[11px] font-semibold tracking-wider uppercase transition-colors ${
-        active
-          ? 'border-brand-500 text-zinc-900'
-          : 'border-transparent text-zinc-400 hover:text-zinc-600'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 
