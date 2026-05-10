@@ -2,18 +2,13 @@ import { initializeApp, getApps, cert, applicationDefault, type App } from 'fire
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
+import { resolveProjectId, resolveStorageBucket } from './storage-bucket'
 
 function getAdminApp(): App {
   if (getApps().length > 0) return getApps()[0]!
 
-  const projectId =
-    process.env.FIREBASE_PROJECT_ID ??
-    process.env.GOOGLE_CLOUD_PROJECT ??
-    process.env.GCLOUD_PROJECT
-  const storageBucket =
-    process.env.FIREBASE_STORAGE_BUCKET ??
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ??
-    (projectId ? `${projectId}-storage` : undefined)
+  const projectId = resolveProjectId()
+  const storageBucket = resolveStorageBucket()
   const commonOptions = {
     ...(projectId ? { projectId } : {}),
     ...(storageBucket ? { storageBucket } : {}),
