@@ -24,6 +24,7 @@ export function RegisterForm() {
     const displayName = data.email.split('@')[0] ?? data.email
     try {
       await signUpWithEmail(data.email, data.password, displayName)
+      toast.success('Account created — check your inbox to verify your email.')
       router.push(getRedirectPath())
     } catch (error) {
       console.error('[RegisterForm] sign-up failed:', error)

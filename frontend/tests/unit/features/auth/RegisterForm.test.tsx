@@ -6,6 +6,7 @@ import { FirebaseError } from 'firebase/app'
 const pushMock = vi.fn()
 const signUpWithEmailMock = vi.fn()
 const toastErrorMock = vi.fn()
+const toastSuccessMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn() }),
@@ -24,7 +25,7 @@ vi.mock('@/hooks/useAuth', () => ({
   }),
 }))
 
-vi.mock('sonner', () => ({ toast: { error: toastErrorMock, success: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { error: toastErrorMock, success: toastSuccessMock } }))
 
 const { RegisterForm } = await import('@/features/auth/components/RegisterForm')
 
@@ -33,6 +34,7 @@ describe('RegisterForm', () => {
     pushMock.mockReset()
     signUpWithEmailMock.mockReset()
     toastErrorMock.mockReset()
+    toastSuccessMock.mockReset()
     window.history.replaceState({}, '', '/register')
   })
 
@@ -80,6 +82,21 @@ describe('RegisterForm', () => {
       )
     )
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard'))
+    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringMatching(/verify your email/i))
+  })
+
+  it('does not show the verification-email toast when sign-up fails', async () => {
+    signUpWithEmailMock.mockRejectedValue(new Error('boom'))
+    const user = userEvent.setup()
+    render(<RegisterForm />)
+
+    await user.type(screen.getByLabelText(/institutional email/i), 's5000001@student.rmit.edu.au')
+    await user.type(screen.getByLabelText(/^password$/i), 'Abcd1234')
+    await user.type(screen.getByLabelText(/confirm/i), 'Abcd1234')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled())
+    expect(toastSuccessMock).not.toHaveBeenCalled()
   })
 
   it('surfaces a friendly message when the email is already in use', async () => {
