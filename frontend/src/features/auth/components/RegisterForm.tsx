@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { registerSchema, STUDENT_EMAIL_DOMAIN, type RegisterInput } from '@/lib/validations/auth'
 import { getAuthErrorMessage } from '@/lib/firebase/auth-errors'
-import { getRedirectPath } from '@/features/auth/utils/redirect'
 
 export function RegisterForm() {
   const router = useRouter()
@@ -25,7 +24,7 @@ export function RegisterForm() {
     try {
       await signUpWithEmail(data.email, data.password, displayName)
       toast.success('Account created — check your inbox to verify your email.')
-      router.push(getRedirectPath())
+      router.push('/verify-email')
     } catch (error) {
       console.error('[RegisterForm] sign-up failed:', error)
       toast.error(getAuthErrorMessage(error, 'Failed to create account. Please try again.'))
@@ -37,7 +36,7 @@ export function RegisterForm() {
       <div className="space-y-1.5">
         <label
           htmlFor="institutional-email"
-          className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
+          className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
         >
           Institutional Email
         </label>
@@ -49,17 +48,17 @@ export function RegisterForm() {
             placeholder="s1234567@student.rmit.edu.au"
             aria-invalid={errors.email ? 'true' : 'false'}
             aria-describedby="institutional-email-hint"
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 py-2.5 pr-9 pl-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:outline-none"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 py-2.5 pl-3 pr-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2"
             {...register('email')}
           />
           <Mail
             aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
           />
         </div>
-        <p id="institutional-email-hint" className="text-xs text-zinc-500 italic">
+        <p id="institutional-email-hint" className="text-xs italic text-zinc-500">
           {errors.email ? (
-            <span className="text-red-600 not-italic">{errors.email.message}</span>
+            <span className="not-italic text-red-600">{errors.email.message}</span>
           ) : (
             <>Must be a valid {STUDENT_EMAIL_DOMAIN} address.</>
           )}
@@ -70,7 +69,7 @@ export function RegisterForm() {
         <div className="space-y-1.5">
           <label
             htmlFor="register-password"
-            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
+            className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
           >
             Password
           </label>
@@ -80,7 +79,7 @@ export function RegisterForm() {
             autoComplete="new-password"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:outline-none"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2"
             {...register('password')}
           />
           {errors.password && <p className="text-xs text-red-600">{errors.password.message}</p>}
@@ -89,7 +88,7 @@ export function RegisterForm() {
         <div className="space-y-1.5">
           <label
             htmlFor="register-confirm"
-            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
+            className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
           >
             Confirm
           </label>
@@ -99,7 +98,7 @@ export function RegisterForm() {
             autoComplete="new-password"
             placeholder="••••••••"
             aria-invalid={errors.confirmPassword ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:outline-none"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2"
             {...register('confirmPassword')}
           />
           {errors.confirmPassword && (

@@ -1,62 +1,63 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase/client'
+import { auth } from '@/lib/firebase/client'
 import {
   signInWithEmail as fbSignInWithEmail,
   signUpWithEmail as fbSignUpWithEmail,
   signOut as fbSignOut,
 } from '@/lib/firebase/auth'
+import { fetchCurrentUser } from '@/features/auth/api/users'
 import type { AuthContextValue } from '@/types/auth'
-import type { UserProfile } from '@/types/firestore'
+import type { UserResponse } from '@/types/api'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-async function syncUserProfile(user: User): Promise<UserProfile> {
-  const profileRef = doc(db, 'users', user.uid)
-  const snap = await getDoc(profileRef)
-
-  if (!snap.exists()) {
-    const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
-      uid: user.uid,
-      email: user.email ?? '',
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      role: 'user',
-    }
-    await setDoc(profileRef, {
-      ...newProfile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-    return snap.data() as UserProfile
-  }
-
-  return snap.data() as UserProfile
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserResponse | null>(null)
+  const [needsVerification, setNeedsVerification] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  const hydrateProfile = useCallback(async (firebaseUser: User | null) => {
+    if (!firebaseUser) {
+      setProfile(null)
+      setNeedsVerification(false)
+      return
+    }
+    // Force-refresh so a freshly-verified `email_verified` claim reaches
+    // the backend on the very next call.
+    await firebaseUser.getIdToken(true).catch(() => undefined)
+    const result = await fetchCurrentUser()
+    if (result.kind === 'ok') {
+      setProfile(result.user)
+      setNeedsVerification(false)
+    } else if (result.kind === 'unverified') {
+      setProfile(null)
+      setNeedsVerification(true)
+    } else {
+      // 401 — Firebase says signed-in but token is rejected. Treat as no profile.
+      setProfile(null)
+      setNeedsVerification(false)
+    }
+  }, [])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser)
-        const userProfile = await syncUserProfile(firebaseUser)
-        setProfile(userProfile)
-      } else {
-        setUser(null)
+      setUser(firebaseUser)
+      try {
+        await hydrateProfile(firebaseUser)
+      } catch (error) {
+        console.error('[AuthProvider] failed to hydrate profile:', error)
         setProfile(null)
+        setNeedsVerification(false)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     })
-
     return () => unsubscribe()
-  }, [])
+  }, [hydrateProfile])
 
   const signInWithEmail = async (email: string, password: string) => {
     await fbSignInWithEmail(email, password)
@@ -70,15 +71,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fbSignOut()
   }
 
+  const refreshProfile = useCallback(async () => {
+    await hydrateProfile(auth.currentUser)
+  }, [hydrateProfile])
+
   return (
     <AuthContext.Provider
       value={{
         user,
         profile,
         loading,
+        needsVerification,
         signInWithEmail,
         signUpWithEmail,
         signOut,
+        refreshProfile,
       }}
     >
       {children}

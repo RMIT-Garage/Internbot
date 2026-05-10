@@ -80,7 +80,7 @@ describe('RegisterForm', () => {
         's5000001'
       )
     )
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard'))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/verify-email'))
     expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringMatching(/verify your email/i))
   })
 

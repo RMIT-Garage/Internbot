@@ -6,6 +6,7 @@ import { FirebaseError } from 'firebase/app'
 const pushMock = vi.fn()
 const signInWithEmailMock = vi.fn()
 const toastErrorMock = vi.fn()
+const fetchCurrentUserMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, replace: vi.fn() }),
@@ -17,10 +18,16 @@ vi.mock('@/hooks/useAuth', () => ({
     user: null,
     profile: null,
     loading: false,
+    needsVerification: false,
     signInWithEmail: signInWithEmailMock,
     signUpWithEmail: vi.fn(),
     signOut: vi.fn(),
+    refreshProfile: vi.fn(),
   }),
+}))
+
+vi.mock('@/features/auth/api/users', () => ({
+  fetchCurrentUser: fetchCurrentUserMock,
 }))
 
 vi.mock('sonner', () => ({ toast: { error: toastErrorMock, success: vi.fn() } }))
@@ -39,6 +46,8 @@ describe('EmailPasswordLoginForm', () => {
     pushMock.mockReset()
     signInWithEmailMock.mockReset()
     toastErrorMock.mockReset()
+    fetchCurrentUserMock.mockReset()
+    fetchCurrentUserMock.mockResolvedValue({ kind: 'ok', user: { role: 'student' } })
     window.history.replaceState({}, '', '/login')
   })
 
@@ -96,6 +105,20 @@ describe('EmailPasswordLoginForm', () => {
     await user.click(screen.getByRole('button', { name: /sign in with staff id/i }))
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/tickets/42'))
+  })
+
+  it('routes to /verify-email when the backend reports the email is not verified', async () => {
+    signInWithEmailMock.mockResolvedValue(undefined)
+    fetchCurrentUserMock.mockResolvedValue({ kind: 'unverified' })
+    const user = userEvent.setup()
+    render(<EmailPasswordLoginForm {...baseProps} />)
+
+    await user.type(screen.getByLabelText(/staff email/i), 'jane@rmit.edu.au')
+    await user.type(screen.getByLabelText(/^password$/i), 'secret')
+    await user.click(screen.getByRole('button', { name: /sign in with staff id/i }))
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/verify-email'))
+    expect(toastErrorMock).not.toHaveBeenCalled()
   })
 
   it('routes invalid-credential errors through the friendly auth-error mapper', async () => {
