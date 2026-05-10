@@ -35,8 +35,31 @@ describe('fetchCurrentUser', () => {
     if (result.kind === 'ok') expect(result.user.id).toBe('usr_1')
   })
 
-  it('returns kind=unverified on 403 + no_platform_user', async () => {
+  it('returns kind=unverified on 403 + no_platform_user (top-level reason)', async () => {
     apiFetchMock.mockRejectedValue(new ApiError(403, { reason: 'no_platform_user' }, 'Forbidden'))
+    const result = await fetchCurrentUser()
+    expect(result.kind).toBe('unverified')
+  })
+
+  it('returns kind=unverified for the real backend shape (reason nested under error)', async () => {
+    // Mirrors backend/src/api/middleware/error-handler.ts response body.
+    apiFetchMock.mockRejectedValue(
+      new ApiError(
+        403,
+        {
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Cannot resolve `me`: caller has no platform user record.',
+          error: {
+            code: 'Forbidden',
+            message: 'Cannot resolve `me`: caller has no platform user record.',
+            reason: 'no_platform_user',
+          },
+        },
+        'Cannot resolve `me`: caller has no platform user record.'
+      )
+    )
     const result = await fetchCurrentUser()
     expect(result.kind).toBe('unverified')
   })

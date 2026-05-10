@@ -81,6 +81,41 @@ describe('apiFetch', () => {
     })
   })
 
+  it('extracts the message from the backend RFC 9457 body (detail at top, message under error)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Cannot resolve `me`: caller has no platform user record.',
+          error: {
+            code: 'Forbidden',
+            message: 'Cannot resolve `me`: caller has no platform user record.',
+            reason: 'no_platform_user',
+          },
+        },
+        { status: 403 }
+      )
+    )
+
+    await expect(apiFetch('/api/v1/users/me')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 403,
+      message: 'Cannot resolve `me`: caller has no platform user record.',
+    })
+  })
+
+  it('falls back to the status string when the body has no usable message field', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ unrelated: 'shape' }, { status: 500 }))
+
+    await expect(apiFetch('/api/v1/x')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 500,
+      message: 'Request failed with status 500',
+    })
+  })
+
   it('JSON-stringifies request bodies and sets Content-Type', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }))
 
