@@ -1,0 +1,119 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Mail } from 'lucide-react'
+import { toast } from 'sonner'
+import { useAuth } from '@/hooks/useAuth'
+import { registerSchema, STUDENT_EMAIL_DOMAIN, type RegisterInput } from '@/lib/validations/auth'
+import { getAuthErrorMessage } from '@/lib/firebase/auth-errors'
+import { getRedirectPath } from '@/features/auth/utils/redirect'
+
+export function RegisterForm() {
+  const router = useRouter()
+  const { signUpWithEmail } = useAuth()
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterInput>({ resolver: zodResolver(registerSchema) })
+
+  const onSubmit = async (data: RegisterInput) => {
+    const displayName = data.email.split('@')[0] ?? data.email
+    try {
+      await signUpWithEmail(data.email, data.password, displayName)
+      router.push(getRedirectPath())
+    } catch (error) {
+      console.error('[RegisterForm] sign-up failed:', error)
+      toast.error(getAuthErrorMessage(error, 'Failed to create account. Please try again.'))
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+      <div className="space-y-1.5">
+        <label
+          htmlFor="institutional-email"
+          className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
+        >
+          Institutional Email
+        </label>
+        <div className="relative">
+          <input
+            id="institutional-email"
+            type="email"
+            autoComplete="username"
+            placeholder="s1234567@student.rmit.edu.au"
+            aria-invalid={errors.email ? 'true' : 'false'}
+            aria-describedby="institutional-email-hint"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 py-2.5 pr-9 pl-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:outline-none"
+            {...register('email')}
+          />
+          <Mail
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400"
+          />
+        </div>
+        <p id="institutional-email-hint" className="text-xs text-zinc-500 italic">
+          {errors.email ? (
+            <span className="text-red-600 not-italic">{errors.email.message}</span>
+          ) : (
+            <>Must be a valid {STUDENT_EMAIL_DOMAIN} address.</>
+          )}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label
+            htmlFor="register-password"
+            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
+          >
+            Password
+          </label>
+          <input
+            id="register-password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="••••••••"
+            aria-invalid={errors.password ? 'true' : 'false'}
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:outline-none"
+            {...register('password')}
+          />
+          {errors.password && <p className="text-xs text-red-600">{errors.password.message}</p>}
+        </div>
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="register-confirm"
+            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
+          >
+            Confirm
+          </label>
+          <input
+            id="register-confirm"
+            type="password"
+            autoComplete="new-password"
+            placeholder="••••••••"
+            aria-invalid={errors.confirmPassword ? 'true' : 'false'}
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:outline-none"
+            {...register('confirmPassword')}
+          />
+          {errors.confirmPassword && (
+            <p className="text-xs text-red-600">{errors.confirmPassword.message}</p>
+          )}
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="bg-brand-500 hover:bg-brand-600 focus-visible:outline-brand-500 w-full rounded-md px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? 'Creating account…' : 'Create Account'}
+      </button>
+    </form>
+  )
+}

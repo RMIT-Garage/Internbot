@@ -13,10 +13,10 @@ export class ApiError extends Error {
   }
 }
 
-async function getAuthHeader(): Promise<Record<string, string>> {
+async function getAuthHeader(forceRefresh: boolean): Promise<Record<string, string>> {
   const user = auth.currentUser
   if (!user) return {}
-  const token = await user.getIdToken()
+  const token = await user.getIdToken(forceRefresh)
   return { Authorization: `Bearer ${token}` }
 }
 
@@ -30,18 +30,26 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit = {
   }
 
   const { body, headers, ...rest } = init
-  const authHeader = await getAuthHeader()
   const hasBody = body !== undefined
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-      ...authHeader,
-      ...(headers ?? {}),
-    },
-    body: hasBody ? JSON.stringify(body) : undefined,
-  })
+  const send = async (forceRefresh: boolean) => {
+    const authHeader = await getAuthHeader(forceRefresh)
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: {
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+        ...authHeader,
+        ...(headers ?? {}),
+      },
+      body: hasBody ? JSON.stringify(body) : undefined,
+    })
+  }
+
+  let response = await send(false)
+
+  if (response.status === 401 && auth.currentUser) {
+    response = await send(true)
+  }
 
   const contentType = response.headers.get('content-type') ?? ''
   const parsed: unknown = contentType.includes('application/json')

@@ -58,6 +58,10 @@ module "auth" {
   # function URL via a data source, so no manual URL hand-off.
   wire_blocking_function = var.wire_blocking_function
 
+  # Authorized domains for Firebase Auth. `localhost` plus the standard
+  # firebaseapp.com / web.app domains are always included; pass extras here.
+  extra_authorized_domains = var.extra_authorized_domains
+
   depends_on = [module.firebase_project]
 }
 
