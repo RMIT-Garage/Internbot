@@ -55,3 +55,44 @@ resource "google_firebaserules_release" "storage" {
     replace_triggered_by = [google_firebaserules_ruleset.storage]
   }
 }
+
+# Service-agent IAM bindings for the `syncAttachmentMetadata`
+# `onObjectFinalized` trigger. Without these, `firebase deploy` creates the
+# function but Eventarc trigger validation fails with:
+#
+#   Permission "storage.buckets.get" denied on
+#   "Bucket internbot-dev-ae3a3-storage" ... that the Eventarc service
+#   account has permission.
+#
+# Firebase CLI auto-grants project-level service-agent roles, but bucket-
+# level reader on a non-default-named bucket (we use plain
+# `${project_id}-storage`, not `<project>.appspot.com`) is on us.
+
+# Mint the GCS service agent (lazy until first reference). The agent
+# publishes OBJECT_FINALIZE events to the Pub/Sub topic Eventarc creates
+# behind each storage trigger.
+resource "google_project_service_identity" "gcs" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "storage.googleapis.com"
+}
+
+resource "google_project_iam_member" "gcs_pubsub_publisher" {
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_project_service_identity.gcs.email}"
+}
+
+# Mint the Eventarc service agent so we can grant it bucket reader. Eventarc
+# uses this identity to validate the trigger's bucket exists at create time.
+resource "google_project_service_identity" "eventarc" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "eventarc.googleapis.com"
+}
+
+resource "google_storage_bucket_iam_member" "eventarc_bucket_reader" {
+  bucket = google_storage_bucket.default.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_project_service_identity.eventarc.email}"
+}
