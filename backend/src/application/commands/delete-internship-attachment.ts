@@ -10,10 +10,10 @@ export interface DeleteInternshipAttachmentCommand {
 }
 
 /**
- * Soft-deletes an internship attachment via the aggregate root. The
- * attachment row stays in Firestore with a `deletedAt`/`deletedByUserId`
- * tombstone so the read-side stops returning it; a future outbox-driven
- * worker will hard-delete the GCS object asynchronously.
+ * Hard-deletes an internship attachment via the aggregate root. The repo
+ * removes the Firestore subdoc and writes an `attachmentPurgeQueue` outbox
+ * row in the same transaction. A separate worker drains the queue and
+ * deletes the GCS object asynchronously.
  */
 export class DeleteInternshipAttachmentCommandHandler {
   constructor(
@@ -34,7 +34,7 @@ export class DeleteInternshipAttachmentCommandHandler {
         'student_not_owner'
       )
 
-      internship.softDeleteAttachment(cmd.attachmentId, platformUser.id, new Date())
+      internship.removeAttachment(cmd.attachmentId, platformUser.id, new Date())
       await ctx.internships.save(internship)
     })
   }

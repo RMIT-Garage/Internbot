@@ -6,6 +6,16 @@ import type { Role } from '../value-objects/user-enums'
 import { InternshipActivity } from '../value-objects/internship-activity'
 import type { Attachment } from '../value-objects/attachment'
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
+import type { InternshipDomainEvent } from '../events/internship-events'
+import {
+  InternshipApplied,
+  InternshipAttachmentAdded,
+  InternshipAttachmentRemoved,
+  InternshipCommented,
+  InternshipDecided,
+  InternshipOfferEdited,
+  InternshipOfferSubmitted,
+} from '../events/internship-events'
 
 export interface InternshipProps {
   readonly id: string
@@ -42,35 +52,23 @@ export interface InternshipDecisionDetails {
   readonly comment: string | undefined
 }
 
-export interface PendingAttachmentSoftDelete {
-  readonly attachmentId: string
-  readonly deletedAt: Date
-  readonly deletedByUserId: string
-}
-
 export class Internship {
   #props: InternshipProps
-  #pendingActivity: InternshipActivity | undefined
   #attachments: Attachment[]
-  #pendingAttachmentSoftDeletes: PendingAttachmentSoftDelete[] = []
-  #pendingAttachmentAdds: Attachment[] = []
   /**
-   * True when a domain command mutated parent-level state (offer fields,
-   * status, decision, or attachment tombstones). Drives the repo's `save()`:
-   * parent-mutation saves rotate `version` and write the full parent payload;
-   * comment-only saves append the activity row without rotating the ETag,
-   * matching the historical "comments don't break OCC" behavior.
+   * Transient domain events emitted by mutation methods. Drained by
+   * `InternshipRepository.save` and translated to Firestore writes inside
+   * one transaction. Whether the parent doc rotates `version` is derived
+   * from the event kinds via {@link rotatesParent} — `applied`, `edited`,
+   * `submitted`, `decided`, and `attachment_soft_deleted` rotate; `commented`
+   * and `attachment_added` do not (matching the historical "comments don't
+   * break OCC" + "storage trigger has no ETag context" semantics).
    */
-  #hasParentMutation = false
+  #pendingEvents: InternshipDomainEvent[] = []
 
-  private constructor(
-    props: InternshipProps,
-    attachments: readonly Attachment[] = [],
-    pendingActivity?: InternshipActivity
-  ) {
+  private constructor(props: InternshipProps, attachments: readonly Attachment[] = []) {
     this.#props = props
     this.#attachments = [...attachments]
-    this.#pendingActivity = pendingActivity
   }
 
   static createApplication(props: {
@@ -97,12 +95,13 @@ export class Internship {
       createdAt: props.now,
       updatedAt: props.now,
     })
-    internship.#pendingActivity = InternshipActivity.apply({
+    const activity = InternshipActivity.apply({
       id: props.activityId,
       authorUserId: props.userId,
       authorRole: 'student',
       createdAt: props.now,
     })
+    internship.#pendingEvents.push(new InternshipApplied(activity))
     return internship
   }
 
@@ -162,31 +161,23 @@ export class Internship {
   get updatedAt(): Date {
     return this.#props.updatedAt
   }
-  get pendingActivity(): InternshipActivity | undefined {
-    return this.#pendingActivity
+  get pendingEvents(): readonly InternshipDomainEvent[] {
+    return this.#pendingEvents
   }
   get attachments(): readonly Attachment[] {
     return this.#attachments
   }
-  /**
-   * Visible attachments — what list/get attachment queries should return.
-   * Excludes soft-deleted entries.
-   */
-  get activeAttachments(): readonly Attachment[] {
-    return this.#attachments.filter((a) => !a.isDeleted)
-  }
-  get pendingAttachmentSoftDeletes(): readonly PendingAttachmentSoftDelete[] {
-    return this.#pendingAttachmentSoftDeletes
-  }
-  get pendingAttachmentAdds(): readonly Attachment[] {
-    return this.#pendingAttachmentAdds
-  }
-  hasActiveAttachments(): boolean {
-    return this.#attachments.some((a) => !a.isDeleted)
-  }
 
+  /**
+   * True when any emitted event mutated parent-level state (offer fields,
+   * status, decision, or attachment removal). Drives the repo's `save()`:
+   * parent-mutation saves rotate `version` and write the full parent payload;
+   * comment-only / attachment-add-only saves skip the parent update,
+   * matching the historical "comments don't break OCC" behavior + storage
+   * trigger semantics.
+   */
   get hasParentMutation(): boolean {
-    return this.#hasParentMutation
+    return this.#pendingEvents.some(eventRotatesParent)
   }
 
   updateOfferDetails(details: InternshipOfferDetails, activityId: string, now: Date): void {
@@ -199,13 +190,13 @@ export class Internship {
     }
     validateOfferDates(next)
     this.#props = next
-    this.#hasParentMutation = true
-    this.#pendingActivity = InternshipActivity.edit({
+    const activity = InternshipActivity.edit({
       id: activityId,
       authorUserId: this.#props.userId,
       authorRole: 'student',
       createdAt: now,
     })
+    this.#pendingEvents.push(new InternshipOfferEdited(activity))
   }
 
   submitOffer(
@@ -244,20 +235,20 @@ export class Internship {
     }
     validateOfferDates(next)
     this.#props = next
-    this.#hasParentMutation = true
-    this.#pendingActivity = InternshipActivity.submitOffer({
+    const activity = InternshipActivity.submitOffer({
       id: activityId,
       authorUserId: this.#props.userId,
       authorRole: 'student',
       createdAt: now,
     })
+    this.#pendingEvents.push(new InternshipOfferSubmitted(activity))
   }
 
   /**
-   * Stage a comment on this internship's activity timeline. Comments do not
+   * Add a comment to this internship's activity timeline. Comments do not
    * mutate parent fields and do not rotate `version` — `save()` writes the
-   * activity row only. Returns the staged VO so callers can surface it in
-   * their HTTP response without re-reading `pendingActivity`.
+   * activity row only. Returns the created VO so callers can surface it in
+   * their HTTP response without re-reading the event list.
    */
   comment(
     activityId: string,
@@ -273,7 +264,7 @@ export class Internship {
       text,
       createdAt: now,
     })
-    this.#pendingActivity = activity
+    this.#pendingEvents.push(new InternshipCommented(activity))
     return activity
   }
 
@@ -320,22 +311,23 @@ export class Internship {
       reviewedByUserId: reviewerUserId,
       reviewedAt: now,
     }
-    this.#hasParentMutation = true
-    this.#pendingActivity = decisionActivity(details.decision, {
+    const activity = decisionActivity(details.decision, {
       id: activityId,
       authorUserId: reviewerUserId,
       text: comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new InternshipDecided(activity))
   }
 
   /**
-   * Soft-deletes an attachment owned by this internship. Allowed only while
+   * Hard-deletes an attachment owned by this internship. Allowed only while
    * the offer is still in the student's hands (`applied` or
-   * `offer_changes_requested`). The Firestore row remains; a future outbox
-   * worker hard-deletes the GCS object using the captured `storageGeneration`.
+   * `offer_changes_requested`). The repo removes the Firestore subdoc and,
+   * inside the same txn, writes an `attachmentPurgeQueue` outbox row a
+   * worker drains to delete the underlying GCS object.
    */
-  softDeleteAttachment(attachmentId: string, deletedByUserId: string, now: Date): void {
+  removeAttachment(attachmentId: string, removedByUserId: string, now: Date): void {
     if (!INTERNSHIP_ATTACHMENT_DELETABLE_STATUSES.has(this.#props.status)) {
       throw new ConflictError(
         'Attachments are locked once the offer is under review or finalised',
@@ -345,17 +337,12 @@ export class Internship {
 
     const index = this.#attachments.findIndex((a) => a.id === attachmentId)
     const existing = index >= 0 ? this.#attachments[index] : undefined
-    if (!existing || existing.isDeleted) {
+    if (!existing) {
       throw new NotFoundError('Attachment', attachmentId)
     }
 
-    this.#attachments[index] = existing.markDeleted(deletedByUserId, now)
-    this.#pendingAttachmentSoftDeletes.push({
-      attachmentId,
-      deletedAt: now,
-      deletedByUserId,
-    })
-    this.#hasParentMutation = true
+    this.#attachments.splice(index, 1)
+    this.#pendingEvents.push(new InternshipAttachmentRemoved(existing, removedByUserId, now))
   }
 
   /**
@@ -369,7 +356,7 @@ export class Internship {
     if (this.#props.userId !== expectedUserId) return false
     if (this.#attachments.some((a) => a.id === attachment.id)) return false
     this.#attachments.push(attachment)
-    this.#pendingAttachmentAdds.push(attachment)
+    this.#pendingEvents.push(new InternshipAttachmentAdded(attachment))
     return true
   }
 
@@ -384,6 +371,27 @@ const INTERNSHIP_ATTACHMENT_DELETABLE_STATUSES: ReadonlySet<InternshipStatus> = 
   'applied',
   'offer_changes_requested',
 ])
+
+/**
+ * Whether an emitted event rotates the parent doc's `version`. Comments
+ * (activity-only) and storage-trigger attachment syncs (subdoc-only) do
+ * not. Everything else does — keeps the historical "comments don't break
+ * OCC" semantics while letting attachment soft-deletes invalidate cached
+ * ETags.
+ */
+function eventRotatesParent(event: InternshipDomainEvent): boolean {
+  switch (event.kind) {
+    case 'internship_applied':
+    case 'internship_offer_edited':
+    case 'internship_offer_submitted':
+    case 'internship_decided':
+    case 'internship_attachment_removed':
+      return true
+    case 'internship_commented':
+    case 'internship_attachment_added':
+      return false
+  }
+}
 
 function decisionActivity(
   decision: InternshipCoordinatorDecision,

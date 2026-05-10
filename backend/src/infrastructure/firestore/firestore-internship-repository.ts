@@ -19,6 +19,7 @@ import {
 import type { Role } from '../../domain/value-objects/user-enums'
 import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 import { translateFirestoreErrors } from './translate-firestore-errors'
+import { buildAttachmentPurgeQueueDoc, newAttachmentPurgeQueueRef } from './attachment-purge-queue'
 
 const firestoreTimestamp = z.instanceof(Timestamp)
 
@@ -46,8 +47,6 @@ export const internshipAttachmentStorageSchema = z.object({
   contentType: z.string().optional(),
   uploadedAt: firestoreTimestamp,
   storageGeneration: z.string().optional(),
-  deletedAt: firestoreTimestamp.optional(),
-  deletedByUserId: z.string().optional(),
   _schemaVersion: z.number().int().optional(),
 })
 
@@ -109,10 +108,6 @@ type AttachmentWrite = {
   _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
 }
 type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
-type AttachmentSoftDeleteUpdate = {
-  deletedAt: Timestamp
-  deletedByUserId: string
-}
 
 export const INTERNSHIP_COLLECTION = 'internships'
 export const INTERNSHIP_SENTINEL_COLLECTION = 'internshipApplications'
@@ -216,7 +211,7 @@ export class FirestoreInternshipRepository implements InternshipRepository {
         const ref = adminDb.collection(INTERNSHIP_COLLECTION).doc(id)
         // All reads must precede writes within a Firestore transaction;
         // eager-loading attachments here keeps the aggregate self-contained
-        // for invariant checks (e.g. `softDeleteAttachment`, `submitOffer`'s
+        // for invariant checks (e.g. `removeAttachment`, `submitOffer`'s
         // attachment requirement) without leaking a second `txn.get` into
         // every handler.
         const [parentSnap, attachmentSnap] = await Promise.all([
@@ -307,12 +302,20 @@ export class FirestoreInternshipRepository implements InternshipRepository {
         this.txn.create(ref, doc)
         this.txn.create(sentinelRef, sentinel)
 
-        const activity = internship.pendingActivity
-        if (activity) {
-          this.txn.set(ref.collection('activity').doc(activity.id), {
-            ...activityToPayload(activity),
-            createdAt: FieldValue.serverTimestamp(),
-          } satisfies InternshipActivityDoc)
+        for (const event of internship.pendingEvents) {
+          if (
+            event.kind === 'internship_applied' ||
+            event.kind === 'internship_offer_edited' ||
+            event.kind === 'internship_offer_submitted' ||
+            event.kind === 'internship_decided' ||
+            event.kind === 'internship_commented'
+          ) {
+            const activity = event.activity
+            this.txn.set(ref.collection('activity').doc(activity.id), {
+              ...activityToPayload(activity),
+              createdAt: FieldValue.serverTimestamp(),
+            } satisfies InternshipActivityDoc)
+          }
         }
       },
       {
@@ -336,10 +339,10 @@ export class FirestoreInternshipRepository implements InternshipRepository {
           throw new PreconditionFailedError('Resource version does not match')
         }
 
-        // Parent-mutation saves rotate version + write the full update doc.
-        // Comment-only saves (pendingActivity set without hasParentMutation)
-        // append the activity row without touching parent state, matching
-        // the historical `addActivity` ETag-stable semantics.
+        // Parent-mutation events rotate version + write the full update doc.
+        // Activity-only (comment) and subdoc-only (attachment_added) events
+        // skip the parent update, matching the historical "comments don't
+        // break OCC" + storage-trigger semantics.
         if (internship.hasParentMutation) {
           const update: InternshipUpdateDoc = {
             ...internshipToUpdatePayload(internship, stored + 1),
@@ -348,24 +351,42 @@ export class FirestoreInternshipRepository implements InternshipRepository {
           this.txn.update(ref, update)
         }
 
-        const activity = internship.pendingActivity
-        if (activity) {
-          this.txn.set(ref.collection('activity').doc(activity.id), {
-            ...activityToPayload(activity),
-            createdAt: FieldValue.serverTimestamp(),
-          } satisfies InternshipActivityDoc)
-        }
-
-        for (const added of internship.pendingAttachmentAdds) {
-          this.txn.set(ref.collection('attachments').doc(added.id), attachmentToPayload(added))
-        }
-
-        for (const tombstone of internship.pendingAttachmentSoftDeletes) {
-          const attachmentRef = ref.collection('attachments').doc(tombstone.attachmentId)
-          this.txn.update(attachmentRef, {
-            deletedAt: FsTimestamp.fromDate(tombstone.deletedAt),
-            deletedByUserId: tombstone.deletedByUserId,
-          } satisfies AttachmentSoftDeleteUpdate)
+        for (const event of internship.pendingEvents) {
+          switch (event.kind) {
+            case 'internship_applied':
+            case 'internship_offer_edited':
+            case 'internship_offer_submitted':
+            case 'internship_decided':
+            case 'internship_commented': {
+              const activity = event.activity
+              this.txn.set(ref.collection('activity').doc(activity.id), {
+                ...activityToPayload(activity),
+                createdAt: FieldValue.serverTimestamp(),
+              } satisfies InternshipActivityDoc)
+              break
+            }
+            case 'internship_attachment_added': {
+              const added = event.attachment
+              this.txn.set(ref.collection('attachments').doc(added.id), attachmentToPayload(added))
+              break
+            }
+            case 'internship_attachment_removed': {
+              const attachment = event.attachment
+              this.txn.delete(ref.collection('attachments').doc(attachment.id))
+              this.txn.create(
+                newAttachmentPurgeQueueRef(adminDb),
+                buildAttachmentPurgeQueueDoc({
+                  parentCollection: 'internships',
+                  parentId: internship.id,
+                  attachmentId: attachment.id,
+                  filePath: attachment.filePath,
+                  storageGeneration: attachment.storageGeneration,
+                  requestedByUserId: event.removedByUserId,
+                })
+              )
+              break
+            }
+          }
         }
       },
       { op: 'internships.save', resource: 'Internship', id: internship.id }
@@ -400,8 +421,6 @@ export function parseInternshipAttachment(id: string, raw: unknown): Attachment 
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
     storageGeneration: data.storageGeneration,
-    deletedAt: data.deletedAt ? data.deletedAt.toDate() : undefined,
-    deletedByUserId: data.deletedByUserId,
   }
   return Attachment.rehydrate(props)
 }

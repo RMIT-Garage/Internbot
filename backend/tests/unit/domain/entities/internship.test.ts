@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { Internship } from '../../../../src/domain/entities/internship'
+import type { InternshipActivity } from '../../../../src/domain/value-objects/internship-activity'
 import type { InternshipStatus } from '../../../../src/domain/value-objects/internship-enums'
 
 const NOW = new Date('2026-04-01T00:00:00Z')
 const LATER = new Date('2026-04-02T00:00:00Z')
+
+function latestActivity(entity: Internship): InternshipActivity {
+  const event = entity.pendingEvents[entity.pendingEvents.length - 1]
+  if (!event) throw new Error('no pendingEvents')
+  if (
+    event.kind === 'internship_applied' ||
+    event.kind === 'internship_offer_edited' ||
+    event.kind === 'internship_offer_submitted' ||
+    event.kind === 'internship_decided' ||
+    event.kind === 'internship_commented'
+  ) {
+    return event.activity
+  }
+  throw new Error(`event ${event.kind} carries no activity`)
+}
 
 function internship(status: InternshipStatus = 'applied'): Internship {
   return Internship.rehydrate({
@@ -37,8 +53,9 @@ describe('Internship', () => {
 
     expect(created.status).toBe('applied')
     expect(created.version).toBe(0)
-    expect(created.pendingActivity?.type).toBe('apply')
-    expect(created.pendingActivity?.authorUserId).toBe('usr_student')
+    const activity = latestActivity(created)
+    expect(activity.type).toBe('apply')
+    expect(activity.authorUserId).toBe('usr_student')
   })
 
   it('submitOffer requires an offer attachment', () => {
@@ -72,7 +89,7 @@ describe('Internship', () => {
 
     expect(entity.status).toBe('offer_pending_review')
     expect(entity.lastSubmittedAt).toBe(LATER)
-    expect(entity.pendingActivity?.type).toBe('submit_offer')
+    expect(latestActivity(entity).type).toBe('submit_offer')
   })
 
   it('submitOffer rejects non-submittable states', () => {
@@ -124,8 +141,9 @@ describe('Internship', () => {
     expect(entity.coordinatorDecision).toBe('approved')
     expect(entity.reviewedByUserId).toBe('usr_coord')
     expect(entity.reviewedAt).toBe(LATER)
-    expect(entity.pendingActivity?.type).toBe('approve_offer')
-    expect(entity.pendingActivity?.authorRole).toBe('coordinator')
+    const activity = latestActivity(entity)
+    expect(activity.type).toBe('approve_offer')
+    expect(activity.authorRole).toBe('coordinator')
   })
 
   it('changes_requested decision requires a comment', () => {
@@ -152,8 +170,9 @@ describe('Internship', () => {
     expect(entity.status).toBe('offer_changes_requested')
     expect(entity.coordinatorDecision).toBe('changes_requested')
     expect(entity.coordinatorComment).toBe('Add supervision details.')
-    expect(entity.pendingActivity?.type).toBe('request_changes')
-    expect(entity.pendingActivity?.text).toBe('Add supervision details.')
+    const activity = latestActivity(entity)
+    expect(activity.type).toBe('request_changes')
+    expect(activity.text).toBe('Add supervision details.')
   })
 
   it('rejected decision moves pending review → rejected', () => {
@@ -168,7 +187,7 @@ describe('Internship', () => {
 
     expect(entity.status).toBe('rejected')
     expect(entity.coordinatorDecision).toBe('rejected')
-    expect(entity.pendingActivity?.type).toBe('reject')
+    expect(latestActivity(entity).type).toBe('reject')
   })
 
   it('decision rejects non-reviewable states', () => {

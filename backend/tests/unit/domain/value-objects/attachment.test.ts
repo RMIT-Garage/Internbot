@@ -12,8 +12,6 @@ describe('Attachment', () => {
       contentType: 'application/pdf',
       uploadedAt,
       storageGeneration: '1700000000000001',
-      deletedAt: undefined,
-      deletedByUserId: undefined,
     })
 
     expect(attachment.id).toBe('att_001')
@@ -32,8 +30,6 @@ describe('Attachment', () => {
       contentType: 'application/pdf',
       uploadedAt: new Date(),
       storageGeneration: undefined,
-      deletedAt: undefined,
-      deletedByUserId: undefined,
     })
 
     expect(attachment.storageGeneration).toBeUndefined()
@@ -48,8 +44,6 @@ describe('Attachment', () => {
         contentType: 'application/pdf',
         uploadedAt: new Date(),
         storageGeneration: undefined,
-        deletedAt: undefined,
-        deletedByUserId: undefined,
       })
     ).toThrow(expect.objectContaining({ reason: 'invalid_attachment' }))
 
@@ -61,8 +55,6 @@ describe('Attachment', () => {
         contentType: 'application/pdf',
         uploadedAt: new Date(),
         storageGeneration: undefined,
-        deletedAt: undefined,
-        deletedByUserId: undefined,
       })
     ).toThrow(expect.objectContaining({ reason: 'invalid_attachment' }))
   })

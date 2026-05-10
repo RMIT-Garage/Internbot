@@ -10,9 +10,10 @@ export interface DeleteOpportunityAttachmentCommand {
 }
 
 /**
- * Soft-deletes an opportunity attachment via the aggregate root. The row
- * stays with a `deletedAt`/`deletedByUserId` tombstone; a future outbox
- * worker hard-deletes the GCS object out-of-band.
+ * Hard-deletes an opportunity attachment via the aggregate root. The repo
+ * removes the Firestore subdoc and writes an `attachmentPurgeQueue` outbox
+ * row in the same transaction. A separate worker drains the queue and
+ * deletes the GCS object asynchronously.
  */
 export class DeleteOpportunityAttachmentCommandHandler {
   constructor(
@@ -27,7 +28,7 @@ export class DeleteOpportunityAttachmentCommandHandler {
       const opportunity = await ctx.opportunities.findById(cmd.opportunityId)
       if (!opportunity) throw new NotFoundError('Opportunity', cmd.opportunityId)
 
-      opportunity.softDeleteAttachment(cmd.attachmentId, platformUser.id, new Date())
+      opportunity.removeAttachment(cmd.attachmentId, platformUser.id, new Date())
       await ctx.opportunities.save(opportunity)
     })
   }

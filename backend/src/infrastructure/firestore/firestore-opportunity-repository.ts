@@ -21,6 +21,7 @@ import {
 } from '../../domain/value-objects/opportunity-enums'
 import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 import { translateFirestoreErrors } from './translate-firestore-errors'
+import { buildAttachmentPurgeQueueDoc, newAttachmentPurgeQueueRef } from './attachment-purge-queue'
 
 const firestoreTimestamp = z.instanceof(Timestamp)
 
@@ -50,8 +51,6 @@ export const opportunityAttachmentStorageSchema = z.object({
   contentType: z.string().optional(),
   uploadedAt: firestoreTimestamp,
   storageGeneration: z.string().optional(),
-  deletedAt: firestoreTimestamp.optional(),
-  deletedByUserId: z.string().optional(),
   _schemaVersion: z.number().int().optional(),
 })
 
@@ -116,10 +115,6 @@ type AttachmentWrite = {
   _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
 }
 type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
-type AttachmentSoftDeleteUpdate = {
-  deletedAt: Timestamp
-  deletedByUserId: string
-}
 
 type OpportunityActivityWrite = {
   type: OpportunityActivityType
@@ -313,19 +308,32 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
         }
 
         const writeAttachmentMutations = (): void => {
-          for (const added of opportunity.pendingAttachmentAdds) {
-            this.txn.set(ref.collection('attachments').doc(added.id), attachmentToPayload(added))
-          }
-          for (const tombstone of opportunity.pendingAttachmentSoftDeletes) {
-            this.txn.update(ref.collection('attachments').doc(tombstone.attachmentId), {
-              deletedAt: FsTimestamp.fromDate(tombstone.deletedAt),
-              deletedByUserId: tombstone.deletedByUserId,
-            } satisfies AttachmentSoftDeleteUpdate)
+          for (const event of opportunity.pendingEvents) {
+            if (event.kind === 'opportunity_attachment_added') {
+              const added = event.attachment
+              this.txn.set(ref.collection('attachments').doc(added.id), attachmentToPayload(added))
+            } else if (event.kind === 'opportunity_attachment_removed') {
+              const attachment = event.attachment
+              this.txn.delete(ref.collection('attachments').doc(attachment.id))
+              this.txn.create(
+                newAttachmentPurgeQueueRef(adminDb),
+                buildAttachmentPurgeQueueDoc({
+                  parentCollection: 'opportunities',
+                  parentId: opportunity.id,
+                  attachmentId: attachment.id,
+                  filePath: attachment.filePath,
+                  storageGeneration: attachment.storageGeneration,
+                  requestedByUserId: event.removedByUserId,
+                })
+              )
+            }
           }
         }
 
-        const transition = opportunity.pendingTransition
-        if (transition) {
+        const transitionEvent = opportunity.pendingEvents.find(
+          (e) => e.kind === 'opportunity_transitioned'
+        )
+        if (transitionEvent) {
           const update: OpportunityTransitionDoc = {
             status: opportunity.status,
             version: stored + 1,
@@ -333,7 +341,7 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           }
           this.txn.update(ref, update)
           const activityDoc: OpportunityActivityDoc = {
-            ...transitionToActivityPayload(transition),
+            ...transitionToActivityPayload(transitionEvent.transition),
             createdAt: FieldValue.serverTimestamp(),
           }
           this.txn.set(ref.collection('activity').doc(), activityDoc)
@@ -341,8 +349,10 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           return
         }
 
-        const verification = opportunity.pendingVerification
-        if (verification) {
+        const verificationEvent = opportunity.pendingEvents.find(
+          (e) => e.kind === 'opportunity_verified'
+        )
+        if (verificationEvent) {
           const update: OpportunityVerificationDoc = {
             status: opportunity.status,
             verifiedByUserId: opportunity.verifiedByUserId!,
@@ -352,7 +362,7 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           }
           this.txn.update(ref, update)
           const activityDoc: OpportunityActivityDoc = {
-            ...verificationToActivityPayload(verification),
+            ...verificationToActivityPayload(verificationEvent.verification),
             createdAt: FieldValue.serverTimestamp(),
           }
           this.txn.set(ref.collection('activity').doc(), activityDoc)
@@ -399,8 +409,6 @@ export function parseOpportunityAttachment(id: string, raw: unknown): Attachment
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
     storageGeneration: data.storageGeneration,
-    deletedAt: data.deletedAt ? data.deletedAt.toDate() : undefined,
-    deletedByUserId: data.deletedByUserId,
   }
   return Attachment.rehydrate(props)
 }

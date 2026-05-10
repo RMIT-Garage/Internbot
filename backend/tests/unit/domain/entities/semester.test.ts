@@ -116,28 +116,33 @@ describe('Semester.isEnrolmentOpen', () => {
 describe('Semester.applyTransition', () => {
   const now = new Date('2026-01-15T00:00:00Z')
 
-  it('draft → active mutates status and stages a pendingTransition', () => {
+  it('draft → active mutates status and emits a SemesterTransitioned event', () => {
     const s = buildSemester({ status: 'draft' })
     s.applyTransition('active', 'usr_coord', undefined, now)
     expect(s.status).toBe('active')
-    const t = s.pendingTransition
+    expect(s.pendingEvents).toHaveLength(1)
+    const event = s.pendingEvents[0]!
+    expect(event.kind).toBe('semester_transitioned')
+    const t = event.kind === 'semester_transitioned' ? event.transition : undefined
     expect(t).toBeInstanceOf(SemesterTransition)
     expect(t?.from).toBe('draft')
     expect(t?.to).toBe('active')
     expect(t?.actorUserId).toBe('usr_coord')
     expect(t?.createdAt.toISOString()).toBe(now.toISOString())
+    expect(event.occurredAt.toISOString()).toBe(now.toISOString())
   })
 
-  it('rehydrated aggregates carry no pendingTransition until applyTransition runs', () => {
+  it('rehydrated aggregates have no pendingEvents until applyTransition runs', () => {
     const s = buildSemester({ status: 'draft' })
-    expect(s.pendingTransition).toBeUndefined()
+    expect(s.pendingEvents).toHaveLength(0)
   })
 
   it('draft → archived is allowed', () => {
     const s = buildSemester({ status: 'draft' })
     s.applyTransition('archived', 'usr_coord', 'cancelled', now)
     expect(s.status).toBe('archived')
-    expect(s.pendingTransition?.comment).toBe('cancelled')
+    const event = s.pendingEvents[0]!
+    expect(event.kind === 'semester_transitioned' && event.transition.comment).toBe('cancelled')
   })
 
   it('active → archived is allowed', () => {

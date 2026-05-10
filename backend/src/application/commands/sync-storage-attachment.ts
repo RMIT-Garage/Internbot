@@ -10,9 +10,9 @@ export interface SyncStorageAttachmentCommand {
   readonly finalizedAt: Date | undefined
   /**
    * GCS object generation from the OBJECT_FINALIZE event. Persisted on the
-   * Firestore attachment doc so the future outbox-driven hard-delete worker
-   * can issue the GCS delete with `ifGenerationMatch` and avoid clobbering
-   * a re-upload that happened after the soft-delete. Optional only because
+   * Firestore attachment doc so the outbox-driven purge worker can issue
+   * the GCS delete with `ifGenerationMatch` and avoid clobbering a re-upload
+   * that happened after the user requested removal. Optional only because
    * some legacy event shapes / tests omit it; new uploads always populate it.
    */
   readonly generation: string | undefined
@@ -52,8 +52,6 @@ export class SyncStorageAttachmentCommandHandler {
       contentType: normalizeOptionalText(cmd.contentType),
       uploadedAt: cmd.finalizedAt ?? new Date(),
       storageGeneration: cmd.generation,
-      deletedAt: undefined,
-      deletedByUserId: undefined,
     })
 
     if (parsed.kind === 'opportunity') {

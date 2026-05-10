@@ -92,16 +92,19 @@ describe('Ticket.transition', () => {
       LATER
     )
 
-    const activity = t.pendingActivity
     expect(t.status).toBe('in_progress')
     expect(t.updatedAt).toBe(LATER)
-    expect(activity).toBeDefined()
-    expect(activity!.type).toBe('transition')
-    expect(activity!.from).toBe('open')
-    expect(activity!.to).toBe('in_progress')
-    expect(activity!.actorUserId).toBe('usr_coord')
-    expect(activity!.actorRole).toBe('coordinator')
-    expect(activity!.comment).toBe('looking now')
+    expect(t.pendingEvents).toHaveLength(1)
+    const event = t.pendingEvents[0]!
+    expect(event.kind).toBe('ticket_transitioned')
+    if (event.kind !== 'ticket_transitioned') throw new Error('expected transitioned')
+    const activity = event.activity
+    expect(activity.type).toBe('transition')
+    expect(activity.from).toBe('open')
+    expect(activity.to).toBe('in_progress')
+    expect(activity.actorUserId).toBe('usr_coord')
+    expect(activity.actorRole).toBe('coordinator')
+    expect(activity.comment).toBe('looking now')
   })
 
   it('student owner can close their own open ticket', () => {

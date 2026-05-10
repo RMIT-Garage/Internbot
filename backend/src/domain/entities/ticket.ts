@@ -3,6 +3,8 @@ import type { TicketStatus } from '../value-objects/ticket-enums'
 import { TicketActivity } from '../value-objects/ticket-activity'
 import { TicketReply } from '../value-objects/ticket-reply'
 import { ConflictError, ForbiddenError, ValidationError } from '../errors'
+import type { TicketDomainEvent } from '../events/ticket-events'
+import { TicketTransitioned, TicketReplied } from '../events/ticket-events'
 
 export interface TicketProps {
   readonly id: string
@@ -45,18 +47,17 @@ const ALLOWED_TRANSITIONS: readonly AllowedTransition[] = [
  * Reply threads live under `tickets/{id}/replies` and are independent of the
  * ticket's own ETag (replies do not rotate `version`).
  *
- * The aggregate stages mutations transactionally via `#pendingActivity`
- * (state transitions — rotate version) and `#pendingReply` (conversation
- * thread — no version rotation). The repository's `save()` drains both.
+ * The aggregate emits domain events for transactional mutations:
+ * `TicketTransitioned` (state change — rotates version) and `TicketReplied`
+ * (conversation thread — no version rotation). The repository's `save()`
+ * drains `pendingEvents` and translates each event to its Firestore writes.
  */
 export class Ticket {
   #props: TicketProps
-  #pendingActivity: TicketActivity | undefined
-  #pendingReply: TicketReply | undefined
+  #pendingEvents: TicketDomainEvent[] = []
 
-  private constructor(props: TicketProps, pendingActivity?: TicketActivity) {
+  private constructor(props: TicketProps) {
     this.#props = props
-    this.#pendingActivity = pendingActivity
   }
 
   static create(props: TicketProps): Ticket {
@@ -126,18 +127,21 @@ export class Ticket {
   get updatedAt(): Date {
     return this.#props.updatedAt
   }
-  get pendingActivity(): TicketActivity | undefined {
-    return this.#pendingActivity
-  }
-  get pendingReply(): TicketReply | undefined {
-    return this.#pendingReply
+  /**
+   * Transient domain events emitted by mutation methods. Drained by
+   * `TicketRepository.save` which translates each event into its
+   * Firestore writes inside one transaction.
+   */
+  get pendingEvents(): readonly TicketDomainEvent[] {
+    return this.#pendingEvents
   }
 
   /**
    * Apply a state transition. Throws when the (from → to) pair is not in the
    * allowed table, or when the actor's role is not permitted to perform the
-   * transition. Stages an activity record on `#pendingActivity` for the
-   * repository's `save()` to persist atomically with the parent doc update.
+   * transition. Emits a `TicketTransitioned` event for the repository's
+   * `save()` to persist (parent status update + activity record) inside one
+   * transaction.
    */
   transition(
     details: TicketTransitionDetails,
@@ -171,7 +175,7 @@ export class Ticket {
 
     const from = this.#props.status
     this.#props = { ...this.#props, status: details.to, updatedAt: now }
-    this.#pendingActivity = TicketActivity.transition({
+    const activity = TicketActivity.transition({
       id: activityId,
       from,
       to: details.to,
@@ -180,14 +184,15 @@ export class Ticket {
       comment: details.comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new TicketTransitioned(activity))
   }
 
   /**
-   * Stage a reply on this ticket. Bumps `updatedAt` but does *not* rotate
+   * Add a reply on this ticket. Bumps `updatedAt` but does *not* rotate
    * `version` — replies are conversation-thread items, not state mutations.
-   * Drained by the repository's `save()` alongside the `updatedAt` write.
-   * Returns the staged VO so callers that need to surface it in their HTTP
-   * response (e.g. POST replies) don't have to re-read `pendingReply`.
+   * Emits a `TicketReplied` event drained by the repository's `save()`.
+   * Returns the created VO so callers that need to surface it in their HTTP
+   * response (e.g. POST replies) don't have to re-read the event list.
    */
   addReply(
     replyId: string,
@@ -206,7 +211,7 @@ export class Ticket {
       text,
       createdAt: now,
     })
-    this.#pendingReply = reply
+    this.#pendingEvents.push(new TicketReplied(reply))
     this.#props = { ...this.#props, updatedAt: now }
     return reply
   }

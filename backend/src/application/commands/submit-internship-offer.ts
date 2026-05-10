@@ -41,7 +41,7 @@ export class SubmitInternshipOfferCommandHandler {
         cmd.payload,
         this.idGenerator.next(),
         new Date(),
-        internship.hasActiveAttachments()
+        internship.attachments.length > 0
       )
       await ctx.internships.save(internship)
       return { id: cmd.internshipId }

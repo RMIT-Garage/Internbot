@@ -108,9 +108,7 @@ export class FirestoreInternshipQueryService implements InternshipQueryService {
           .collection('attachments')
           .orderBy('uploadedAt', 'asc')
           .get()
-        return snap.docs
-          .map((doc) => parseInternshipAttachment(doc.id, doc.data()))
-          .filter((a) => !a.isDeleted)
+        return snap.docs.map((doc) => parseInternshipAttachment(doc.id, doc.data()))
       },
       { op: 'internships.listAttachments', resource: 'Internship', id: internshipId }
     )
@@ -126,8 +124,7 @@ export class FirestoreInternshipQueryService implements InternshipQueryService {
           .doc(attachmentId)
           .get()
         if (!snap.exists) return null
-        const attachment = parseInternshipAttachment(snap.id, snap.data())
-        return attachment.isDeleted ? null : attachment
+        return parseInternshipAttachment(snap.id, snap.data())
       },
       {
         op: 'internships.findAttachmentById',

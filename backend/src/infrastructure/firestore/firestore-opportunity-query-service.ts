@@ -109,10 +109,7 @@ export class FirestoreOpportunityQueryService implements OpportunityQueryService
           .collection('attachments')
           .orderBy('uploadedAt', 'asc')
           .get()
-        // Read-side hides soft-deleted entries; aggregate-side keeps history.
-        return snap.docs
-          .map((doc) => parseOpportunityAttachment(doc.id, doc.data()))
-          .filter((a) => !a.isDeleted)
+        return snap.docs.map((doc) => parseOpportunityAttachment(doc.id, doc.data()))
       },
       { op: 'opportunities.listAttachments', resource: 'Opportunity', id: opportunityId }
     )
@@ -131,8 +128,7 @@ export class FirestoreOpportunityQueryService implements OpportunityQueryService
           .doc(attachmentId)
           .get()
         if (!snap.exists) return null
-        const attachment = parseOpportunityAttachment(snap.id, snap.data())
-        return attachment.isDeleted ? null : attachment
+        return parseOpportunityAttachment(snap.id, snap.data())
       },
       {
         op: 'opportunities.findAttachmentById',

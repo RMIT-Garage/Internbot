@@ -9,12 +9,13 @@ import type { Attachment } from '../value-objects/attachment'
 import { OpportunityTransition } from '../value-objects/opportunity-transition'
 import { OpportunityVerification } from '../value-objects/opportunity-verification'
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
-
-export interface PendingAttachmentSoftDelete {
-  readonly attachmentId: string
-  readonly deletedAt: Date
-  readonly deletedByUserId: string
-}
+import type { OpportunityDomainEvent } from '../events/opportunity-events'
+import {
+  OpportunityAttachmentAdded,
+  OpportunityAttachmentRemoved,
+  OpportunityTransitioned,
+  OpportunityVerified,
+} from '../events/opportunity-events'
 
 export interface OpportunityProps {
   readonly id: string
@@ -46,10 +47,13 @@ export interface OpportunityProps {
 export class Opportunity {
   #props: OpportunityProps
   #attachments: Attachment[]
-  #pendingAttachmentSoftDeletes: PendingAttachmentSoftDelete[] = []
-  #pendingAttachmentAdds: Attachment[] = []
-  #pendingTransition: OpportunityTransition | undefined
-  #pendingVerification: OpportunityVerification | undefined
+  /**
+   * Transient domain events emitted by mutation methods. Drained by
+   * `OpportunityRepository.save` and translated to Firestore writes inside
+   * one transaction. Empty for rehydrated aggregates that haven't been
+   * mutated yet.
+   */
+  #pendingEvents: OpportunityDomainEvent[] = []
 
   private constructor(props: OpportunityProps, attachments: readonly Attachment[] = []) {
     this.#props = props
@@ -120,44 +124,28 @@ export class Opportunity {
   get updatedAt(): Date {
     return this.#props.updatedAt
   }
-  get pendingTransition(): OpportunityTransition | undefined {
-    return this.#pendingTransition
-  }
-  get pendingVerification(): OpportunityVerification | undefined {
-    return this.#pendingVerification
+  get pendingEvents(): readonly OpportunityDomainEvent[] {
+    return this.#pendingEvents
   }
   get attachments(): readonly Attachment[] {
     return this.#attachments
   }
-  /** Visible attachments — excludes soft-deleted entries. */
-  get activeAttachments(): readonly Attachment[] {
-    return this.#attachments.filter((a) => !a.isDeleted)
-  }
-  get pendingAttachmentSoftDeletes(): readonly PendingAttachmentSoftDelete[] {
-    return this.#pendingAttachmentSoftDeletes
-  }
-  get pendingAttachmentAdds(): readonly Attachment[] {
-    return this.#pendingAttachmentAdds
-  }
 
   /**
-   * Soft-deletes an opportunity attachment. Coordinator-only — the handler
-   * enforces role; the aggregate enforces existence and the not-already-deleted
-   * invariant. Storage row stays for the outbox worker to GC.
+   * Hard-deletes an opportunity attachment. Coordinator-only — the handler
+   * enforces role; the aggregate enforces existence. The repo removes the
+   * Firestore subdoc and writes an `attachmentPurgeQueue` outbox row inside
+   * the same txn for the worker to GC the GCS object.
    */
-  softDeleteAttachment(attachmentId: string, deletedByUserId: string, now: Date): void {
+  removeAttachment(attachmentId: string, removedByUserId: string, now: Date): void {
     const index = this.#attachments.findIndex((a) => a.id === attachmentId)
     const existing = index >= 0 ? this.#attachments[index] : undefined
-    if (!existing || existing.isDeleted) {
+    if (!existing) {
       throw new NotFoundError('Attachment', attachmentId)
     }
 
-    this.#attachments[index] = existing.markDeleted(deletedByUserId, now)
-    this.#pendingAttachmentSoftDeletes.push({
-      attachmentId,
-      deletedAt: now,
-      deletedByUserId,
-    })
+    this.#attachments.splice(index, 1)
+    this.#pendingEvents.push(new OpportunityAttachmentRemoved(existing, removedByUserId, now))
   }
 
   /**
@@ -168,7 +156,7 @@ export class Opportunity {
   recordSyncedAttachment(attachment: Attachment): boolean {
     if (this.#attachments.some((a) => a.id === attachment.id)) return false
     this.#attachments.push(attachment)
-    this.#pendingAttachmentAdds.push(attachment)
+    this.#pendingEvents.push(new OpportunityAttachmentAdded(attachment))
     return true
   }
 
@@ -221,13 +209,14 @@ export class Opportunity {
 
     const from = this.#props.status
     this.#props = { ...this.#props, status: target }
-    this.#pendingTransition = OpportunityTransition.create({
+    const transition = OpportunityTransition.create({
       from,
       to: target,
       actorUserId,
       comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new OpportunityTransitioned(transition))
   }
 
   verify(
@@ -261,7 +250,7 @@ export class Opportunity {
       verifiedByUserId: actorUserId,
       verifiedAt: now,
     }
-    this.#pendingVerification = OpportunityVerification.create({
+    const verification = OpportunityVerification.create({
       from,
       to,
       decision,
@@ -269,6 +258,7 @@ export class Opportunity {
       comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new OpportunityVerified(verification))
   }
 }
 

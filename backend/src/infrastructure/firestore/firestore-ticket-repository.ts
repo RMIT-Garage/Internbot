@@ -138,8 +138,9 @@ export class FirestoreTicketRepository implements TicketRepository {
   /**
    * Upsert. `aggregate.version === 0` → first-write path: writes the ticket
    * doc (the historical `create`). Else → optimistic-lock update path:
-   * drains pending transition (rotate version + activity row) or pending
-   * reply (bump updatedAt only — replies don't rotate version).
+   * drains `pendingEvents` — `TicketTransitioned` writes parent status +
+   * activity row and rotates version; `TicketReplied` writes the reply doc
+   * and bumps updatedAt only (replies don't rotate version).
    */
   async save(ticket: Ticket): Promise<void> {
     if (ticket.version === 0) {
@@ -188,28 +189,33 @@ export class FirestoreTicketRepository implements TicketRepository {
           throw new PreconditionFailedError('Resource version does not match')
         }
 
-        const transitionActivity = ticket.pendingActivity
-        if (transitionActivity) {
-          const update: TicketUpdateDoc = {
-            status: ticket.status,
-            version: stored + 1,
-            updatedAt: FieldValue.serverTimestamp(),
+        for (const event of ticket.pendingEvents) {
+          switch (event.kind) {
+            case 'ticket_transitioned': {
+              const activity = event.activity
+              const update: TicketUpdateDoc = {
+                status: ticket.status,
+                version: stored + 1,
+                updatedAt: FieldValue.serverTimestamp(),
+              }
+              this.txn.update(ref, update)
+              this.txn.set(ref.collection('activity').doc(activity.id), {
+                ...activityToPayload(activity),
+                createdAt: FieldValue.serverTimestamp(),
+              } satisfies TicketActivityDoc)
+              break
+            }
+            case 'ticket_replied': {
+              const reply = event.reply
+              // Replies do not rotate version — bump updatedAt only.
+              this.txn.update(ref, { updatedAt: FieldValue.serverTimestamp() })
+              this.txn.set(ref.collection('replies').doc(reply.id), {
+                ...replyToPayload(reply),
+                createdAt: FieldValue.serverTimestamp(),
+              } satisfies TicketReplyDoc)
+              break
+            }
           }
-          this.txn.update(ref, update)
-          this.txn.set(ref.collection('activity').doc(transitionActivity.id), {
-            ...activityToPayload(transitionActivity),
-            createdAt: FieldValue.serverTimestamp(),
-          } satisfies TicketActivityDoc)
-        }
-
-        const reply = ticket.pendingReply
-        if (reply) {
-          // Replies do not rotate version — bump updatedAt only.
-          this.txn.update(ref, { updatedAt: FieldValue.serverTimestamp() })
-          this.txn.set(ref.collection('replies').doc(reply.id), {
-            ...replyToPayload(reply),
-            createdAt: FieldValue.serverTimestamp(),
-          } satisfies TicketReplyDoc)
         }
       },
       { op: 'tickets.save', resource: 'Ticket', id: ticket.id }

@@ -77,15 +77,19 @@ describe('Opportunity.create', () => {
 describe('Opportunity.applyTransition', () => {
   const now = new Date('2026-04-01T00:00:00Z')
 
-  it('draft → published mutates status and stages a pendingTransition', () => {
+  it('draft → published mutates status and emits an OpportunityTransitioned event', () => {
     const opportunity = buildOpportunity({ status: 'draft' })
     opportunity.applyTransition('published', 'usr_coord', 'go live', now)
 
     expect(opportunity.status).toBe('published')
-    expect(opportunity.pendingTransition).toBeInstanceOf(OpportunityTransition)
-    expect(opportunity.pendingTransition?.from).toBe('draft')
-    expect(opportunity.pendingTransition?.to).toBe('published')
-    expect(opportunity.pendingTransition?.actorUserId).toBe('usr_coord')
+    expect(opportunity.pendingEvents).toHaveLength(1)
+    const event = opportunity.pendingEvents[0]!
+    expect(event.kind).toBe('opportunity_transitioned')
+    if (event.kind !== 'opportunity_transitioned') throw new Error('expected transitioned')
+    expect(event.transition).toBeInstanceOf(OpportunityTransition)
+    expect(event.transition.from).toBe('draft')
+    expect(event.transition.to).toBe('published')
+    expect(event.transition.actorUserId).toBe('usr_coord')
   })
 
   it('published → archived is allowed', () => {
@@ -119,8 +123,12 @@ describe('Opportunity.verify', () => {
     expect(opportunity.status).toBe('published')
     expect(opportunity.verifiedByUserId).toBe('usr_coord')
     expect(opportunity.verifiedAt?.toISOString()).toBe(now.toISOString())
-    expect(opportunity.pendingVerification).toBeInstanceOf(OpportunityVerification)
-    expect(opportunity.pendingVerification?.decision).toBe('approved')
+    expect(opportunity.pendingEvents).toHaveLength(1)
+    const event = opportunity.pendingEvents[0]!
+    expect(event.kind).toBe('opportunity_verified')
+    if (event.kind !== 'opportunity_verified') throw new Error('expected verified')
+    expect(event.verification).toBeInstanceOf(OpportunityVerification)
+    expect(event.verification.decision).toBe('approved')
   })
 
   it('rejected without comment throws comment_required_for_decision', () => {

@@ -252,10 +252,10 @@ export class FirestoreSemesterRepository implements SemesterRepository {
   /**
    * Persist mutations on an existing aggregate with optimistic concurrency.
    *
-   * Drains `semester.pendingTransition` (set by `applyTransition`): when
-   * present, writes a new doc to `semesters/{id}/activity/{auto}`
-   * **atomically** with the parent status update. When absent, behaves as
-   * a plain PATCH save.
+   * Drains `semester.pendingEvents`: a `SemesterTransitioned` event writes a
+   * new doc to `semesters/{id}/activity/{auto}` **atomically** with the
+   * parent status update. When the list is empty, behaves as a plain PATCH
+   * save.
    */
   private async updateExisting(semester: Semester): Promise<void> {
     await translateFirestoreErrors(
@@ -269,8 +269,10 @@ export class FirestoreSemesterRepository implements SemesterRepository {
           throw new PreconditionFailedError('Resource version does not match')
         }
 
-        const transition = semester.pendingTransition
-        if (transition) {
+        const transitionEvent = semester.pendingEvents.find(
+          (e) => e.kind === 'semester_transitioned'
+        )
+        if (transitionEvent) {
           const update: SemesterTransitionDoc = {
             status: semester.status,
             version: stored + 1,
@@ -279,7 +281,7 @@ export class FirestoreSemesterRepository implements SemesterRepository {
           this.txn.update(ref, update)
           const activityRef = ref.collection('activity').doc()
           const activityDoc: SemesterActivityDoc = {
-            ...transitionToActivityPayload(transition),
+            ...transitionToActivityPayload(transitionEvent.transition),
             createdAt: FieldValue.serverTimestamp(),
           }
           this.txn.set(activityRef, activityDoc)

@@ -152,18 +152,27 @@ async function listAttachmentPaths(
   parentCollection: 'opportunities' | 'internships',
   parentId: string
 ): Promise<string[]> {
-  // Soft-delete leaves tombstoned attachment docs in place with `deletedAt`
-  // set; the read-side filters them out, so this helper does the same to
-  // mirror what callers see.
   const snap = await adminDb
     .collection(parentCollection)
     .doc(parentId)
     .collection('attachments')
     .get()
-  return snap.docs
-    .filter((doc) => doc.data()['deletedAt'] == null)
-    .map((doc) => doc.data()['filePath'] as string)
-    .sort()
+  return snap.docs.map((doc) => doc.data()['filePath'] as string).sort()
+}
+
+async function listPurgeQueueRows(
+  parentCollection: 'opportunities' | 'internships',
+  parentId: string,
+  attachmentId: string
+): Promise<Array<Record<string, unknown>>> {
+  const snap = await adminDb
+    .collection('attachmentPurgeQueue')
+    .where('parentCollection', '==', parentCollection)
+    .where('parentId', '==', parentId)
+    .where('attachmentId', '==', attachmentId)
+    .get()
+  snap.docs.forEach((doc) => trackDoc('attachmentPurgeQueue', doc.id))
+  return snap.docs.map((doc) => doc.data())
 }
 
 describe('Attachments — integration', () => {
@@ -334,7 +343,7 @@ describe('Attachments — integration', () => {
     expect(result.downloadUrl).toContain('expires=1775347205000')
   })
 
-  it('Owner can delete an applied-status internship attachment; backend stops returning it (soft-delete tombstone, no GCS call from request path)', async () => {
+  it('Owner can delete an applied-status internship attachment; subdoc is hard-deleted and an attachmentPurgeQueue outbox row is enqueued (no GCS call from request path)', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
@@ -348,6 +357,7 @@ describe('Attachments — integration', () => {
       finalizedAt: new Date('2026-04-04T00:00:00Z'),
       generation: '1700000000001000',
     })
+    const attachmentId = deterministicAttachmentId(filePath)
 
     await new DeleteInternshipAttachmentCommandHandler(
       new FirestoreUnitOfWork(),
@@ -355,11 +365,22 @@ describe('Attachments — integration', () => {
     ).handle({
       actor: actorFor('student', ownerId),
       internshipId,
-      attachmentId: deterministicAttachmentId(filePath),
+      attachmentId,
     })
 
     expect(await listAttachmentPaths('internships', internshipId)).toEqual([])
     expect(storage.deleted).toEqual([])
+    const purgeRows = await listPurgeQueueRows('internships', internshipId, attachmentId)
+    expect(purgeRows).toHaveLength(1)
+    expect(purgeRows[0]).toMatchObject({
+      parentCollection: 'internships',
+      parentId: internshipId,
+      attachmentId,
+      filePath,
+      storageGeneration: '1700000000001000',
+      requestedByUserId: ownerId,
+      status: 'pending',
+    })
   })
 
   it('Internship attachment delete from a non-owner student is rejected and the GCS object is left alone', async () => {
@@ -495,9 +516,20 @@ describe('Attachments — integration', () => {
     })
 
     expect(await listAttachmentPaths('opportunities', opportunityId)).toEqual([])
-    // Soft-delete tombstones the Firestore subdoc; GCS hard-delete is the
-    // job of a future outbox-driven worker, not the request path.
+    // The Firestore subdoc is hard-deleted in the same txn that enqueues an
+    // attachmentPurgeQueue outbox row; GCS hard-delete is the job of the
+    // outbox-driven worker, not the request path.
     expect(storage.deleted).toEqual([])
+    const purgeRows = await listPurgeQueueRows('opportunities', opportunityId, attachmentId)
+    expect(purgeRows).toHaveLength(1)
+    expect(purgeRows[0]).toMatchObject({
+      parentCollection: 'opportunities',
+      parentId: opportunityId,
+      attachmentId,
+      filePath,
+      requestedByUserId: coordinatorId,
+      status: 'pending',
+    })
   })
 
   it('Deleting a missing internship attachment returns a 404 NotFoundError without touching GCS', async () => {

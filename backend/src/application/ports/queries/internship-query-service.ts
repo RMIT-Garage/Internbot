@@ -25,9 +25,7 @@ export interface InternshipQueryService {
   findById(id: string): Promise<Internship | null>
   list(filter: InternshipListFilter): Promise<InternshipListPage>
   listByUserId(userId: string): Promise<readonly Internship[]>
-  /** Returns attachments where `deletedAt` is unset. */
   listAttachments(internshipId: string): Promise<readonly InternshipAttachment[]>
-  /** Returns null if the attachment is soft-deleted or missing. */
   findAttachmentById(
     internshipId: string,
     attachmentId: string

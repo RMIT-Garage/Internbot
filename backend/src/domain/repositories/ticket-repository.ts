@@ -5,13 +5,12 @@ import type { Ticket } from '../entities/ticket'
  * exactly three methods (`findById`, `save`, `delete`).
  *
  * `save` is an upsert: `aggregate.version === 0` → first-write; else
- * optimistic-lock update. Drains pending sub-entities staged by domain
- * methods:
- *   - `pendingActivity` (set by `transition`) → rotate version, write status
- *     update, append activity row.
- *   - `pendingReply` (set by `addReply`) → bump `updatedAt` only, append
- *     reply row, do NOT rotate version (replies are conversation-thread
- *     items, not state mutations).
+ * optimistic-lock update. Drains `pendingEvents` and translates each event:
+ *   - `TicketTransitioned` (emitted by `transition`) → rotate version,
+ *     write status update, append activity row.
+ *   - `TicketReplied` (emitted by `addReply`) → bump `updatedAt` only,
+ *     append reply row, do NOT rotate version (replies are conversation-
+ *     thread items, not state mutations).
  *
  * Read-side `list` lives on `TicketQueryService`.
  */
