@@ -28,7 +28,8 @@ export interface StudentProfileProps {
  * storage, no validation).
  *
  * Per WORKFLOW-API-SPEC.md §8.2A:
- *   - studentNumber is immutable after first POST /auth/sync
+ *   - studentNumber is immutable after JIT bootstrap (derived from the
+ *     RMIT student email and frozen on first authenticated request)
  *   - semesterSelectedAt is set on first successful semester selection only
  *   - profileStatus is derived server-side and not writable by clients
  *   - academicInfo.confirmedAt is stamped on the first incomplete→complete
@@ -83,10 +84,10 @@ export class StudentProfile {
   }
 
   /**
-   * Domain invariant: studentNumber is set once at first POST /auth/sync
-   * and cannot change afterwards. Same-value is a no-op; different value
-   * throws `ValidationError` with `reason: 'immutable_field'`. `undefined`
-   * (absent from patch) is also a no-op.
+   * Domain invariant: studentNumber is set once at bootstrap (derived from
+   * the verified RMIT student email) and cannot change afterwards.
+   * Same-value is a no-op; different value throws `ValidationError` with
+   * `reason: 'immutable_field'`. `undefined` (absent from patch) is a no-op.
    */
   ensureStudentNumberImmutable(candidate: string | undefined): void {
     if (candidate === undefined || candidate === this.#props.studentNumber) return
@@ -94,7 +95,7 @@ export class StudentProfile {
       {
         field: 'studentProfile.studentNumber',
         code: 'immutable',
-        message: 'studentNumber is set once at first POST /auth/sync and cannot be changed',
+        message: 'studentNumber is set once at JIT bootstrap and cannot be changed',
       },
     ])
   }
@@ -153,9 +154,7 @@ export class StudentProfile {
    * branching at the handler.
    */
   settleStatus(now: Date): StudentProfile {
-    return this.isComplete()
-      ? this.markComplete(now)
-      : this.withProfileStatus(this.deriveStatus())
+    return this.isComplete() ? this.markComplete(now) : this.withProfileStatus(this.deriveStatus())
   }
 
   /**

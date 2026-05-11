@@ -1,12 +1,53 @@
 import { createDocument, type ZodOpenApiObject } from 'zod-openapi'
 import { healthOperation } from './operations/health'
-import { authSyncOperation } from './operations/auth'
 import {
   getMyProfileOperation,
   getUserOperation,
   patchMyProfileOperation,
   patchUserOperation,
+  putMySemesterSelectionOperation,
+  putUserSemesterSelectionOperation,
+  getMyWorkflowOperation,
+  getUserWorkflowOperation,
+  getMyActivityOperation,
+  getUserActivityOperation,
 } from './operations/users'
+import {
+  listSemestersOperation,
+  getSemesterOperation,
+  createSemesterOperation,
+  patchSemesterOperation,
+  transitionSemesterOperation,
+} from './operations/semesters'
+import {
+  listOpportunitiesOperation,
+  getOpportunityOperation,
+  createOpportunityOperation,
+  patchOpportunityOperation,
+  transitionOpportunityOperation,
+  verifyOpportunityOperation,
+} from './operations/opportunities'
+import {
+  listInternshipsOperation,
+  getInternshipOperation,
+  createInternshipOperation,
+  patchInternshipOperation,
+  submitInternshipOfferOperation,
+  addInternshipCommentOperation,
+  decideInternshipOfferOperation,
+} from './operations/internships'
+import {
+  listNotificationsOperation,
+  markAllNotificationsReadOperation,
+  markNotificationReadOperation,
+} from './operations/notifications'
+import {
+  createTicketOperation,
+  getTicketOperation,
+  listTicketsOperation,
+  postTicketReplyOperation,
+  transitionTicketOperation,
+} from './operations/tickets'
 
 type OpenapiDocument = ReturnType<typeof createDocument>
 type OpenapiServer = NonNullable<ZodOpenApiObject['servers']>[number]
@@ -36,8 +77,12 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
     servers: servers.length > 0 ? (servers as OpenapiServer[]) : undefined,
     tags: [
       { name: 'Health', description: 'Public health probe.' },
-      { name: 'Authentication', description: 'Firebase identity sync.' },
       { name: 'Users', description: 'Platform user records.' },
+      { name: 'Semesters', description: 'Semester records and lifecycle transitions.' },
+      { name: 'Opportunities', description: 'Semester-scoped internship opportunities.' },
+      { name: 'Internships', description: 'Student internship applications and offer workflow.' },
+      { name: 'Notifications', description: 'User notification feed and read state.' },
+      { name: 'Tickets', description: 'Student support tickets to coordinators.' },
     ],
     components: {
       securitySchemes: {
@@ -46,15 +91,55 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
           scheme: 'bearer',
           bearerFormat: 'Firebase ID token',
           description:
-            'Firebase ID token obtained client-side. Platform identity (`platformUserId`, `role`) is read from custom claims; see docs/WORKFLOW-API-SPEC.md §7.0.',
+            'Firebase ID token obtained client-side. Platform identity is hydrated at the api edge from `userIdentities/{provider}__{uid}` → `users/{id}` on every request; on a brand-new student-shape email the hydrator JIT-creates the platform record in the same transaction. See docs/WORKFLOW-API-SPEC.md §7.0.',
         },
       },
     },
     paths: {
       '/api/health': { get: healthOperation },
-      '/api/v1/auth/sync': { post: authSyncOperation },
       '/api/v1/users/me': { get: getMyProfileOperation, patch: patchMyProfileOperation },
+      '/api/v1/users/me/workflow': { get: getMyWorkflowOperation },
+      '/api/v1/users/me/activity': { get: getMyActivityOperation },
+      '/api/v1/users/me/semester-selection': { put: putMySemesterSelectionOperation },
       '/api/v1/users/{id}': { get: getUserOperation, patch: patchUserOperation },
+      '/api/v1/users/{id}/workflow': { get: getUserWorkflowOperation },
+      '/api/v1/users/{id}/activity': { get: getUserActivityOperation },
+      '/api/v1/users/{id}/semester-selection': { put: putUserSemesterSelectionOperation },
+      '/api/v1/semesters': { get: listSemestersOperation, post: createSemesterOperation },
+      '/api/v1/semesters/{id}': { get: getSemesterOperation, patch: patchSemesterOperation },
+      '/api/v1/semesters/{id}/transitions': { post: transitionSemesterOperation },
+      '/api/v1/opportunities': {
+        get: listOpportunitiesOperation,
+        post: createOpportunityOperation,
+      },
+      '/api/v1/opportunities/{id}': {
+        get: getOpportunityOperation,
+        patch: patchOpportunityOperation,
+      },
+      '/api/v1/opportunities/{id}/transitions': { post: transitionOpportunityOperation },
+      '/api/v1/opportunities/{id}/verifications': { post: verifyOpportunityOperation },
+      '/api/v1/internships': {
+        get: listInternshipsOperation,
+        post: createInternshipOperation,
+      },
+      '/api/v1/internships/{id}': {
+        get: getInternshipOperation,
+        patch: patchInternshipOperation,
+      },
+      '/api/v1/internships/{id}/offer-submissions': {
+        post: submitInternshipOfferOperation,
+      },
+      '/api/v1/internships/{id}/comments': { post: addInternshipCommentOperation },
+      '/api/v1/internships/{id}/decisions': { post: decideInternshipOfferOperation },
+      '/api/v1/notifications': {
+        get: listNotificationsOperation,
+        put: markAllNotificationsReadOperation,
+      },
+      '/api/v1/notifications/{id}': { patch: markNotificationReadOperation },
+      '/api/v1/tickets': { get: listTicketsOperation, post: createTicketOperation },
+      '/api/v1/tickets/{id}': { get: getTicketOperation },
+      '/api/v1/tickets/{id}/replies': { post: postTicketReplyOperation },
+      '/api/v1/tickets/{id}/transitions': { post: transitionTicketOperation },
     },
   })
 }

@@ -46,15 +46,15 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 
 ### Method-name prefixes
 
-| Prefix                  | Returns                    | Use                                           |
-| ----------------------- | -------------------------- | --------------------------------------------- |
-| `is*()`                 | boolean (often type guard) | Predicate                                     |
-| `has*()`                | boolean                    | Presence check                                |
-| `ensure*()`             | void (throws)              | Invariant guard                               |
-| `with*()`               | new VO instance            | VO mutator (immutable)                        |
-| `change*` / `set*`      | void (aggregate mutates)   | Aggregate command                             |
-| `clear*()`              | void (aggregate mutates)   | Aggregate command that removes a field        |
-| `markX` / domain event  | new VO / void              | Intent-revealing state transition             |
+| Prefix                 | Returns                    | Use                                    |
+| ---------------------- | -------------------------- | -------------------------------------- |
+| `is*()`                | boolean (often type guard) | Predicate                              |
+| `has*()`               | boolean                    | Presence check                         |
+| `ensure*()`            | void (throws)              | Invariant guard                        |
+| `with*()`              | new VO instance            | VO mutator (immutable)                 |
+| `change*` / `set*`     | void (aggregate mutates)   | Aggregate command                      |
+| `clear*()`             | void (aggregate mutates)   | Aggregate command that removes a field |
+| `markX` / domain event | new VO / void              | Intent-revealing state transition      |
 
 ### CQRS handlers
 
@@ -69,10 +69,11 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 
 ### Optimistic concurrency
 
-- `User.version` is set from Firestore `updateTime.toMillis()` on load.
-- **Never incremented client-side.** Firestore owns it.
-- `repo.save(user)` reads in-txn, compares, throws `PreconditionFailedError` on mismatch.
+- `User.version` / `Semester.version` is an **app-managed monotonic integer** persisted on the doc.
+- **Never incremented client-side.** New aggregates start at `0`; the repo bumps to `stored + 1` on every save inside the transaction.
+- `repo.save(...)` reads the stored `version` in-txn, compares against the domain version, throws `PreconditionFailedError` on mismatch.
 - API layer parses `If-Match` → `cmd.metadata.expectedVersion`; handler throws early on mismatch (clean 412).
+- HTTP ETag is `W/"${user.version}"`; same integer round-trips through the wire.
 
 ### Naming
 
@@ -91,12 +92,14 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 
 Three tiers; emulator required for integration + component. Full details: [docs/TESTING.md](../docs/TESTING.md).
 
-| Tier         | Folder                                     | Emulator       |
-| ------------ | ------------------------------------------ | -------------- |
-| Unit         | `backend/tests/unit/domain/**`             | No             |
-| Integration  | `backend/tests/integration/application/**` | Yes            |
-| Component    | `backend/tests/component/routes/**`        | Yes            |
-| Architecture | `backend/tests/architecture/**`            | No             |
+| Tier         | Folder                                     | Emulator |
+| ------------ | ------------------------------------------ | -------- |
+| Unit         | `backend/tests/unit/domain/**`             | No       |
+| Integration  | `backend/tests/integration/application/**` | Yes      |
+| Component    | `backend/tests/component/routes/**`        | Yes      |
+| Architecture | `backend/tests/architecture/**`            | No       |
+
+Unit tests are domain-only. Do not add API/application unit tests; cover CQRS handlers in integration and routes/mappers in component tests.
 
 **Isolation rules (mandatory):** every test generates its own random IDs via `crypto.randomUUID()`; `trackDoc(collection, id)` every doc; `afterEach(clearDocs)`; no `beforeAll` for mutable state; tests run in parallel.
 

@@ -8,9 +8,9 @@ Implementation roadmap for [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
 - **Global definition of done (every backend phase):**
   - `pnpm --filter backend run typecheck` + `lint` pass
   - **Test pyramid** per [docs/TESTING.md](./TESTING.md) — every phase ships all applicable levels:
-    - **Unit tests** for every domain class/rule, every CQRS handler (with mocked UoW), every mapper
-    - **Integration tests** against the Firestore emulator for every new repository method or Firestore query
-    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check.
+    - **Unit tests** only for domain classes/rules. Do not unit-test API routes, API mappers, or CQRS handlers.
+    - **Integration tests** against the Firestore emulator for CQRS handlers, every new repository method, and every Firestore query.
+    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check for routes, wire DTOs, and mappers.
   - No new `eslint-disable` comments
   - Docs updated for any deviation from the spec
   - PR title carries `[IC-XX]` prefix and commits carry an `IC-XX` trailer
@@ -52,12 +52,12 @@ This is a sprint-contract file, not a status log. Two rules:
 - Auth model: Firebase custom claims carry `{ platformUserId, role }`. `POST /auth/sync` sets them via the `PlatformClaimsService` port. Subsequent requests read identity directly from the token — no per-request Firestore lookup.
 - Authz lives inline inside each CQRS handler. Route handlers do authentication (via middleware) + body validation + dispatch + serialization — never authz.
 - Naming convention settled: kebab-case files/folders, PascalCase classes/interfaces, camelCase identifiers.
-- Later within phase 1: aggregate pattern tightened to Vernon-style — private `#props` + getters + private ctor + `create`/`rehydrate` factories; `User` is **mutable** (`change*`/`set*`/`clear*` void methods); VOs stay immutable with `with*`. Repository port shrinks to `findById` / `findByFirebaseUid` / `create(user)` / `save(user)` — optimistic concurrency enforced inside `save()` via `updateTime.toMillis()`, no client-side version increment. Command shape: `actor`/`userId`/`patch`/`metadata?: CommandMetadata` — business intent on the command, transport metadata (expectedVersion, future correlationId/idempotencyKey) nested under `metadata`. `backend/CLAUDE.md` slimmed to rules + pointers; canonical reference is `docs/BACKEND.md`.
+- Later within phase 1: aggregate pattern tightened to Vernon-style — private `#props` + getters + private ctor + `create`/`rehydrate` factories; `User` is **mutable** (`change*`/`set*`/`clear*` void methods); VOs stay immutable with `with*`. Repository port shrinks to `findById` / `findByIdentity` / `create(user, identity)` / `save(user)` — optimistic concurrency enforced inside `save()` via `updateTime.toMillis()`, no client-side version increment. Command shape: `actor`/`userId`/`patch`/`metadata?: CommandMetadata` — business intent on the command, transport metadata (expectedVersion, future correlationId/idempotencyKey) nested under `metadata`. `backend/CLAUDE.md` slimmed to rules + pointers; canonical reference is `docs/BACKEND.md`.
 
 ### Scope
 
 - Shared foundations bundled into this phase (every later phase depends on them):
-  - Platform-id resolver: auth middleware looks up `users where firebaseUid == token.uid` and populates `actor.{id, role, studentProfile?}`.
+  - Platform-id resolver: `POST /auth/sync` resolves `userIdentities/firebase__{token.uid}` and custom claims populate `actor.{id, role}` on later requests.
   - ETag helper (derived from Firestore `updateTime`) + `If-Match` middleware → 412 on mismatch.
   - Cursor pagination helper (opaque token = last doc snapshot reference).
   - Role guards: `requireCoordinator()`, `requireStudent()`, `requireOwner(resourceUserId)`.
@@ -99,9 +99,9 @@ _(append terse status notes here during implementation)_
 
 ## Phase 2 — Semesters
 
-**Status:** in_progress
+**Status:** done
 **Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58)
-**PR:** —
+**PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26))
 
 ### Scope
 
@@ -128,12 +128,19 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implementation lands the full vertical slice: domain aggregate (`Semester` + `SemesterTransition` VO with state-machine guard), CQRS handlers (create/update/transition + get/list queries), Firestore repo with in-txn natural-key uniqueness and atomic `recordTransition` (parent status + activity subcollection in one txn), `/api/v1/semesters` router, OpenAPI spec, all three test tiers.
+- Test pyramid: 286 tests across 24 files passing — 220 unit (incl. architecture rules), 31 integration (Firestore emulator), 35 component (Firestore + Auth emulator). One `it(...)` per Phase 2 Success criteria + Bug-finding bullet in `tests/component/routes/semesters.test.ts`.
+- Storage schema accepts `null` on `enrolmentOpenAt` / `enrolmentCloseAt` so PATCH writes can clear the field (mapped back to `undefined` on the domain side).
+- Route-level POST distinguishes `422 missing_required_field` from `400 invalid_body` via Zod v4's `invalid_type` issue + "received undefined" message text (Zod v4 dropped the structured `received` field from its issue payload).
+- Shipped to develop and prod as part of release PR #26 / #41 — running on `internbot-dev-ae3a3` and `internbot-prod`.
+
 ---
 
 ## Phase 3 — Student enrolment + workflow
 
-**Status:** pending
-**PR:** —
+**Status:** done
+**Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58) (bundled with Phase 2)
+**PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26))
 
 ### Scope
 
@@ -159,11 +166,17 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Domain: added `User.selectSemester(semesterId, now)` (delegates to `StudentProfile.withSemester`, which already preserves first-set `semesterSelectedAt`); new `domain/value-objects/workflow-state.ts` (coarse + fine + enrolment-state vocabularies); new `domain/services/workflow-derivation.ts` centralizing the §7.1 / §9.2 / §7.2 derivation. Mapper-level `deriveWorkflowStep` removed — `toUserResponse` now flows through the same derivation function future phases will extend.
+- Application: `SelectSemesterCommandHandler` (3-step validation chain: complete profile → active semester → open enrolment window) + `GetUserWorkflowQueryHandler` (loads referenced semester only when set; tolerant of dangling refs). Both follow Phase 1/2 conventions (inline authz, `metadata.expectedVersion`, returns `{ id }`).
+- API: `PUT /api/v1/users/{id}/semester-selection` + `/me` alias, `GET /api/v1/users/{id}/workflow` + `/me` alias. New schemas, DTOs, mappers, OpenAPI operations. Snapshot `backend/openapi.json` regenerated.
+- Tests: 350 / 350 across 29 files. Unit: `User.selectSemester` (4 tests), `deriveWorkflowState` (7), `SelectSemesterCommandHandler` (11), `GetUserWorkflowQueryHandler` (7). Integration (Firestore emulator): 8 tests covering all 409 paths and the `semesterSelectedAt`-set-once invariant. Component (Firestore + Auth emulators): 11 tests, one `it(...)` per Success-criteria + Bug-finding bullet.
+- Shipped to develop and prod alongside Phase 2 via release PRs #26 / #41 — running on `internbot-dev-ae3a3` and `internbot-prod`.
+
 ---
 
 ## Phase 4 — Opportunities
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -198,12 +211,15 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented full Phase 4 backend vertical slice: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and domain-unit plus integration/component coverage.
+- Coverage policy corrected after merge: Phase 4 keeps domain unit tests only; application/CQRS behavior is covered by integration tests and API/mappers by component tests.
+
 ---
 
 ## Phase 5 — Internships (student path)
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/50
 
 ### Scope
 
@@ -235,12 +251,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented full Phase 5 backend vertical slice: Internship aggregate + activity value object, duplicate-application sentinel, Firestore repository with attachments/activity support, application handlers and query read models, `/api/v1/internships` routes, OpenAPI operations, workflow derivation from internship states, Firestore indexes, and domain-unit plus integration/component coverage.
+
 ---
 
 ## Phase 6 — Coordinator decisions
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/51
 
 ### Scope
 
@@ -267,12 +285,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented Phase 6 coordinator decision slice: `Internship.decideOffer(...)` owns review-state transitions and comment requirements; `POST /api/v1/internships/{id}/decisions` records `approve_offer` / `request_changes` / `reject` activity, persists coordinator review metadata, rotates the internship `ETag`, and creates an `offer_decision` notification for the student. Coverage follows the domain-unit + integration + component split.
+
 ---
 
 ## Phase 7 — Activity feed
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/52
 
 ### Scope
 
@@ -296,12 +316,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented Phase 7 activity feed slice: `GET /api/v1/users/{id}/activity` and `/users/me/activity` enforce owner-only access, read through a Firestore `activity` collection-group query keyed by `authorUserId`, derive resource ids from parent paths, support `createdAt` sorting and cursor pagination, and surface internship plus opportunity workflow activity. Added the required collection-group indexes and coverage through integration/component tests; no API/application unit tests added per coverage policy.
+
 ---
 
 ## Phase 8 — Notifications (Firestore only, no email)
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/53
 
 ### Scope
 
@@ -328,11 +350,13 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented Phase 8 notifications slice: `/api/v1/notifications` GET/PATCH/PUT, owner-scoped list/read/bulk-read commands, Firestore notification repository queries/indexes, nullable/absent email delivery fields preserved for future email delivery, OpenAPI operations, and coverage via domain-unit plus integration/component tests only (no API/application unit tests per coverage policy).
+
 ---
 
 ## Phase 9 — Tickets
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -363,6 +387,12 @@ _(append terse status notes here during implementation)_
 - Transition records land in an `activity` subcollection with `actorRole` populated.
 
 ### Notes
+
+- Spec deviation: added two notification types not in §7.8 — `new_ticket` (fanout to all coordinators on creation) and `ticket_transition` (sent to the counterparty on state change). `ticket_reply` is parameterized by replier role and routed to the counterparty (student → all coordinators, coordinator → ticket owner).
+- Ticket activity uses `actorUserId` (not `authorUserId`), so the Phase 7 cross-resource activity-feed query never matches ticket activity docs — keeps tickets out of the user activity feed deliberately.
+- Firestore subcollections present: `tickets/{id}/replies` and `tickets/{id}/activity`. Spec §8.1A only listed `replies`; schema is now broader than the doc suggests.
+- Added 6 composite indexes for `tickets` (userId/createdAt asc+desc, status/createdAt asc+desc, userId+status+createdAt asc+desc) plus a `body` field exemption.
+- Repository `applyTransition` rotates `version` (used as ETag); `addReply` only bumps `updatedAt` so replies don't invalidate concurrent edits to the parent.
 
 ---
 

@@ -1,6 +1,12 @@
 import type { UnitOfWork, UnitOfWorkContext } from '../../application/ports/unit-of-work'
 import { adminDb } from '../config/firebase-admin'
 import { FirestoreUserRepository } from './firestore-user-repository'
+import { FirestoreSemesterRepository } from './firestore-semester-repository'
+import { FirestoreOpportunityRepository } from './firestore-opportunity-repository'
+import { FirestoreInternshipRepository } from './firestore-internship-repository'
+import { FirestoreNotificationRepository } from './firestore-notification-repository'
+import { FirestoreTicketRepository } from './firestore-ticket-repository'
+import { FirestoreActivityFeedRepository } from './firestore-activity-feed-repository'
 
 /**
  * Firestore implementation of `UnitOfWork`.
@@ -18,6 +24,12 @@ export class FirestoreUnitOfWork implements UnitOfWork {
     return adminDb.runTransaction(async (txn) => {
       const ctx: UnitOfWorkContext = {
         users: new FirestoreUserRepository(txn),
+        semesters: new FirestoreSemesterRepository(txn),
+        opportunities: new FirestoreOpportunityRepository(txn),
+        internships: new FirestoreInternshipRepository(txn),
+        notifications: new FirestoreNotificationRepository(txn),
+        tickets: new FirestoreTicketRepository(txn),
+        activityFeed: new FirestoreActivityFeedRepository(txn),
       }
       return work(ctx)
     })

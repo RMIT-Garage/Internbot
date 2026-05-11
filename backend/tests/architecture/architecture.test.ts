@@ -9,6 +9,8 @@
  *
  * Also enforces:
  *   - infrastructure/config/firebase-admin is the sole Firebase Admin entry point
+ *   - unit tests stay domain-only; application/api behavior is covered by
+ *     integration/component tests
  *   - No console.log in any src/ file
  */
 
@@ -17,6 +19,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 const SRC = path.resolve(__dirname, '../../src')
+const TESTS = path.resolve(__dirname, '..')
 
 function getFiles(dir: string, ext = '.ts'): string[] {
   if (!fs.existsSync(dir)) return []
@@ -186,6 +189,234 @@ describe('Architecture boundaries', () => {
         }
       })
     }
+  })
+
+  describe('IdGenerator port boundary', () => {
+    const portFile = path.join(SRC, 'application', 'ports', 'id-generator.ts')
+    const implFile = path.join(SRC, 'infrastructure', 'firestore', 'firestore-id-generator.ts')
+
+    it('IdGenerator port lives at application/ports/id-generator.ts and exports next(): string', () => {
+      expect(fs.existsSync(portFile), 'application/ports/id-generator.ts must exist').toBe(true)
+      const content = getContent(portFile)
+      expect(content).toMatch(/export interface IdGenerator/)
+      expect(content).toMatch(/next\s*\(\s*\)\s*:\s*string/)
+    })
+
+    it('Firestore impl declares `implements IdGenerator` against the port type', () => {
+      expect(
+        fs.existsSync(implFile),
+        'infrastructure/firestore/firestore-id-generator.ts must exist'
+      ).toBe(true)
+      const content = getContent(implFile)
+      expect(content, 'impl must import the port from application/ports/').toMatch(
+        /from\s+['"][^'"]*application\/ports\/id-generator['"]/
+      )
+      expect(content, 'impl must declare `implements IdGenerator`').toMatch(
+        /implements\s+IdGenerator/
+      )
+    })
+
+    it('application/ depends on the IdGenerator port, never the FirestoreIdGenerator impl', () => {
+      const violations: string[] = []
+      for (const file of getFiles(path.join(SRC, 'application'))) {
+        if (/firestoreIdGenerator|FirestoreIdGenerator/.test(getContent(file))) {
+          violations.push(path.relative(SRC, file))
+        }
+      }
+      expect(
+        violations,
+        `application/ must consume IdGenerator (port), not FirestoreIdGenerator (impl). Violations: ${violations.join(', ') || 'none'}`
+      ).toEqual([])
+    })
+  })
+
+  describe('Entity invariants — version field & domain purity', () => {
+    const entitiesDir = path.join(SRC, 'domain', 'entities')
+    const files = getFiles(entitiesDir)
+
+    if (files.length === 0) {
+      it('domain/entities/ has no files yet (skip)', () => expect(true).toBe(true))
+      return
+    }
+
+    for (const file of files) {
+      const rel = path.relative(SRC, file)
+      const content = getContent(file)
+
+      it(`${rel} declares 'readonly version: number' in its props interface`, () => {
+        expect(
+          /readonly\s+version\s*:\s*number/.test(content),
+          `${rel} must declare 'readonly version: number' — every aggregate carries an app-managed concurrency token`
+        ).toBe(true)
+      })
+
+      it(`${rel} exposes a 'version' getter`, () => {
+        expect(
+          /get\s+version\s*\(\s*\)\s*:\s*number/.test(content),
+          `${rel} must expose 'get version(): number' — callers (mappers, repos) read it through the public API`
+        ).toBe(true)
+      })
+
+      it(`${rel} does NOT define a version-mutating method`, () => {
+        // Domain mutators must never touch `version` — it's bumped exclusively
+        // by the repo on successful persistence. See backend/CLAUDE.md.
+        const forbidden = [
+          /bumpVersion\s*\(/,
+          /incrementVersion\s*\(/,
+          /setVersion\s*\(/,
+          /this\.#props\.version\s*=/,
+          /this\.#props\.version\+\+/,
+        ]
+        const hits = forbidden.filter((re) => re.test(content)).map((re) => re.source)
+        expect(
+          hits,
+          `${rel} mutates 'version' via [${hits.join(', ')}] — version is a persistence concern, only the repo may bump it`
+        ).toEqual([])
+      })
+    }
+  })
+
+  describe('Repository invariants — version bump on save', () => {
+    const reposDir = path.join(SRC, 'infrastructure', 'firestore')
+    const files = getFiles(reposDir).filter(
+      (f) =>
+        /firestore-.*-repository\.ts$/.test(f) && !/firestore-activity-feed-repository\.ts$/.test(f)
+    )
+
+    if (files.length === 0) {
+      it('infrastructure/firestore/ has no repository files yet (skip)', () =>
+        expect(true).toBe(true))
+      return
+    }
+
+    for (const file of files) {
+      const rel = path.relative(SRC, file)
+      const content = getContent(file)
+
+      it(`${rel} reads stored version and bumps to 'stored + 1' inside the txn`, () => {
+        // Two structural checks: (1) reads `version` from the stored snap,
+        // (2) writes `stored + 1` somewhere. Both are required for the
+        // optimistic-concurrency contract — a repo without these is silently
+        // last-write-wins.
+        const readsStoredVersion =
+          /snap\.data\(\)\??\.\['version'\]/.test(content) ||
+          /storage\.version/.test(content) ||
+          /stored\s*=\s*.*version/.test(content)
+        const writesBumped =
+          /stored\s*\+\s*1/.test(content) || /version:\s*nextVersion/.test(content)
+        expect(
+          readsStoredVersion,
+          `${rel} doesn't read stored 'version' — optimistic-concurrency check is missing`
+        ).toBe(true)
+        expect(
+          writesBumped,
+          `${rel} doesn't write 'stored + 1' — version isn't being bumped on save`
+        ).toBe(true)
+      })
+
+      it(`${rel} declares 'version' on its Zod storage schema`, () => {
+        expect(
+          /version:\s*z\.number\(\)\.int\(\)\.nonnegative\(\)/.test(content),
+          `${rel} must declare 'version: z.number().int().nonnegative()' on its storage schema`
+        ).toBe(true)
+      })
+    }
+  })
+
+  describe('Firestore indexes', () => {
+    const indexesFile = path.resolve(
+      __dirname,
+      '../../../docker/firebase-emulator/firebase/firestore.indexes.json'
+    )
+
+    it('declares the Phase 7 activity-feed collection-group index', () => {
+      const manifest = JSON.parse(getContent(indexesFile)) as {
+        indexes?: Array<{
+          collectionGroup?: string
+          queryScope?: string
+          fields?: Array<{ fieldPath?: string; order?: string }>
+        }>
+      }
+      const hasActivityIndex = (createdAtOrder: 'ASCENDING' | 'DESCENDING') =>
+        manifest.indexes?.some(
+          (index) =>
+            index.collectionGroup === 'activity' &&
+            index.queryScope === 'COLLECTION_GROUP' &&
+            index.fields?.some(
+              (field) => field.fieldPath === 'authorUserId' && field.order === 'ASCENDING'
+            ) &&
+            index.fields?.some(
+              (field) => field.fieldPath === 'createdAt' && field.order === createdAtOrder
+            )
+        ) ?? false
+
+      expect(
+        hasActivityIndex('DESCENDING'),
+        'GET /users/:id/activity needs collection-group activity index: authorUserId ASC + createdAt DESC'
+      ).toBe(true)
+      expect(
+        hasActivityIndex('ASCENDING'),
+        'GET /users/:id/activity?sort=createdAt needs collection-group activity index: authorUserId ASC + createdAt ASC'
+      ).toBe(true)
+    })
+
+    it('declares the Phase 8 notifications list and unread indexes', () => {
+      const manifest = JSON.parse(getContent(indexesFile)) as {
+        indexes?: Array<{
+          collectionGroup?: string
+          queryScope?: string
+          fields?: Array<{ fieldPath?: string; order?: string }>
+        }>
+      }
+      const hasNotificationIndex = (fields: Array<{ fieldPath: string; order: string }>) =>
+        manifest.indexes?.some(
+          (index) =>
+            index.collectionGroup === 'notifications' &&
+            index.queryScope === 'COLLECTION' &&
+            fields.every((expected) =>
+              index.fields?.some(
+                (field) => field.fieldPath === expected.fieldPath && field.order === expected.order
+              )
+            )
+        ) ?? false
+
+      expect(
+        hasNotificationIndex([
+          { fieldPath: 'userId', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ]),
+        'GET /notifications needs userId ASC + createdAt DESC'
+      ).toBe(true)
+      expect(
+        hasNotificationIndex([
+          { fieldPath: 'userId', order: 'ASCENDING' },
+          { fieldPath: 'readAt', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ]),
+        'GET /notifications?unreadOnly=true and PUT /notifications need userId ASC + readAt ASC + createdAt DESC'
+      ).toBe(true)
+    })
+  })
+
+  describe('test pyramid — unit tests stay domain-only', () => {
+    const unitDir = path.join(TESTS, 'unit')
+    const files = getFiles(unitDir).filter((file) => file.endsWith('.test.ts'))
+
+    if (files.length === 0) {
+      it('tests/unit/ has no test files yet (skip)', () => expect(true).toBe(true))
+      return
+    }
+
+    it('has no API or application unit tests', () => {
+      const violations = files
+        .map((file) => path.relative(unitDir, file))
+        .filter((rel) => !rel.startsWith(`domain${path.sep}`))
+
+      expect(
+        violations,
+        `Unit tests must stay under tests/unit/domain/**. Cover application handlers with integration tests and API/mappers with component tests. Violations: ${violations.join(', ') || 'none'}`
+      ).toEqual([])
+    })
   })
 
   describe('no console.log in source files', () => {

@@ -49,6 +49,14 @@ module "firestore" {
 module "auth" {
   source     = "./modules/auth"
   project_id = var.project_id
+  region     = var.region
+
+  # GCIP beforeCreate blocking function — gates Firebase Auth sign-ups at the
+  # IdP layer. Leave `false` on first apply (default); deploy the function
+  # with `firebase deploy --only functions:enforceStudentEmail`, then flip
+  # to `true` in the env tfvars and re-apply. Terraform discovers the
+  # function URL via a data source, so no manual URL hand-off.
+  wire_blocking_function = var.wire_blocking_function
 
   depends_on = [module.firebase_project]
 }
@@ -77,6 +85,26 @@ module "github_oidc" {
   deploy_sa_roles      = var.deploy_sa_roles
 
   depends_on = [module.firebase_project]
+}
+
+# Firebase Web App + Secret Manager export of its SDK config.
+# The deploy workflow fetches `firebase-web-config` at build time and
+# unpacks it into NEXT_PUBLIC_* env vars — no GitHub repo variables.
+# See infrastructure/modules/web-app/main.tf for the bootstrap dance on
+# projects that already have a Firebase Web App (terraform import).
+module "web_app" {
+  source                       = "./modules/web-app"
+  project_id                   = var.project_id
+  storage_bucket               = module.storage.bucket_name
+  hosting_site_id              = module.hosting.site_id
+  deploy_service_account_email = module.github_oidc.deploy_service_account
+
+  depends_on = [
+    module.firebase_project,
+    module.storage,
+    module.hosting,
+    module.github_oidc,
+  ]
 }
 
 module "functions_housekeeping" {

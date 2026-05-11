@@ -36,12 +36,6 @@
 2. Bundled JS boots; `AuthProvider` subscribes via `onAuthStateChanged`
 3. `useRequireAuth()` redirects to `/login/` if no user once auth state resolves
 
-### Client-Side Real-time Data
-
-1. Client component mounts
-2. `useCollection()` hook subscribes to Firestore via `onSnapshot`
-3. UI updates live as Firestore data changes
-
 ### API Call (Cloud Functions)
 
 1. Client calls `apiFetch('/path')` — the helper pulls the current Firebase user
@@ -59,10 +53,11 @@
 
 ## Security Model
 
-- **Firestore rules** — last line of defence; always assume clients are untrusted
-- **Cloud Functions** — verify ID tokens in `authMiddleware` on every protected route
-- **Frontend auth guards** — client-side only; they gate UX, not data. Every protected resource is also authorized at the API / Firestore rules layer
-- **Admin SDK** — backend only; the frontend package no longer imports `firebase-admin`
+- **Firestore rules** — `default-deny` for every collection. The public web config (project ID + API key) ships in the bundle, so any token holder can hit `firestore.googleapis.com` directly; we treat the database as backend-only and never grant client tokens read or write access.
+- **Cloud Functions** — verify ID tokens in `authMiddleware` on every protected route. The Admin SDK bypasses Firestore rules, so the backend is the only path that touches data.
+- **Frontend auth guards** — client-side only; they gate UX, not data. Every protected resource is authorized at the API layer.
+- **No client SDK Firestore** — the frontend bundle does not initialise `getFirestore()`. All reads/writes go through `apiFetch` to the backend.
+- **Admin SDK** — backend only; the frontend package does not import `firebase-admin`.
 
 ## Key Design Decisions
 

@@ -1,7 +1,11 @@
 import type { ZodOpenApiOperationObject } from 'zod-openapi'
 import { z } from 'zod'
-import { patchUserRequestSchema } from '../../schemas/user'
-import { userResponseSchema } from '../../dto/user'
+import { patchUserRequestSchema, putSemesterSelectionRequestSchema } from '../../schemas/user'
+import {
+  userActivityFeedResponseSchema,
+  userResponseSchema,
+  userWorkflowResponseSchema,
+} from '../../dto/user'
 import { errorResponseSchema } from '../common'
 
 const userIdPathParamsSchema = z.object({
@@ -15,6 +19,15 @@ const ifMatchHeaderSchema = z.object({
   'if-match': z.string().optional().meta({
     description: 'Opt-in optimistic concurrency — the current ETag from a prior GET.',
   }),
+})
+
+const activityFeedQuerySchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
+  pageToken: z.string().optional(),
+  sort: z
+    .enum(['createdAt', '-createdAt'])
+    .optional()
+    .meta({ description: 'Default `-createdAt`. Prefix with `-` for descending.' }),
 })
 
 /** Shared 200/401 shape used by both `/users/me` and `/users/:id` getters. */
@@ -69,7 +82,7 @@ export const getMyProfileOperation: ZodOpenApiOperationObject = {
   operationId: 'getMyProfile',
   summary: "Return the caller's own platform user record",
   description:
-    "Resolves to the caller's platform user from the decoded token's `platformUserId` claim. Returns 401 when the caller has not yet called `POST /auth/sync`. See WORKFLOW-API-SPEC.md §7.2.",
+    "Resolves to the caller's platform user. The auth middleware hydrates identity from Firestore and JIT-creates the record on first call from a verified RMIT student email. Returns 403 `no_platform_user` when JIT cannot run (unverified email, non-student-shape email, or unprovisioned coordinator). See WORKFLOW-API-SPEC.md §7.2.",
   tags: ['Users'],
   security: [{ bearerAuth: [] }],
   responses: getResponses,
@@ -124,6 +137,161 @@ export const patchUserOperation: ZodOpenApiOperationObject = {
     content: { 'application/json': { schema: patchUserRequestSchema } },
   },
   responses: patchResponses,
+}
+
+/** Shared write/read responses for the semester-selection + workflow sub-resources. */
+const semesterSelectionResponses: ZodOpenApiOperationObject['responses'] = {
+  '200': {
+    description: 'Selection accepted; returns the updated user resource.',
+    headers: { ETag: { schema: { type: 'string' } } },
+    content: { 'application/json': { schema: userResponseSchema } },
+  },
+  '400': {
+    description: 'Malformed body.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '401': {
+    description: 'Missing or invalid Firebase ID token (or caller has not yet synced).',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '403': {
+    description: 'Student caller is not the owner of the target user.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '404': {
+    description:
+      'No user exists with the supplied id, OR the user is a coordinator (semester-selection sub-resource only exists for students), OR the referenced semester does not exist.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '409': {
+    description:
+      'Profile is not complete (`profile_incomplete`), referenced semester is not active (`semester_not_active`), or the enrolment window is closed (`enrolment_window_closed`).',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '412': {
+    description: 'Client sent `If-Match` and it does not match the current ETag.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '422': {
+    description: '`semesterId` missing or empty.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+}
+
+const workflowResponses: ZodOpenApiOperationObject['responses'] = {
+  '200': {
+    description: 'Derived workflow state for the target student.',
+    content: { 'application/json': { schema: userWorkflowResponseSchema } },
+  },
+  '401': {
+    description: 'Missing or invalid Firebase ID token (or caller has not yet synced).',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '403': {
+    description: 'Student caller is not the owner of the target user.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '404': {
+    description:
+      'No user exists with the supplied id, OR the user is a coordinator (workflow sub-resource only exists for students).',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+}
+
+const activityFeedResponses: ZodOpenApiOperationObject['responses'] = {
+  '200': {
+    description: 'Paginated activity feed authored by the caller.',
+    content: { 'application/json': { schema: userActivityFeedResponseSchema } },
+  },
+  '400': {
+    description: 'Malformed query string or page token.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '401': {
+    description: 'Missing or invalid Firebase ID token.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '403': {
+    description: 'Caller is not the referenced user.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  '404': {
+    description: 'No user exists with the supplied id.',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+}
+
+export const putMySemesterSelectionOperation: ZodOpenApiOperationObject = {
+  operationId: 'putMySemesterSelection',
+  summary: 'Enrol the caller in a semester',
+  description:
+    "Resolves to the caller's platform user. Student-only. The semester must be `active` and within its enrolment window. `semesterSelectedAt` is set on the first successful selection only. See WORKFLOW-API-SPEC.md §7.6.",
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { header: ifMatchHeaderSchema },
+  requestBody: {
+    required: true,
+    content: { 'application/json': { schema: putSemesterSelectionRequestSchema } },
+  },
+  responses: semesterSelectionResponses,
+}
+
+export const putUserSemesterSelectionOperation: ZodOpenApiOperationObject = {
+  operationId: 'putUserSemesterSelection',
+  summary: 'Enrol a student in a semester by id',
+  description:
+    'Student-only and owner-only — students may only set their own semester. Coordinators get 404 (the sub-resource does not exist for `role: coordinator`). See WORKFLOW-API-SPEC.md §7.6.',
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: userIdPathParamsSchema, header: ifMatchHeaderSchema },
+  requestBody: {
+    required: true,
+    content: { 'application/json': { schema: putSemesterSelectionRequestSchema } },
+  },
+  responses: semesterSelectionResponses,
+}
+
+export const getMyWorkflowOperation: ZodOpenApiOperationObject = {
+  operationId: 'getMyWorkflow',
+  summary: "Return the caller's derived workflow state",
+  description:
+    "Resolves to the caller's platform user. Student-only — coordinators have no workflow sub-resource and get 404. See WORKFLOW-API-SPEC.md §7.2.",
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  responses: workflowResponses,
+}
+
+export const getUserWorkflowOperation: ZodOpenApiOperationObject = {
+  operationId: 'getUserWorkflow',
+  summary: 'Return the derived workflow state for a student',
+  description:
+    "Student owner or coordinator. Coordinators may read any student's workflow during review. Coordinator targets get 404. See WORKFLOW-API-SPEC.md §7.2.",
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: userIdPathParamsSchema },
+  responses: workflowResponses,
+}
+
+export const getMyActivityOperation: ZodOpenApiOperationObject = {
+  operationId: 'getMyActivity',
+  summary: "Return the caller's activity feed",
+  description:
+    "Resolves to the caller's platform user and returns activity authored by that user across internship and opportunity workflows. See WORKFLOW-API-SPEC.md §7.2.",
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { query: activityFeedQuerySchema },
+  responses: activityFeedResponses,
+}
+
+export const getUserActivityOperation: ZodOpenApiOperationObject = {
+  operationId: 'getUserActivity',
+  summary: 'Return an activity feed by user id',
+  description:
+    'Owner-only. The `{id}` path segment must match the authenticated platform user. Callers targeting themselves should prefer `GET /users/me/activity`. See WORKFLOW-API-SPEC.md §7.2.',
+  tags: ['Users'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: userIdPathParamsSchema, query: activityFeedQuerySchema },
+  responses: activityFeedResponses,
 }
 
 export { userIdPathParamsSchema, ifMatchHeaderSchema }

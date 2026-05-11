@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { GetUserQueryHandler } from '../../../../src/application/queries/get-user'
-import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
+import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
-import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
+import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
   clearDocs,
@@ -15,19 +15,14 @@ import type { RequestActor } from '../../../../src/application/actor'
 
 async function seedStudent(): Promise<{ id: string; firebaseUid: string }> {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
+  const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
+  const email = `${studentNumber}@student.rmit.edu.au`
   await ensureFirebaseUser(firebaseUid, email)
-  const sync = new SyncUserCommandHandler(
-    new FirestoreUnitOfWork(),
-    new FirebasePlatformClaimsService()
-  )
-  const { id } = await sync.handle({
-    actor: { firebaseUid, email, platformUser: null },
-    studentNumber: `s${Math.floor(Math.random() * 1e9)}`,
-    displayName: undefined,
-  })
-  trackDoc('users', id)
-  return { id, firebaseUid }
+  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
+  if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
+  trackDoc('users', platformUser.id)
+  return { id: platformUser.id, firebaseUid }
 }
 
 function actorFor(id: string, role: 'student' | 'coordinator'): RequestActor {
@@ -90,16 +85,19 @@ describe('GetUserQueryHandler — integration', () => {
     ).rejects.toMatchObject({ name: 'NotFoundError' })
   })
 
-  it('pre-sync actor (platformUser=null) is rejected with no_platform_user', async () => {
+  it('actor without platformUser (hydrator could not JIT) is rejected with no_platform_user', async () => {
     const handler = new GetUserQueryHandler(new FirestoreUnitOfWork())
-    const preSync: RequestActor = {
+    const unhydrated: RequestActor = {
       firebaseUid: `fb_${randomUUID()}`,
       email: 'x@y.z',
       platformUser: null,
     }
 
     await expect(
-      handler.handle({ actor: preSync, userId: 'usr_whatever' })
-    ).rejects.toMatchObject({ name: 'ForbiddenError', reason: 'no_platform_user' })
+      handler.handle({ actor: unhydrated, userId: 'usr_whatever' })
+    ).rejects.toMatchObject({
+      name: 'ForbiddenError',
+      reason: 'no_platform_user',
+    })
   })
 })

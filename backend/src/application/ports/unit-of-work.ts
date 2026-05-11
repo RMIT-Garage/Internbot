@@ -1,4 +1,10 @@
 import type { UserRepository } from '../../domain/repositories/user-repository'
+import type { SemesterRepository } from '../../domain/repositories/semester-repository'
+import type { OpportunityRepository } from '../../domain/repositories/opportunity-repository'
+import type { NotificationRepository } from '../../domain/repositories/notification-repository'
+import type { InternshipRepository } from '../../domain/repositories/internship-repository'
+import type { TicketRepository } from '../../domain/repositories/ticket-repository'
+import type { ActivityFeedRepository } from './activity-feed-repository'
 
 /**
  * UnitOfWork — coordinates a session of related reads and writes.
@@ -25,4 +31,10 @@ export interface UnitOfWork {
  */
 export interface UnitOfWorkContext {
   readonly users: UserRepository
+  readonly semesters: SemesterRepository
+  readonly opportunities: OpportunityRepository
+  readonly internships: InternshipRepository
+  readonly notifications: NotificationRepository
+  readonly tickets: TicketRepository
+  readonly activityFeed: ActivityFeedRepository
 }

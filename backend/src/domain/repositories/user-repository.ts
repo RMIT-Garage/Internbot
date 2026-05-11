@@ -1,4 +1,8 @@
 import type { User } from '../entities/user'
+import type { IdentityProvider, UserIdentityLookup } from '../value-objects/user-identity'
+
+// Re-export so existing callers (handlers, infra) keep their imports stable.
+export type { IdentityProvider, UserIdentityLookup }
 
 /**
  * UserRepository — session-scoped read/write port over the `users` aggregate.
@@ -8,22 +12,28 @@ import type { User } from '../entities/user'
  * never leak persistence types (Firestore Timestamp, DocumentSnapshot,
  * etc.) through this interface.
  *
- * Reads return `User | null` (the aggregate root directly). The aggregate
- * carries its own concurrency token as `user.version`; `save(user)` uses
- * that token as the optimistic-lock precondition.
+ * Reads return `User | null` (the aggregate root directly) — every returned
+ * `User` carries its `identity` VO, populated from the denormalised
+ * `users/{id}.identity` field. The aggregate carries its own concurrency
+ * token as `user.version`; `save(user)` uses that token as the optimistic-
+ * lock precondition.
  */
 export interface UserRepository {
   findById(id: string): Promise<User | null>
-  findByFirebaseUid(firebaseUid: string): Promise<User | null>
+  findByIdentity(identity: UserIdentityLookup): Promise<User | null>
+  listCoordinators(): Promise<readonly User[]>
 
   /**
-   * Insert a freshly-created `User` aggregate. Used by `POST /auth/sync`
-   * on the first call. `user.version` on a freshly-created aggregate
-   * is 0 (not yet persisted); after `create` returns, the document's
-   * `updateTime` becomes the new version (but the passed-in instance is
-   * not mutated — callers discard it and reload if needed).
+   * Insert a freshly-constructed `User` aggregate. Used by the auth-edge
+   * JIT bootstrap on first request from a verified student email. The
+   * aggregate must already carry a non-empty id (the application service
+   * mints it via `IdGenerator` before construction) and a populated
+   * `identity` VO. The implementation writes the user doc (with
+   * denormalised identity) and the slim `userIdentities/{key}` uniqueness
+   * sentinel atomically — identity uniqueness enforcement lives there,
+   * not in the handler.
    */
-  create(user: User): Promise<{ id: string }>
+  create(user: User): Promise<void>
 
   /**
    * Persist mutations to an existing `User` aggregate with optimistic
@@ -33,6 +43,10 @@ export interface UserRepository {
    * rejects with `PreconditionFailedError` if it does not match
    * `user.version`. Callers that want to bypass the check (e.g. system
    * migrations) should mint a new aggregate instead.
+   *
+   * Identity is intentionally *not* part of the update payload — it is
+   * immutable for the lifetime of a User. Callers that want to change
+   * provider or providerUserId must mint a new aggregate.
    *
    * Does not mutate the passed-in `user.version`. After a successful
    * write, Firestore produces a new `updateTime` — callers that need the

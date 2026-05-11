@@ -1,4 +1,4 @@
-import { NotFoundError, ConflictError, PreconditionFailedError } from '../../domain/errors'
+import { NotFoundError, ConflictError } from '../../domain/errors'
 
 /**
  * Wrap a Firestore operation with driver-error translation.
@@ -6,6 +6,7 @@ import { NotFoundError, ConflictError, PreconditionFailedError } from '../../dom
  * The infrastructure layer is the **only** place that catches raw driver
  * errors. Known Firestore codes are translated into `DomainError` subclasses
  * so the domain/application layers never see `grpc.Status` or `FirebaseError`.
+ * The original driver error is preserved on `.cause` (ES2022) for diagnostics.
  * Unknown errors are logged with operation context and rethrown — the api
  * error-handler catches them and renders 500.
  *
@@ -13,25 +14,132 @@ import { NotFoundError, ConflictError, PreconditionFailedError } from '../../dom
  *   return translateFirestoreErrors(async () => {
  *     const snap = await txn.get(ref)
  *     // ...
- *   }, { op: 'users.findById', id })
+ *   }, { op: 'users.findById', resource: 'User', id })
  */
+
+/**
+ * Closed union of every wrapped Firestore operation. Strictly typed so a
+ * typo (`'user.findById'`) fails at compile time and so log lines stay
+ * grep-friendly. Extend when you add a new repository method.
+ */
+export type FirestoreOp =
+  | 'users.findById'
+  | 'users.findByIdentity'
+  | 'users.listCoordinators'
+  | 'users.create'
+  | 'users.save'
+  | 'semesters.findById'
+  | 'semesters.findByNaturalKey'
+  | 'semesters.list'
+  | 'semesters.create'
+  | 'semesters.save'
+  | 'opportunities.findById'
+  | 'opportunities.list'
+  | 'opportunities.countApplications'
+  | 'opportunities.listAttachments'
+  | 'opportunities.create'
+  | 'opportunities.save'
+  | 'internships.findById'
+  | 'internships.findByUserIdAndOpportunityId'
+  | 'internships.list'
+  | 'internships.listByUserId'
+  | 'internships.listAttachments'
+  | 'internships.hasAttachments'
+  | 'internships.create'
+  | 'internships.save'
+  | 'internships.addActivity'
+  | 'activityFeed.listByAuthor'
+  | 'notifications.findById'
+  | 'notifications.list'
+  | 'notifications.countUnreadByUserId'
+  | 'notifications.create'
+  | 'notifications.save'
+  | 'notifications.markUnreadAsReadByUserId'
+  | 'tickets.findById'
+  | 'tickets.list'
+  | 'tickets.create'
+  | 'tickets.applyTransition'
+  | 'tickets.addReply'
+
+/**
+ * Singular domain resource label used in `NotFoundError` messages
+ * (`"${resource} '${id}' not found"`). Stays aligned with the names the
+ * API surfaces in problem-detail responses.
+ */
+export type FirestoreResource =
+  | 'User'
+  | 'Semester'
+  | 'Opportunity'
+  | 'Internship'
+  | 'Notification'
+  | 'Activity'
+  | 'Ticket'
+
+export interface FirestoreOpContext {
+  op: FirestoreOp
+  resource: FirestoreResource
+  id?: string
+  /**
+   * Reason to attach when the driver raises `already-exists`. The wrapper
+   * does NOT infer this — pass the domain-meaningful reason explicitly
+   * (`'natural_key_exists'`, `'identity_already_exists'`, …). When absent,
+   * `already-exists` falls through to the unknown-error path: this is
+   * deliberate, so a write that hits a guard the caller did not anticipate
+   * surfaces loudly instead of being mislabelled as a generic conflict.
+   */
+  conflictReason?: string
+}
+
+/**
+ * Kebab-case companion to the library's numeric `GrpcStatus` enum — these
+ * are the strings the Firestore SDK actually puts on `err.code` at runtime.
+ * The library types `BulkWriterError.code` as the numeric enum but leaves
+ * generic thrown errors' `.code` field as untyped `string`, so we mirror
+ * the gRPC code list here. Adding a new comparison? Pick from this union.
+ */
+export type FirestoreErrorCode =
+  | 'cancelled'
+  | 'unknown'
+  | 'invalid-argument'
+  | 'deadline-exceeded'
+  | 'not-found'
+  | 'already-exists'
+  | 'permission-denied'
+  | 'resource-exhausted'
+  | 'failed-precondition'
+  | 'aborted'
+  | 'out-of-range'
+  | 'unimplemented'
+  | 'internal'
+  | 'unavailable'
+  | 'data-loss'
+  | 'unauthenticated'
+
 export async function translateFirestoreErrors<T>(
   fn: () => Promise<T>,
-  ctx: { op: string; id?: string }
+  ctx: FirestoreOpContext
 ): Promise<T> {
   try {
     return await fn()
   } catch (err) {
     if (isFirestoreErrorCode(err, 'not-found')) {
-      const resource = ctx.op.split('.')[0] ?? 'Resource'
-      throw new NotFoundError(capitalize(resource), ctx.id)
+      throw new NotFoundError(ctx.resource, ctx.id, { cause: err })
     }
-    if (isFirestoreErrorCode(err, 'already-exists')) {
-      throw new ConflictError('Resource already exists', 'natural_key_exists')
+    if (isFirestoreErrorCode(err, 'already-exists') && ctx.conflictReason) {
+      throw new ConflictError(`${ctx.resource} already exists`, ctx.conflictReason, { cause: err })
     }
-    if (isFirestoreErrorCode(err, 'failed-precondition')) {
-      throw new PreconditionFailedError()
-    }
+    // `failed-precondition` is intentionally NOT mapped to
+    // `PreconditionFailedError`. Repositories enforce optimistic concurrency
+    // by **explicitly** comparing the persisted `version` against
+    // `aggregate.version` and throwing `PreconditionFailedError` themselves —
+    // they never rely on Firestore-driver preconditions for the ETag path.
+    // Firestore emits `failed-precondition` for unrelated reasons, most
+    // notably **missing composite indexes** (the canonical "create the index
+    // here" error). Translating that to a 412 etag_mismatch would be a
+    // misleading client signal and would mask broken queries; let it fall
+    // through to the unknown-error path so it surfaces as a 500 with the
+    // raw Firestore message in the logs.
+    //
     // Unknown — log operation context and rethrow. The api error-handler
     // converts this to 500 Internal Server Error with a safe message.
     console.error(`[infra] ${ctx.op} failed`, {
@@ -49,17 +157,9 @@ function isFirestoreErrorCode(err: unknown, code: string): boolean {
 
 function readErrorCode(err: unknown): string | undefined {
   if (err && typeof err === 'object' && 'code' in err) {
-    const code = (err as { code?: unknown }).code
+    const { code } = err
     if (typeof code === 'string') return code
     if (typeof code === 'number') return String(code)
   }
   return undefined
-}
-
-function capitalize(s: string): string {
-  if (s.length === 0) return s
-  // "users" → "User", "opportunities" → "Opportunitie" (OK — callers typically
-  // pass singular resource names anyway). Best-effort conversion for NotFound
-  // messages; exact pluralisation is not worth a dictionary here.
-  return s[0]!.toUpperCase() + s.slice(1).replace(/s$/, '')
 }

@@ -16,6 +16,9 @@ import {
   mintEmulatorIdToken,
 } from '../../setup.emulator'
 import { adminAuth } from '../../../src/infrastructure/config/firebase-admin'
+import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
+import { User } from '../../../src/domain/entities/user'
+import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
 
 const completePatch = {
   studentProfile: {
@@ -33,29 +36,50 @@ const completePatch = {
 
 async function syncStudent(app: ReturnType<typeof createApp>) {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-  const initialToken = await mintEmulatorIdToken(firebaseUid, email)
+  const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
+  const email = `${studentNumber}@student.rmit.edu.au`
+  const idToken = await mintEmulatorIdToken(firebaseUid, email)
 
-  const create = await request(app)
-    .post('/api/v1/auth/sync')
-    .set('Authorization', `Bearer ${initialToken}`)
-    .send({ studentNumber: `s${Math.floor(Math.random() * 1e9)}` })
-  expect(create.status).toBe(201)
-  trackDoc('users', create.body.id)
-
-  // Subsequent calls use a refreshed token (picks up the claims set by sync).
-  const authedToken = await mintEmulatorIdToken(firebaseUid, email)
-  return { id: create.body.id as string, firebaseUid, email, idToken: authedToken }
+  // Pattern B: any authenticated request triggers JIT bootstrap in the
+  // hydrator middleware. We hit GET /me to receive the freshly-created id.
+  const me = await request(app).get('/api/v1/users/me').set('Authorization', `Bearer ${idToken}`)
+  expect(me.status).toBe(200)
+  trackDoc('users', me.body.id)
+  return { id: me.body.id as string, firebaseUid, email, idToken }
 }
 
 async function makeCoordinator() {
+  // Coordinators bypass JIT: their `users/{id}` doc + Firebase Auth user must
+  // exist before the middleware sees them. Provision both atomically here.
   const firebaseUid = `fb_${randomUUID()}`
   const email = `coord_${randomUUID().slice(0, 6)}@rmit.edu.au`
   const platformUserId = `usr_coord_${randomUUID()}`
   await adminAuth.createUser({ uid: firebaseUid, email })
-  await adminAuth.setCustomUserClaims(firebaseUid, { platformUserId, role: 'coordinator' })
-  // Note: coordinators in this project are provisioned out-of-band — no
-  // Firestore doc is required to exercise coordinator-role routes.
+
+  const uow = new FirestoreUnitOfWork()
+  await uow.execute(async (ctx) => {
+    const now = new Date()
+    const coord = User.create({
+      id: platformUserId,
+      version: 0,
+      email,
+      role: 'coordinator',
+      status: 'active',
+      onboardingStage: 'profile_complete',
+      identity: UserIdentity.create({
+        provider: 'firebase',
+        providerUserId: firebaseUid,
+        emailSnapshot: email,
+      }),
+      createdAt: now,
+      updatedAt: now,
+      displayName: undefined,
+      studentProfile: undefined,
+    })
+    await ctx.users.create(coord)
+  })
+  trackDoc('users', platformUserId)
+
   const idToken = await mintEmulatorIdToken(firebaseUid, email)
   return { firebaseUid, email, platformUserId, idToken }
 }
@@ -77,7 +101,9 @@ describe('GET /api/v1/users/:id — component', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(student.id)
-    expect(res.headers['etag']).toMatch(/^W\/"\d+"$/)
+    // First persisted version is always 1 (the JIT bootstrap is the
+    // first save).
+    expect(res.headers['etag']).toBe('W/"1"')
     expect(res.body.firebaseUid).toBeUndefined()
   })
 
@@ -138,6 +164,8 @@ describe('PATCH /api/v1/users/:id — component', () => {
     expect(res.status).toBe(200)
     expect(res.body.studentProfile.profileStatus).toBe('complete')
     expect(res.body.studentProfile.academicInfo.confirmedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    // Successful PATCH bumps the version monotonically: sync seeded v1, this PATCH → v2.
+    expect(res.headers['etag']).toBe('W/"2"')
   })
 
   it('attempt to change studentNumber to a new value returns 422 immutable_field', async () => {
@@ -243,5 +271,55 @@ describe('PATCH /api/v1/users/:id — component', () => {
       })
     expect(second.status).toBe(200)
     expect(second.body.studentProfile.academicInfo.confirmedAt).toBe(firstConfirmedAt)
+  })
+})
+
+/**
+ * Status-code regression: a Firebase-authenticated caller whose JIT
+ * bootstrap could not run (non-student-shape email here) must receive
+ * 403, not 401. The token is valid; the caller just has no platform
+ * identity that the hydrator could create.
+ *
+ * Per spec §7.0: 401 = invalid/missing token; 403 = authenticated but
+ * lacks permission. Same condition routed through the bare `:id` path
+ * (handler throws ForbiddenError) returns 403 — `/me` aliases must match.
+ */
+describe('/me alias — caller without platform user returns 403, not 401', () => {
+  beforeAll(() => initEmulator())
+  afterEach(async () => {
+    await clearDocs()
+    await clearAuthUsers()
+  })
+
+  it.each([
+    ['GET', '/api/v1/users/me'],
+    ['PATCH', '/api/v1/users/me'],
+    ['GET', '/api/v1/users/me/workflow'],
+    ['PUT', '/api/v1/users/me/semester-selection'],
+  ])('%s %s with no platform user → 403 no_platform_user', async (method, path) => {
+    const app = createApp()
+    // Caller is Firebase-authed with a non-student-shape email, so the
+    // JIT bootstrap declines to create a `users/{id}` doc and the
+    // hydrator returns null → `actor.platformUser === null`.
+    const firebaseUid = `fb_${randomUUID()}`
+    const idToken = await mintEmulatorIdToken(firebaseUid, 'a@b.com')
+
+    const req = request(app)
+    const send = (() => {
+      switch (method) {
+        case 'GET':
+          return req.get(path)
+        case 'PATCH':
+          return req.patch(path).send({ studentProfile: { phone: '+61400000000' } })
+        case 'PUT':
+          return req.put(path).send({ semesterId: 'sem_anything' })
+        default:
+          throw new Error(`unexpected method ${method}`)
+      }
+    })()
+
+    const res = await send.set('Authorization', `Bearer ${idToken}`)
+    expect(res.status).toBe(403)
+    expect(res.body.error.reason).toBe('no_platform_user')
   })
 })

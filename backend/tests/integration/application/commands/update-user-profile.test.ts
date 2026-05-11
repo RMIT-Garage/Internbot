@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { UpdateUserProfileCommandHandler } from '../../../../src/application/commands/update-user-profile'
 import { GetUserQueryHandler } from '../../../../src/application/queries/get-user'
-import { SyncUserCommandHandler } from '../../../../src/application/commands/sync-user'
+import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
-import { FirebasePlatformClaimsService } from '../../../../src/infrastructure/services/firebase-platform-claims-service'
+import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import {
   initEmulator,
   clearDocs,
@@ -25,20 +25,14 @@ const completeAcademicInfo = {
 
 async function seedStudent(): Promise<{ id: string; firebaseUid: string; studentNumber: string }> {
   const firebaseUid = `fb_${randomUUID()}`
-  const email = `${randomUUID().slice(0, 8)}@student.rmit.edu.au`
-  await ensureFirebaseUser(firebaseUid, email)
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
-  const sync = new SyncUserCommandHandler(
-    new FirestoreUnitOfWork(),
-    new FirebasePlatformClaimsService()
-  )
-  const { id } = await sync.handle({
-    actor: { firebaseUid, email, platformUser: null },
-    studentNumber,
-    displayName: undefined,
-  })
-  trackDoc('users', id)
-  return { id, firebaseUid, studentNumber }
+  const email = `${studentNumber}@student.rmit.edu.au`
+  await ensureFirebaseUser(firebaseUid, email)
+  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
+  if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
+  trackDoc('users', platformUser.id)
+  return { id: platformUser.id, firebaseUid, studentNumber }
 }
 
 function actorFor(id: string, role: 'student' | 'coordinator'): RequestActor {
@@ -80,7 +74,7 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
       update.handle({
         actor: actorFor(student.id, 'student'),
         userId: student.id,
-          patch: { studentNumber: `s${Math.floor(Math.random() * 1e9)}` },
+        patch: { studentNumber: `s${Math.floor(Math.random() * 1e9)}` },
       })
     ).rejects.toMatchObject({ name: 'ValidationError', reason: 'immutable_field' })
   })
@@ -104,7 +98,7 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
       update.handle({
         actor: actorFor(`usr_${randomUUID()}`, 'coordinator'),
         userId: student.id,
-          patch: { programCode: 'BP096' },
+        patch: { programCode: 'BP096' },
       })
     ).rejects.toMatchObject({
       name: 'MethodNotAllowedError',
@@ -122,7 +116,7 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
       update.handle({
         actor: actorFor(other.id, 'student'),
         userId: owner.id,
-          patch: { programCode: 'BP096' },
+        patch: { programCode: 'BP096' },
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError', reason: 'student_not_owner' })
   })

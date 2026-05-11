@@ -200,32 +200,23 @@ Errors use RFC 9457 Problem Details format — no stack traces, no internal deta
 
 ## Firestore Security Rules
 
-Rules in `docker/firebase-emulator/firebase/firestore.rules` are the **last line of defence**. Write rules assuming the client is untrusted and malicious.
+Rules in `docker/firebase-emulator/firebase/firestore.rules` are the **first line of defence at the database boundary**. The public Firebase web config (project ID + API key) ships in the frontend bundle, so `firestore.googleapis.com` is reachable by any holder of a valid Firebase ID token regardless of what the frontend does. Anything we allow in rules is allowed for the entire internet of authenticated tokens.
 
-### Key principles
+### Policy: default-deny everything
 
-- **Default deny** — the catch-all `match /{document=**}` block denies everything not explicitly allowed
-- **Owner-only** — users can only access their own documents via `isOwner(uid)`
-- **Field allowlists** — `request.resource.data.keys().hasOnly([...])` prevents writing unexpected fields (mass assignment)
-- **Immutable fields** — `uid` and `role` cannot be changed by the user after creation
-- **Soft-delete only** — `delete: if false` on all user-owned collections; set `deletedAt` field instead
-- **notDeleted() guard** — include `&& notDeleted()` in read rules to filter logically deleted docs
-
-### Helper functions
+Internbot's posture is **all data access goes through the backend Express API**. The Admin SDK in Cloud Functions bypasses Firestore rules, and the API layer applies DTO redaction (drops auth provider IDs, raw GPA, phone, etc.) that the rules language cannot express. The client SDK is never granted read or write access to any collection.
 
 ```javascript
-isAuthenticated(); // request.auth != null && uid != null
-isOwner(uid); // isAuthenticated() && request.auth.uid == uid
-isAdmin(); // reads users/{uid}.role == 'admin' (one Firestore read)
-hasCustomClaim(claim); // request.auth.token[claim] == true (no Firestore read — use for performance)
-notDeleted(); // deletedAt field is null or absent
+match /{document=**} {
+  allow read, write: if false;
+}
 ```
 
-Use `hasCustomClaim('admin')` in high-read collections to avoid the Firestore read that `isAdmin()` triggers. Set custom claims via Admin SDK:
+The frontend bundle correspondingly does **not** initialise `getFirestore()` — there is no client-SDK Firestore surface to misuse. Realtime UX (live listeners) is intentionally not supported on the client; if a feature genuinely needs it, that is a deliberate architectural change and should be discussed before relaxing this default-deny posture.
 
-```typescript
-await adminAuth.setCustomUserClaims(uid, { admin: true });
-```
+### Adding a new collection
+
+Do **not** add an `allow` rule. Expose the collection through a backend route (handler → application command → repository → admin SDK) and apply DTO redaction on the response.
 
 ### Deploying rules
 
