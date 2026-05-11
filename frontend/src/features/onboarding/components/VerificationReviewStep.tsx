@@ -71,7 +71,45 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
       <Navbar />
 
       <div className="mx-auto max-w-5xl p-8 lg:p-12">
-        {/* Header & stepper */}
+        {/* Stepper */}
+        <div className="relative mb-16 flex items-center justify-center">
+          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
+
+          <div className="flex w-full max-w-2xl justify-between">
+            {STEPS.map((step) => {
+              const isActive = step.key === 'review'
+
+              const isCompleted =
+                step.key === 'personal' || step.key === 'academic' || step.key === 'credits'
+
+              let circleClass =
+                'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-white border-2 border-gray-100 text-gray-300'
+
+              let labelClass = 'text-[10px] tracking-widest uppercase text-gray-300'
+
+              if (isActive) {
+                circleClass =
+                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-red-700 border-2 border-red-700 text-white scale-110 shadow-lg shadow-red-100'
+
+                labelClass = 'text-[10px] tracking-widest uppercase text-red-700 font-bold'
+              } else if (isCompleted) {
+                circleClass =
+                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-slate-800 border-2 border-slate-800 text-white'
+
+                labelClass = 'text-[10px] tracking-widest uppercase text-slate-800 font-bold'
+              }
+
+              return (
+                <div key={step.key} className="flex flex-col items-center gap-3">
+                  <div className={circleClass}>{step.number}</div>
+
+                  <span className={labelClass}>{step.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        {/* Header */}
         <div className="mb-10 flex items-start justify-between">
           <div>
             <div className="mb-4 flex w-fit items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-600">
@@ -85,23 +123,6 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
               Please perform a final audit of your academic digital twin. Ensure all credentials
               align with your official documentation.
             </p>
-          </div>
-
-          {/* Step indicators */}
-          <div className="flex gap-2">
-            {STEPS.map((step) => {
-              const isActive = step.key === 'review'
-              return (
-                <div
-                  key={step.key}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white transition ${
-                    isActive ? 'bg-red-600 ring-4 ring-red-50' : 'bg-red-800 opacity-50'
-                  }`}
-                >
-                  {step.number}
-                </div>
-              )
-            })}
           </div>
         </div>
 

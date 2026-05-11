@@ -15,7 +15,12 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-const STEPS = ['Personal', 'Academic', 'Course', 'Review']
+const STEPS = [
+  { key: 'personal', label: 'Identity', number: '1' },
+  { key: 'academic', label: 'Academic', number: '2' },
+  { key: 'credits', label: 'Credits', number: '3' },
+  { key: 'review', label: 'Finalize', number: '4' },
+] as const
 
 interface Props {
   user: StudentUser
@@ -66,6 +71,43 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
 
       {/* Content */}
       <div className="max-w-7xl p-12 lg:p-16">
+        {/* Stepper */}
+        <div className="relative mb-16 flex items-center justify-center">
+          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
+
+          <div className="flex w-full max-w-2xl justify-between">
+            {STEPS.map((step) => {
+              const isActive = step.key === 'personal'
+
+              const isCompleted = false
+
+              let circleClass =
+                'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-white border-2 border-gray-100 text-gray-300'
+
+              let labelClass = 'text-[10px] tracking-widest uppercase text-gray-300'
+
+              if (isActive) {
+                circleClass =
+                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-red-700 border-2 border-red-700 text-white scale-110 shadow-lg shadow-red-100'
+
+                labelClass = 'text-[10px] tracking-widest uppercase text-red-700 font-bold'
+              } else if (isCompleted) {
+                circleClass =
+                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-slate-800 border-2 border-slate-800 text-white'
+
+                labelClass = 'text-[10px] tracking-widest uppercase text-slate-800 font-bold'
+              }
+
+              return (
+                <div key={step.key} className="flex flex-col items-center gap-3">
+                  <div className={circleClass}>{step.number}</div>
+
+                  <span className={labelClass}>{step.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
           {/* Left — form */}
           <div className="space-y-10 lg:col-span-2">
@@ -79,24 +121,6 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                 Please verify and complete your identity information. These details will be used for
                 your official academic record and graduation certificates.
               </p>
-            </div>
-
-            {/* Progress bar */}
-            <div className="border-t border-gray-100 pt-1">
-              <div className="grid grid-cols-4 gap-1">
-                {STEPS.map((step, i) => (
-                  <div key={step} className="pt-2">
-                    <div className={`h-1 rounded ${i === 0 ? 'bg-red-600' : 'bg-gray-200'}`} />
-                    <span
-                      className={`mt-1 text-[10px] font-bold uppercase ${
-                        i === 0 ? 'text-red-600' : 'text-gray-400'
-                      }`}
-                    >
-                      {step}
-                    </span>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Form card */}
