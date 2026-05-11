@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Lock, Bell, UserCircle, GraduationCap, ArrowRight } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload } from '@/features/profile/types'
+import { Navbar } from '@/components/layout/Navbar'
 
 const schema = z.object({
   phone: z.string().min(1, 'Phone number is required'),
@@ -61,12 +62,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
   return (
     <main className="flex-1 bg-white">
       {/* Header */}
-      <header className="flex items-center justify-end gap-5 border-b border-gray-100 p-8">
-        <Bell size={24} className="cursor-pointer text-gray-400 hover:text-gray-600" />
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
-          <UserCircle size={32} className="text-gray-400" />
-        </div>
-      </header>
+      <Navbar />
 
       {/* Content */}
       <div className="max-w-7xl p-12 lg:p-16">

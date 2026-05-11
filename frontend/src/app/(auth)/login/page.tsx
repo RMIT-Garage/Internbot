@@ -25,7 +25,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginInput) => {
     try {
       await signInWithEmail(data.email, data.password)
-      router.push('/dashboard')
+      router.push('/onboarding/credits')
     } catch {
       toast.error('Invalid email or password')
     }
@@ -34,7 +34,7 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle()
-      router.push('/dashboard')
+      router.push('/onboarding/credits')
     } catch {
       toast.error('Google sign-in failed. Please try again.')
     }
@@ -91,7 +91,7 @@ export default function LoginPage() {
             id="email"
             type="email"
             autoComplete="email"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
             placeholder="you@example.com"
             {...register('email')}
           />
@@ -111,7 +111,7 @@ export default function LoginPage() {
             id="password"
             type="password"
             autoComplete="current-password"
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
             placeholder="••••••••"
             {...register('password')}
           />

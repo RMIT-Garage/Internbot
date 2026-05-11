@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { StudentUser } from '@/features/profile/types'
+import { Navbar } from '@/components/layout/Navbar'
 
 interface Props {
   user: StudentUser
@@ -31,10 +32,7 @@ export function CourseCreditsStep({ user }: Props) {
   return (
     <main className="flex-1 bg-white">
       {/* Header */}
-      <header className="flex items-center justify-end gap-6 border-b border-gray-100 p-6">
-        <Bell size={24} className="cursor-pointer text-gray-400 hover:text-gray-600" />
-        <UserCircle size={32} className="cursor-pointer text-gray-400" />
-      </header>
+      <Navbar />
 
       <div className="mx-auto max-w-6xl px-10 py-12">
         <div className="grid grid-cols-12 gap-12">

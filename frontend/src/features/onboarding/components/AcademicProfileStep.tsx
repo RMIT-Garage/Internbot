@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Bell, UserCircle, ShieldCheck, Lightbulb, ChevronDown, ArrowRight } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload, ProgramLevel } from '@/features/profile/types'
+import { Navbar } from '@/components/layout/Navbar'
 
 const PROGRAMS = [
   'Bachelor of Software Engineering (Professional)',
@@ -100,12 +101,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
   return (
     <main className="flex-1 bg-white">
       {/* Header */}
-      <header className="flex items-center justify-end gap-6 border-b border-gray-100 p-6">
-        <Bell size={24} className="cursor-pointer text-gray-400 hover:text-gray-600" />
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-slate-100">
-          <UserCircle size={28} className="text-gray-500" />
-        </div>
-      </header>
+      <Navbar />
 
       <div className="mx-auto max-w-5xl px-8 py-12">
         {/* Stepper */}
