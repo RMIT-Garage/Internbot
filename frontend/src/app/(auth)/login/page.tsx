@@ -25,7 +25,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginInput) => {
     try {
       await signInWithEmail(data.email, data.password)
-      router.push('/onboarding/credits')
+      router.push('/dashboard')
     } catch {
       toast.error('Invalid email or password')
     }
@@ -34,7 +34,7 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle()
-      router.push('/onboarding/credits')
+      router.push('/dashboard')
     } catch {
       toast.error('Google sign-in failed. Please try again.')
     }
