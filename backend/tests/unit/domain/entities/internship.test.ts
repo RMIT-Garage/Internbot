@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Internship } from '../../../../src/domain/entities/internship'
+import { Attachment } from '../../../../src/domain/value-objects/attachment'
 import type { InternshipActivity } from '../../../../src/domain/value-objects/internship-activity'
 import type { InternshipStatus } from '../../../../src/domain/value-objects/internship-enums'
 
@@ -199,5 +200,134 @@ describe('Internship', () => {
         LATER
       )
     ).toThrow(expect.objectContaining({ reason: 'invalid_state_transition' }))
+  })
+})
+
+function attachment(id = 'att_001'): Attachment {
+  return Attachment.rehydrate({
+    id,
+    filePath: `internships/int_001/${id}/offer.pdf`,
+    fileName: 'offer.pdf',
+    contentType: 'application/pdf',
+    uploadedAt: NOW,
+    storageGeneration: '1234567890',
+  })
+}
+
+function internshipWithAttachments(
+  status: InternshipStatus = 'applied',
+  attachments: Attachment[] = [attachment()]
+): Internship {
+  return Internship.rehydrate(
+    {
+      id: 'int_001',
+      version: 1,
+      userId: 'usr_student',
+      opportunityId: 'opp_001',
+      offerDate: undefined,
+      startDate: undefined,
+      endDate: undefined,
+      status,
+      coordinatorDecision: undefined,
+      coordinatorComment: undefined,
+      reviewedByUserId: undefined,
+      reviewedAt: undefined,
+      lastSubmittedAt: undefined,
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    attachments
+  )
+}
+
+describe('Internship.removeAttachment', () => {
+  it('removes the attachment from the attachments collection', () => {
+    const att = attachment('att_001')
+    const entity = internshipWithAttachments('applied', [att])
+
+    entity.removeAttachment('att_001', 'usr_student', LATER)
+
+    expect(entity.attachments).toHaveLength(0)
+  })
+
+  it('stages an internship_attachment_removed event with correct fields', () => {
+    const att = attachment('att_001')
+    const entity = internshipWithAttachments('applied', [att])
+
+    entity.removeAttachment('att_001', 'usr_student', LATER)
+
+    const event = entity.pendingEvents[entity.pendingEvents.length - 1]!
+    expect(event.kind).toBe('internship_attachment_removed')
+    if (event.kind !== 'internship_attachment_removed') throw new Error('wrong event kind')
+    expect(event.attachment.id).toBe('att_001')
+    expect(event.attachment.filePath).toBe('internships/int_001/att_001/offer.pdf')
+    expect(event.removedByUserId).toBe('usr_student')
+    expect(event.occurredAt).toBe(LATER)
+  })
+
+  it('only removes the targeted attachment when multiple are present', () => {
+    const att1 = attachment('att_001')
+    const att2 = attachment('att_002')
+    const entity = internshipWithAttachments('applied', [att1, att2])
+
+    entity.removeAttachment('att_001', 'usr_student', LATER)
+
+    expect(entity.attachments).toHaveLength(1)
+    expect(entity.attachments[0]!.id).toBe('att_002')
+  })
+
+  it('throws NotFoundError when attachment id does not exist', () => {
+    const entity = internshipWithAttachments('applied', [attachment('att_001')])
+
+    expect(() => entity.removeAttachment('att_nonexistent', 'usr_student', LATER)).toThrow(
+      expect.objectContaining({ code: 'NOT_FOUND' })
+    )
+  })
+
+  it('throws NotFoundError on empty attachments collection', () => {
+    const entity = internshipWithAttachments('applied', [])
+
+    expect(() => entity.removeAttachment('att_001', 'usr_student', LATER)).toThrow(
+      expect.objectContaining({ code: 'NOT_FOUND' })
+    )
+  })
+
+  it('throws ConflictError with attachment_locked_in_status when status is offer_pending_review', () => {
+    const entity = internshipWithAttachments('offer_pending_review')
+
+    expect(() => entity.removeAttachment('att_001', 'usr_student', LATER)).toThrow(
+      expect.objectContaining({ reason: 'attachment_locked_in_status' })
+    )
+  })
+
+  it('throws ConflictError with attachment_locked_in_status when status is offer_approved', () => {
+    const entity = internshipWithAttachments('offer_approved')
+
+    expect(() => entity.removeAttachment('att_001', 'usr_student', LATER)).toThrow(
+      expect.objectContaining({ reason: 'attachment_locked_in_status' })
+    )
+  })
+
+  it('throws ConflictError with attachment_locked_in_status when status is rejected', () => {
+    const entity = internshipWithAttachments('rejected')
+
+    expect(() => entity.removeAttachment('att_001', 'usr_student', LATER)).toThrow(
+      expect.objectContaining({ reason: 'attachment_locked_in_status' })
+    )
+  })
+
+  it('allows removal when status is offer_changes_requested', () => {
+    const entity = internshipWithAttachments('offer_changes_requested')
+
+    expect(() => entity.removeAttachment('att_001', 'usr_student', LATER)).not.toThrow()
+    expect(entity.attachments).toHaveLength(0)
+  })
+
+  it('removal marks hasParentMutation true', () => {
+    const entity = internshipWithAttachments('applied')
+
+    entity.removeAttachment('att_001', 'usr_student', LATER)
+
+    expect(entity.hasParentMutation).toBe(true)
   })
 })
