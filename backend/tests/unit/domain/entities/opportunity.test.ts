@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Opportunity } from '../../../../src/domain/entities/opportunity'
+import { Attachment } from '../../../../src/domain/value-objects/attachment'
 import { OpportunityTransition } from '../../../../src/domain/value-objects/opportunity-transition'
 import { OpportunityVerification } from '../../../../src/domain/value-objects/opportunity-verification'
 
@@ -154,6 +155,98 @@ describe('Opportunity.verify', () => {
     const opportunity = buildOpportunity({ status: 'draft' })
     expect(() => opportunity.verify('approved', 'usr_coord', undefined, now)).toThrowError(
       /pending verification/
+    )
+  })
+})
+
+const NOW = new Date('2026-04-01T00:00:00Z')
+const LATER = new Date('2026-04-02T00:00:00Z')
+
+function oppAttachment(id = 'att_001'): Attachment {
+  return Attachment.rehydrate({
+    id,
+    filePath: `opportunities/opp_test/${id}/jd.pdf`,
+    fileName: 'jd.pdf',
+    contentType: 'application/pdf',
+    uploadedAt: NOW,
+    storageGeneration: '9876543210',
+  })
+}
+
+function opportunityWithAttachments(attachments: Attachment[] = [oppAttachment()]): Opportunity {
+  return Opportunity.rehydrate(
+    {
+      id: 'opp_test',
+      version: 1,
+      semesterId: 'sem_test',
+      type: 'pre_approved',
+      employerName: 'Example Pty Ltd',
+      jobTitle: 'Software Intern',
+      descriptionText: 'Build software',
+      workMode: 'hybrid',
+      location: 'Melbourne',
+      sourceUrl: 'https://careerhub.rmit.edu.au/jobs/123',
+      status: 'draft',
+      createdByUserId: 'usr_coord',
+      submittedByUserId: undefined,
+      verifiedByUserId: undefined,
+      verifiedAt: undefined,
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    attachments
+  )
+}
+
+describe('Opportunity.removeAttachment', () => {
+  it('removes the attachment from the attachments collection', () => {
+    const att = oppAttachment('att_001')
+    const opportunity = opportunityWithAttachments([att])
+
+    opportunity.removeAttachment('att_001', 'usr_coord', LATER)
+
+    expect(opportunity.attachments).toHaveLength(0)
+  })
+
+  it('stages an opportunity_attachment_removed event with correct fields', () => {
+    const att = oppAttachment('att_001')
+    const opportunity = opportunityWithAttachments([att])
+
+    opportunity.removeAttachment('att_001', 'usr_coord', LATER)
+
+    const event = opportunity.pendingEvents[opportunity.pendingEvents.length - 1]!
+    expect(event.kind).toBe('opportunity_attachment_removed')
+    if (event.kind !== 'opportunity_attachment_removed') throw new Error('wrong event kind')
+    expect(event.attachment.id).toBe('att_001')
+    expect(event.attachment.filePath).toBe('opportunities/opp_test/att_001/jd.pdf')
+    expect(event.removedByUserId).toBe('usr_coord')
+    expect(event.occurredAt).toBe(LATER)
+  })
+
+  it('only removes the targeted attachment when multiple are present', () => {
+    const att1 = oppAttachment('att_001')
+    const att2 = oppAttachment('att_002')
+    const opportunity = opportunityWithAttachments([att1, att2])
+
+    opportunity.removeAttachment('att_001', 'usr_coord', LATER)
+
+    expect(opportunity.attachments).toHaveLength(1)
+    expect(opportunity.attachments[0]!.id).toBe('att_002')
+  })
+
+  it('throws NotFoundError when attachment id does not exist', () => {
+    const opportunity = opportunityWithAttachments([oppAttachment('att_001')])
+
+    expect(() => opportunity.removeAttachment('att_nonexistent', 'usr_coord', LATER)).toThrow(
+      expect.objectContaining({ code: 'NOT_FOUND' })
+    )
+  })
+
+  it('throws NotFoundError on empty attachments collection', () => {
+    const opportunity = opportunityWithAttachments([])
+
+    expect(() => opportunity.removeAttachment('att_001', 'usr_coord', LATER)).toThrow(
+      expect.objectContaining({ code: 'NOT_FOUND' })
     )
   })
 })
