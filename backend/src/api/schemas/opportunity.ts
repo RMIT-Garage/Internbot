@@ -78,6 +78,30 @@ export const verifyOpportunityRequestSchema = z
 
 export type VerifyOpportunityRequest = z.infer<typeof verifyOpportunityRequestSchema>
 
+const attachmentContentTypeValues = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const
+
+export const createOpportunityAttachmentUploadIntentRequestSchema = z
+  .object({
+    fileName: nonEmptyText.max(200).meta({ example: 'position-description.pdf' }),
+    contentType: z.enum(attachmentContentTypeValues).meta({ example: 'application/pdf' }),
+  })
+  .strict()
+  .meta({
+    id: 'CreateOpportunityAttachmentUploadIntentRequest',
+    description:
+      'Body for POST /api/v1/opportunities/:id/attachments/upload-intents. Returns a signed PUT URL the coordinator uploads the file bytes to directly.',
+  })
+
+export type CreateOpportunityAttachmentUploadIntentRequest = z.infer<
+  typeof createOpportunityAttachmentUploadIntentRequestSchema
+>
+
 export const FORBIDDEN_CREATE_OPPORTUNITY_FIELDS: ReadonlySet<string> = new Set([
   'id',
   'status',

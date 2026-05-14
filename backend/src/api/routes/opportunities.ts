@@ -4,6 +4,7 @@ import type { ZodError } from 'zod'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import { ApiError } from '../errors'
 import {
+  createOpportunityAttachmentUploadIntentRequestSchema,
   createOpportunityRequestSchema,
   patchOpportunityRequestSchema,
   transitionOpportunityRequestSchema,
@@ -14,8 +15,10 @@ import {
 import {
   etagFromOpportunity,
   parseListOpportunitiesQuery,
+  toCreateOpportunityAttachmentUploadIntentCommand,
   toCreateOpportunityCommand,
   toOpportunityAttachmentDownloadResponse,
+  toOpportunityAttachmentUploadIntentResponse,
   toOpportunityListResponse,
   toOpportunityResponse,
   toTransitionOpportunityCommand,
@@ -27,6 +30,7 @@ import { UpdateOpportunityCommandHandler } from '../../application/commands/upda
 import { TransitionOpportunityCommandHandler } from '../../application/commands/transition-opportunity'
 import { VerifyOpportunityCommandHandler } from '../../application/commands/verify-opportunity'
 import { DeleteOpportunityAttachmentCommandHandler } from '../../application/commands/delete-opportunity-attachment'
+import { CreateOpportunityAttachmentUploadIntentCommandHandler } from '../../application/commands/create-opportunity-attachment-upload-intent'
 import { GetOpportunityQueryHandler } from '../../application/queries/get-opportunity'
 import { GetOpportunityAttachmentQueryHandler } from '../../application/queries/get-opportunity-attachment'
 import { ListOpportunitiesQueryHandler } from '../../application/queries/list-opportunities'
@@ -63,6 +67,12 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
     deps.idGenerator
   )
   const deleteAttachment = new DeleteOpportunityAttachmentCommandHandler(deps.uow, deps.authz)
+  const createAttachmentUploadIntent = new CreateOpportunityAttachmentUploadIntentCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator,
+    deps.attachmentStorage
+  )
   const getOpportunity = new GetOpportunityQueryHandler(
     deps.opportunityQueries,
     deps.userQueries,
@@ -144,6 +154,29 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
           attachmentId: paramAttachmentId(req),
         })
         res.status(204).send()
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
+
+  router.post(
+    '/:id/attachments/upload-intents',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const parsed = createOpportunityAttachmentUploadIntentRequestSchema.safeParse(req.body)
+        if (!parsed.success) {
+          next(zodBodyError(parsed.error))
+          return
+        }
+        const { actor } = req as AuthenticatedRequest
+        const result = await createAttachmentUploadIntent.handle(
+          toCreateOpportunityAttachmentUploadIntentCommand(actor, paramId(req), parsed.data)
+        )
+        res.setHeader('Cache-Control', 'private, no-store')
+        res
+          .status(201)
+          .json(toOpportunityAttachmentUploadIntentResponse(result, parsed.data.contentType))
       } catch (err) {
         next(err)
       }

@@ -1,4 +1,4 @@
-import type { SyncStorageAttachmentCommandHandler } from '../application/commands/sync-storage-attachment'
+import type { FinalizeStorageAttachmentCommandHandler } from '../application/commands/finalize-storage-attachment'
 
 /**
  * Minimal shape of the Cloud Storage `OBJECT_FINALIZE` event payload that the
@@ -18,19 +18,20 @@ export interface StorageObjectFinalizedEvent {
 /**
  * Worker — consumes Cloud Storage `OBJECT_FINALIZE` events.
  *
- * Lives in the `workers/` layer (peer to `api/`, both outermost transports):
- * `api/` adapts HTTP requests, `workers/` adapts event-bus deliveries. Both
- * translate transport input → CQRS command and dispatch into the application
- * layer. Neither imports the other.
+ * Pairs with the `POST /:parent/:id/attachments/upload-intents` endpoints,
+ * which pre-write attachment subdocs in `uploading` state and return signed
+ * PUT URLs. This worker flips those subdocs to `finalized` after the upload
+ * lands.
  *
  * Retry semantics: transient errors from the command handler propagate so the
- * Eventarc/Pub/Sub subscription redelivers (the command is idempotent — the
- * attachment id is derived deterministically from the file path). Logical
- * failures (parent missing, prefix mismatch, invalid path) are absorbed by
- * the command handler and therefore never trigger a retry.
+ * Eventarc/Pub/Sub subscription redelivers (the finalize transition is
+ * idempotent — a second delivery for an already-finalized attachment is a
+ * no-op). Logical failures (parent missing, prefix mismatch, invalid path,
+ * unknown attachment) are absorbed by the command handler and therefore never
+ * trigger a retry.
  */
 export class SyncAttachmentMetadataWorker {
-  constructor(private readonly syncAttachments: SyncStorageAttachmentCommandHandler) {}
+  constructor(private readonly finalizeAttachment: FinalizeStorageAttachmentCommandHandler) {}
 
   async handle(event: StorageObjectFinalizedEvent): Promise<void> {
     const filePath = event.data.name
@@ -52,9 +53,8 @@ export class SyncAttachmentMetadataWorker {
           ? String(rawGeneration)
           : undefined
 
-    await this.syncAttachments.handle({
+    await this.finalizeAttachment.handle({
       filePath,
-      contentType: event.data.contentType,
       finalizedAt,
       generation,
     })

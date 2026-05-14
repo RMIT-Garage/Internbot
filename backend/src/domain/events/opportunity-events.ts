@@ -31,7 +31,11 @@ export class OpportunityVerified implements DomainEvent {
   }
 }
 
-/** Storage trigger reflected a finalized GCS object into Firestore. */
+/**
+ * Intent endpoint pre-wrote an attachment subdoc in `uploading` state. The
+ * client has been issued a signed PUT URL and may or may not complete the
+ * upload.
+ */
 export class OpportunityAttachmentAdded implements DomainEvent {
   readonly kind = 'opportunity_attachment_added' as const
   readonly occurredAt: Date
@@ -40,6 +44,22 @@ export class OpportunityAttachmentAdded implements DomainEvent {
   constructor(attachment: Attachment) {
     this.attachment = attachment
     this.occurredAt = attachment.uploadedAt
+  }
+}
+
+/**
+ * Storage `OBJECT_FINALIZE` event confirmed the upload landed. Worker
+ * transitions the attachment from `uploading` → `finalized` and records the
+ * GCS generation.
+ */
+export class OpportunityAttachmentFinalized implements DomainEvent {
+  readonly kind = 'opportunity_attachment_finalized' as const
+  readonly occurredAt: Date
+  readonly attachment: Attachment
+
+  constructor(attachment: Attachment, finalizedAt: Date) {
+    this.attachment = attachment
+    this.occurredAt = finalizedAt
   }
 }
 
@@ -65,4 +85,5 @@ export type OpportunityDomainEvent =
   | OpportunityTransitioned
   | OpportunityVerified
   | OpportunityAttachmentAdded
+  | OpportunityAttachmentFinalized
   | OpportunityAttachmentRemoved
