@@ -21,6 +21,7 @@ import { getAuth, type Auth } from 'firebase-admin/auth'
 const EMULATOR_PROJECT_ID = process.env['FIREBASE_PROJECT_ID'] ?? 'demo-internbot'
 const FIRESTORE_HOST = process.env['FIRESTORE_EMULATOR_HOST'] ?? 'localhost:8080'
 const AUTH_HOST = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? 'localhost:9099'
+const STORAGE_HOST = process.env['FIREBASE_STORAGE_EMULATOR_HOST'] ?? 'localhost:9199'
 
 /**
  * Sentinels for date-window fixtures in integration + component tests.
@@ -59,7 +60,10 @@ export function initEmulator(): void {
   if (initialized) return
   process.env['FIRESTORE_EMULATOR_HOST'] = FIRESTORE_HOST
   process.env['FIREBASE_AUTH_EMULATOR_HOST'] = AUTH_HOST
+  process.env['FIREBASE_STORAGE_EMULATOR_HOST'] = STORAGE_HOST
   process.env['FIREBASE_PROJECT_ID'] = EMULATOR_PROJECT_ID
+  process.env['FIREBASE_STORAGE_BUCKET'] =
+    process.env['FIREBASE_STORAGE_BUCKET'] ?? `${EMULATOR_PROJECT_ID}-storage`
   process.env['USE_EMULATOR'] = 'true'
   process.env['GCLOUD_PROJECT'] = EMULATOR_PROJECT_ID
 

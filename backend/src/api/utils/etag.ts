@@ -23,7 +23,8 @@ export function formatETag(version: number): string {
  * a buggy client keep sending unconditional writes against an aggregate it
  * thinks it is OCC-protecting, defeating the optimistic-concurrency guard on
  * every PATCH/PUT/transition. Surface it as a 400 so the client fixes the
- * header rather than corrupting state.
+ * header rather than corrupting state. It is a validation error at the API
+ * boundary, rendered as 422 by the shared error mapper.
  */
 export function parseIfMatch(header: string | undefined): number | undefined {
   if (header === undefined || header === '') return undefined

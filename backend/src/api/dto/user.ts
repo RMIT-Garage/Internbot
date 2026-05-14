@@ -13,6 +13,15 @@ import {
   internshipStatusValues,
   semesterEnrolmentStateValues,
 } from '../../domain/value-objects/workflow-state'
+import {
+  internshipActivityTypeValues,
+  internshipStatusValues as internshipRecordStatusValues,
+} from '../../domain/value-objects/internship-enums'
+import {
+  opportunityActivityTypeValues,
+  opportunityStatusValues,
+  opportunityVerificationDecisionValues,
+} from '../../domain/value-objects/opportunity-enums'
 
 /**
  * Wire-format response DTOs as Zod schemas.
@@ -60,6 +69,48 @@ export const userWorkflowResponseSchema = z
       'Body of GET /api/v1/users/{id}/workflow. All three fields are derived (none are persisted).',
   })
 export type UserWorkflowResponse = z.infer<typeof userWorkflowResponseSchema>
+
+const activityFeedTypeValues = [
+  ...internshipActivityTypeValues,
+  ...opportunityActivityTypeValues,
+] as const
+
+const activityFeedStatusValues = [
+  ...internshipRecordStatusValues,
+  ...opportunityStatusValues,
+] as const
+
+export const userActivityFeedItemResponseSchema = z
+  .object({
+    id: z.string().meta({ example: 'act_xYz789aBc' }),
+    resourceType: z.enum(['internship', 'opportunity']),
+    internshipId: z.string().nullable().meta({ example: 'int_001' }),
+    opportunityId: z.string().nullable().meta({ example: 'opp_001' }),
+    type: z.enum(activityFeedTypeValues),
+    authorUserId: z.string().meta({ example: 'usr_coord01' }),
+    authorRole: z.enum(roleValues),
+    text: z.string().nullable().meta({ example: 'Offer looks good, approved.' }),
+    from: z.enum(activityFeedStatusValues).nullable(),
+    to: z.enum(activityFeedStatusValues).nullable(),
+    decision: z.enum(opportunityVerificationDecisionValues).nullable(),
+    createdAt: z.string().datetime().meta({ example: '2026-04-05T10:30:00Z' }),
+  })
+  .meta({
+    id: 'UserActivityFeedItemResponse',
+    description: 'One activity-feed entry authored by the caller.',
+  })
+export type UserActivityFeedItemResponse = z.infer<typeof userActivityFeedItemResponseSchema>
+
+export const userActivityFeedResponseSchema = z
+  .object({
+    items: z.array(userActivityFeedItemResponseSchema),
+    nextPageToken: z.string().nullable(),
+  })
+  .meta({
+    id: 'UserActivityFeedResponse',
+    description: 'Paginated activity feed for the caller.',
+  })
+export type UserActivityFeedResponse = z.infer<typeof userActivityFeedResponseSchema>
 
 export const academicInfoResponseSchema = z
   .object({

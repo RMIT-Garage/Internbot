@@ -24,11 +24,15 @@ import { GetSemesterQueryHandler } from '../../application/queries/get-semester'
 import { ListSemestersQueryHandler } from '../../application/queries/list-semesters'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { IdGenerator } from '../../application/ports/id-generator'
+import type { AuthorizationService } from '../../application/ports/authorization-service'
+import type { SemesterQueryService } from '../../application/ports/queries/semester-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface SemestersRouterDeps {
   uow: UnitOfWork
   idGenerator: IdGenerator
+  authz: AuthorizationService
+  semesterQueries: SemesterQueryService
 }
 
 /**
@@ -45,11 +49,11 @@ export interface SemestersRouterDeps {
  */
 export function createSemestersRouter(deps: SemestersRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
-  const createSemester = new CreateSemesterCommandHandler(deps.uow, deps.idGenerator)
-  const updateSemester = new UpdateSemesterCommandHandler(deps.uow)
-  const transitionSemester = new TransitionSemesterCommandHandler(deps.uow)
-  const getSemester = new GetSemesterQueryHandler(deps.uow)
-  const listSemesters = new ListSemestersQueryHandler(deps.uow)
+  const createSemester = new CreateSemesterCommandHandler(deps.uow, deps.authz, deps.idGenerator)
+  const updateSemester = new UpdateSemesterCommandHandler(deps.uow, deps.authz)
+  const transitionSemester = new TransitionSemesterCommandHandler(deps.uow, deps.authz)
+  const getSemester = new GetSemesterQueryHandler(deps.semesterQueries, deps.authz)
+  const listSemesters = new ListSemestersQueryHandler(deps.semesterQueries, deps.authz)
 
   // ---------- LIST ----------
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {

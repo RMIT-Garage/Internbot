@@ -1,21 +1,21 @@
 import type { RequestActor } from '../actor'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import type { SemesterListResult } from '../models/semester'
+import type { SemesterQueryService } from '../ports/queries/semester-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { Semester } from '../../domain/entities/semester'
+import type { SemesterListCursor } from '../read-models/semester'
 import type { SemesterStatus } from '../../domain/value-objects/semester-enums'
-import type { SemesterListCursor } from '../../domain/repositories/semester-repository'
-import { ForbiddenError } from '../../domain/errors'
+
+export interface SemesterListResult {
+  items: readonly Semester[]
+  nextPageToken: string | null
+}
 
 /**
- * GET /api/v1/semesters query — list semesters with pagination, sort, and
- * status / semesterCode / courseCode filters.
+ * GET /api/v1/semesters query.
  *
  * Authorization per WORKFLOW-API-SPEC.md §7.5: any authenticated platform
  * user. The list endpoint is intentionally not role-gated — students need
  * to surface available active semesters before selecting one.
- *
- * The query layer is repository-shape native: `cursor` is the typed
- * domain cursor, not the opaque base64 token. The api mapper handles
- * encode / decode of `pageToken ↔ cursor` at the boundary.
  */
 export interface ListSemestersQuery {
   actor: RequestActor
@@ -31,22 +31,21 @@ export interface ListSemestersQuery {
 }
 
 export class ListSemestersQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly semesterQueries: SemesterQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(
     q: ListSemestersQuery
   ): Promise<SemesterListResult & { cursor: SemesterListCursor | null }> {
-    if (!q.actor.platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    this.authz.requirePlatformUser(q.actor)
 
-    return this.uow.execute(async (ctx) => {
-      const page = await ctx.semesters.list(q.filter)
-      return {
-        items: page.items,
-        nextPageToken: null, // route layer overwrites with the encoded cursor
-        cursor: page.nextCursor,
-      }
-    })
+    const page = await this.semesterQueries.list(q.filter)
+    return {
+      items: page.items,
+      nextPageToken: null,
+      cursor: page.nextCursor,
+    }
   }
 }

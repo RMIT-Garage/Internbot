@@ -20,7 +20,9 @@ import { resolve } from 'path'
 const emulatorEnv = {
   FIRESTORE_EMULATOR_HOST: 'localhost:8080',
   FIREBASE_AUTH_EMULATOR_HOST: 'localhost:9099',
+  FIREBASE_STORAGE_EMULATOR_HOST: 'localhost:9199',
   FIREBASE_PROJECT_ID: 'demo-internbot',
+  FIREBASE_STORAGE_BUCKET: 'demo-internbot-storage',
   GCLOUD_PROJECT: 'demo-internbot',
   USE_EMULATOR: 'true',
 }
@@ -30,6 +32,7 @@ export default defineConfig({
     alias: { '@': resolve(__dirname, './src') },
   },
   test: {
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -64,11 +67,13 @@ export default defineConfig({
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
           env: emulatorEnv,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
           // Bumped — when the whole pyramid runs in parallel, integration +
           // component both hit the same Firestore+Auth emulator and first
           // tests in a file bear emulator-connection setup cost under load.
-          testTimeout: 30_000,
-          hookTimeout: 30_000,
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
         },
       },
       {
@@ -78,8 +83,10 @@ export default defineConfig({
           include: ['tests/component/**/*.test.ts'],
           environment: 'node',
           env: emulatorEnv,
-          testTimeout: 30_000,
-          hookTimeout: 30_000,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
         },
       },
     ],

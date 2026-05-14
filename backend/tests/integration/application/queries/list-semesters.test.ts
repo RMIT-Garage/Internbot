@@ -4,6 +4,8 @@ import { CreateSemesterCommandHandler } from '../../../../src/application/comman
 import { ListSemestersQueryHandler } from '../../../../src/application/queries/list-semesters'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreSemesterQueryService } from '../../../../src/infrastructure/firestore/firestore-semester-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { initEmulator, clearDocs, trackDoc } from '../../../setup.emulator'
 import type { RequestActor } from '../../../../src/application/actor'
 
@@ -16,11 +18,15 @@ function actorFor(role: 'student' | 'coordinator'): RequestActor {
 }
 
 async function seedThree(courseCode: string): Promise<string[]> {
-  const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const create = new CreateSemesterCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const ids: string[] = []
   for (let i = 0; i < 3; i++) {
     const code = `2026-S${randomUUID()
-      .slice(0, 4)
+      .slice(0, 8)
       .replace(/[^A-Za-z0-9]/g, 'a')}`
     const { id } = await create.handle({
       actor: actorFor('coordinator'),
@@ -48,7 +54,10 @@ describe('ListSemestersQueryHandler — integration', () => {
   it('paginates with cursor when more results exist than limit', async () => {
     const courseCode = `INTE${Math.floor(Math.random() * 9000 + 1000)}`
     await seedThree(courseCode)
-    const handler = new ListSemestersQueryHandler(new FirestoreUnitOfWork())
+    const handler = new ListSemestersQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
 
     const page1 = await handler.handle({
       actor: actorFor('student'),
@@ -87,7 +96,10 @@ describe('ListSemestersQueryHandler — integration', () => {
     await seedThree(courseA)
     await seedThree(courseB)
 
-    const handler = new ListSemestersQueryHandler(new FirestoreUnitOfWork())
+    const handler = new ListSemestersQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
     const result = await handler.handle({
       actor: actorFor('coordinator'),
       filter: {
@@ -111,14 +123,18 @@ describe('ListSemestersQueryHandler — integration', () => {
     // `sort=enrolmentOpenAt`. Persisting `null` puts them on the boundary
     // of the ordered range and keeps them paginatable.
     const courseCode = `INTE${Math.floor(Math.random() * 9000 + 1000)}`
-    const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
+    const create = new CreateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    )
 
     // Mix: one with an enrolment window, one without.
     const withWindow = await create.handle({
       actor: actorFor('coordinator'),
       payload: {
         semesterCode: `2026-S${randomUUID()
-          .slice(0, 4)
+          .slice(0, 8)
           .replace(/[^A-Za-z0-9]/g, 'a')}`,
         courseCode,
         displayName: 'Has window',
@@ -133,7 +149,7 @@ describe('ListSemestersQueryHandler — integration', () => {
       actor: actorFor('coordinator'),
       payload: {
         semesterCode: `2026-S${randomUUID()
-          .slice(0, 4)
+          .slice(0, 8)
           .replace(/[^A-Za-z0-9]/g, 'a')}`,
         courseCode,
         displayName: 'No window',
@@ -144,7 +160,10 @@ describe('ListSemestersQueryHandler — integration', () => {
     })
     trackDoc('semesters', noWindow.id)
 
-    const handler = new ListSemestersQueryHandler(new FirestoreUnitOfWork())
+    const handler = new ListSemestersQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
     const result = await handler.handle({
       actor: actorFor('coordinator'),
       filter: {
@@ -163,7 +182,10 @@ describe('ListSemestersQueryHandler — integration', () => {
   })
 
   it('rejects pre-sync caller', async () => {
-    const handler = new ListSemestersQueryHandler(new FirestoreUnitOfWork())
+    const handler = new ListSemestersQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
     await expect(
       handler.handle({
         actor: {

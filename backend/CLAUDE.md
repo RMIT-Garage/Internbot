@@ -62,7 +62,9 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 - Cross-cutting transport metadata goes on `cmd.metadata: CommandMetadata` (expectedVersion, future correlationId / idempotencyKey).
 - `actor: RequestActor` is always the first field of the command/query.
 - Specific id naming: `userId`, `semesterId` — **not** generic `targetId`.
-- Authz inline; no shared `application/authz/` module.
+- **Uniform constructor signature.** Commands take `(uow, authz, idGen?)`; queries take `(...queryServices, authz)` (where `...queryServices` are the read-side ports the handler reads from). Never inject `XxxQueryService` into a command, and never inject `UnitOfWork` into a query — the write side and read side are strictly separated.
+- **Authorization is a port.** Every handler depends on `AuthorizationService` and goes through one of three primitives: `requirePlatformUser(actor)`, `requireRole(actor, allowed)`, `requireSelfOrRole(actor, ownerId, privileged)`. No inline `if (platformUser.role === ...)` checks in handlers.
+- **Cross-aggregate reads inside a write txn live on the write-side repo**, not on `XxxQueryService`. Examples: `UserRepository.listCoordinators()` for fan-out recipients, `NotificationRepository.listUnreadByUserId()` for bulk mark-read, `InternshipRepository.findByUserIdAndOpportunityId()` for duplicate-application guards. Read-only list/find used by query handlers stays on the query service.
 - Handlers call aggregate methods — they don't mutate `user.studentProfile` directly.
 - Commands return `{ id }` only; route dispatches a follow-up query for the response body.
 - Throw `DomainError` / `ValidationError`, never `Result`.
@@ -98,6 +100,8 @@ Three tiers; emulator required for integration + component. Full details: [docs/
 | Integration  | `backend/tests/integration/application/**` | Yes      |
 | Component    | `backend/tests/component/routes/**`        | Yes      |
 | Architecture | `backend/tests/architecture/**`            | No       |
+
+Unit tests are domain-only. Do not add API/application unit tests; cover CQRS handlers in integration and routes/mappers in component tests.
 
 **Isolation rules (mandatory):** every test generates its own random IDs via `crypto.randomUUID()`; `trackDoc(collection, id)` every doc; `afterEach(clearDocs)`; no `beforeAll` for mutable state; tests run in parallel.
 

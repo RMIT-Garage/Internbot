@@ -1,17 +1,19 @@
 import type { RequestActor } from '../actor'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import type { UserResult } from '../models/user'
-import { NotFoundError, ForbiddenError } from '../../domain/errors'
+import type { UserQueryService } from '../ports/queries/user-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { User } from '../../domain/entities/user'
+import { NotFoundError } from '../../domain/errors'
+
+export interface UserResult {
+  user: User
+}
 
 /**
  * GET /api/v1/users/:id query — returns the platform user record.
  *
  * Authorization per WORKFLOW-API-SPEC.md §7.2:
- *   - Students may read only their own record (`student_not_owner` otherwise)
+ *   - Students may read only their own record
  *   - Coordinators may read any user
- *
- * Authz check is inline — no shared `application/authz/` module. Each handler
- * is self-contained.
  */
 export interface GetUserQuery {
   actor: RequestActor
@@ -19,22 +21,16 @@ export interface GetUserQuery {
 }
 
 export class GetUserQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly userQueries: UserQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: GetUserQuery): Promise<UserResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    this.authz.requireSelfOrRole(q.actor, q.userId, 'coordinator', 'student_not_owner')
 
-    if (platformUser.role === 'student' && platformUser.id !== q.userId) {
-      throw new ForbiddenError('Students may only read their own record', 'student_not_owner')
-    }
-
-    return this.uow.execute(async (ctx) => {
-      const user = await ctx.users.findById(q.userId)
-      if (!user) throw new NotFoundError('User', q.userId)
-      return { user }
-    })
+    const user = await this.userQueries.findById(q.userId)
+    if (!user) throw new NotFoundError('User', q.userId)
+    return { user }
   }
 }

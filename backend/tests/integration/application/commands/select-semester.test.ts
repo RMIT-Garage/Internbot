@@ -8,6 +8,8 @@ import { GetUserQueryHandler } from '../../../../src/application/queries/get-use
 import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreUserQueryService } from '../../../../src/infrastructure/firestore/firestore-user-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import {
   ALWAYS_CLOSED_WINDOW,
   initEmulator,
@@ -33,7 +35,7 @@ function actorFor(id: string, role: 'student' | 'coordinator'): RequestActor {
 
 function uniqueSemesterCode(): string {
   return `2026-S${randomUUID()
-    .slice(0, 4)
+    .slice(0, 8)
     .replace(/[^A-Za-z0-9]/g, 'a')}`
 }
 
@@ -42,13 +44,20 @@ async function seedStudent(opts: { complete: boolean }): Promise<{ id: string }>
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
   const email = `${studentNumber}@student.rmit.edu.au`
   await ensureFirebaseUser(firebaseUid, email)
-  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const hydrate = createPlatformUserHydrator(
+    firestoreUserQueryService,
+    new FirestoreUnitOfWork(),
+    firestoreIdGenerator
+  )
   const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
   if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
   const id = platformUser.id
   trackDoc('users', id)
   if (opts.complete) {
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await update.handle({
       actor: actorFor(id, 'student'),
       userId: id,
@@ -61,8 +70,15 @@ async function seedStudent(opts: { complete: boolean }): Promise<{ id: string }>
 async function seedActiveSemester(
   opts: { open?: Date; close?: Date } = {}
 ): Promise<{ id: string }> {
-  const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
-  const transition = new TransitionSemesterCommandHandler(new FirestoreUnitOfWork())
+  const create = new CreateSemesterCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
+  const transition = new TransitionSemesterCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService
+  )
   const coord = actorFor(`usr_coord_${randomUUID()}`, 'coordinator')
   const { id } = await create.handle({
     actor: coord,
@@ -86,7 +102,11 @@ async function seedActiveSemester(
 }
 
 async function seedDraftSemester(): Promise<{ id: string }> {
-  const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const create = new CreateSemesterCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const { id } = await create.handle({
     actor: actorFor(`usr_coord_${randomUUID()}`, 'coordinator'),
     payload: {
@@ -112,8 +132,11 @@ describe('SelectSemesterCommandHandler — integration', () => {
   it('happy path: writes semesterId + semesterSelectedAt on the student profile', async () => {
     const student = await seedStudent({ complete: true })
     const semester = await seedActiveSemester()
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
-    const read = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const read = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     await select.handle({
       actor: actorFor(student.id, 'student'),
@@ -133,8 +156,11 @@ describe('SelectSemesterCommandHandler — integration', () => {
     const student = await seedStudent({ complete: true })
     const a = await seedActiveSemester()
     const b = await seedActiveSemester()
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
-    const read = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const read = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     await select.handle({
       actor: actorFor(student.id, 'student'),
@@ -169,7 +195,10 @@ describe('SelectSemesterCommandHandler — integration', () => {
   it('incomplete profile → ConflictError(profile_incomplete)', async () => {
     const student = await seedStudent({ complete: false })
     const semester = await seedActiveSemester()
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       select.handle({
@@ -183,7 +212,10 @@ describe('SelectSemesterCommandHandler — integration', () => {
   it('non-active semester → ConflictError(semester_not_active)', async () => {
     const student = await seedStudent({ complete: true })
     const draft = await seedDraftSemester()
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       select.handle({
@@ -197,7 +229,10 @@ describe('SelectSemesterCommandHandler — integration', () => {
   it('outside the enrolment window → ConflictError(enrolment_window_closed)', async () => {
     const student = await seedStudent({ complete: true })
     const semester = await seedActiveSemester(ALWAYS_CLOSED_WINDOW)
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       select.handle({
@@ -210,7 +245,10 @@ describe('SelectSemesterCommandHandler — integration', () => {
 
   it('missing semester id → NotFoundError', async () => {
     const student = await seedStudent({ complete: true })
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       select.handle({
@@ -225,7 +263,10 @@ describe('SelectSemesterCommandHandler — integration', () => {
     const owner = await seedStudent({ complete: true })
     const other = await seedStudent({ complete: true })
     const semester = await seedActiveSemester()
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       select.handle({
@@ -239,7 +280,10 @@ describe('SelectSemesterCommandHandler — integration', () => {
   it('coordinator caller is rejected with role_restricted_action', async () => {
     const student = await seedStudent({ complete: true })
     const semester = await seedActiveSemester()
-    const select = new SelectSemesterCommandHandler(new FirestoreUnitOfWork())
+    const select = new SelectSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       select.handle({

@@ -84,8 +84,8 @@ export class StudentProfile {
   }
 
   /**
-   * Domain invariant: studentNumber is set once at JIT bootstrap (derived
-   * from the IdP-attested RMIT student email) and cannot change afterwards.
+   * Domain invariant: studentNumber is set once at bootstrap (derived from
+   * the verified RMIT student email) and cannot change afterwards.
    * Same-value is a no-op; different value throws `ValidationError` with
    * `reason: 'immutable_field'`. `undefined` (absent from patch) is a no-op.
    */

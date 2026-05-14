@@ -49,9 +49,29 @@ resource "google_cloud_run_v2_service_iam_member" "gcip_invoker" {
   ]
 }
 
+locals {
+  # Firebase rejects sign-in from any origin not in this list with
+  # `auth/unauthorized-domain`. The three defaults must always be present:
+  # `localhost` for dev, and the deterministic `<project>.firebaseapp.com` /
+  # `<project>.web.app` domains for the default auth + hosting origins.
+  # Setting `authorized_domains` on the resource REPLACES Firebase's list
+  # — omitting any of these would lock the project out of OAuth.
+  default_authorized_domains = [
+    "localhost",
+    "${var.project_id}.firebaseapp.com",
+    "${var.project_id}.web.app",
+  ]
+  authorized_domains = distinct(concat(
+    local.default_authorized_domains,
+    var.extra_authorized_domains,
+  ))
+}
+
 resource "google_identity_platform_config" "default" {
   provider = google-beta
   project  = var.project_id
+
+  authorized_domains = local.authorized_domains
 
   sign_in {
     allow_duplicate_emails = false

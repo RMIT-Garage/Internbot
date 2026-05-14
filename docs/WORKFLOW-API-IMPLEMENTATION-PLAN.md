@@ -8,9 +8,9 @@ Implementation roadmap for [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
 - **Global definition of done (every backend phase):**
   - `pnpm --filter backend run typecheck` + `lint` pass
   - **Test pyramid** per [docs/TESTING.md](./TESTING.md) — every phase ships all applicable levels:
-    - **Unit tests** for every domain class/rule, every CQRS handler (with mocked UoW), every mapper
-    - **Integration tests** against the Firestore emulator for every new repository method or Firestore query
-    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check.
+    - **Unit tests** only for domain classes/rules. Do not unit-test API routes, API mappers, or CQRS handlers.
+    - **Integration tests** against the Firestore emulator for CQRS handlers, every new repository method, and every Firestore query.
+    - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check for routes, wire DTOs, and mappers.
   - No new `eslint-disable` comments
   - Docs updated for any deviation from the spec
   - PR title carries `[IC-XX]` prefix and commits carry an `IC-XX` trailer
@@ -176,7 +176,7 @@ _(append terse status notes here during implementation)_
 
 ## Phase 4 — Opportunities
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -211,12 +211,15 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented full Phase 4 backend vertical slice: Opportunity aggregate + transition/verification audit intents, Career Hub allowlist validation, Firestore repository with versioned saves, applicationCount read model, Notification aggregate/repository write on verification, `/api/v1/opportunities` routes, OpenAPI snapshot, Firestore indexes, and domain-unit plus integration/component coverage.
+- Coverage policy corrected after merge: Phase 4 keeps domain unit tests only; application/CQRS behavior is covered by integration tests and API/mappers by component tests.
+
 ---
 
 ## Phase 5 — Internships (student path)
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/50
 
 ### Scope
 
@@ -248,12 +251,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented full Phase 5 backend vertical slice: Internship aggregate + activity value object, duplicate-application sentinel, Firestore repository with attachments/activity support, application handlers and query read models, `/api/v1/internships` routes, OpenAPI operations, workflow derivation from internship states, Firestore indexes, and domain-unit plus integration/component coverage.
+
 ---
 
 ## Phase 6 — Coordinator decisions
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/51
 
 ### Scope
 
@@ -280,12 +285,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented Phase 6 coordinator decision slice: `Internship.decideOffer(...)` owns review-state transitions and comment requirements; `POST /api/v1/internships/{id}/decisions` records `approve_offer` / `request_changes` / `reject` activity, persists coordinator review metadata, rotates the internship `ETag`, and creates an `offer_decision` notification for the student. Coverage follows the domain-unit + integration + component split.
+
 ---
 
 ## Phase 7 — Activity feed
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/52
 
 ### Scope
 
@@ -309,12 +316,14 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented Phase 7 activity feed slice: `GET /api/v1/users/{id}/activity` and `/users/me/activity` enforce owner-only access, read through a Firestore `activity` collection-group query keyed by `authorUserId`, derive resource ids from parent paths, support `createdAt` sorting and cursor pagination, and surface internship plus opportunity workflow activity. Added the required collection-group indexes and coverage through integration/component tests; no API/application unit tests added per coverage policy.
+
 ---
 
 ## Phase 8 — Notifications (Firestore only, no email)
 
-**Status:** pending
-**PR:** —
+**Status:** implemented
+**PR:** https://github.com/giatinhuynh/Internbot/pull/53
 
 ### Scope
 
@@ -341,11 +350,13 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Implemented Phase 8 notifications slice: `/api/v1/notifications` GET/PATCH/PUT, owner-scoped list/read/bulk-read commands, Firestore notification repository queries/indexes, nullable/absent email delivery fields preserved for future email delivery, OpenAPI operations, and coverage via domain-unit plus integration/component tests only (no API/application unit tests per coverage policy).
+
 ---
 
 ## Phase 9 — Tickets
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -377,11 +388,17 @@ _(append terse status notes here during implementation)_
 
 ### Notes
 
+- Spec deviation: added two notification types not in §7.8 — `new_ticket` (fanout to all coordinators on creation) and `ticket_transition` (sent to the counterparty on state change). `ticket_reply` is parameterized by replier role and routed to the counterparty (student → all coordinators, coordinator → ticket owner).
+- Ticket activity uses `actorUserId` (not `authorUserId`), so the Phase 7 cross-resource activity-feed query never matches ticket activity docs — keeps tickets out of the user activity feed deliberately.
+- Firestore subcollections present: `tickets/{id}/replies` and `tickets/{id}/activity`. Spec §8.1A only listed `replies`; schema is now broader than the doc suggests.
+- Added 6 composite indexes for `tickets` (userId/createdAt asc+desc, status/createdAt asc+desc, userId+status+createdAt asc+desc) plus a `body` field exemption.
+- Repository `applyTransition` rotates `version` (used as ETag); `addReply` only bumps `updatedAt` so replies don't invalidate concurrent edits to the parent.
+
 ---
 
 ## Phase 10 — Attachments + Storage trigger
 
-**Status:** pending
+**Status:** implemented
 **PR:** —
 
 ### Scope
@@ -406,3 +423,5 @@ _(append terse status notes here during implementation)_
 - Coordinator cannot write attachments directly (no PUT/POST attachment route exists in v1).
 
 ### Notes
+
+- Implemented Phase 10 attachments slice: signed download endpoints, Storage finalize worker, attachment value objects/path parsing, Firestore attachment sync with internship replacement semantics, default-deny Storage rules, OpenAPI/docs, and coverage via domain-unit plus integration/component tests only (no API/application unit tests per coverage policy).

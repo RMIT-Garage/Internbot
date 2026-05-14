@@ -9,6 +9,20 @@ variable "region" {
   default     = "australia-southeast1"
 }
 
+variable "extra_authorized_domains" {
+  description = <<-EOT
+    Additional domains authorized for Firebase Auth sign-in (OAuth redirects
+    and email/password from a browser).
+
+    Always-included defaults: `localhost`, `<project_id>.firebaseapp.com`,
+    `<project_id>.web.app`. Add custom domains here (e.g. a staging hostname
+    or production custom domain) — Firebase rejects sign-in attempts from
+    domains not on this list with `auth/unauthorized-domain`.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "wire_blocking_function" {
   description = <<-EOT
     Wire the GCIP `beforeCreate` blocking function (`enforceStudentEmail`)

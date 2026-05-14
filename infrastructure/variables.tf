@@ -53,6 +53,18 @@ variable "github_allowed_refs" {
   default     = []
 }
 
+variable "extra_authorized_domains" {
+  description = <<-EOT
+    Additional domains authorized for Firebase Auth sign-in (OAuth redirects
+    and password sign-in from a browser). The standard Firebase domains
+    (`localhost`, `<project>.firebaseapp.com`, `<project>.web.app`) are
+    always included by the auth module. Add custom domains here, e.g.
+    a staging URL or a production custom hostname.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "wire_blocking_function" {
   description = <<-EOT
     Wire the GCIP `beforeCreate` blocking function (`enforceStudentEmail`
@@ -83,5 +95,10 @@ variable "deploy_sa_roles" {
     "roles/iam.serviceAccountUser",
     "roles/run.admin",
     "roles/serviceusage.serviceUsageConsumer",
+    # Required by `firebase deploy` to grant Eventarc / Pub-Sub / Storage
+    # service-agent bindings during a storage-trigger (`onObjectFinalized`)
+    # deploy. Without this the CLI's IAM pre-flight fails with
+    # "We failed to modify the IAM policy for the project".
+    "roles/resourcemanager.projectIamAdmin",
   ]
 }

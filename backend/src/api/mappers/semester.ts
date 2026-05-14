@@ -1,10 +1,13 @@
 import type { RequestActor } from '../../application/actor'
-import type { SemesterResult, SemesterListResult } from '../../application/models/semester'
+import type { SemesterResult } from '../../application/queries/get-semester'
+import type {
+  ListSemestersQuery,
+  SemesterListResult,
+} from '../../application/queries/list-semesters'
 import type { CreateSemesterCommand } from '../../application/commands/create-semester'
 import type { UpdateSemesterCommand } from '../../application/commands/update-semester'
 import type { TransitionSemesterCommand } from '../../application/commands/transition-semester'
-import type { ListSemestersQuery } from '../../application/queries/list-semesters'
-import type { SemesterListCursor } from '../../domain/repositories/semester-repository'
+import type { SemesterListCursor } from '../../application/read-models/semester'
 import type { Semester } from '../../domain/entities/semester'
 import type { SemesterStatus } from '../../domain/value-objects/semester-enums'
 import type {

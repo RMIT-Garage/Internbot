@@ -25,20 +25,55 @@ import { NotFoundError, ConflictError } from '../../domain/errors'
 export type FirestoreOp =
   | 'users.findById'
   | 'users.findByIdentity'
-  | 'users.create'
+  | 'users.listCoordinators'
   | 'users.save'
+  | 'users.delete'
   | 'semesters.findById'
   | 'semesters.findByNaturalKey'
   | 'semesters.list'
-  | 'semesters.create'
   | 'semesters.save'
+  | 'semesters.delete'
+  | 'opportunities.findById'
+  | 'opportunities.list'
+  | 'opportunities.countApplications'
+  | 'opportunities.listAttachments'
+  | 'opportunities.findAttachmentById'
+  | 'opportunities.save'
+  | 'opportunities.delete'
+  | 'internships.findById'
+  | 'internships.findByUserIdAndOpportunityId'
+  | 'internships.list'
+  | 'internships.listByUserId'
+  | 'internships.listAttachments'
+  | 'internships.findAttachmentById'
+  | 'internships.save'
+  | 'internships.delete'
+  | 'activityFeed.listByAuthor'
+  | 'notifications.findById'
+  | 'notifications.list'
+  | 'notifications.countUnreadByUserId'
+  | 'notifications.listUnreadByUserId'
+  | 'notifications.save'
+  | 'notifications.applyMarkReadBatch'
+  | 'notifications.delete'
+  | 'tickets.findById'
+  | 'tickets.list'
+  | 'tickets.save'
+  | 'tickets.delete'
 
 /**
  * Singular domain resource label used in `NotFoundError` messages
  * (`"${resource} '${id}' not found"`). Stays aligned with the names the
  * API surfaces in problem-detail responses.
  */
-export type FirestoreResource = 'User' | 'Semester'
+export type FirestoreResource =
+  | 'User'
+  | 'Semester'
+  | 'Opportunity'
+  | 'Internship'
+  | 'Notification'
+  | 'Activity'
+  | 'Ticket'
 
 export interface FirestoreOpContext {
   op: FirestoreOp

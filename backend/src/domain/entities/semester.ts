@@ -1,6 +1,8 @@
 import type { SemesterStatus, SemesterTransitionTarget } from '../value-objects/semester-enums'
 import { SemesterTransition } from '../value-objects/semester-transition'
 import { ConflictError, ValidationError } from '../errors'
+import type { SemesterDomainEvent } from '../events/semester-events'
+import { SemesterTransitioned } from '../events/semester-events'
 
 /**
  * SemesterProps — single-object constructor bag for the aggregate.
@@ -40,18 +42,17 @@ export interface SemesterProps {
  * The HTTP ETag is derived from `version` at the API boundary
  * (`W/"${semester.version}"`); the domain itself stays HTTP-free.
  *
- * Transitions: `applyTransition` mutates `status` AND stages a transient
- * `pendingTransition` value object. The repository's `save()` drains it,
- * writing the parent status update + the activity record atomically in
- * one transaction. `recordTransition` is therefore not a separate repo
- * method — the aggregate carries the audit intent.
+ * Transitions: `applyTransition` mutates `status` AND emits a transient
+ * `SemesterTransitioned` domain event. The repository's `save()` drains
+ * `pendingEvents`, writing the parent status update + the activity record
+ * atomically in one transaction. `recordTransition` is therefore not a
+ * separate repo method — the aggregate carries the audit intent.
  */
 export class Semester {
   #props: SemesterProps
-  // Transient: set by `applyTransition`, drained by `SemesterRepository.save`
-  // (which writes the activity record alongside the status update). Never
-  // persisted on the parent semester doc itself.
-  #pendingTransition: SemesterTransition | undefined
+  // Transient: appended to by mutation methods (e.g. `applyTransition`),
+  // drained by `SemesterRepository.save`. Never persisted on the parent doc.
+  #pendingEvents: SemesterDomainEvent[] = []
 
   private constructor(props: SemesterProps) {
     this.#props = props
@@ -118,13 +119,13 @@ export class Semester {
   }
 
   /**
-   * Transient transition record staged by `applyTransition`. Drained by
-   * `SemesterRepository.save` which writes it to the activity subcollection
-   * alongside the status update inside one transaction. `undefined` for
+   * Transient domain events emitted by mutation methods. Drained by
+   * `SemesterRepository.save` which translates each event to its
+   * corresponding Firestore writes inside one transaction. Empty for
    * aggregates that were rehydrated or only mutated via PATCH-style fields.
    */
-  get pendingTransition(): SemesterTransition | undefined {
-    return this.#pendingTransition
+  get pendingEvents(): readonly SemesterDomainEvent[] {
+    return this.#pendingEvents
   }
 
   /** Whether `now` is within the semester's enrolment window (inclusive of open, exclusive of close). */
@@ -167,10 +168,10 @@ export class Semester {
    *   draft → active, draft → archived, active → archived
    * Anything else throws `ConflictError` with `reason: invalid_state_transition`.
    *
-   * Mutates `status` AND stages `#pendingTransition` — the activity record
-   * the repository will write alongside the status update inside one
-   * transaction. Caller doesn't need to handle the transition VO directly;
-   * `repo.save(semester)` drains it.
+   * Mutates `status` AND emits a `SemesterTransitioned` event — the
+   * repository writes the activity record alongside the status update
+   * inside one transaction. Caller doesn't need to handle the transition VO
+   * directly; `repo.save(semester)` drains the event list.
    */
   applyTransition(
     target: SemesterTransitionTarget,
@@ -187,13 +188,14 @@ export class Semester {
 
     const from = this.#props.status
     this.#props = { ...this.#props, status: target }
-    this.#pendingTransition = SemesterTransition.create({
+    const transition = SemesterTransition.create({
       from,
       to: target,
       actorUserId,
       comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new SemesterTransitioned(transition))
   }
 }
 

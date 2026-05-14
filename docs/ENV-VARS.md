@@ -44,6 +44,8 @@ Stable identity values — project IDs, WIF provider ARNs, deploy SA emails — 
 
 Firebase web-config values (`NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`) are **owned by Terraform** (`infrastructure/modules/web-app/`) and exported to a single Secret Manager secret named `firebase-web-config` — same name in every project, only the project ID varies. The hosting deploy workflow runs `gcloud secrets versions access latest --secret=firebase-web-config --project=<env>`, unpacks the JSON with `jq`, and uses the values to build the static bundle. Adding or rotating an env requires zero workflow changes.
 
+Backend Storage access defaults to `${FIREBASE_PROJECT_ID}-storage`, matching the Terraform bucket convention. Set `FIREBASE_STORAGE_BUCKET` only when running the backend against a nonstandard bucket.
+
 ### GitHub Secrets/Variables
 
 **None used.** OIDC + Secret Manager + committed tfvars + hardcoded workflow values cover all needs.

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { User } from '../../../../src/domain/entities/user'
 import { Semester } from '../../../../src/domain/entities/semester'
+import { Internship } from '../../../../src/domain/entities/internship'
 import { StudentProfile } from '../../../../src/domain/value-objects/student-profile'
 import { AcademicInfo } from '../../../../src/domain/value-objects/academic-info'
 import { UserIdentity } from '../../../../src/domain/value-objects/user-identity'
+import type { InternshipStatus } from '../../../../src/domain/value-objects/internship-enums'
 
 function identityFor(uid: string): UserIdentity {
   return UserIdentity.rehydrate({
@@ -89,6 +91,26 @@ function buildSemester(
   })
 }
 
+function buildInternship(status: InternshipStatus): Internship {
+  return Internship.rehydrate({
+    id: `int_${status}`,
+    version: 1,
+    userId: 'usr_test',
+    opportunityId: 'opp_001',
+    offerDate: undefined,
+    startDate: undefined,
+    endDate: undefined,
+    status,
+    coordinatorDecision: undefined,
+    coordinatorComment: undefined,
+    reviewedByUserId: undefined,
+    reviewedAt: undefined,
+    lastSubmittedAt: undefined,
+    createdAt: NOW,
+    updatedAt: NOW,
+  })
+}
+
 describe('deriveWorkflowState', () => {
   it('incomplete profile → profile / no_semester / not_enrolled', () => {
     const state = deriveWorkflowState(buildStudent(incompleteProfile()), undefined, NOW)
@@ -156,6 +178,54 @@ describe('deriveWorkflowState', () => {
     )
     expect(state.semesterEnrolmentState).toBe('not_enrolled')
     expect(state.currentWorkflowStep).toBe('opportunity_browsing')
+  })
+
+  it('offer_pending_review internship → offer_stage / offer_in_review', () => {
+    const state = deriveWorkflowState(
+      buildStudent(completeProfile('sem_001', NOW)),
+      buildSemester(),
+      NOW,
+      [buildInternship('offer_pending_review')]
+    )
+    expect(state.currentWorkflowStep).toBe('offer_stage')
+    expect(state.internshipStatus).toBe('offer_in_review')
+  })
+
+  it('offer_changes_requested outranks applied/rejected internships', () => {
+    const state = deriveWorkflowState(
+      buildStudent(completeProfile('sem_001', NOW)),
+      buildSemester(),
+      NOW,
+      [
+        buildInternship('applied'),
+        buildInternship('rejected'),
+        buildInternship('offer_changes_requested'),
+      ]
+    )
+    expect(state.currentWorkflowStep).toBe('offer_stage')
+    expect(state.internshipStatus).toBe('offer_changes_requested')
+  })
+
+  it('offer_approved internship → completed / offer_approved', () => {
+    const state = deriveWorkflowState(
+      buildStudent(completeProfile('sem_001', NOW)),
+      buildSemester(),
+      NOW,
+      [buildInternship('offer_pending_review'), buildInternship('offer_approved')]
+    )
+    expect(state.currentWorkflowStep).toBe('completed')
+    expect(state.internshipStatus).toBe('offer_approved')
+  })
+
+  it('all rejected internships → opportunity_browsing / all_rejected', () => {
+    const state = deriveWorkflowState(
+      buildStudent(completeProfile('sem_001', NOW)),
+      buildSemester(),
+      NOW,
+      [buildInternship('rejected')]
+    )
+    expect(state.currentWorkflowStep).toBe('opportunity_browsing')
+    expect(state.internshipStatus).toBe('all_rejected')
   })
 
   it('throws when called on a coordinator', () => {

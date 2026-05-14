@@ -1,7 +1,8 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { CommandMetadata } from '../command-metadata'
-import { ForbiddenError, NotFoundError, PreconditionFailedError } from '../../domain/errors'
+import type { AuthorizationService } from '../ports/authorization-service'
+import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 
 /**
  * PATCH /api/v1/semesters/:id command — updates display label and
@@ -10,10 +11,8 @@ import { ForbiddenError, NotFoundError, PreconditionFailedError } from '../../do
  * Per WORKFLOW-API-SPEC.md §7.5:
  *   - Coordinator-only.
  *   - Immutable fields (`id`, `semesterCode`, `courseCode`, `status`)
- *     rejected at the api boundary with 400 (immutable_field) — never reach
- *     this handler. Status transitions go through `TransitionSemesterCommand`.
- *
- * `enrolmentOpenAt` / `enrolmentCloseAt` accept `null` to clear.
+ *     rejected at the api boundary with 400 (immutable_field). Status
+ *     transitions go through `TransitionSemesterCommand`.
  *
  * Strict CQRS: returns `{ id }` only.
  */
@@ -33,16 +32,13 @@ export interface UpdateSemesterResult {
 }
 
 export class UpdateSemesterCommandHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(cmd: UpdateSemesterCommand): Promise<UpdateSemesterResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-    if (platformUser.role !== 'coordinator') {
-      throw new ForbiddenError('Only coordinators may update semesters', 'role_restricted_action')
-    }
+    this.authz.requireRole(cmd.actor, 'coordinator')
 
     return this.uow.execute(async (ctx) => {
       const semester = await ctx.semesters.findById(cmd.semesterId)

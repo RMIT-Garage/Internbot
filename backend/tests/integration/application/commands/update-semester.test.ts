@@ -5,6 +5,8 @@ import { UpdateSemesterCommandHandler } from '../../../../src/application/comman
 import { GetSemesterQueryHandler } from '../../../../src/application/queries/get-semester'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreSemesterQueryService } from '../../../../src/infrastructure/firestore/firestore-semester-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { initEmulator, clearDocs, trackDoc } from '../../../setup.emulator'
 import type { RequestActor } from '../../../../src/application/actor'
 
@@ -17,9 +19,13 @@ function actorFor(role: 'student' | 'coordinator', id = `usr_${randomUUID()}`): 
 }
 
 async function seedSemester(): Promise<{ id: string }> {
-  const create = new CreateSemesterCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const create = new CreateSemesterCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const code = `2026-S${randomUUID()
-    .slice(0, 4)
+    .slice(0, 8)
     .replace(/[^A-Za-z0-9]/g, 'a')}`
   const { id } = await create.handle({
     actor: actorFor('coordinator'),
@@ -44,8 +50,14 @@ describe('UpdateSemesterCommandHandler — integration', () => {
 
   it('coordinator can update displayName + enrolment window', async () => {
     const { id } = await seedSemester()
-    const handler = new UpdateSemesterCommandHandler(new FirestoreUnitOfWork())
-    const get = new GetSemesterQueryHandler(new FirestoreUnitOfWork())
+    const handler = new UpdateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const get = new GetSemesterQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
 
     await handler.handle({
       actor: actorFor('coordinator'),
@@ -65,8 +77,14 @@ describe('UpdateSemesterCommandHandler — integration', () => {
 
   it('null patch on enrolment dates clears them', async () => {
     const { id } = await seedSemester()
-    const handler = new UpdateSemesterCommandHandler(new FirestoreUnitOfWork())
-    const get = new GetSemesterQueryHandler(new FirestoreUnitOfWork())
+    const handler = new UpdateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const get = new GetSemesterQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
 
     await handler.handle({
       actor: actorFor('coordinator'),
@@ -86,7 +104,10 @@ describe('UpdateSemesterCommandHandler — integration', () => {
 
   it('rejects non-coordinator actors with role_restricted_action', async () => {
     const { id } = await seedSemester()
-    const handler = new UpdateSemesterCommandHandler(new FirestoreUnitOfWork())
+    const handler = new UpdateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await expect(
       handler.handle({
         actor: actorFor('student'),
@@ -98,7 +119,10 @@ describe('UpdateSemesterCommandHandler — integration', () => {
 
   it('stale expectedVersion throws PreconditionFailedError', async () => {
     const { id } = await seedSemester()
-    const handler = new UpdateSemesterCommandHandler(new FirestoreUnitOfWork())
+    const handler = new UpdateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await expect(
       handler.handle({
         actor: actorFor('coordinator'),
@@ -110,7 +134,10 @@ describe('UpdateSemesterCommandHandler — integration', () => {
   })
 
   it('throws NotFoundError for unknown id', async () => {
-    const handler = new UpdateSemesterCommandHandler(new FirestoreUnitOfWork())
+    const handler = new UpdateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
     await expect(
       handler.handle({
         actor: actorFor('coordinator'),

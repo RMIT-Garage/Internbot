@@ -4,6 +4,8 @@ import { GetUserQueryHandler } from '../../../../src/application/queries/get-use
 import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreUserQueryService } from '../../../../src/infrastructure/firestore/firestore-user-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import {
   initEmulator,
   clearDocs,
@@ -18,7 +20,11 @@ async function seedStudent(): Promise<{ id: string; firebaseUid: string }> {
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
   const email = `${studentNumber}@student.rmit.edu.au`
   await ensureFirebaseUser(firebaseUid, email)
-  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const hydrate = createPlatformUserHydrator(
+    firestoreUserQueryService,
+    new FirestoreUnitOfWork(),
+    firestoreIdGenerator
+  )
   const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
   if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
   trackDoc('users', platformUser.id)
@@ -42,7 +48,7 @@ describe('GetUserQueryHandler — integration', () => {
 
   it('owner student reads their own record with a populated ETag', async () => {
     const student = await seedStudent()
-    const handler = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const handler = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     const result = await handler.handle({
       actor: actorFor(student.id, 'student'),
@@ -56,7 +62,7 @@ describe('GetUserQueryHandler — integration', () => {
 
   it('coordinator reads any student', async () => {
     const student = await seedStudent()
-    const handler = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const handler = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     const result = await handler.handle({
       actor: actorFor(`usr_${randomUUID()}`, 'coordinator'),
@@ -68,7 +74,7 @@ describe('GetUserQueryHandler — integration', () => {
   it('student reading another student throws ForbiddenError with student_not_owner', async () => {
     const owner = await seedStudent()
     const other = await seedStudent()
-    const handler = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const handler = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     await expect(
       handler.handle({ actor: actorFor(other.id, 'student'), userId: owner.id })
@@ -76,7 +82,7 @@ describe('GetUserQueryHandler — integration', () => {
   })
 
   it('throws NotFoundError when the user id does not exist', async () => {
-    const handler = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const handler = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
     await expect(
       handler.handle({
         actor: actorFor('usr_ghost', 'coordinator'),
@@ -86,7 +92,7 @@ describe('GetUserQueryHandler — integration', () => {
   })
 
   it('actor without platformUser (hydrator could not JIT) is rejected with no_platform_user', async () => {
-    const handler = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const handler = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
     const unhydrated: RequestActor = {
       firebaseUid: `fb_${randomUUID()}`,
       email: 'x@y.z',

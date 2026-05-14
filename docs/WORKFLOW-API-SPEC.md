@@ -350,7 +350,7 @@ Rules:
 - Cloud Storage upload completion should not, by itself, start review. It only synchronizes file metadata into Firestore.
 - The backend should be the source of truth for saved attachment metadata. Frontend should not be trusted as the final source of attachment records.
 - The Storage-triggered function should verify that each file path matches the expected user-owned upload prefix before saving attachment metadata.
-- When an internship is edited and resubmitted, old attachment records and files should be replaced so the attachment subcollection stores only the latest active files.
+- Attachments are append-only on finalize: the storage trigger never deletes prior files. A student may upload multiple files before submitting; resubmission does not remove previously uploaded attachments. Cleanup of obsolete files (if needed) is a separate concern outside the upload trigger.
 - If upload fails, the record remains in its current state.
 - If submit fails, the frontend may retry submit without recreating the draft.
 - A record in review remains editable until the coordinator makes a final decision.
@@ -1986,6 +1986,41 @@ Failure cases:
 - `403` caller is a student and not the owner
 - `404` internship or attachment does not exist
 
+#### `DELETE /api/v1/opportunities/{id}/attachments/{attachmentId}`
+
+Purpose: Delete an opportunity attachment.
+
+Auth: Coordinator only.
+
+Behaviour: the Firestore attachment subdoc is removed atomically inside a transaction. Once the transaction commits the backend stops returning the attachment (list/get queries 404). The Cloud Storage object is then deleted best-effort with `ifGenerationMatch` set to the generation captured by the storage trigger; a concurrent re-upload to the same path is preserved (GCS rejects the precondition with 412 and the new file's metadata is reflected by the trigger). Orphan GCS objects are reclaimed by Firebase Storage's default soft-delete window.
+
+Success response: `204 No Content`.
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not a coordinator
+- `404` opportunity or attachment does not exist
+
+#### `DELETE /api/v1/internships/{id}/attachments/{attachmentId}`
+
+Purpose: Delete an internship attachment.
+
+Auth: Owning student only.
+
+Allowed states: `applied`, `offer_changes_requested`. Once the offer is `offer_pending_review`, `offer_approved`, or `rejected`, attachments are locked.
+
+Behaviour: same dual-write protocol as the opportunity variant — atomic Firestore delete first (so the backend stops returning the attachment immediately), then GCS delete with `ifGenerationMatch` on the captured generation.
+
+Success response: `204 No Content`.
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not the owning student
+- `404` internship or attachment does not exist
+- `409` internship status does not permit attachment deletion (`reason: attachment_locked_in_status`)
+
 ## 8. Firestore Data Model
 
 The Firestore model keeps identity, profile data, opportunities, internship applications, and auxiliary services separate.
@@ -2130,12 +2165,13 @@ Purpose: Reusable file attachment shape for `attachments` subcollection document
 
 Document ID: Firestore auto-generated. Exposed as `id` in API DTOs from `snapshot.id`; not stored as a field in the document body.
 
-| Field       | Type      | Required | Example                                                        | Notes                  |
-| ----------- | --------- | -------- | -------------------------------------------------------------- | ---------------------- |
-| filePath    | string    | Yes      | `users/usr_aBc123XyZ/internships/int_001/attachments/file.pdf` | Cloud Storage path     |
-| fileName    | string    | No       | `offer.pdf`                                                    | Original file name     |
-| contentType | string    | No       | `application/pdf`                                              | MIME type              |
-| uploadedAt  | timestamp | Yes      | server timestamp                                               | Upload completion time |
+| Field             | Type      | Required | Example                                                        | Notes                                                                                                                                                                                       |
+| ----------------- | --------- | -------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filePath          | string    | Yes      | `users/usr_aBc123XyZ/internships/int_001/attachments/file.pdf` | Cloud Storage path                                                                                                                                                                          |
+| fileName          | string    | No       | `offer.pdf`                                                    | Original file name                                                                                                                                                                          |
+| contentType       | string    | No       | `application/pdf`                                              | MIME type                                                                                                                                                                                   |
+| uploadedAt        | timestamp | Yes      | server timestamp                                               | Upload completion time                                                                                                                                                                      |
+| storageGeneration | string    | No       | `1700000000000001`                                             | GCS object generation captured by the storage trigger. Used as `ifGenerationMatch` on delete to close the dual-write race. Optional only for legacy docs written before this field existed. |
 
 ### 8.4 `internships`
 
