@@ -8,9 +8,8 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { randomUUID } from 'node:crypto'
 import { createApp } from '../../../src/api/app'
-import { SyncStorageAttachmentCommandHandler } from '../../../src/application/commands/sync-storage-attachment'
+import { FinalizeStorageAttachmentCommandHandler } from '../../../src/application/commands/finalize-storage-attachment'
 import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
-import { gcsAttachmentStorage } from '../../../src/infrastructure/storage/gcs-attachment-storage'
 import { adminDb, Timestamp } from '../../../src/infrastructure/config/firebase-admin'
 import { User } from '../../../src/domain/entities/user'
 import { UserIdentity } from '../../../src/domain/value-objects/user-identity'
@@ -140,7 +139,8 @@ async function seedAttachment(
   parentCollection: 'opportunities' | 'internships',
   parentId: string,
   attachmentId: string,
-  filePath: string
+  filePath: string,
+  uploadStatus: 'uploading' | 'finalized' = 'finalized'
 ): Promise<void> {
   await adminDb
     .collection(parentCollection)
@@ -152,8 +152,32 @@ async function seedAttachment(
       fileName: filePath.split('/').pop(),
       contentType: 'application/pdf',
       uploadedAt: Timestamp.fromDate(new Date('2026-04-03T00:00:00Z')),
+      uploadStatus,
       _schemaVersion: 1,
     })
+}
+
+async function issueIntent(
+  app: ReturnType<typeof createApp>,
+  scope: 'internships' | 'opportunities',
+  parentId: string,
+  idToken: string,
+  fileName: string
+): Promise<{ attachmentId: string; filePath: string; uploadUrl: string }> {
+  const res = await request(app)
+    .post(`/api/v1/${scope}/${parentId}/attachments/upload-intents`)
+    .set('Authorization', `Bearer ${idToken}`)
+    .send({ fileName, contentType: 'application/pdf' })
+  expect(res.status).toBe(201)
+  return res.body
+}
+
+async function finalize(filePath: string, generation = '1700000000000001'): Promise<void> {
+  await new FinalizeStorageAttachmentCommandHandler(new FirestoreUnitOfWork()).handle({
+    filePath,
+    finalizedAt: new Date('2026-04-04T00:00:00Z'),
+    generation,
+  })
 }
 
 const offerBody = {
@@ -169,33 +193,54 @@ describe('/api/v1 attachments — component', () => {
     await clearAuthUsers()
   })
 
-  it('GET returns metadata, downloadUrl, downloadUrlExpiresAt, and a fresh URL per request', async () => {
+  it('Intent endpoint pre-writes attachment in uploading state and returns a signed PUT URL', async () => {
+    const semesterId = `sem_${randomUUID()}`
+    const student = await makeStudent(semesterId)
+    const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    await seedOpportunity(opportunityId, { semesterId, status: 'published' })
+    await seedInternship(internshipId, student.platformUserId, opportunityId)
+    const app = createApp()
+
+    const intent = await issueIntent(app, 'internships', internshipId, student.idToken, 'offer.pdf')
+
+    expect(intent.uploadUrl).toContain(encodeURIComponent(intent.filePath))
+    const snap = await adminDb
+      .collection('internships')
+      .doc(internshipId)
+      .collection('attachments')
+      .doc(intent.attachmentId)
+      .get()
+    expect(snap.data()?.['uploadStatus']).toBe('uploading')
+  })
+
+  it('GET on a finalized attachment returns metadata + downloadUrl; uploading attachment returns 404', async () => {
     const semesterId = `sem_${randomUUID()}`
     const student = await makeStudent(semesterId)
     const opportunityId = `opp_${randomUUID()}`
     const attachmentId = 'att_001'
-    const filePath = `opportunities/${opportunityId}/attachments/position.pdf`
+    const filePath = `opportunities/${opportunityId}/attachments/${attachmentId}-position.pdf`
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
-    await seedAttachment('opportunities', opportunityId, attachmentId, filePath)
+    await seedAttachment('opportunities', opportunityId, attachmentId, filePath, 'uploading')
     const app = createApp()
 
-    const first = await request(app)
+    const uploading = await request(app)
       .get(`/api/v1/opportunities/${opportunityId}/attachments/${attachmentId}`)
       .set('Authorization', `Bearer ${student.idToken}`)
-    const second = await request(app)
-      .get(`/api/v1/opportunities/${opportunityId}/attachments/${attachmentId}`)
-      .set('Authorization', `Bearer ${student.idToken}`)
+    expect(uploading.status).toBe(404)
 
-    expect(first.status).toBe(200)
-    expect(first.body).toMatchObject({
-      id: attachmentId,
-      fileName: 'position.pdf',
-      contentType: 'application/pdf',
-    })
-    expect(first.body.downloadUrl).toContain(encodeURIComponent(filePath))
-    expect(new Date(first.body.downloadUrlExpiresAt).getTime()).toBeGreaterThan(Date.now())
-    expect(second.status).toBe(200)
-    expect(second.body.downloadUrl).not.toBe(first.body.downloadUrl)
+    await adminDb
+      .collection('opportunities')
+      .doc(opportunityId)
+      .collection('attachments')
+      .doc(attachmentId)
+      .update({ uploadStatus: 'finalized' })
+
+    const finalized = await request(app)
+      .get(`/api/v1/opportunities/${opportunityId}/attachments/${attachmentId}`)
+      .set('Authorization', `Bearer ${student.idToken}`)
+    expect(finalized.status).toBe(200)
+    expect(finalized.body.downloadUrl).toContain(encodeURIComponent(filePath))
   })
 
   it('Student cannot GET an attachment on an unpublished or other-semester opportunity', async () => {
@@ -213,13 +258,13 @@ describe('/api/v1 attachments — component', () => {
       'opportunities',
       draftId,
       'att_draft',
-      `opportunities/${draftId}/attachments/position.pdf`
+      `opportunities/${draftId}/attachments/att_draft-position.pdf`
     )
     await seedAttachment(
       'opportunities',
       otherSemesterIdOpportunity,
       'att_other',
-      `opportunities/${otherSemesterIdOpportunity}/attachments/position.pdf`
+      `opportunities/${otherSemesterIdOpportunity}/attachments/att_other-position.pdf`
     )
 
     const app = createApp()
@@ -247,7 +292,7 @@ describe('/api/v1 attachments — component', () => {
       'internships',
       internshipId,
       'att_offer',
-      `users/${owner.platformUserId}/internships/${internshipId}/attachments/offer.pdf`
+      `users/${owner.platformUserId}/internships/${internshipId}/attachments/att_offer-letter.pdf`
     )
 
     const res = await request(createApp())
@@ -271,7 +316,7 @@ describe('/api/v1 attachments — component', () => {
     expect(res.status).toBe(404)
   })
 
-  it('Offer submission returns 422 until at least one attachment has been synced by the trigger', async () => {
+  it('Offer submission returns 422 until at least one attachment is finalized by the storage trigger', async () => {
     const semesterId = `sem_${randomUUID()}`
     const student = await makeStudent(semesterId)
     const opportunityId = `opp_${randomUUID()}`
@@ -279,31 +324,25 @@ describe('/api/v1 attachments — component', () => {
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
     await seedInternship(internshipId, student.platformUserId, opportunityId)
     const app = createApp()
+    const intent = await issueIntent(app, 'internships', internshipId, student.idToken, 'offer.pdf')
 
-    const blocked = await request(app)
+    const stillUploading = await request(app)
       .post(`/api/v1/internships/${internshipId}/offer-submissions`)
       .set('Authorization', `Bearer ${student.idToken}`)
       .send(offerBody)
 
-    await new SyncStorageAttachmentCommandHandler(
-      new FirestoreUnitOfWork(),
-      gcsAttachmentStorage
-    ).handle({
-      filePath: `users/${student.platformUserId}/internships/${internshipId}/attachments/offer.pdf`,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000000001',
-    })
+    await finalize(intent.filePath)
 
     const submitted = await request(app)
       .post(`/api/v1/internships/${internshipId}/offer-submissions`)
       .set('Authorization', `Bearer ${student.idToken}`)
       .send(offerBody)
 
-    expect(blocked.status).toBe(422)
-    expect(blocked.body.error.reason).toBe('offer_attachment_missing')
+    expect(stillUploading.status).toBe(422)
+    expect(stillUploading.body.error.reason).toBe('offer_attachment_missing')
     expect(submitted.status).toBe(201)
     expect(submitted.body.attachments).toHaveLength(1)
+    expect(submitted.body.attachments[0]).toMatchObject({ uploadStatus: 'finalized' })
   })
 
   it('Owner can DELETE an internship attachment while applied; backend then returns 404 on a follow-up GET', async () => {
@@ -312,7 +351,7 @@ describe('/api/v1 attachments — component', () => {
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
     const attachmentId = 'att_offer'
-    const filePath = `users/${student.platformUserId}/internships/${internshipId}/attachments/offer.pdf`
+    const filePath = `users/${student.platformUserId}/internships/${internshipId}/attachments/${attachmentId}-letter.pdf`
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
     await seedInternship(internshipId, student.platformUserId, opportunityId)
     await seedAttachment('internships', internshipId, attachmentId, filePath)
@@ -336,7 +375,7 @@ describe('/api/v1 attachments — component', () => {
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
     const attachmentId = 'att_offer'
-    const filePath = `users/${owner.platformUserId}/internships/${internshipId}/attachments/offer.pdf`
+    const filePath = `users/${owner.platformUserId}/internships/${internshipId}/attachments/${attachmentId}-letter.pdf`
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
     await seedInternship(internshipId, owner.platformUserId, opportunityId)
     await seedAttachment('internships', internshipId, attachmentId, filePath)
@@ -355,7 +394,7 @@ describe('/api/v1 attachments — component', () => {
     const student = await makeStudent(semesterId)
     const opportunityId = `opp_${randomUUID()}`
     const attachmentId = 'att_jd'
-    const filePath = `opportunities/${opportunityId}/attachments/jd.pdf`
+    const filePath = `opportunities/${opportunityId}/attachments/${attachmentId}-position.pdf`
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
     await seedAttachment('opportunities', opportunityId, attachmentId, filePath)
     const app = createApp()

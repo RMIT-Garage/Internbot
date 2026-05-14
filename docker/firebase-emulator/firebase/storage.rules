@@ -6,12 +6,10 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function identityDocFor(key) {
-      return firestore.get(/databases/(default)/documents/userIdentities/$(key));
-    }
-
     function identityDoc() {
-      return identityDocFor('firebase__' + request.auth.uid);
+      return firestore.get(
+        /databases/(default)/documents/userIdentities/$('firebase__' + request.auth.uid)
+      );
     }
 
     function platformUserId() {
@@ -22,35 +20,11 @@ service firebase.storage {
       return signedIn() && platformUserId() == userId;
     }
 
-    function opportunityDoc(opportunityId) {
-      return firestore.get(/databases/(default)/documents/opportunities/$(opportunityId));
-    }
-
-    function internshipDoc(internshipId) {
-      return firestore.get(/databases/(default)/documents/internships/$(internshipId));
-    }
-
-    function canWriteOpportunityAttachment(opportunityId) {
-      return signedIn()
-             && (opportunityDoc(opportunityId).data.createdByUserId == platformUserId()
-                 || opportunityDoc(opportunityId).data.submittedByUserId == platformUserId());
-    }
-
-    function canWriteInternshipAttachment(userId, internshipId) {
-      return isPlatformUser(userId)
-             && internshipDoc(internshipId).data.userId == userId;
-    }
-
-    function isAttachmentUpload() {
-      return request.resource != null
-             && request.resource.size < 25 * 1024 * 1024
-             && request.resource.contentType is string
-             && request.resource.contentType.size() > 0;
-    }
-
     // users/{userId}/avatar/**
-    // Each user can read/write only their own avatar folder.
-    // Max 5MB, images only.
+    // Avatars are the only Storage path the frontend still uploads to
+    // directly via the Firebase SDK. All attachment uploads (internship offer
+    // letters, opportunity position descriptions) go through the backend
+    // intent endpoint + V4 signed PUT URL — no SDK, no Storage rules involved.
     match /users/{userId}/avatar/{allPaths=**} {
       allow read:  if isPlatformUser(userId);
       allow write: if isPlatformUser(userId)
@@ -58,28 +32,9 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
-    // opportunities/{opportunityId}/attachments/{fileName}
-    // The API returns this prefix only on the parent opportunity resource.
-    // Firestore remains default-deny to clients; Storage rules use the
-    // userIdentities sentinel and parent doc only to authorize direct upload.
-    match /opportunities/{opportunityId}/attachments/{fileName} {
-      allow read: if false;
-      allow write: if isAttachmentUpload()
-                   && canWriteOpportunityAttachment(opportunityId);
-    }
-
-    // users/{userId}/internships/{internshipId}/attachments/{fileName}
-    // Offer documents are student-owner uploads. Coordinators review via the
-    // backend signed-URL endpoint and cannot write attachments directly.
-    match /users/{userId}/internships/{internshipId}/attachments/{fileName} {
-      allow read: if false;
-      allow write: if isAttachmentUpload()
-                   && canWriteInternshipAttachment(userId, internshipId);
-    }
-
-    // Add new storage path rules above this comment using the /firebase-collection skill.
-
-    // Default deny
+    // Default deny — including attachment paths. The backend mints V4 signed
+    // PUT URLs that authorize uploads out-of-band, so Storage rules never need
+    // to evaluate cross-service Firestore lookups for those paths.
     match /{allPaths=**} {
       allow read, write: if false;
     }

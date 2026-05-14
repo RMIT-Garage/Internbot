@@ -1,6 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { createHash, randomUUID } from 'node:crypto'
-import { SyncStorageAttachmentCommandHandler } from '../../../../src/application/commands/sync-storage-attachment'
+import { randomUUID } from 'node:crypto'
+import { CreateInternshipAttachmentUploadIntentCommandHandler } from '../../../../src/application/commands/create-internship-attachment-upload-intent'
+import { CreateOpportunityAttachmentUploadIntentCommandHandler } from '../../../../src/application/commands/create-opportunity-attachment-upload-intent'
+import { FinalizeStorageAttachmentCommandHandler } from '../../../../src/application/commands/finalize-storage-attachment'
 import { GetOpportunityAttachmentQueryHandler } from '../../../../src/application/queries/get-opportunity-attachment'
 import { SubmitInternshipOfferCommandHandler } from '../../../../src/application/commands/submit-internship-offer'
 import { DeleteInternshipAttachmentCommandHandler } from '../../../../src/application/commands/delete-internship-attachment'
@@ -21,6 +23,7 @@ import { clearDocs, initEmulator, trackDoc } from '../../../setup.emulator'
 class FakeAttachmentStorage implements AttachmentStorage {
   readonly deleted: Array<{ filePath: string; ifGenerationMatch?: string }> = []
   readonly signed: Array<{ filePath: string; expiresAt: Date }> = []
+  readonly uploads: Array<{ filePath: string; contentType: string; expiresAt: Date }> = []
   shouldThrowPreconditionFailed = false
 
   async createReadUrl(filePath: string, expiresAt: Date): Promise<string> {
@@ -28,12 +31,13 @@ class FakeAttachmentStorage implements AttachmentStorage {
     return `https://storage.example.test/${encodeURIComponent(filePath)}?expires=${expiresAt.getTime()}`
   }
 
+  async createUploadUrl(filePath: string, contentType: string, expiresAt: Date): Promise<string> {
+    this.uploads.push({ filePath, contentType, expiresAt })
+    return `https://storage.example.test/upload/${encodeURIComponent(filePath)}?expires=${expiresAt.getTime()}`
+  }
+
   async deleteObject(filePath: string): Promise<void> {
-    if (this.shouldThrowPreconditionFailed) {
-      // Simulate the GCS adapter swallowing 412 — record the attempt but
-      // don't append to `deleted` so tests can assert no destructive action.
-      return
-    }
+    if (this.shouldThrowPreconditionFailed) return
     this.deleted.push({ filePath })
   }
 }
@@ -128,36 +132,20 @@ async function seedInternship(id: string, userId: string, opportunityId: string)
   trackDoc('internships', id)
 }
 
-async function seedAttachment(
-  parentCollection: 'opportunities' | 'internships',
-  parentId: string,
-  attachmentId: string,
-  filePath: string
-): Promise<void> {
-  await adminDb
-    .collection(parentCollection)
-    .doc(parentId)
-    .collection('attachments')
-    .doc(attachmentId)
-    .set({
-      filePath,
-      fileName: filePath.split('/').pop(),
-      contentType: 'application/pdf',
-      uploadedAt: Timestamp.fromDate(new Date('2026-04-03T00:00:00Z')),
-      _schemaVersion: 1,
-    })
-}
-
-async function listAttachmentPaths(
+async function listAttachments(
   parentCollection: 'opportunities' | 'internships',
   parentId: string
-): Promise<string[]> {
+): Promise<Array<{ id: string; filePath: string; uploadStatus: string }>> {
   const snap = await adminDb
     .collection(parentCollection)
     .doc(parentId)
     .collection('attachments')
     .get()
-  return snap.docs.map((doc) => doc.data()['filePath'] as string).sort()
+  return snap.docs.map((doc) => ({
+    id: doc.id,
+    filePath: doc.data()['filePath'] as string,
+    uploadStatus: (doc.data()['uploadStatus'] as string) ?? 'finalized',
+  }))
 }
 
 async function listPurgeQueueRows(
@@ -175,101 +163,168 @@ async function listPurgeQueueRows(
   return snap.docs.map((doc) => doc.data())
 }
 
+async function issueInternshipUploadIntent(
+  storage: AttachmentStorage,
+  actor: RequestActor,
+  internshipId: string,
+  fileName = 'offer.pdf'
+): Promise<{ attachmentId: string; filePath: string }> {
+  const result = await new CreateInternshipAttachmentUploadIntentCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator,
+    storage
+  ).handle({
+    actor,
+    internshipId,
+    fileName,
+    contentType: 'application/pdf',
+  })
+  return { attachmentId: result.attachmentId, filePath: result.filePath }
+}
+
+async function issueOpportunityUploadIntent(
+  storage: AttachmentStorage,
+  actor: RequestActor,
+  opportunityId: string,
+  fileName = 'jd.pdf'
+): Promise<{ attachmentId: string; filePath: string }> {
+  const result = await new CreateOpportunityAttachmentUploadIntentCommandHandler(
+    new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
+    firestoreIdGenerator,
+    storage
+  ).handle({
+    actor,
+    opportunityId,
+    fileName,
+    contentType: 'application/pdf',
+  })
+  return { attachmentId: result.attachmentId, filePath: result.filePath }
+}
+
+async function finalize(
+  filePath: string,
+  generation = '1700000000000000'
+): Promise<ReturnType<FinalizeStorageAttachmentCommandHandler['handle']>> {
+  return new FinalizeStorageAttachmentCommandHandler(new FirestoreUnitOfWork()).handle({
+    filePath,
+    finalizedAt: new Date('2026-04-04T00:00:00Z'),
+    generation,
+  })
+}
+
 describe('Attachments — integration', () => {
   beforeAll(() => initEmulator())
   afterEach(async () => {
     await clearDocs()
   })
 
-  it('Storage object written to an invalid path prefix is not reflected into Firestore', async () => {
-    const storage = new FakeAttachmentStorage()
-    const result = await new SyncStorageAttachmentCommandHandler(
-      new FirestoreUnitOfWork(),
-      storage
-    ).handle({
-      filePath: 'tickets/tkt_001/attachments/file.pdf',
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: undefined,
-    })
-
-    expect(result).toEqual({ reflected: false, reason: 'invalid_path' })
-    expect(storage.deleted.map((d) => d.filePath)).toEqual(['tickets/tkt_001/attachments/file.pdf'])
-  })
-
-  it('Storage trigger syncs opportunity attachment metadata to the parent subcollection', async () => {
-    const opportunityId = `opp_${randomUUID()}`
-    await seedOpportunity(opportunityId)
-    const filePath = `opportunities/${opportunityId}/attachments/position.pdf`
-
-    const result = await new SyncStorageAttachmentCommandHandler(
-      new FirestoreUnitOfWork(),
-      new FakeAttachmentStorage()
-    ).handle({
-      filePath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000000010',
-    })
-
-    expect(result).toEqual({ reflected: true, reason: 'synced' })
-    expect(await listAttachmentPaths('opportunities', opportunityId)).toEqual([filePath])
-  })
-
-  it('Storage trigger rejects internship paths whose user prefix is not the owner', async () => {
+  it('Intent pre-writes attachment subdoc in uploading state and mints a signed PUT URL', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
-    const internshipId = `int_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
 
-    const forgedPath = `users/usr_other/internships/${internshipId}/attachments/offer.pdf`
-    const result = await new SyncStorageAttachmentCommandHandler(
-      new FirestoreUnitOfWork(),
-      storage
-    ).handle({
-      filePath: forgedPath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000000020',
-    })
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
 
-    expect(result).toEqual({ reflected: false, reason: 'prefix_owner_mismatch' })
-    expect(storage.deleted.map((d) => d.filePath)).toEqual([forgedPath])
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([])
+    const rows = await listAttachments('internships', internshipId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id: intent.attachmentId, uploadStatus: 'uploading' })
+    expect(storage.uploads).toHaveLength(1)
+    expect(storage.uploads[0]!.filePath).toBe(intent.filePath)
   })
 
-  it('Internship finalize stages a new file alongside existing staged files (no auto-delete)', async () => {
+  it('Finalize transitions uploading → finalized and records the GCS generation', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
-    const internshipId = `int_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
-    const firstPath = `users/${ownerId}/internships/${internshipId}/attachments/first.pdf`
-    const secondPath = `users/${ownerId}/internships/${internshipId}/attachments/second.pdf`
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
 
-    const sync = new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage)
-    await sync.handle({
-      filePath: firstPath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000000030',
-    })
-    const second = await sync.handle({
-      filePath: secondPath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:01:00Z'),
-      generation: '1700000000000031',
-    })
+    const result = await finalize(intent.filePath, '1700000000000010')
 
-    expect(second).toEqual({ reflected: true, reason: 'synced' })
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([firstPath, secondPath])
-    expect(storage.deleted).toEqual([])
+    expect(result).toEqual({ finalized: true, reason: 'finalized' })
+    const rows = await listAttachments('internships', internshipId)
+    expect(rows[0]).toMatchObject({ uploadStatus: 'finalized' })
+    const snap = await adminDb
+      .collection('internships')
+      .doc(internshipId)
+      .collection('attachments')
+      .doc(intent.attachmentId)
+      .get()
+    expect(snap.data()?.['storageGeneration']).toBe('1700000000000010')
   })
 
-  it('Offer submission blocks until at least one attachment has been synced via the trigger', async () => {
+  it('Finalize is idempotent under event redelivery (second event is a no-op)', async () => {
+    const storage = new FakeAttachmentStorage()
+    const ownerId = `usr_owner_${randomUUID()}`
+    const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
+    await seedOpportunity(opportunityId)
+    await seedInternship(internshipId, ownerId, opportunityId)
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
+
+    await finalize(intent.filePath)
+    const second = await finalize(intent.filePath)
+
+    expect(second).toEqual({ finalized: false, reason: 'already_finalized' })
+  })
+
+  it('Finalize rejects an event whose path attachmentId is unknown', async () => {
+    const ownerId = `usr_owner_${randomUUID()}`
+    const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
+    await seedOpportunity(opportunityId)
+    await seedInternship(internshipId, ownerId, opportunityId)
+
+    const stalePath = `users/${ownerId}/internships/${internshipId}/attachments/att_ghost-offer.pdf`
+    const result = await finalize(stalePath)
+
+    expect(result).toEqual({ finalized: false, reason: 'attachment_not_found' })
+  })
+
+  it('Finalize rejects an internship path whose user prefix is not the parent owner', async () => {
+    const storage = new FakeAttachmentStorage()
+    const ownerId = `usr_owner_${randomUUID()}`
+    const opportunityId = `opp_${randomUUID()}`
+    const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
+    await seedOpportunity(opportunityId)
+    await seedInternship(internshipId, ownerId, opportunityId)
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
+    const tampered = intent.filePath.replace(`users/${ownerId}/`, 'users/usr_other/')
+
+    const result = await finalize(tampered)
+
+    expect(result).toEqual({ finalized: false, reason: 'prefix_owner_mismatch' })
+  })
+
+  it('Offer submission blocks until at least one attachment is finalized', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const semesterId = `sem_${randomUUID()}`
@@ -278,6 +333,11 @@ describe('Attachments — integration', () => {
     await seedStudent(ownerId, semesterId)
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
     await seedInternship(internshipId, ownerId, opportunityId)
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
 
     const submit = new SubmitInternshipOfferCommandHandler(
       new FirestoreUnitOfWork(),
@@ -294,70 +354,69 @@ describe('Attachments — integration', () => {
       submit.handle({ actor: actorFor('student', ownerId), internshipId, payload })
     ).rejects.toThrow(expect.objectContaining({ reason: 'offer_attachment_missing' }))
 
-    await new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage).handle({
-      filePath: `users/${ownerId}/internships/${internshipId}/attachments/offer.pdf`,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000000040',
-    })
+    await finalize(intent.filePath)
 
     await expect(
       submit.handle({ actor: actorFor('student', ownerId), internshipId, payload })
     ).resolves.toEqual({ id: internshipId })
   })
 
-  it('Signed URL expiry is passed to the storage signer and returned to clients', async () => {
+  it('Signed download URL is minted only after the attachment is finalized', async () => {
     const storage = new FakeAttachmentStorage()
+    const coordinatorId = `usr_coord_${randomUUID()}`
     const studentId = `usr_student_${randomUUID()}`
     const semesterId = `sem_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     await seedStudent(studentId, semesterId)
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
-    await seedAttachment(
-      'opportunities',
-      opportunityId,
-      'att_001',
-      `opportunities/${opportunityId}/attachments/position.pdf`
+    const intent = await issueOpportunityUploadIntent(
+      storage,
+      actorFor('coordinator', coordinatorId),
+      opportunityId
     )
 
     const fixedNow = new Date('2026-04-05T00:00:00Z')
-    const result = await new GetOpportunityAttachmentQueryHandler(
+    const query = new GetOpportunityAttachmentQueryHandler(
       firestoreOpportunityQueryService,
       firestoreUserQueryService,
       defaultAuthorizationService,
       storage,
       { ttlMs: 5_000, now: () => fixedNow }
-    ).handle({
+    )
+
+    await expect(
+      query.handle({
+        actor: actorFor('student', studentId),
+        opportunityId,
+        attachmentId: intent.attachmentId,
+      })
+    ).rejects.toThrow(/not found/)
+
+    await finalize(intent.filePath)
+
+    const result = await query.handle({
       actor: actorFor('student', studentId),
       opportunityId,
-      attachmentId: 'att_001',
+      attachmentId: intent.attachmentId,
     })
-
     expect(result.downloadUrlExpiresAt.toISOString()).toBe('2026-04-05T00:00:05.000Z')
-    expect(storage.signed).toEqual([
-      {
-        filePath: `opportunities/${opportunityId}/attachments/position.pdf`,
-        expiresAt: new Date('2026-04-05T00:00:05.000Z'),
-      },
-    ])
-    expect(result.downloadUrl).toContain('expires=1775347205000')
+    expect(storage.signed).toHaveLength(1)
   })
 
-  it('Owner can delete an applied-status internship attachment; subdoc is hard-deleted and an attachmentPurgeQueue outbox row is enqueued (no GCS call from request path)', async () => {
+  it('Owner can delete a finalized internship attachment; subdoc is removed and a purge-queue row is enqueued', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
-    const filePath = `users/${ownerId}/internships/${internshipId}/attachments/offer.pdf`
-    await new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage).handle({
-      filePath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000001000',
-    })
-    const attachmentId = deterministicAttachmentId(filePath)
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
+    await finalize(intent.filePath, '1700000000001000')
 
     await new DeleteInternshipAttachmentCommandHandler(
       new FirestoreUnitOfWork(),
@@ -365,39 +424,39 @@ describe('Attachments — integration', () => {
     ).handle({
       actor: actorFor('student', ownerId),
       internshipId,
-      attachmentId,
+      attachmentId: intent.attachmentId,
     })
 
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([])
+    expect(await listAttachments('internships', internshipId)).toEqual([])
     expect(storage.deleted).toEqual([])
-    const purgeRows = await listPurgeQueueRows('internships', internshipId, attachmentId)
+    const purgeRows = await listPurgeQueueRows('internships', internshipId, intent.attachmentId)
     expect(purgeRows).toHaveLength(1)
     expect(purgeRows[0]).toMatchObject({
       parentCollection: 'internships',
       parentId: internshipId,
-      attachmentId,
-      filePath,
+      attachmentId: intent.attachmentId,
+      filePath: intent.filePath,
       storageGeneration: '1700000000001000',
       requestedByUserId: ownerId,
       status: 'pending',
     })
   })
 
-  it('Internship attachment delete from a non-owner student is rejected and the GCS object is left alone', async () => {
+  it('Non-owner student cannot delete another student internship attachment', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const intruderId = `usr_other_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
-    const filePath = `users/${ownerId}/internships/${internshipId}/attachments/offer.pdf`
-    await new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage).handle({
-      filePath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000002000',
-    })
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
+    await finalize(intent.filePath, '1700000000002000')
 
     await expect(
       new DeleteInternshipAttachmentCommandHandler(
@@ -406,28 +465,30 @@ describe('Attachments — integration', () => {
       ).handle({
         actor: actorFor('student', intruderId),
         internshipId,
-        attachmentId: deterministicAttachmentId(filePath),
+        attachmentId: intent.attachmentId,
       })
     ).rejects.toThrow(expect.objectContaining({ reason: 'student_not_owner' }))
 
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([filePath])
+    expect((await listAttachments('internships', internshipId))[0]).toMatchObject({
+      id: intent.attachmentId,
+    })
     expect(storage.deleted).toEqual([])
   })
 
-  it('Internship attachment delete is blocked once the offer is under review (status=offer_pending_review)', async () => {
+  it('Attachment delete is blocked once the offer is under review', async () => {
     const storage = new FakeAttachmentStorage()
     const ownerId = `usr_owner_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
-    const filePath = `users/${ownerId}/internships/${internshipId}/attachments/offer.pdf`
-    await new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage).handle({
-      filePath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000003000',
-    })
+    const intent = await issueInternshipUploadIntent(
+      storage,
+      actorFor('student', ownerId),
+      internshipId
+    )
+    await finalize(intent.filePath, '1700000000003000')
     await adminDb
       .collection('internships')
       .doc(internshipId)
@@ -440,60 +501,25 @@ describe('Attachments — integration', () => {
       ).handle({
         actor: actorFor('student', ownerId),
         internshipId,
-        attachmentId: deterministicAttachmentId(filePath),
+        attachmentId: intent.attachmentId,
       })
     ).rejects.toThrow(expect.objectContaining({ reason: 'attachment_locked_in_status' }))
-
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([filePath])
-    expect(storage.deleted).toEqual([])
   })
 
-  it('Concurrent re-upload during delete is preserved by the ifGenerationMatch precondition (GCS 412 swallowed, new file untouched)', async () => {
-    const storage = new FakeAttachmentStorage()
-    const ownerId = `usr_owner_${randomUUID()}`
-    const opportunityId = `opp_${randomUUID()}`
-    const internshipId = `int_${randomUUID()}`
-    await seedOpportunity(opportunityId)
-    await seedInternship(internshipId, ownerId, opportunityId)
-    const filePath = `users/${ownerId}/internships/${internshipId}/attachments/offer.pdf`
-    await new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage).handle({
-      filePath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000004000',
-    })
-
-    storage.shouldThrowPreconditionFailed = true
-    await new DeleteInternshipAttachmentCommandHandler(
-      new FirestoreUnitOfWork(),
-      defaultAuthorizationService
-    ).handle({
-      actor: actorFor('student', ownerId),
-      internshipId,
-      attachmentId: deterministicAttachmentId(filePath),
-    })
-
-    // Firestore metadata is gone (backend stops returning it), but no
-    // destructive GCS delete was recorded — the adapter swallowed the 412.
-    expect(await listAttachmentPaths('internships', internshipId)).toEqual([])
-    expect(storage.deleted).toEqual([])
-  })
-
-  it('Coordinator can delete an opportunity attachment; student cannot', async () => {
+  it('Coordinator can delete an opportunity attachment; student attempt is rejected', async () => {
     const storage = new FakeAttachmentStorage()
     const coordinatorId = `usr_coord_${randomUUID()}`
     const studentId = `usr_student_${randomUUID()}`
     const semesterId = `sem_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
+    await seedStudent(studentId, semesterId)
     await seedOpportunity(opportunityId, { semesterId, status: 'published' })
-    const filePath = `opportunities/${opportunityId}/attachments/jd.pdf`
-    await new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage).handle({
-      filePath,
-      contentType: 'application/pdf',
-      finalizedAt: new Date('2026-04-04T00:00:00Z'),
-      generation: '1700000000005000',
-    })
-    const attachmentId = deterministicAttachmentId(filePath)
+    const intent = await issueOpportunityUploadIntent(
+      storage,
+      actorFor('coordinator', coordinatorId),
+      opportunityId
+    )
+    await finalize(intent.filePath, '1700000000005000')
 
     await expect(
       new DeleteOpportunityAttachmentCommandHandler(
@@ -502,7 +528,7 @@ describe('Attachments — integration', () => {
       ).handle({
         actor: actorFor('student', studentId),
         opportunityId,
-        attachmentId,
+        attachmentId: intent.attachmentId,
       })
     ).rejects.toThrow(expect.objectContaining({ reason: 'role_restricted_action' }))
 
@@ -512,31 +538,28 @@ describe('Attachments — integration', () => {
     ).handle({
       actor: actorFor('coordinator', coordinatorId),
       opportunityId,
-      attachmentId,
+      attachmentId: intent.attachmentId,
     })
 
-    expect(await listAttachmentPaths('opportunities', opportunityId)).toEqual([])
-    // The Firestore subdoc is hard-deleted in the same txn that enqueues an
-    // attachmentPurgeQueue outbox row; GCS hard-delete is the job of the
-    // outbox-driven worker, not the request path.
+    expect(await listAttachments('opportunities', opportunityId)).toEqual([])
     expect(storage.deleted).toEqual([])
-    const purgeRows = await listPurgeQueueRows('opportunities', opportunityId, attachmentId)
+    const purgeRows = await listPurgeQueueRows('opportunities', opportunityId, intent.attachmentId)
     expect(purgeRows).toHaveLength(1)
     expect(purgeRows[0]).toMatchObject({
       parentCollection: 'opportunities',
       parentId: opportunityId,
-      attachmentId,
-      filePath,
+      attachmentId: intent.attachmentId,
+      filePath: intent.filePath,
       requestedByUserId: coordinatorId,
       status: 'pending',
     })
   })
 
-  it('Deleting a missing internship attachment returns a 404 NotFoundError without touching GCS', async () => {
-    const storage = new FakeAttachmentStorage()
+  it('Deleting a missing internship attachment returns NotFoundError', async () => {
     const ownerId = `usr_owner_${randomUUID()}`
     const opportunityId = `opp_${randomUUID()}`
     const internshipId = `int_${randomUUID()}`
+    await seedStudent(ownerId, `sem_${randomUUID()}`)
     await seedOpportunity(opportunityId)
     await seedInternship(internshipId, ownerId, opportunityId)
 
@@ -550,13 +573,5 @@ describe('Attachments — integration', () => {
         attachmentId: 'att_missing',
       })
     ).rejects.toThrow(/Attachment 'att_missing' not found/)
-    expect(storage.deleted).toEqual([])
   })
 })
-
-function deterministicAttachmentId(filePath: string): string {
-  // Mirrors `attachmentIdForFilePath` in sync-storage-attachment.ts: the
-  // storage trigger derives attachment ids deterministically so tests can
-  // address the exact subdoc the trigger wrote.
-  return `att_${createHash('sha256').update(filePath).digest('base64url').slice(0, 24)}`
-}

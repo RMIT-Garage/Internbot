@@ -5,7 +5,9 @@ import type { OpportunityRepository } from '../../domain/repositories/opportunit
 import {
   Attachment,
   ATTACHMENT_SCHEMA_VERSION,
+  attachmentUploadStatusValues,
   type AttachmentProps,
+  type AttachmentUploadStatus,
 } from '../../domain/value-objects/attachment'
 import { Opportunity, OPPORTUNITY_SCHEMA_VERSION } from '../../domain/entities/opportunity'
 import type { OpportunityTransition } from '../../domain/value-objects/opportunity-transition'
@@ -51,6 +53,7 @@ export const opportunityAttachmentStorageSchema = z.object({
   contentType: z.string().optional(),
   uploadedAt: firestoreTimestamp,
   storageGeneration: z.string().optional(),
+  uploadStatus: z.enum(attachmentUploadStatusValues).optional(),
   _schemaVersion: z.number().int().optional(),
 })
 
@@ -112,6 +115,7 @@ type AttachmentWrite = {
   fileName?: string
   contentType?: string
   storageGeneration?: string
+  uploadStatus: AttachmentUploadStatus
   _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
 }
 type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
@@ -233,6 +237,7 @@ function attachmentToPayload(attachment: Attachment): AttachmentDoc {
     ...(attachment.storageGeneration !== undefined
       ? { storageGeneration: attachment.storageGeneration }
       : {}),
+    uploadStatus: attachment.uploadStatus,
     uploadedAt: FsTimestamp.fromDate(attachment.uploadedAt),
     _schemaVersion: ATTACHMENT_SCHEMA_VERSION,
   }
@@ -309,9 +314,15 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
 
         const writeAttachmentMutations = (): void => {
           for (const event of opportunity.pendingEvents) {
-            if (event.kind === 'opportunity_attachment_added') {
-              const added = event.attachment
-              this.txn.set(ref.collection('attachments').doc(added.id), attachmentToPayload(added))
+            if (
+              event.kind === 'opportunity_attachment_added' ||
+              event.kind === 'opportunity_attachment_finalized'
+            ) {
+              const attachment = event.attachment
+              this.txn.set(
+                ref.collection('attachments').doc(attachment.id),
+                attachmentToPayload(attachment)
+              )
             } else if (event.kind === 'opportunity_attachment_removed') {
               const attachment = event.attachment
               this.txn.delete(ref.collection('attachments').doc(attachment.id))
@@ -409,6 +420,7 @@ export function parseOpportunityAttachment(id: string, raw: unknown): Attachment
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
     storageGeneration: data.storageGeneration,
+    uploadStatus: data.uploadStatus ?? 'finalized',
   }
   return Attachment.rehydrate(props)
 }

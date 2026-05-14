@@ -5082,9 +5082,15 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-04T09:05:00Z"
+          },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
           }
         },
-        "required": ["id", "fileName", "contentType", "uploadedAt"],
+        "required": ["id", "fileName", "contentType", "uploadedAt", "uploadStatus"],
         "additionalProperties": false,
         "description": "Attachment metadata for an opportunity position-description file."
       },
@@ -5123,6 +5129,12 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-04T09:05:00Z"
           },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
+          },
           "downloadUrl": {
             "type": "string",
             "format": "uri"
@@ -5138,6 +5150,7 @@
           "fileName",
           "contentType",
           "uploadedAt",
+          "uploadStatus",
           "downloadUrl",
           "downloadUrlExpiresAt"
         ],
@@ -5501,9 +5514,15 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-05T02:50:00Z"
+          },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
           }
         },
-        "required": ["id", "fileName", "contentType", "uploadedAt"],
+        "required": ["id", "fileName", "contentType", "uploadedAt", "uploadStatus"],
         "additionalProperties": false,
         "description": "Attachment metadata for an internship offer document."
       },
@@ -5542,6 +5561,12 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-05T02:50:00Z"
           },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
+          },
           "downloadUrl": {
             "type": "string",
             "format": "uri"
@@ -5557,6 +5582,7 @@
           "fileName",
           "contentType",
           "uploadedAt",
+          "uploadStatus",
           "downloadUrl",
           "downloadUrlExpiresAt"
         ],
