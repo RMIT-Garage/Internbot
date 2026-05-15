@@ -1,7 +1,6 @@
 'use client'
 
 import { CalendarDays, Plus, Sparkles } from 'lucide-react'
-import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
 import {
   AIInsightCard,
   CoordinatorPageHeader,
@@ -9,30 +8,27 @@ import {
   SurfaceCard,
 } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
+import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
 
-// ❌ removed (these were causing build failure)
-// import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-// import { listSemesters } from '@/lib/coordinator/api'
-// import { mapSemesterToInventory } from '@/lib/coordinator/apiMappers'
-// import { semesterInventory } from '@/lib/coordinator/mockData'
+import { DashboardShell } from '@/components/layout/DashboardShell'
 
-export default function CoordinatorSemestersPage() {
-  // ✅ temporary safe fallback data (replaces broken API layer)
-  const semesters = [
+export default function StudentDashboardPage() {
+  // 🔁 renamed data (same structure, different meaning)
+  const courses = [
     {
-      name: 'Semester 1',
+      name: 'Software Engineering',
       status: 'active',
-      window: 'Feb - Jun',
-      students: 120,
-      phase: 'Ongoing',
-      flagged: 2,
+      window: 'Semester 1',
+      students: 0, // not relevant but preserved shape
+      phase: 'In Progress',
+      flagged: 0,
     },
     {
-      name: 'Semester 2',
-      status: 'pending',
-      window: 'Jul - Nov',
+      name: 'Data Structures',
+      status: 'active',
+      window: 'Semester 1',
       students: 0,
-      phase: 'Planning',
+      phase: 'Ongoing',
       flagged: 0,
     },
   ]
@@ -42,120 +38,118 @@ export default function CoordinatorSemestersPage() {
   const source = 'fallback'
 
   return (
-    <div className="space-y-6">
-      <CoordinatorPageHeader
-        eyebrow="Semester Management"
-        title="Semester Operations"
-        description="Manage intake windows, lifecycle phases, cohort enrollment, and approval workload across academic periods."
-        actions={
-          <PendingActionButton
-            message="Create semester API integration pending."
-            className="border-red-700 bg-red-700 text-white hover:bg-red-800"
-          >
-            <Plus className="h-4 w-4" />
-            Create New Semester
-          </PendingActionButton>
-        }
-      />
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <KPIStatCard
-          title="Active cohorts"
-          value="3"
-          detail="Across 2026 intake windows"
-          icon={CalendarDays}
-          tone="blue"
-          progress={72}
+    <DashboardShell>
+      <div className="space-y-6">
+        {/* HEADER (same component, renamed content) */}
+        <CoordinatorPageHeader
+          eyebrow="Student Dashboard"
+          title="My Learning Overview"
+          description="Track your courses, progress, deadlines, and academic activity."
+          actions={
+            <PendingActionButton
+              message="Course enrollment actions not enabled yet."
+              className="border-red-700 bg-red-700 text-white hover:bg-red-800"
+            >
+              <Plus className="h-4 w-4" />
+              Browse Courses
+            </PendingActionButton>
+          }
         />
-        <KPIStatCard
-          title="Enrolled students"
-          value="261"
-          detail="Total semester participation"
-          icon={Plus}
-          tone="green"
-          progress={81}
-        />
-        <KPIStatCard
-          title="AI recommendations"
-          value="7"
-          detail="Setup and workload signals"
-          icon={Sparkles}
-          tone="purple"
-          progress={46}
-        />
-      </div>
 
-      <AIInsightCard
-        title={`AI Recommendations (${source === 'api' ? 'API-backed semesters' : 'fallback semesters'})`}
-        confidence={87}
-        insight="Semester 2 should open coordinator review capacity one week earlier based on current contract turnaround and projected application volume."
-      />
+        {/* KPI SECTION (same layout, student meaning) */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <KPIStatCard
+            title="Enrolled Courses"
+            value="4"
+            detail="Active subjects this semester"
+            icon={CalendarDays}
+            tone="blue"
+            progress={72}
+          />
 
-      {(loading || error) && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {loading ? 'Loading semesters...' : `Using fallback data: ${error}`}
-        </div>
-      )}
+          <KPIStatCard
+            title="Upcoming Deadlines"
+            value="3"
+            detail="Assignments due soon"
+            icon={Plus}
+            tone="green"
+            progress={81}
+          />
 
-      <SurfaceCard className="overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="text-lg font-bold text-slate-950">Semester Inventory</h2>
-          <p className="text-sm text-slate-500">
-            Lifecycle status, enrollment windows, and flagged workload.
-          </p>
+          <KPIStatCard
+            title="Study Insights"
+            value="7"
+            detail="AI learning suggestions"
+            icon={Sparkles}
+            tone="purple"
+            progress={46}
+          />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
-              <tr>
-                {[
-                  'Semester',
-                  'Lifecycle',
-                  'Enrollment Window',
-                  'Students',
-                  'Current Phase',
-                  'Flags',
-                ].map((head) => (
-                  <th key={head} className="px-5 py-3">
-                    {head}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+        {/* AI CARD (reframed, not coordinator ops anymore) */}
+        <AIInsightCard
+          title={`Learning Insights (${source === 'api' ? 'live data' : 'cached data'})`}
+          confidence={87}
+          insight="You perform best in structured problem-solving tasks. Consider revising Data Structures earlier in the week for better retention."
+        />
 
-            <tbody className="divide-y divide-slate-100">
-              {semesters.map((semester) => (
-                <tr key={semester.name} className="hover:bg-slate-50">
-                  <td className="px-5 py-4 font-bold text-slate-950">{semester.name}</td>
+        {/* TABLE (NOW = COURSES instead of semesters) */}
+        <SurfaceCard className="overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-bold text-slate-950">My Courses</h2>
+            <p className="text-sm text-slate-500">
+              Current subjects and learning progress overview.
+            </p>
+          </div>
 
-                  <td className="px-5 py-4">
-                    <StatusBadge status={semester.status as 'active' | 'pending' | 'archived'} />
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-600">{semester.window}</td>
-
-                  <td className="px-5 py-4 font-semibold text-slate-900">{semester.students}</td>
-
-                  <td className="px-5 py-4 text-slate-600">{semester.phase}</td>
-
-                  <td className="px-5 py-4 font-bold text-red-700">{semester.flagged}</td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500 uppercase">
+                <tr>
+                  {['Course', 'Status', 'Semester', 'Progress', 'Current Module', 'Alerts'].map(
+                    (head) => (
+                      <th key={head} className="px-5 py-3">
+                        {head}
+                      </th>
+                    )
+                  )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SurfaceCard>
+              </thead>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {semesters.map((semester) => (
-          <SurfaceCard key={semester.name} className="p-5">
-            <CalendarDays className="h-5 w-5 text-red-700" />
-            <h2 className="mt-4 font-bold text-slate-950">{semester.name}</h2>
-            <p className="mt-2 text-sm text-slate-500">{semester.phase}</p>
-          </SurfaceCard>
-        ))}
+              <tbody className="divide-y divide-slate-100">
+                {courses.map((course) => (
+                  <tr key={course.name} className="hover:bg-slate-50">
+                    <td className="px-5 py-4 font-bold text-slate-950">{course.name}</td>
+
+                    <td className="px-5 py-4">
+                      <StatusBadge status={course.status as 'active' | 'pending' | 'archived'} />
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-600">{course.window}</td>
+
+                    <td className="px-5 py-4 font-semibold text-slate-900">68%</td>
+
+                    <td className="px-5 py-4 text-slate-600">Week 4: Algorithms</td>
+
+                    <td className="px-5 py-4 font-bold text-red-700">{course.flagged}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SurfaceCard>
+
+        {/* LOWER CARDS (now study focus instead of semester cards) */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {courses.map((course) => (
+            <SurfaceCard key={course.name} className="p-5">
+              <CalendarDays className="h-5 w-5 text-red-700" />
+              <h2 className="mt-4 font-bold text-slate-950">{course.name}</h2>
+              <p className="mt-2 text-sm text-slate-500">Current focus: {course.phase}</p>
+            </SurfaceCard>
+          ))}
+        </div>
       </div>
-    </div>
+    </DashboardShell>
   )
 }
