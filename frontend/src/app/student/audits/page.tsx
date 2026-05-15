@@ -1,5 +1,5 @@
 import { Download, ShieldAlert, Users, WandSparkles } from 'lucide-react'
-import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
+import { PendingActionButton } from '@/components/student/PendingActionButton'
 import {
   AIInsightCard,
   AnalyticsStrip,
@@ -7,8 +7,8 @@ import {
   KPIStatCard,
   SurfaceCard,
   TimelineFeed,
-} from '@/components/coordinator/Premium'
-import { auditLogs, recentActivity } from '@/lib/coordinator/mockData'
+} from '@/components/student/Premium'
+import { auditLogs, recentActivity } from '@/lib/mockData'
 
 export default function CoordinatorAuditsPage() {
   return (

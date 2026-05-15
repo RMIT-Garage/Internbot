@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { Download, UserPlus } from 'lucide-react'
-import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
-import { CoordinatorPageHeader } from '@/components/coordinator/Premium'
+import { PendingActionButton } from '@/components/student/PendingActionButton'
+import { CoordinatorPageHeader } from '@/components/student/Premium'
 import { StudentsList } from './StudentsList'
 
 export default function CoordinatorStudentsPage() {

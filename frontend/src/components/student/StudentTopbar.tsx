@@ -2,54 +2,58 @@
 
 import Link from 'next/link'
 import { Bell, LogOut, Plus, Search, User } from 'lucide-react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { clearCoordinatorPreviewSession } from '@/lib/coordinator/auth'
 
-export function CoordinatorTopbar() {
+export function StudentTopbar() {
   const router = useRouter()
-  const pathname = usePathname()
   const { user, signOut } = useAuth()
 
   const handleSignOut = async () => {
-    clearCoordinatorPreviewSession()
     await signOut()
-    router.push(pathname?.startsWith('/coordinator') ? '/coordinator/login' : '/login')
+    router.push('/login')
   }
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur xl:px-6">
+      {/* SEARCH */}
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="hidden h-10 w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 md:flex">
           <Search className="h-4 w-4" />
-          Search students, submissions, employers
+          Search courses, assignments, resources
         </div>
       </div>
+
+      {/* ACTIONS */}
       <div className="flex items-center gap-2">
         <Link
-          href="/coordinator/opportunities"
+          href="/student/courses"
           className="hidden h-9 items-center gap-2 rounded-xl bg-red-700 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-800 sm:inline-flex"
         >
           <Plus className="h-3.5 w-3.5" />
-          New
+          Browse
         </Link>
+
         <Link
-          href="/coordinator/notifications"
+          href="/student/notifications"
           className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50"
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4" />
           <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600" />
         </Link>
+
         <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 md:flex">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
             <User className="h-3.5 w-3.5" />
           </div>
+
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-900">Coordinator</p>
-            <p className="truncate text-[11px] text-slate-500">{user?.email ?? 'Staff portal'}</p>
+            <p className="truncate text-xs font-semibold text-slate-900">Student</p>
+            <p className="truncate text-[11px] text-slate-500">{user?.email ?? 'Student portal'}</p>
           </div>
         </div>
+
         <button
           type="button"
           onClick={handleSignOut}

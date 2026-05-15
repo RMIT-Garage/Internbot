@@ -1,14 +1,23 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { ReactNode } from 'react'
+import { StudentSidebar } from '@/components/student/StudentSidebar'
+import { StudentTopbar } from '@/components/student/StudentTopbar'
 
-export default function StudentLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-
+export default function StudentLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* You can later add a StudentNavbar or StudentShell here */}
-      <main className="flex-1">{children}</main>
+    <div className="flex h-screen overflow-hidden bg-white">
+      {/* SIDEBAR */}
+      <StudentSidebar />
+
+      {/* MAIN COLUMN */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* TOPBAR */}
+        <StudentTopbar />
+
+        {/* PAGE CONTENT */}
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      </div>
     </div>
   )
 }

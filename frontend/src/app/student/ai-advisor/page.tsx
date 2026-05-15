@@ -8,13 +8,8 @@ import {
   KPIStatCard,
   SurfaceCard,
   TimelineFeed,
-} from '@/components/coordinator/Premium'
-import {
-  aiAdvisorReports,
-  aiComplianceChecks,
-  auditLogs,
-  recentActivity,
-} from '@/lib/coordinator/mockData'
+} from '@/components/student/Premium'
+import { aiAdvisorReports, aiComplianceChecks, auditLogs, recentActivity } from '@/lib/mockData'
 
 export default function CoordinatorAIAdvisorPage() {
   return (

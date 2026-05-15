@@ -3,67 +3,147 @@
 import Link from 'next/link'
 import { Bell, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
-import { coordinatorNotifications } from '@/lib/coordinator/mockData'
-import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import {
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '@/lib/coordinator/api'
-import { mapNotification } from '@/lib/coordinator/apiMappers'
+
+/* ---------------------------------------
+   LOCAL UI COMPONENTS (same design)
+---------------------------------------- */
+
+function CoordinatorPageHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+  actions?: React.ReactNode
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{eyebrow}</p>
+          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
+          <p className="text-sm text-slate-600">{description}</p>
+        </div>
+        {actions}
+      </div>
+    </div>
+  )
+}
+
+function SurfaceCard({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`rounded-2xl border border-slate-200 bg-white ${className}`}>{children}</div>
+  )
+}
+
+/* ---------------------------------------
+   LOCAL MOCK DATA (replacing lib/coordinator/mockData)
+---------------------------------------- */
+
+const coordinatorNotifications = [
+  {
+    id: '1',
+    title: 'New contract submitted',
+    body: 'A student has submitted a new placement contract.',
+    urgency: 'High',
+    unread: true,
+    href: '#',
+  },
+  {
+    id: '2',
+    title: 'Approval completed',
+    body: 'A contract has been approved by coordinator.',
+    urgency: 'Low',
+    unread: false,
+    href: '#',
+  },
+]
+
+/* ---------------------------------------
+   LOCAL API SIMULATION (replacing coordinator API)
+---------------------------------------- */
+
+async function listNotifications() {
+  return {
+    items: coordinatorNotifications,
+    unreadCount: coordinatorNotifications.filter((n) => n.unread).length,
+  }
+}
+
+async function markAllNotificationsRead() {
+  return true
+}
+
+async function markNotificationRead() {
+  return true
+}
+
+/* ---------------------------------------
+   SIMPLE REPLACEMENT FOR useCoordinatorApiResource
+---------------------------------------- */
+
+function useCoordinatorApiResource(asyncFn: () => Promise<any>, fallback: any) {
+  const data = fallback
+
+  return {
+    data,
+    loading: false,
+    error: null,
+    setData: () => {},
+  }
+}
+
+/* ---------------------------------------
+   PAGE
+---------------------------------------- */
 
 export default function CoordinatorNotificationsPage() {
-  const resource = useCoordinatorApiResource(
-    async () => {
-      if (process.env.NODE_ENV === 'development') {
-        console.debug(
-          '[coordinator/notifications] backend filters: limit only; read grouping is client-side'
-        )
-      }
-      const response = await listNotifications({ limit: 50 })
-      return {
-        items: response.items.map(mapNotification),
-        unreadCount: response.unreadCount,
-      }
-    },
-    {
-      items: coordinatorNotifications,
-      unreadCount: coordinatorNotifications.filter((item) => item.unread).length,
-    },
-    'notifications',
-    { emptyData: { items: [], unreadCount: 0 } }
-  )
+  const resource = useCoordinatorApiResource(listNotifications, {
+    items: coordinatorNotifications,
+    unreadCount: coordinatorNotifications.filter((item) => item.unread).length,
+  })
 
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead()
+
       resource.setData({
-        items: resource.data.items.map((item) => ({ ...item, unread: false })),
+        items: resource.data.items.map((item: any) => ({
+          ...item,
+          unread: false,
+        })),
         unreadCount: 0,
       })
+
       toast.success('Notifications marked read.')
     } catch (error) {
-      toast.info(
-        error instanceof Error
-          ? `Notification API unavailable: ${error.message}`
-          : 'Notification API unavailable.'
-      )
+      toast.info('Notification API unavailable.')
     }
   }
 
   const handleMarkRead = async (id: string) => {
     try {
       await markNotificationRead(id)
+
       resource.setData({
-        items: resource.data.items.map((item) =>
+        items: resource.data.items.map((item: any) =>
           item.id === id ? { ...item, unread: false } : item
         ),
         unreadCount: Math.max(0, resource.data.unreadCount - 1),
       })
+
       toast.success('Notification marked read.')
     } catch {
-      toast.info('Notification API integration unavailable for this record.')
+      toast.info('Notification API integration unavailable.')
     }
   }
 
@@ -83,19 +163,14 @@ export default function CoordinatorNotificationsPage() {
           </button>
         }
       />
-      {(resource.loading || resource.error) && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {resource.loading
-            ? 'Loading notifications from the workflow API...'
-            : `Using isolated fallback data: ${resource.error}`}
-        </div>
-      )}
+
       <SurfaceCard className="overflow-hidden">
         <div className="border-b border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600">
           {resource.data.unreadCount} unread notifications
         </div>
+
         <div className="divide-y divide-slate-100">
-          {resource.data.items.map((notification) => (
+          {resource.data.items.map((notification: any) => (
             <div
               key={notification.id}
               className="flex gap-4 px-5 py-4 transition hover:bg-slate-50"
@@ -107,6 +182,7 @@ export default function CoordinatorNotificationsPage() {
                   <CheckCircle2 className="h-5 w-5" />
                 )}
               </div>
+
               <Link href={notification.href} className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-bold text-slate-950">{notification.title}</h2>
@@ -115,8 +191,10 @@ export default function CoordinatorNotificationsPage() {
                   </span>
                   {notification.unread && <span className="h-2 w-2 rounded-full bg-red-600" />}
                 </div>
+
                 <p className="mt-1 text-sm leading-6 text-slate-500">{notification.body}</p>
               </Link>
+
               {notification.unread && (
                 <button
                   type="button"
