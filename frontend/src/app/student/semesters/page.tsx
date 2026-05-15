@@ -1,34 +1,29 @@
 'use client'
 
 import { CalendarDays, Plus, Sparkles } from 'lucide-react'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/coordinator/Premium'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
+import { AIInsightCard, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
+import { StatusBadge } from '@/components/coordinator/StatusBadge'
 
 import { DashboardShell } from '@/components/layout/DashboardShell'
+import { PageHeader } from '@/components/layout/PageHeader'
 
-export default function StudentDashboardPage() {
-  // 🔁 renamed data (same structure, different meaning)
-  const courses = [
+export default function CoordinatorSemestersPage() {
+  const semesters = [
     {
-      name: 'Software Engineering',
+      name: 'Semester 1',
       status: 'active',
-      window: 'Semester 1',
-      students: 0, // not relevant but preserved shape
-      phase: 'In Progress',
-      flagged: 0,
+      window: 'Feb - Jun',
+      students: 120,
+      phase: 'Ongoing',
+      flagged: 2,
     },
     {
-      name: 'Data Structures',
-      status: 'active',
-      window: 'Semester 1',
+      name: 'Semester 2',
+      status: 'pending',
+      window: 'Jul - Nov',
       students: 0,
-      phase: 'Ongoing',
+      phase: 'Planning',
       flagged: 0,
     },
   ]
@@ -40,65 +35,60 @@ export default function StudentDashboardPage() {
   return (
     <DashboardShell>
       <div className="space-y-6">
-        {/* HEADER (same component, renamed content) */}
-        <CoordinatorPageHeader
-          eyebrow="Student Dashboard"
-          title="My Learning Overview"
-          description="Track your courses, progress, deadlines, and academic activity."
+        <PageHeader
+          title="Semester Operations"
+          description="Manage intake windows, lifecycle phases, cohort enrollment, and approval workload across academic periods."
           actions={
             <PendingActionButton
-              message="Course enrollment actions not enabled yet."
+              message="Create semester API integration pending."
               className="border-red-700 bg-red-700 text-white hover:bg-red-800"
             >
               <Plus className="h-4 w-4" />
-              Browse Courses
+              Create New Semester
             </PendingActionButton>
           }
         />
 
-        {/* KPI SECTION (same layout, student meaning) */}
+        {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-3">
           <KPIStatCard
-            title="Enrolled Courses"
-            value="4"
-            detail="Active subjects this semester"
+            title="Active cohorts"
+            value="3"
+            detail="Across 2026 intake windows"
             icon={CalendarDays}
             tone="blue"
             progress={72}
           />
-
           <KPIStatCard
-            title="Upcoming Deadlines"
-            value="3"
-            detail="Assignments due soon"
+            title="Enrolled students"
+            value="261"
+            detail="Total semester participation"
             icon={Plus}
             tone="green"
             progress={81}
           />
-
           <KPIStatCard
-            title="Study Insights"
+            title="AI recommendations"
             value="7"
-            detail="AI learning suggestions"
+            detail="Setup and workload signals"
             icon={Sparkles}
             tone="purple"
             progress={46}
           />
         </div>
 
-        {/* AI CARD (reframed, not coordinator ops anymore) */}
         <AIInsightCard
-          title={`Learning Insights (${source === 'api' ? 'live data' : 'cached data'})`}
+          title={`AI Recommendations (${source})`}
           confidence={87}
-          insight="You perform best in structured problem-solving tasks. Consider revising Data Structures earlier in the week for better retention."
+          insight="Semester 2 should open coordinator review capacity one week earlier based on current contract turnaround and projected application volume."
         />
 
-        {/* TABLE (NOW = COURSES instead of semesters) */}
+        {/* Table */}
         <SurfaceCard className="overflow-hidden">
           <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="text-lg font-bold text-slate-950">My Courses</h2>
+            <h2 className="text-lg font-bold text-slate-950">Semester Inventory</h2>
             <p className="text-sm text-slate-500">
-              Current subjects and learning progress overview.
+              Lifecycle status, enrollment windows, and flagged workload.
             </p>
           </div>
 
@@ -106,32 +96,34 @@ export default function StudentDashboardPage() {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500 uppercase">
                 <tr>
-                  {['Course', 'Status', 'Semester', 'Progress', 'Current Module', 'Alerts'].map(
-                    (head) => (
-                      <th key={head} className="px-5 py-3">
-                        {head}
-                      </th>
-                    )
-                  )}
+                  {[
+                    'Semester',
+                    'Lifecycle',
+                    'Enrollment Window',
+                    'Students',
+                    'Current Phase',
+                    'Flags',
+                  ].map((h) => (
+                    <th key={h} className="px-5 py-3">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {courses.map((course) => (
-                  <tr key={course.name} className="hover:bg-slate-50">
-                    <td className="px-5 py-4 font-bold text-slate-950">{course.name}</td>
+                {semesters.map((s) => (
+                  <tr key={s.name} className="hover:bg-slate-50">
+                    <td className="px-5 py-4 font-bold">{s.name}</td>
 
                     <td className="px-5 py-4">
-                      <StatusBadge status={course.status as 'active' | 'pending' | 'archived'} />
+                      <StatusBadge status={s.status as 'active' | 'pending' | 'archived'} />
                     </td>
 
-                    <td className="px-5 py-4 text-slate-600">{course.window}</td>
-
-                    <td className="px-5 py-4 font-semibold text-slate-900">68%</td>
-
-                    <td className="px-5 py-4 text-slate-600">Week 4: Algorithms</td>
-
-                    <td className="px-5 py-4 font-bold text-red-700">{course.flagged}</td>
+                    <td className="px-5 py-4 text-slate-600">{s.window}</td>
+                    <td className="px-5 py-4 font-semibold">{s.students}</td>
+                    <td className="px-5 py-4 text-slate-600">{s.phase}</td>
+                    <td className="px-5 py-4 font-bold text-red-700">{s.flagged}</td>
                   </tr>
                 ))}
               </tbody>
@@ -139,13 +131,13 @@ export default function StudentDashboardPage() {
           </div>
         </SurfaceCard>
 
-        {/* LOWER CARDS (now study focus instead of semester cards) */}
+        {/* Cards */}
         <div className="grid gap-4 md:grid-cols-3">
-          {courses.map((course) => (
-            <SurfaceCard key={course.name} className="p-5">
+          {semesters.map((s) => (
+            <SurfaceCard key={s.name} className="p-5">
               <CalendarDays className="h-5 w-5 text-red-700" />
-              <h2 className="mt-4 font-bold text-slate-950">{course.name}</h2>
-              <p className="mt-2 text-sm text-slate-500">Current focus: {course.phase}</p>
+              <h2 className="mt-4 font-bold">{s.name}</h2>
+              <p className="mt-2 text-sm text-slate-500">{s.phase}</p>
             </SurfaceCard>
           ))}
         </div>
