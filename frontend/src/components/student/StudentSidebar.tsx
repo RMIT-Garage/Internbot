@@ -18,7 +18,11 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/student/courses', label: 'Self-Sourced Jobs', icon: BriefcaseBusiness },
+  {
+    href: '/student/self-sourced-internships',
+    label: 'Self-Sourced Internships',
+    icon: BriefcaseBusiness,
+  },
   { href: '/student/contracts', label: 'Contracts', icon: FileCheck2 },
   { href: '/student/students', label: 'Students', icon: Users },
   { href: '/student/semesters', label: 'Semesters', icon: CalendarDays },
