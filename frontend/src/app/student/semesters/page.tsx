@@ -4,30 +4,30 @@ import { CalendarDays, Plus, Sparkles } from 'lucide-react'
 import { PendingActionButton } from '@/components/student/PendingActionButton'
 import { AIInsightCard, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
 import { StatusBadge } from '@/components/student/StatusBadge'
+import { useEffect, useState } from 'react'
+import { SemestersService } from '@/lib/api/openapi-client'
 
-export default function CoordinatorSemestersPage() {
-  const semesters = [
-    {
-      name: 'Semester 1',
-      status: 'active',
-      window: 'Feb - Jun',
-      students: 120,
-      phase: 'Ongoing',
-      flagged: 2,
-    },
-    {
-      name: 'Semester 2',
-      status: 'pending',
-      window: 'Jul - Nov',
-      students: 0,
-      phase: 'Planning',
-      flagged: 0,
-    },
-  ]
+export default function studentSemestersPage() {
+  const [semesters, setSemesters] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const loading = false
-  const error = null
-  const source = 'fallback'
+  useEffect(() => {
+    const fetchSemesters = async () => {
+      try {
+        setLoading(true)
+
+        const res = await SemestersService.listSemesters()
+        setSemesters(res.items ?? [])
+      } catch (err: any) {
+        setError(err.message || 'Failed to load semesters')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSemesters()
+  }, [])
 
   return (
     <div className="space-y-6">
