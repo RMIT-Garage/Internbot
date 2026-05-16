@@ -10,7 +10,7 @@ const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/applications', label: 'Applications', icon: FileText },
   { href: '/shortlist', label: 'Shortlist', icon: Star },
-  { href: '/ai-advisor', label: 'AI Advisor', icon: Wand2 },
+  { href: '/advisor', label: 'AI Advisor', icon: Wand2 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
