@@ -24,11 +24,9 @@ const navItems = [
     icon: BriefcaseBusiness,
   },
   { href: '/student/contracts', label: 'Contracts', icon: FileCheck2 },
-  { href: '/student/students', label: 'Students', icon: Users },
   { href: '/student/semesters', label: 'Semesters', icon: CalendarDays },
   { href: '/student/opportunities', label: 'Opportunities', icon: GraduationCap },
   { href: '/student/ai-advisor', label: 'AI Advisor', icon: BrainCircuit },
-  { href: '/student/audits', label: 'Audit Logs', icon: ClipboardList },
   { href: '/student/notifications', label: 'Notifications', icon: Bell },
 ]
 
