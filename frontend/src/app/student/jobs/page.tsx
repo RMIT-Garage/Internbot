@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { CoordinatorPageHeader } from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader } from '@/components/student/Premium'
 import { JobsList } from './JobsList'
 
 export default function CoordinatorJobsPage() {

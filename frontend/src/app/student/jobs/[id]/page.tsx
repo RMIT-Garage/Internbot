@@ -14,9 +14,9 @@ import {
   CoordinatorPageHeader,
   SurfaceCard,
   TimelineFeed,
-} from '@/components/coordinator/Premium'
-import { ReviewDecisionPanel } from '@/components/coordinator/ReviewDecisionPanel'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
+} from '@/components/student/Premium'
+import { ReviewDecisionPanel } from '@/components/student/ReviewDecisionPanel'
+import { StatusBadge } from '@/components/student/StatusBadge'
 import { getSelfSourcedJob, recentActivity, selfSourcedJobs } from '@/lib/coordinator/mockData'
 import { formatDate } from '@/lib/utils'
 

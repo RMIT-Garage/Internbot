@@ -7,11 +7,11 @@ import {
   ApprovalTable,
   type ApprovalColumn,
   TableDetailLink,
-} from '@/components/coordinator/ApprovalTable'
-import { FilterBar } from '@/components/coordinator/FilterBar'
-import { Pagination } from '@/components/coordinator/Pagination'
-import { AIInsightCard, AnalyticsStrip } from '@/components/coordinator/Premium'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
+} from '@/components/student/ApprovalTable'
+import { FilterBar } from '@/components/student/FilterBar'
+import { Pagination } from '@/components/student/Pagination'
+import { AIInsightCard, AnalyticsStrip } from '@/components/student/Premium'
+import { StatusBadge } from '@/components/student/StatusBadge'
 import {
   courses,
   selfSourcedJobs,

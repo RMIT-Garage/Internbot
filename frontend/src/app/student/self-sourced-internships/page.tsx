@@ -172,17 +172,11 @@ export default function Page() {
         <div className="col-span-4 space-y-6">
           {/* INFO CARD */}
           <div className="rounded-3xl border border-slate-100 bg-white p-7 shadow-sm">
-            <div className="mb-6 flex items-start gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow">
-                ⚡
-              </div>
-
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">What happens next?</h4>
-                <p className="text-[10px] font-bold tracking-widest text-blue-600 uppercase">
-                  Review Process
-                </p>
-              </div>
+            <div className="mb-6">
+              <h4 className="text-sm font-bold text-slate-900">What happens next?</h4>
+              <p className="text-[10px] font-bold tracking-widest text-red-600 uppercase">
+                Review Process
+              </p>
             </div>
 
             <ol className="space-y-3 text-sm text-slate-500">
@@ -199,24 +193,6 @@ export default function Page() {
                 You can then apply and upload your offer letter.
               </li>
             </ol>
-          </div>
-
-          {/* UPLOAD — placeholder, attachments are added after application */}
-          <div className="rounded-3xl border border-slate-100 bg-white p-7 opacity-50 shadow-sm">
-            <h4 className="mb-2 text-xs font-bold tracking-wider text-slate-900 uppercase">
-              Contract Upload
-            </h4>
-
-            <p className="mb-5 text-[11px] text-slate-400">
-              Upload your offer letter after your submission is approved and you apply.
-            </p>
-
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-rose-100 bg-rose-50/30 p-10 text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center text-2xl text-rose-500">
-                📄
-              </div>
-              <p className="text-sm font-semibold text-slate-700">Available after approval</p>
-            </div>
           </div>
         </div>
       </div>

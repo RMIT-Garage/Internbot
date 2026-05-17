@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { auth } from '@/lib/firebase/client'
 import { apiFetch, ApiError } from '@/lib/api/client'
-import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 
 interface DebugEndpointResult {
   label: string
@@ -35,7 +35,7 @@ const debugEndpoints = [
 ] as const
 
 export default function CoordinatorDebugApiPage() {
-  const { user, profile, loading, needsVerification } = useAuth()
+  const { user, profile, loading } = useAuth()
   const [firebaseTokenPresent, setFirebaseTokenPresent] = useState(false)
   const [firebaseUserEmail, setFirebaseUserEmail] = useState<string | null>(null)
   const [results, setResults] = useState<DebugEndpointResult[]>([])
@@ -50,9 +50,8 @@ export default function CoordinatorDebugApiPage() {
       firebaseCurrentUserPresent: Boolean(auth.currentUser),
       firebaseUserEmail,
       firebaseTokenPresent,
-      needsVerification,
     }),
-    [user, profile, firebaseUserEmail, firebaseTokenPresent, needsVerification]
+    [user, profile, firebaseUserEmail, firebaseTokenPresent]
   )
 
   const runChecks = useCallback(async () => {

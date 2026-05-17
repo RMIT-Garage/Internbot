@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -19,65 +20,109 @@ import {
   KPIStatCard,
   PillButton,
   SurfaceCard,
-  TimelineFeed,
 } from '@/components/student/Premium'
 
-import { StatusBadge } from '@/components/student/StatusBadge'
-import { formatDate } from '@/lib/utils'
+import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { UsersService, InternshipsService, NotificationsService } from '@/lib/api/openapi-client'
+import type {
+  StudentUserResponse,
+  InternshipListItemResponse,
+  NotificationResponse,
+} from '@/lib/api/openapi-client'
 
 const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
 const kpiTones = ['blue', 'amber', 'purple', 'green', 'red'] as const
 
-// ✅ SAFE FALLBACK DATA (replaces coordinator API)
-const dashboardResource = {
-  loading: false,
-  error: null,
-  data: {
-    approvals: [],
-    recent: [],
-    alerts: ['Student dashboard is running in offline mode (API not connected yet).'],
-    kpis: [
-      {
-        title: 'Total students',
-        value: 0,
-        detail: 'Students with internship records',
-        progress: 0,
-      },
-      {
-        title: 'Looking',
-        value: 0,
-        detail: 'Applied or sourcing',
-        progress: 0,
-      },
-      {
-        title: 'Applied',
-        value: 0,
-        detail: 'Internship workflow records',
-        progress: 0,
-      },
-      {
-        title: 'Accepted',
-        value: 0,
-        detail: 'Approved offers',
-        progress: 0,
-      },
-      {
-        title: 'Contracts flagged',
-        value: 0,
-        detail: 'Rejected or high-risk offers',
-        progress: 0,
-      },
-    ],
-    notifications: [],
-  },
-}
-
 export default function StudentDashboardPage() {
-  const dashboard = dashboardResource.data
+  const [user, setUser] = useState<StudentUserResponse | null>(null)
+  const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
+  const [notifications, setNotifications] = useState<NotificationResponse[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const [profileRes, internshipsRes, notifRes] = await Promise.all([
+          UsersService.getMyProfile(),
+          InternshipsService.listInternships(),
+          NotificationsService.listNotifications('true', 5),
+        ])
+
+        if (profileRes.role === 'student') {
+          setUser(profileRes)
+        }
+        setInternships(internshipsRes.items)
+        setNotifications(notifRes.items)
+        setUnreadCount(notifRes.unreadCount)
+      } catch (err: any) {
+        setError(err.message || 'Failed to load dashboard')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  const total = internships.length
+  const applied = internships.filter((i) => i.status === 'applied').length
+  const pendingReview = internships.filter((i) => i.status === 'offer_pending_review').length
+  const approved = internships.filter((i) => i.status === 'offer_approved').length
+  const flagged = internships.filter((i) =>
+    ['offer_changes_requested', 'rejected'].includes(i.status)
+  ).length
+
+  const kpis = [
+    {
+      title: 'My applications',
+      value: total,
+      detail: 'Total internship records',
+      progress: total > 0 ? 100 : 0,
+    },
+    {
+      title: 'Applied',
+      value: applied,
+      detail: 'Waiting for response',
+      progress: total > 0 ? Math.round((applied / total) * 100) : 0,
+    },
+    {
+      title: 'Offer submitted',
+      value: pendingReview,
+      detail: 'Pending coordinator review',
+      progress: total > 0 ? Math.round((pendingReview / total) * 100) : 0,
+    },
+    {
+      title: 'Approved',
+      value: approved,
+      detail: 'Offers approved',
+      progress: total > 0 ? Math.round((approved / total) * 100) : 0,
+    },
+    {
+      title: 'Needs attention',
+      value: flagged,
+      detail: 'Changes requested or rejected',
+      progress: total > 0 ? Math.round((flagged / total) * 100) : 0,
+    },
+  ]
+
+  const workflowStep = user?.currentWorkflowStep ?? 'profile'
+
+  function internshipStatusToBadge(status: string): CoordinatorStatus {
+    const map: Record<string, CoordinatorStatus> = {
+      applied: 'pending',
+      offer_pending_review: 'on_track',
+      offer_changes_requested: 'changes_requested',
+      offer_approved: 'approved',
+      rejected: 'rejected',
+    }
+    return map[status] ?? 'pending'
+  }
 
   return (
     <div className="space-y-6">
-      {/* HEADER (unchanged design) */}
       <CoordinatorPageHeader
         eyebrow="Student Hub"
         title="Work Integrated Learning Cohort"
@@ -85,178 +130,239 @@ export default function StudentDashboardPage() {
         actions={
           <>
             <PillButton href="/student/contracts" variant="secondary">
-              View contracts
+              View applications
             </PillButton>
             <PillButton href="/student/opportunities">Browse opportunities</PillButton>
           </>
         }
       />
 
-      {/* KPI CARDS */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {dashboard.kpis.map((metric, index) => {
-          const Icon = kpiIcons[index] ?? TrendingUp
-          return (
-            <KPIStatCard
-              key={metric.title}
-              title={metric.title}
-              value={metric.value}
-              detail={metric.detail}
-              progress={metric.progress}
-              icon={Icon}
-              tone={kpiTones[index] ?? 'red'}
-            />
-          )
-        })}
-      </div>
+      {loading && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          Loading dashboard...
+        </div>
+      )}
 
-      {/* ANALYTICS STRIP */}
-      <AnalyticsStrip
-        items={[
-          {
-            label: 'Queue velocity',
-            value: '+12%',
-            detail: 'Student activity trend',
-            tone: 'green',
-          },
-          {
-            label: 'Active applications',
-            value: '0',
-            detail: 'Current submissions',
-            tone: 'blue',
-          },
-          {
-            label: 'Notifications',
-            value: '0',
-            detail: 'Unread updates',
-            tone: 'purple',
-          },
-          {
-            label: 'Progress score',
-            value: '0%',
-            detail: 'Overall completion',
-            tone: 'charcoal',
-          },
-        ]}
-      />
+      {error && !loading && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
-      {/* MAIN GRID */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <div className="space-y-6">
-          {/* INFO BANNER */}
-          {(dashboardResource.loading || dashboardResource.error) && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              {dashboardResource.loading
-                ? 'Loading student dashboard...'
-                : `Using fallback data: ${dashboardResource.error}`}
-            </div>
-          )}
+      {!loading && (
+        <>
+          {/* KPI CARDS */}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {kpis.map((metric, index) => {
+              const Icon = kpiIcons[index] ?? TrendingUp
+              return (
+                <KPIStatCard
+                  key={metric.title}
+                  title={metric.title}
+                  value={metric.value}
+                  detail={metric.detail}
+                  progress={metric.progress}
+                  icon={Icon}
+                  tone={kpiTones[index] ?? 'red'}
+                />
+              )
+            })}
+          </div>
 
-          {/* INSIGHT CARD */}
-          <AIInsightCard
-            title="AI Student Insights"
-            confidence={85}
-            href="/student/ai-advisor"
-            insight="Focus on completing profile and applying to active internships to improve match score and visibility."
+          {/* ANALYTICS STRIP */}
+          <AnalyticsStrip
+            items={[
+              {
+                label: 'Active applications',
+                value: String(applied + pendingReview),
+                detail: 'Applied or pending review',
+                tone: 'blue',
+              },
+              {
+                label: 'Approved offers',
+                value: String(approved),
+                detail: 'Confirmed placements',
+                tone: 'green',
+              },
+              {
+                label: 'Unread notifications',
+                value: String(unreadCount),
+                detail: 'Requires your attention',
+                tone: 'purple',
+              },
+              {
+                label: 'Workflow step',
+                value: workflowStep.replace(/_/g, ' '),
+                detail: 'Current stage',
+                tone: 'charcoal',
+              },
+            ]}
           />
 
-          {/* REVIEW QUEUE */}
-          <SurfaceCard className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">Your Activity</h2>
-                <p className="text-sm text-slate-500">Recent student actions and submissions.</p>
-              </div>
+          {/* MAIN GRID */}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+            <div className="space-y-6">
+              {/* INSIGHT CARD */}
+              <AIInsightCard
+                title="AI Student Insights"
+                confidence={85}
+                href="/student/ai-advisor"
+                insight="Focus on completing your profile and applying to active internships to improve match score and visibility."
+              />
 
+              {/* RECENT INTERNSHIPS */}
+              <SurfaceCard className="overflow-hidden">
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-950">My Applications</h2>
+                    <p className="text-sm text-slate-500">Your recent internship applications.</p>
+                  </div>
+
+                  <Link
+                    href="/student/contracts"
+                    className="text-sm font-bold text-red-700 hover:text-red-800"
+                  >
+                    View all
+                  </Link>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {internships.length === 0 ? (
+                    <div className="p-5 text-sm text-slate-500">No applications yet.</div>
+                  ) : (
+                    internships.slice(0, 5).map((internship) => (
+                      <div key={internship.id} className="flex items-center gap-4 px-5 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-slate-950">
+                            {internship.opportunityJobTitle}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {internship.opportunityEmployerName}
+                          </p>
+                        </div>
+                        <StatusBadge status={internshipStatusToBadge(internship.status)} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </SurfaceCard>
+            </div>
+
+            {/* RIGHT COLUMN */}
+            <div className="space-y-6">
+              <SurfaceCard className="p-5">
+                <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
+                  Workflow Step
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-slate-950 capitalize">
+                  {workflowStep.replace(/_/g, ' ')}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {user?.onboardingStage === 'profile_pending'
+                    ? 'Complete your profile to unlock internship applications.'
+                    : 'Your profile is ready. Explore opportunities and apply.'}
+                </p>
+
+                <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-lg font-bold text-slate-950">{total}</p>
+                    <p className="text-xs text-slate-500">Applications</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-lg font-bold text-slate-950">{approved}</p>
+                    <p className="text-xs text-slate-500">Approved</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-sm font-bold text-slate-950">
+                      {user?.studentProfile?.semesterId ? 'Enrolled' : 'None'}
+                    </p>
+                    <p className="text-xs text-slate-500">Semester</p>
+                  </div>
+                </div>
+              </SurfaceCard>
+
+              {/* NOTIFICATIONS */}
+              <SurfaceCard className="p-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-slate-950">Notifications</h2>
+                  <Link
+                    href="/student/notifications"
+                    className="text-sm font-bold text-red-700 hover:text-red-800"
+                  >
+                    View all
+                  </Link>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {notifications.length === 0 ? (
+                    <p className="text-sm text-slate-500">No unread notifications.</p>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className="flex gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-800"
+                      >
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <p className="font-semibold">{notif.title}</p>
+                          <p className="mt-0.5 text-xs text-red-700">{notif.body}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </SurfaceCard>
+
+              {/* RECENT TIMELINE */}
+              <SurfaceCard className="p-5">
+                <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
+                <div className="mt-4 space-y-2">
+                  {internships.length === 0 ? (
+                    <div className="text-sm text-slate-500">No recent activity yet.</div>
+                  ) : (
+                    internships.slice(0, 3).map((i) => (
+                      <div key={i.id} className="flex items-center justify-between text-sm">
+                        <span className="truncate text-slate-700">{i.opportunityEmployerName}</span>
+                        <StatusBadge status={internshipStatusToBadge(i.status)} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </SurfaceCard>
+            </div>
+          </div>
+
+          {/* QUICK LINKS */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              {
+                title: 'Browse internships',
+                href: '/student/opportunities',
+                icon: BriefcaseBusiness,
+              },
+              {
+                title: 'My applications',
+                href: '/student/contracts',
+                icon: FileCheck2,
+              },
+              {
+                title: 'Profile setup',
+                href: '/student/semesters',
+                icon: Users,
+              },
+            ].map(({ title, href, icon: Icon }) => (
               <Link
-                href="/student/opportunities"
-                className="text-sm font-bold text-red-700 hover:text-red-800"
+                key={title}
+                href={href}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                View opportunities
+                <Icon className="h-5 w-5 text-red-700" />
+                <p className="mt-4 font-bold text-slate-950">{title}</p>
+                <p className="mt-1 text-sm text-slate-500">Open</p>
               </Link>
-            </div>
-
-            <div className="p-5 text-sm text-slate-500">No activity yet.</div>
-          </SurfaceCard>
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div className="space-y-6">
-          <SurfaceCard className="p-5">
-            <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
-              Current Phase
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-slate-950">Student onboarding</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Set up your profile, explore opportunities, and begin internship applications.
-            </p>
-
-            <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-              {['Week 1', '0%', 'Open'].map((item, index) => (
-                <div key={item} className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-lg font-bold text-slate-950">{item}</p>
-                  <p className="text-xs text-slate-500">
-                    {index === 0 ? 'Semester' : index === 1 ? 'Complete' : 'Status'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </SurfaceCard>
-
-          {/* ALERTS */}
-          <SurfaceCard className="p-5">
-            <h2 className="text-lg font-bold text-slate-950">Notifications</h2>
-            <div className="mt-4 space-y-3">
-              {dashboard.alerts.map((alert) => (
-                <div
-                  key={alert}
-                  className="flex gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-800"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {alert}
-                </div>
-              ))}
-            </div>
-          </SurfaceCard>
-
-          {/* TIMELINE */}
-          <SurfaceCard className="p-5">
-            <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
-            <div className="mt-4 text-sm text-slate-500">No recent activity yet.</div>
-          </SurfaceCard>
-        </div>
-      </div>
-
-      {/* QUICK LINKS */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          {
-            title: 'Browse internships',
-            href: '/student/opportunities',
-            icon: BriefcaseBusiness,
-          },
-          {
-            title: 'My applications',
-            href: '/student/contracts',
-            icon: FileCheck2,
-          },
-          {
-            title: 'Profile setup',
-            href: '/student/profile',
-            icon: Users,
-          },
-        ].map(({ title, href, icon: Icon }) => (
-          <Link
-            key={title}
-            href={href}
-            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <Icon className="h-5 w-5 text-red-700" />
-            <p className="mt-4 font-bold text-slate-950">{title}</p>
-            <p className="mt-1 text-sm text-slate-500">Open</p>
-          </Link>
-        ))}
-      </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

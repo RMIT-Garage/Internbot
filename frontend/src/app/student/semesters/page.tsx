@@ -89,9 +89,9 @@ export default function StudentSemestersPage() {
           </div>
 
           {/* AI hint */}
-          <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-            <Sparkles className="h-5 w-5 text-blue-600" />
-            <p className="text-sm text-blue-700">
+          <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4">
+            <Sparkles className="h-5 w-5 text-red-600" />
+            <p className="text-sm text-red-700">
               Only <b>active semesters</b> are eligible for enrollment.
             </p>
           </div>
