@@ -60,6 +60,7 @@ export class GetOpportunityAttachmentQueryHandler {
       q.attachmentId
     )
     if (!attachment) throw new NotFoundError('Attachment', q.attachmentId)
+    if (!attachment.isFinalized()) throw new NotFoundError('Attachment', q.attachmentId)
 
     const downloadUrlExpiresAt = new Date(this.now().getTime() + this.ttlMs)
     const downloadUrl = await this.attachmentStorage.createReadUrl(

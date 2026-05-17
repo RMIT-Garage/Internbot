@@ -9,14 +9,14 @@ export default function LoginPage() {
   useRedirectIfAuthed()
 
   return (
-    <div className="relative isolate flex min-h-screen flex-col bg-zinc-950 text-white">
+    <div className="relative isolate flex min-h-screen flex-col overflow-hidden bg-zinc-950 text-white">
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(56,89,153,0.45),transparent_70%),linear-gradient(to_bottom,#0b1220,#050810_60%,#000)]"
+        className="absolute inset-0 -z-10 bg-[url('/login-bg.jpg')] bg-cover bg-center contrast-110 grayscale-[10%]"
       />
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 -z-10 h-1/3 bg-linear-to-t from-black/80 to-transparent"
+        className="absolute inset-0 -z-10 bg-gradient-to-br from-black/50 to-black/70"
       />
 
       <main className="flex flex-1 items-center justify-center px-4 py-10 sm:py-14">

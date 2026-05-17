@@ -1,5 +1,9 @@
 import { ValidationError } from '../errors'
 
+export type AttachmentUploadStatus = 'uploading' | 'finalized'
+
+export const attachmentUploadStatusValues = ['uploading', 'finalized'] as const
+
 export interface AttachmentProps {
   readonly id: string
   readonly filePath: string
@@ -7,6 +11,7 @@ export interface AttachmentProps {
   readonly contentType: string | undefined
   readonly uploadedAt: Date
   readonly storageGeneration: string | undefined
+  readonly uploadStatus: AttachmentUploadStatus
 }
 
 export class Attachment {
@@ -50,6 +55,24 @@ export class Attachment {
 
   get storageGeneration(): string | undefined {
     return this.#props.storageGeneration
+  }
+
+  get uploadStatus(): AttachmentUploadStatus {
+    return this.#props.uploadStatus
+  }
+
+  isFinalized(): boolean {
+    return this.#props.uploadStatus === 'finalized'
+  }
+
+  withFinalized(storageGeneration: string | undefined, finalizedAt: Date): Attachment {
+    if (this.#props.uploadStatus === 'finalized') return this
+    return new Attachment({
+      ...this.#props,
+      uploadStatus: 'finalized',
+      uploadedAt: finalizedAt,
+      storageGeneration,
+    })
   }
 }
 

@@ -12,6 +12,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../errors'
 import type { OpportunityDomainEvent } from '../events/opportunity-events'
 import {
   OpportunityAttachmentAdded,
+  OpportunityAttachmentFinalized,
   OpportunityAttachmentRemoved,
   OpportunityTransitioned,
   OpportunityVerified,
@@ -149,14 +150,33 @@ export class Opportunity {
   }
 
   /**
-   * Adopt an attachment finalized by the storage trigger. Idempotent — adding
-   * an attachment id we've already absorbed is a no-op. Stages the addition
-   * for the repo's `save()` to write the subdoc atomically.
+   * Pre-write an attachment subdoc in `uploading` state. Called by the
+   * upload-intent handler before the client PUTs to GCS via the signed URL.
    */
-  recordSyncedAttachment(attachment: Attachment): boolean {
+  recordAttachmentUploadIntent(attachment: Attachment): boolean {
     if (this.#attachments.some((a) => a.id === attachment.id)) return false
     this.#attachments.push(attachment)
     this.#pendingEvents.push(new OpportunityAttachmentAdded(attachment))
+    return true
+  }
+
+  /**
+   * Transition an existing `uploading` attachment to `finalized` after the
+   * Cloud Storage `OBJECT_FINALIZE` event confirms the upload landed.
+   * Idempotent under event redelivery.
+   */
+  finalizeAttachment(
+    attachmentId: string,
+    storageGeneration: string | undefined,
+    finalizedAt: Date
+  ): boolean {
+    const index = this.#attachments.findIndex((a) => a.id === attachmentId)
+    if (index < 0) return false
+    const existing = this.#attachments[index]!
+    if (existing.isFinalized()) return false
+    const finalized = existing.withFinalized(storageGeneration, finalizedAt)
+    this.#attachments[index] = finalized
+    this.#pendingEvents.push(new OpportunityAttachmentFinalized(finalized, finalizedAt))
     return true
   }
 
