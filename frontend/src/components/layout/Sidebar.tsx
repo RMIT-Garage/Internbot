@@ -6,22 +6,19 @@ import {
   Bell,
   BriefcaseBusiness,
   BrainCircuit,
-  CalendarDays,
   FileCheck2,
   GraduationCap,
   LayoutDashboard,
   ScrollText,
-  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/opportunities', label: 'Opportunities', icon: GraduationCap },
   { href: '/jobs', label: 'Self-Sourced Jobs', icon: BriefcaseBusiness },
   { href: '/contracts', label: 'Contracts', icon: FileCheck2 },
-  { href: '/students', label: 'Students', icon: Users },
-  { href: '/opportunities', label: 'Opportunities', icon: GraduationCap },
-  { href: '/ai-advisor', label: 'AI Advisor', icon: BrainCircuit },
+  { href: '/advisor', label: 'AI Advisor', icon: BrainCircuit },
   { href: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
