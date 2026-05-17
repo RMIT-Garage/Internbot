@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, Sparkles } from 'lucide-react'
 
 import {
@@ -27,6 +28,9 @@ function opportunityStatusToBadge(status: string): CoordinatorStatus {
 }
 
 export default function StudentOpportunitiesPage() {
+  const searchParams = useSearchParams()
+  const semesterId = searchParams.get('semesterId') ?? undefined
+
   const [opportunities, setOpportunities] = useState<OpportunityResponse[]>([])
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,7 +41,7 @@ export default function StudentOpportunitiesPage() {
       try {
         setLoading(true)
         const [oppRes, intRes] = await Promise.all([
-          OpportunitiesService.listOpportunities(),
+          OpportunitiesService.listOpportunities(semesterId),
           InternshipsService.listInternships(),
         ])
         setOpportunities(oppRes.items)
@@ -50,7 +54,7 @@ export default function StudentOpportunitiesPage() {
     }
 
     loadData()
-  }, [])
+  }, [semesterId])
 
   const appliedOpportunityIds = new Set(internships.map((i) => i.opportunityId))
   const activeCount = opportunities.filter((o) => o.status === 'published').length

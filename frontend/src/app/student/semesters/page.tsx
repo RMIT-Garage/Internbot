@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 
 import { SemestersService, UsersService } from '@/lib/api/openapi-client'
@@ -14,6 +15,7 @@ const CONFLICT_MESSAGES: Record<string, string> = {
 }
 
 export default function StudentSemestersPage() {
+  const router = useRouter()
   const [semesters, setSemesters] = useState<SemesterResponse[]>([])
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null)
 
@@ -62,7 +64,7 @@ export default function StudentSemestersPage() {
 
       await UsersService.putMySemesterSelection({ semesterId: selectedSemester })
 
-      setSuccess('Semester selected successfully!')
+      router.push(`/student/opportunities?semesterId=${selectedSemester}`)
     } catch (err: any) {
       const reason: string | undefined = err.body?.error?.reason
       setError((reason && CONFLICT_MESSAGES[reason]) ?? err.message ?? 'Failed to select semester')
