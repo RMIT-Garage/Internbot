@@ -2,16 +2,12 @@
 
 import { useState } from 'react'
 import {
-  Search,
-  Bell,
-  Filter,
   Bookmark,
   MapPin,
   Clock,
   Calendar,
   ChevronRight,
   X,
-  Sparkles,
   ShieldCheck,
   ArrowRight,
 } from 'lucide-react'
@@ -22,7 +18,6 @@ import {
   type OpportunityWorkMode,
 } from '@/features/opportunities/hooks/useOpportunities'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
-import { Navbar } from '@/components/layout/Navbar'
 
 // Maps backend type to display label and style
 function typeTag(type: OpportunityType) {
@@ -79,19 +74,6 @@ export function InternshipsPage() {
                 Discover curated roles tailored to your RMIT academic profile.
               </p>
             </div>
-            {/* AI Advisor Banner */}
-            <div className="flex max-w-sm gap-4 rounded-xl bg-[#2B78C5] p-4 text-white shadow-lg shadow-blue-100">
-              <div className="h-fit rounded-lg bg-white/10 p-2">
-                <Sparkles size={20} />
-              </div>
-              <div>
-                <h4 className="mb-1 text-xs font-bold">AI Advisor Recommendation</h4>
-                <p className="text-[10px] leading-relaxed opacity-90">
-                  Based on your recent performance in &apos;Data Visualization&apos;, we recommend
-                  exploring roles at Google or Canva.
-                </p>
-              </div>
-            </div>
           </div>
 
           {/* Filters */}
@@ -125,9 +107,6 @@ export function InternshipsPage() {
                 onChange={(v) => setTypeFilter(v as OpportunityType | undefined)}
               />
             </div>
-            <button className="flex items-center gap-2 text-[10px] font-black tracking-widest text-red-600 uppercase">
-              <Filter size={14} /> Advanced Filters
-            </button>
           </div>
 
           {/* States */}
@@ -219,12 +198,12 @@ function JobCard({ opportunity, onClick }: { opportunity: Opportunity; onClick: 
         >
           Apply Now
         </button>
-        <button
+        {/* <button
           onClick={(e) => e.stopPropagation()}
           className="rounded-xl border border-gray-100 p-3 transition hover:bg-gray-50"
         >
           <Bookmark size={18} className="text-gray-400" />
-        </button>
+        </button> */}
       </div>
     </div>
   )
