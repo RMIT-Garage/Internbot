@@ -2,6 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { User } from '../../../../src/domain/entities/user'
 import { StudentProfile } from '../../../../src/domain/value-objects/student-profile'
 import { AcademicInfo } from '../../../../src/domain/value-objects/academic-info'
+import { UserIdentity } from '../../../../src/domain/value-objects/user-identity'
+
+function identityFor(uid: string): UserIdentity {
+  return UserIdentity.rehydrate({
+    provider: 'firebase',
+    providerUserId: uid,
+    emailSnapshot: undefined,
+  })
+}
 
 function buildCompleteAcademic(): AcademicInfo {
   return AcademicInfo.rehydrate({
@@ -35,11 +44,11 @@ function buildStudent(id = 'usr_abc', profile?: StudentProfile): User {
   return User.rehydrate({
     id,
     version: 1,
-    firebaseUid: 'fb_uid',
     email: 's1@example.com',
     role: 'student',
     status: 'active',
     onboardingStage: 'profile_pending',
+    identity: identityFor(`fb_${id}`),
     createdAt: new Date('2026-04-01T00:00:00Z'),
     updatedAt: new Date('2026-04-01T00:00:00Z'),
     displayName: undefined,
@@ -51,11 +60,11 @@ function buildCoordinator(id = 'usr_coord'): User {
   return User.rehydrate({
     id,
     version: 1,
-    firebaseUid: 'fb_coord',
     email: 'c@example.com',
     role: 'coordinator',
     status: 'active',
     onboardingStage: 'profile_complete',
+    identity: identityFor(`fb_${id}`),
     createdAt: new Date('2026-04-01T00:00:00Z'),
     updatedAt: new Date('2026-04-01T00:00:00Z'),
     displayName: undefined,
@@ -181,23 +190,102 @@ describe('User', () => {
     })
   })
 
+  describe('selectSemester()', () => {
+    function completeStudent(): User {
+      const u = buildStudent()
+      u.changeProgramCode('BP096')
+      u.setAcademicInfo(buildCompleteAcademic())
+      return u
+    }
+
+    it('throws ConflictError(profile_incomplete) when profile is not complete', () => {
+      const u = buildStudent()
+      expect(() => u.selectSemester('sem_001', new Date('2026-04-01T00:00:00Z'))).toThrow(
+        'Profile must be complete'
+      )
+    })
+
+    it('writes semesterId on a complete profile', () => {
+      const u = completeStudent()
+      u.selectSemester('sem_001', new Date('2026-04-01T00:00:00Z'))
+      expect(u.studentProfile?.semesterId).toBe('sem_001')
+    })
+
+    it('preserves semesterSelectedAt across re-selection', () => {
+      const u = completeStudent()
+      u.selectSemester('sem_001', new Date('2026-04-01T00:00:00Z'))
+      const first = u.studentProfile?.semesterSelectedAt
+      u.selectSemester('sem_002', new Date('2026-05-01T00:00:00Z'))
+      expect(u.studentProfile?.semesterId).toBe('sem_002')
+      expect(u.studentProfile?.semesterSelectedAt?.getTime()).toBe(first?.getTime())
+    })
+
+    it('throws ForbiddenError on coordinator', () => {
+      expect(() =>
+        buildCoordinator().selectSemester('sem_001', new Date('2026-04-01T00:00:00Z'))
+      ).toThrow('Cannot edit a non-student user record')
+    })
+  })
+
   describe('User.create()', () => {
-    it('throws when firebaseUid is empty', () => {
+    const identity = UserIdentity.create({
+      provider: 'firebase',
+      providerUserId: 'fb_test',
+      emailSnapshot: 'test@example.com',
+    })
+
+    it('throws when email is empty', () => {
       expect(() =>
         User.create({
           id: '',
           version: 0,
-          firebaseUid: '',
-          email: 'x@y.z',
+          email: '',
           role: 'student',
           status: 'active',
           onboardingStage: 'profile_pending',
+          identity,
           createdAt: new Date(),
           updatedAt: new Date(),
           displayName: undefined,
           studentProfile: incompleteProfile(),
         })
-      ).toThrow('firebaseUid is required')
+      ).toThrow('email is required')
+    })
+
+    it('exposes the identity VO via getter on freshly-created aggregate', () => {
+      const u = User.create({
+        id: 'usr_001',
+        version: 0,
+        email: 'test@example.com',
+        role: 'student',
+        status: 'active',
+        onboardingStage: 'profile_pending',
+        identity,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        displayName: undefined,
+        studentProfile: incompleteProfile(),
+      })
+      expect(u.identity).toBe(identity)
+      expect(u.identity.provider).toBe('firebase')
+      expect(u.identity.providerUserId).toBe('fb_test')
+    })
+
+    it('exposes the identity VO via getter on rehydrated aggregate', () => {
+      const u = User.rehydrate({
+        id: 'usr_001',
+        version: 1,
+        email: 'test@example.com',
+        role: 'student',
+        status: 'active',
+        onboardingStage: 'profile_pending',
+        identity,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        displayName: undefined,
+        studentProfile: incompleteProfile(),
+      })
+      expect(u.identity).toBe(identity)
     })
   })
 })

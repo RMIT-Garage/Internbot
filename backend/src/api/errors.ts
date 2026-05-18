@@ -54,6 +54,8 @@ export class ApiError extends Error {
     const reason = err.reason
     const fields = err.fields
     switch (err.code) {
+      case 'INVALID_QUERY':
+        return new ApiError(400, 'Bad Request', err.message, { reason, fields })
       case 'NOT_FOUND':
         return new ApiError(404, 'Not Found', err.message, { reason, fields })
       case 'FORBIDDEN':

@@ -1,6 +1,11 @@
 /**
  * Domain errors — pure TypeScript, no HTTP status codes.
  * Map to HTTP in api/errors.ts via ApiError.fromDomainError().
+ *
+ * All subclasses accept an optional `{ cause }` (ES2022 `Error.cause`) so
+ * the original underlying error — typically a driver/library error caught
+ * at the infrastructure boundary — can be preserved for diagnostics.
+ * `util.inspect` and most structured loggers serialize `.cause` recursively.
  */
 
 export interface FieldIssue {
@@ -9,13 +14,23 @@ export interface FieldIssue {
   message: string
 }
 
+export interface DomainErrorOptions {
+  cause?: unknown
+}
+
 export class DomainError extends Error {
   readonly code: string
   readonly reason: string | undefined
   readonly fields: FieldIssue[] | undefined
 
-  constructor(message: string, code: string, reason?: string, fields?: FieldIssue[]) {
-    super(message)
+  constructor(
+    message: string,
+    code: string,
+    reason?: string,
+    fields?: FieldIssue[],
+    options?: DomainErrorOptions
+  ) {
+    super(message, options)
     this.name = 'DomainError'
     this.code = code
     this.reason = reason
@@ -24,36 +39,63 @@ export class DomainError extends Error {
 }
 
 export class NotFoundError extends DomainError {
-  constructor(resource: string, id?: string) {
-    super(id ? `${resource} '${id}' not found` : `${resource} not found`, 'NOT_FOUND')
+  constructor(resource: string, id?: string, options?: DomainErrorOptions) {
+    super(
+      id ? `${resource} '${id}' not found` : `${resource} not found`,
+      'NOT_FOUND',
+      undefined,
+      undefined,
+      options
+    )
     this.name = 'NotFoundError'
   }
 }
 
 export class ForbiddenError extends DomainError {
-  constructor(message = 'Forbidden', reason?: string) {
-    super(message, 'FORBIDDEN', reason)
+  constructor(message = 'Forbidden', reason?: string, options?: DomainErrorOptions) {
+    super(message, 'FORBIDDEN', reason, undefined, options)
     this.name = 'ForbiddenError'
   }
 }
 
+export class InvalidQueryError extends DomainError {
+  constructor(
+    message = 'Invalid query',
+    reason?: string,
+    fields?: FieldIssue[],
+    options?: DomainErrorOptions
+  ) {
+    super(message, 'INVALID_QUERY', reason, fields, options)
+    this.name = 'InvalidQueryError'
+  }
+}
+
 export class ConflictError extends DomainError {
-  constructor(message: string, reason?: string) {
-    super(message, 'CONFLICT', reason)
+  constructor(message: string, reason?: string, options?: DomainErrorOptions) {
+    super(message, 'CONFLICT', reason, undefined, options)
     this.name = 'ConflictError'
   }
 }
 
 export class ValidationError extends DomainError {
-  constructor(message: string, reason?: string, fields?: FieldIssue[]) {
-    super(message, 'VALIDATION_ERROR', reason, fields)
+  constructor(
+    message: string,
+    reason?: string,
+    fields?: FieldIssue[],
+    options?: DomainErrorOptions
+  ) {
+    super(message, 'VALIDATION_ERROR', reason, fields, options)
     this.name = 'ValidationError'
   }
 }
 
 export class PreconditionFailedError extends DomainError {
-  constructor(message = 'Precondition failed', reason: string = 'etag_mismatch') {
-    super(message, 'PRECONDITION_FAILED', reason)
+  constructor(
+    message = 'Precondition failed',
+    reason: string = 'etag_mismatch',
+    options?: DomainErrorOptions
+  ) {
+    super(message, 'PRECONDITION_FAILED', reason, undefined, options)
     this.name = 'PreconditionFailedError'
   }
 }
@@ -61,8 +103,13 @@ export class PreconditionFailedError extends DomainError {
 export class MethodNotAllowedError extends DomainError {
   readonly allow: string
 
-  constructor(allow: string, message = 'Method not allowed', reason?: string) {
-    super(message, 'METHOD_NOT_ALLOWED', reason)
+  constructor(
+    allow: string,
+    message = 'Method not allowed',
+    reason?: string,
+    options?: DomainErrorOptions
+  ) {
+    super(message, 'METHOD_NOT_ALLOWED', reason, undefined, options)
     this.name = 'MethodNotAllowedError'
     this.allow = allow
   }

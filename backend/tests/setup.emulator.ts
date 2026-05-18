@@ -21,6 +21,29 @@ import { getAuth, type Auth } from 'firebase-admin/auth'
 const EMULATOR_PROJECT_ID = process.env['FIREBASE_PROJECT_ID'] ?? 'demo-internbot'
 const FIRESTORE_HOST = process.env['FIRESTORE_EMULATOR_HOST'] ?? 'localhost:8080'
 const AUTH_HOST = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? 'localhost:9099'
+const STORAGE_HOST = process.env['FIREBASE_STORAGE_EMULATOR_HOST'] ?? 'localhost:9199'
+
+/**
+ * Sentinels for date-window fixtures in integration + component tests.
+ *
+ * Emulator-backed tests can't use vitest's fake timers (the emulator runs
+ * out-of-process and stamps its own server-side timestamps), so we hard-code
+ * "always open" / "always closed" windows instead. Picking dates close to
+ * "now" silently expires tests months later — `2026-01-01 → 2027-01-01` was
+ * the previous pattern and would have started failing on 2027-01-01.
+ *
+ * Use these constants for any window-state fixture that should be
+ * unconditionally open or closed regardless of when the test runs.
+ */
+export const ALWAYS_OPEN_WINDOW = {
+  open: new Date('2000-01-01T00:00:00Z'),
+  close: new Date('2099-12-31T23:59:59Z'),
+} as const
+
+export const ALWAYS_CLOSED_WINDOW = {
+  open: new Date('2000-01-01T00:00:00Z'),
+  close: new Date('2000-12-31T23:59:59Z'),
+} as const
 
 let initialized = false
 let testApp: App | undefined
@@ -37,7 +60,10 @@ export function initEmulator(): void {
   if (initialized) return
   process.env['FIRESTORE_EMULATOR_HOST'] = FIRESTORE_HOST
   process.env['FIREBASE_AUTH_EMULATOR_HOST'] = AUTH_HOST
+  process.env['FIREBASE_STORAGE_EMULATOR_HOST'] = STORAGE_HOST
   process.env['FIREBASE_PROJECT_ID'] = EMULATOR_PROJECT_ID
+  process.env['FIREBASE_STORAGE_BUCKET'] =
+    process.env['FIREBASE_STORAGE_BUCKET'] ?? `${EMULATOR_PROJECT_ID}-storage`
   process.env['USE_EMULATOR'] = 'true'
   process.env['GCLOUD_PROJECT'] = EMULATOR_PROJECT_ID
 
@@ -65,6 +91,25 @@ export function trackDoc(collection: string, id: string): void {
   trackedDocs.set(collection, set)
 }
 
+/**
+ * Delete every doc tracked by `trackDoc()` and reset the tracking map.
+ *
+ * IMPORTANT — does NOT wipe collections wholesale. Earlier versions did,
+ * for sibling guard collections (`userIdentities`, `semesterNaturalKeys`),
+ * to "prevent accumulation across the suite". That wholesale wipe raced
+ * with sibling test files: file A's `afterEach` would scan the whole
+ * collection while file B was mid-operation, deleting B's in-flight guard
+ * doc and producing inconsistent failures (duplicate-create no longer
+ * 409s, identity lookups returning undefined, etc).
+ *
+ * Test isolation is provided by random ids (`crypto.randomUUID()`) at the
+ * call sites — collisions across tests / runs are not possible. Guard
+ * docs left behind in the emulator are harmless: the emulator drops all
+ * data when its process exits. Tests that *do* care about a specific
+ * guard's lifecycle should `trackDoc('userIdentities', deterministicId)`
+ * (or `'semesterNaturalKeys'`) directly so the cleanup is scoped to
+ * THIS test only.
+ */
 export async function clearDocs(): Promise<void> {
   const db = requireDb()
   const deletions: Promise<unknown>[] = []
@@ -100,17 +145,26 @@ export async function clearAuthUsers(): Promise<void> {
  * Idempotent Firebase Auth user creation in the emulator. Tracks the uid for
  * cleanup in `clearAuthUsers()`.
  *
- * `setCustomUserClaims` (called by `FirebasePlatformClaimsService`) requires
- * the user to exist — call this before invoking a command handler that sets
- * claims, or before issuing a component-test request that will trigger such a
- * handler.
+ * Always provisions with `emailVerified: true` so the resulting ID token
+ * passes the production `email_verified === true` gate (enforced by both the
+ * `enforceVerifiedEmail` blocking function and the backend token verifier).
+ * Tests that want to exercise the unverified path should call
+ * `auth.updateUser(uid, { emailVerified: false })` explicitly after this
+ * helper returns.
  */
 export async function ensureFirebaseUser(uid: string, email?: string): Promise<void> {
   const auth = requireAuth()
   try {
-    await auth.getUser(uid)
+    const existing = await auth.getUser(uid)
+    if (!existing.emailVerified) {
+      await auth.updateUser(uid, { emailVerified: true })
+    }
   } catch {
-    await auth.createUser({ uid, ...(email ? { email } : {}) })
+    await auth.createUser({
+      uid,
+      ...(email ? { email } : {}),
+      emailVerified: true,
+    })
   }
   trackAuthUser(uid)
 }

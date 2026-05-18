@@ -30,13 +30,13 @@ jobs:
     name: Deploy Functions (${{ inputs.firebase_project_id }})
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6.0.5
         with:
           version: 10
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -55,16 +55,38 @@ jobs:
           workload_identity_provider: ${{ inputs.wif_provider }}
           service_account: ${{ inputs.deploy_service_account }}
 
+      # Identity Platform password policy lives outside Terraform
+      # (`google_identity_platform_config` does not surface
+      # `password_policy_config`). Re-asserting on every deploy keeps the
+      # policy declarative-by-execution; the script is idempotent and uses
+      # the ADC file written by the auth step above.
+      - name: Apply Identity Platform password policy
+        env:
+          FIREBASE_PROJECT_ID: ${{ inputs.firebase_project_id }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+        run: pnpm --filter backend run auth:configure-password-policy
+
       - name: Deploy to Firebase
         # Pinned firebase-tools major version for deterministic CI runs.
         # Uses root firebase.json (functions-only config). The emulator has its
         # own config under docker/firebase-emulator/firebase.json.
         # Public-invoker IAM is declared in backend/src/index.ts via
         # `invoker: 'public'` — Firebase deploy sets it automatically.
+        # FIREBASE_PROJECT_ID is consumed by `resolveStorageBucket()` in
+        # backend/src/infrastructure/config/storage-bucket.ts when the
+        # firebase CLI parses function configs to discover the bucket for
+        # the `syncAttachmentMetadata` storage trigger.
         env:
           FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
+          FIREBASE_PROJECT_ID: ${{ inputs.firebase_project_id }}
+        # `--force` bypasses the "function has a retry/failure policy"
+        # confirmation prompt. `syncAttachmentMetadata` sets `retry: true`
+        # on its `onObjectFinalized` trigger so transient Firestore /
+        # Storage failures are redelivered by Eventarc; that policy is
+        # intentional but Firebase CLI requires explicit acknowledgement.
         run: |
           npx --yes firebase-tools@15 deploy \
             --only ${{ inputs.deploy_targets }} \
             --project ${{ inputs.firebase_project_id }} \
-            --non-interactive
+            --non-interactive \
+            --force

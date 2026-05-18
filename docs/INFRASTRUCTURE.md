@@ -12,6 +12,7 @@ GCP + Firebase resources are managed with **Terraform** in `infrastructure/`. De
 | `storage`          | Firebase Storage bucket                                                |
 | `hosting`          | Firebase Hosting default site (tracks auto-created site in state)      |
 | `github-oidc`      | Workload Identity pool, OIDC provider, github-deploy SA, role bindings |
+| `web-app`          | Firebase Web App + `firebase-web-config` Secret Manager export         |
 
 ## Environments
 
@@ -99,6 +100,35 @@ To switch envs locally, re-init with the other state bucket:
 rm -rf .terraform
 terraform init -backend-config="bucket=internbot-prod-tf-state"
 ```
+
+## Frontend build config (Secret Manager)
+
+The hosting deploy workflow does not take Firebase web SDK values as inputs — they live in a single Secret Manager secret per project, named `firebase-web-config` everywhere. The `web-app` module:
+
+- Provisions a `google_firebase_web_app` resource
+- Reads its SDK config via the `google_firebase_web_app_config` data source
+- Packs `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`, `measurementId`, `apiUrl`, `appUrl` into one JSON value
+- Writes that JSON to `firebase-web-config`
+- Grants `roles/secretmanager.secretAccessor` on just that secret to the deploy SA
+
+`_deploy-hosting.yml` fetches the secret with `gcloud secrets versions access` after OIDC auth, unpacks it with `jq`, and exports each field as a `NEXT_PUBLIC_*` env var for the Next.js build.
+
+**Bootstrapping a project that already has a Web App** (the dev project was created via the Firebase Console, so its app pre-dates Terraform):
+
+```bash
+cd infrastructure
+
+# `firebase apps:list` is a Firebase CLI command (not gcloud) and the
+# --json output is wrapped as { status, result: [...] }
+APP_ID=$(firebase --project=internbot-dev-ae3a3 apps:list WEB --json \
+  | jq -r '.result[0].appId')
+
+terraform import -var-file=envs/dev.tfvars \
+  'module.web_app.google_firebase_web_app.default' \
+  "projects/internbot-dev-ae3a3/webApps/${APP_ID}"
+```
+
+Fresh projects (e.g. prod, which has no web app yet) skip the import — the next `terraform apply` creates it cleanly.
 
 ## Importing pre-existing resources
 

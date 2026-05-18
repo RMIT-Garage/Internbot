@@ -29,7 +29,7 @@ Server Components still exist (they run at build time for static export), but an
 - React hooks (`useState`, `useEffect`, `useContext`, etc.)
 - Event handlers (`onClick`, `onChange`, etc.)
 - Browser APIs (`window`, `localStorage`, `navigator`, etc.)
-- `useAuth`, `apiFetch`, Firebase client SDK
+- `useAuth`, `apiFetch`, Firebase Auth SDK
 
 Pages that read authenticated user state must be `'use client'` — the user is only known in the browser, not at build time.
 
@@ -57,10 +57,9 @@ src/
 │   ├── api/
 │   │   └── client.ts     # apiFetch<T>() — adds Bearer token automatically
 │   ├── firebase/
-│   │   ├── client.ts     # Client SDK singleton
-│   │   ├── auth.ts       # Sign-in helpers
-│   │   ├── firestore.ts  # typedCollection<T>() factory
-│   │   └── storage.ts    # Upload helpers
+│   │   ├── client.ts     # Firebase App + Auth singletons (no Firestore / Storage SDK)
+│   │   ├── auth.ts       # Sign-in / sign-up / verification email helpers
+│   │   └── auth-errors.ts # Firebase Auth error → toast text
 │   ├── validations/      # Zod schemas for forms
 │   └── utils.ts          # cn(), formatDate(), truncate()
 ├── hooks/                # Cross-domain hooks — useAuth, useRequireAuth
@@ -100,14 +99,16 @@ Never call the backend with a raw `fetch()` — you'll lose the auth header.
 
 ## Auth Flow (client-only)
 
-1. User signs in via `@/lib/firebase/auth` (client SDK)
-2. `onAuthStateChanged` in `AuthProvider` fires → `user` is set
-3. `AuthProvider` syncs the profile doc to Firestore (`users/{uid}`)
-4. Protected routes use `useRequireAuth()` in their layout — redirects to `/login` if no user
-5. Login/register pages use `useRedirectIfAuthed()` — pushes to `/dashboard` if already signed in
-6. Backend authz: every API call attaches a fresh ID token; backend verifies via `authMiddleware`
+1. User signs in / signs up via `@/lib/firebase/auth` (Firebase Auth SDK only).
+2. `onAuthStateChanged` in `AuthProvider` fires → `user` is set; the provider does NOT touch Firestore.
+3. After sign-up, `sendEmailVerification` is queued and the user is routed to `/verify-email`.
+4. Frontend calls `GET /api/v1/users/me` via `apiFetch`. The backend JIT-creates the platform `users/{id}` doc on the first verified-email request.
+5. A `403` with `reason: 'no_platform_user'` means the Firebase email is not verified yet — route to `/verify-email`. A `200` profile means the user is fully provisioned.
+6. Protected routes use `useRequireAuth()` in their layout — redirects to `/login` if no user.
+7. Login/register pages use `useRedirectIfAuthed()` — pushes to `/dashboard` if already signed in.
+8. Backend authz: every API call attaches a fresh ID token; backend verifies via `authMiddleware`.
 
-There is **no session cookie and no server-side auth verification in the frontend**. All security happens at the backend/Firestore-rules boundary.
+There is **no session cookie and no server-side auth verification in the frontend**. All security and Firestore access lives behind the backend API.
 
 ---
 
@@ -131,3 +132,4 @@ Tests live in `frontend/tests/unit/` mirroring `src/`.
 - `vi.mock('@/lib/firebase/client')` in setup
 - Use `@testing-library/react` for components, `renderHook` for hooks
 - Do not test `src/components/ui/` (shadcn) or `src/app/` pages
+- Never write tests that import `firebase/firestore` — the frontend doesn't talk to Firestore directly.

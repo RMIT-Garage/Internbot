@@ -46,15 +46,15 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 
 ### Method-name prefixes
 
-| Prefix                  | Returns                    | Use                                           |
-| ----------------------- | -------------------------- | --------------------------------------------- |
-| `is*()`                 | boolean (often type guard) | Predicate                                     |
-| `has*()`                | boolean                    | Presence check                                |
-| `ensure*()`             | void (throws)              | Invariant guard                               |
-| `with*()`               | new VO instance            | VO mutator (immutable)                        |
-| `change*` / `set*`      | void (aggregate mutates)   | Aggregate command                             |
-| `clear*()`              | void (aggregate mutates)   | Aggregate command that removes a field        |
-| `markX` / domain event  | new VO / void              | Intent-revealing state transition             |
+| Prefix                 | Returns                    | Use                                    |
+| ---------------------- | -------------------------- | -------------------------------------- |
+| `is*()`                | boolean (often type guard) | Predicate                              |
+| `has*()`               | boolean                    | Presence check                         |
+| `ensure*()`            | void (throws)              | Invariant guard                        |
+| `with*()`              | new VO instance            | VO mutator (immutable)                 |
+| `change*` / `set*`     | void (aggregate mutates)   | Aggregate command                      |
+| `clear*()`             | void (aggregate mutates)   | Aggregate command that removes a field |
+| `markX` / domain event | new VO / void              | Intent-revealing state transition      |
 
 ### CQRS handlers
 
@@ -62,17 +62,20 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 - Cross-cutting transport metadata goes on `cmd.metadata: CommandMetadata` (expectedVersion, future correlationId / idempotencyKey).
 - `actor: RequestActor` is always the first field of the command/query.
 - Specific id naming: `userId`, `semesterId` — **not** generic `targetId`.
-- Authz inline; no shared `application/authz/` module.
+- **Uniform constructor signature.** Commands take `(uow, authz, idGen?)`; queries take `(...queryServices, authz)` (where `...queryServices` are the read-side ports the handler reads from). Never inject `XxxQueryService` into a command, and never inject `UnitOfWork` into a query — the write side and read side are strictly separated.
+- **Authorization is a port.** Every handler depends on `AuthorizationService` and goes through one of three primitives: `requirePlatformUser(actor)`, `requireRole(actor, allowed)`, `requireSelfOrRole(actor, ownerId, privileged)`. No inline `if (platformUser.role === ...)` checks in handlers.
+- **Cross-aggregate reads inside a write txn live on the write-side repo**, not on `XxxQueryService`. Examples: `UserRepository.listCoordinators()` for fan-out recipients, `NotificationRepository.listUnreadByUserId()` for bulk mark-read, `InternshipRepository.findByUserIdAndOpportunityId()` for duplicate-application guards. Read-only list/find used by query handlers stays on the query service.
 - Handlers call aggregate methods — they don't mutate `user.studentProfile` directly.
 - Commands return `{ id }` only; route dispatches a follow-up query for the response body.
 - Throw `DomainError` / `ValidationError`, never `Result`.
 
 ### Optimistic concurrency
 
-- `User.version` is set from Firestore `updateTime.toMillis()` on load.
-- **Never incremented client-side.** Firestore owns it.
-- `repo.save(user)` reads in-txn, compares, throws `PreconditionFailedError` on mismatch.
+- `User.version` / `Semester.version` is an **app-managed monotonic integer** persisted on the doc.
+- **Never incremented client-side.** New aggregates start at `0`; the repo bumps to `stored + 1` on every save inside the transaction.
+- `repo.save(...)` reads the stored `version` in-txn, compares against the domain version, throws `PreconditionFailedError` on mismatch.
 - API layer parses `If-Match` → `cmd.metadata.expectedVersion`; handler throws early on mismatch (clean 412).
+- HTTP ETag is `W/"${user.version}"`; same integer round-trips through the wire.
 
 ### Naming
 
@@ -91,12 +94,14 @@ Clean Architecture + DDD + CQRS + Unit of Work. Four layers, strict dependency r
 
 Three tiers; emulator required for integration + component. Full details: [docs/TESTING.md](../docs/TESTING.md).
 
-| Tier         | Folder                                     | Emulator       |
-| ------------ | ------------------------------------------ | -------------- |
-| Unit         | `backend/tests/unit/domain/**`             | No             |
-| Integration  | `backend/tests/integration/application/**` | Yes            |
-| Component    | `backend/tests/component/routes/**`        | Yes            |
-| Architecture | `backend/tests/architecture/**`            | No             |
+| Tier         | Folder                                     | Emulator |
+| ------------ | ------------------------------------------ | -------- |
+| Unit         | `backend/tests/unit/domain/**`             | No       |
+| Integration  | `backend/tests/integration/application/**` | Yes      |
+| Component    | `backend/tests/component/routes/**`        | Yes      |
+| Architecture | `backend/tests/architecture/**`            | No       |
+
+Unit tests are domain-only. Do not add API/application unit tests; cover CQRS handlers in integration and routes/mappers in component tests.
 
 **Isolation rules (mandatory):** every test generates its own random IDs via `crypto.randomUUID()`; `trackDoc(collection, id)` every doc; `afterEach(clearDocs)`; no `beforeAll` for mutable state; tests run in parallel.
 

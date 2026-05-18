@@ -2,10 +2,8 @@
 
 ## Overview
 
-All collections use the typed collection pattern — see `frontend/src/lib/firebase/firestore.ts`.
-Security rules are in `docker/firebase-emulator/firebase/firestore.rules`.
-
-When adding a new collection, use the `/firebase-collection` Claude Code skill.
+Backend-owned collections are written through the API / Admin SDK. The canonical
+schema is also reflected in `docs/WORKFLOW-API-SPEC.md` §8.
 
 ## Schema versioning
 
@@ -26,25 +24,107 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 ---
 
-## `users` collection
+## `users` Collection
 
 **Path:** `/users/{userId}`
-**Access:** Owner-only (user can read/write their own document; admins can read all)
+**Document ID:** Firestore auto-generated app-user ID. Do not duplicate `id` inside the document body.
+**Access:** Backend-owned.
 
-| Field            | Type                | Required | Description                                  |
-| ---------------- | ------------------- | -------- | -------------------------------------------- |
-| `uid`            | `string`            | Yes      | Firebase Auth UID (same as document ID)      |
-| `email`          | `string`            | Yes      | User's email address                         |
-| `displayName`    | `string \| null`    | Yes      | Display name from Auth or profile            |
-| `photoURL`       | `string \| null`    | Yes      | Profile photo URL                            |
-| `role`           | `'user' \| 'admin'` | Yes      | User role — immutable by user after creation |
-| `createdAt`      | `Timestamp`         | Yes      | When the document was created                |
-| `updatedAt`      | `Timestamp`         | Yes      | When the document was last updated           |
-| `_schemaVersion` | `1`                 | Yes      | Schema version for lazy migration            |
+| Field             | Type                                      | Required | Description                                                                |
+| ----------------- | ----------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `email`           | `string`                                  | Yes      | Email synced from the IdP token                                            |
+| `displayName`     | `string`                                  | No       | Display name copied from the IdP token at JIT bootstrap, mutable via PATCH |
+| `role`            | `'student' \| 'coordinator'`              | Yes      | App role                                                                   |
+| `status`          | `'active' \| 'inactive' \| 'blocked'`     | Yes      | Account lifecycle                                                          |
+| `onboardingStage` | `'profile_pending' \| 'profile_complete'` | Yes      | Derived workflow readiness                                                 |
+| `studentProfile`  | `map`                                     | No       | Present for students only                                                  |
+| `createdAt`       | `Timestamp`                               | Yes      | Server creation time                                                       |
+| `updatedAt`       | `Timestamp`                               | Yes      | Server update time                                                         |
+| `_schemaVersion`  | `1`                                       | Yes      | Schema version                                                             |
 
-**Creation:** Auto-created by `AuthProvider` on first sign-in via `syncUserProfile()`.
-**Deletion:** Hard-delete is disabled in security rules. Use `deletedAt` field for soft-delete.
+## `userIdentities` Collection
 
----
+**Path:** `/userIdentities/{provider}__{providerUserId}`
+**Document ID:** Deterministic provider key, currently `firebase__{encodeURIComponent(firebaseUid)}`.
+**Access:** Backend-owned.
 
-<!-- Add new collection schemas below using the /firebase-collection skill -->
+| Field            | Type         | Required | Description                                  |
+| ---------------- | ------------ | -------- | -------------------------------------------- |
+| `provider`       | `'firebase'` | Yes      | Identity provider namespace                  |
+| `providerUserId` | `string`     | Yes      | Provider subject / Firebase UID              |
+| `userId`         | `string`     | Yes      | App user ID pointing to `users/{userId}`     |
+| `emailSnapshot`  | `string`     | No       | Non-authoritative email at provisioning time |
+| `createdAt`      | `Timestamp`  | Yes      | Server creation time                         |
+| `_schemaVersion` | `1`          | Yes      | Schema version                               |
+
+`userIdentities` is the uniqueness rule for IdP users. JIT provisioning creates `users/{userId}` and the matching identity document in one transaction.
+
+## Attachment Subcollections
+
+Attachment metadata is backend-synced from Cloud Storage finalize events. Clients upload files to the Storage path prefix returned by the parent resource, then the trigger writes the matching Firestore metadata document.
+
+`/opportunities/{opportunityId}/attachments/{attachmentId}` stores optional position-description metadata.
+`/internships/{internshipId}/attachments/{attachmentId}` stores offer-document metadata. Internship attachment sync uses replacement semantics: the latest finalized upload replaces older attachment records and the trigger deletes older files.
+
+| Field            | Type        | Required | Description                 |
+| ---------------- | ----------- | -------- | --------------------------- |
+| `filePath`       | `string`    | Yes      | Cloud Storage object path   |
+| `fileName`       | `string`    | No       | Display filename            |
+| `contentType`    | `string`    | No       | MIME type                   |
+| `uploadedAt`     | `Timestamp` | Yes      | Upload/sync timestamp       |
+| `_schemaVersion` | `1`         | No       | Schema version when written |
+
+## `internships` Collection
+
+**Path:** `/internships/{internshipId}`
+**Document ID:** Firestore auto-generated application ID. Do not duplicate `id` inside the document body.
+**Access:** Backend-owned.
+
+| Field                 | Type                                                                                                 | Required | Description                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------- |
+| `userId`              | `string`                                                                                             | Yes      | Student owner; foreign key to `users/{userId}`           |
+| `opportunityId`       | `string`                                                                                             | Yes      | Applied opportunity; foreign key to `opportunities/{id}` |
+| `offerDate`           | `Timestamp`                                                                                          | No       | Offer date once the student has offer details            |
+| `startDate`           | `Timestamp`                                                                                          | No       | Internship start date                                    |
+| `endDate`             | `Timestamp`                                                                                          | No       | Internship end date                                      |
+| `status`              | `'applied' \| 'offer_pending_review' \| 'offer_changes_requested' \| 'offer_approved' \| 'rejected'` | Yes      | Student offer workflow state                             |
+| `version`             | `number`                                                                                             | Yes      | Optimistic-concurrency token exposed via `ETag`          |
+| `coordinatorDecision` | `'approved' \| 'rejected' \| 'changes_requested'`                                                    | No       | Latest coordinator decision, populated by Phase 6        |
+| `coordinatorComment`  | `string`                                                                                             | No       | Latest coordinator feedback, populated by Phase 6        |
+| `reviewedByUserId`    | `string`                                                                                             | No       | Coordinator reviewer, populated by Phase 6               |
+| `reviewedAt`          | `Timestamp`                                                                                          | No       | Latest review timestamp, populated by Phase 6            |
+| `lastSubmittedAt`     | `Timestamp`                                                                                          | No       | Most recent offer-submission timestamp                   |
+| `createdAt`           | `Timestamp`                                                                                          | Yes      | Server creation time                                     |
+| `updatedAt`           | `Timestamp`                                                                                          | Yes      | Server update time                                       |
+| `_schemaVersion`      | `1`                                                                                                  | Yes      | Schema version                                           |
+
+### Internship Subcollections
+
+`/internships/{internshipId}/attachments/{attachmentId}` stores synced offer-document metadata:
+
+See [Attachment Subcollections](#attachment-subcollections).
+
+`/internships/{internshipId}/activity/{activityId}` stores timeline events:
+
+| Field            | Type                                                                                                   | Required    | Description                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | ----------- | ---------------------------------------- |
+| `type`           | `'apply' \| 'submit_offer' \| 'comment' \| 'approve_offer' \| 'request_changes' \| 'reject' \| 'edit'` | Yes         | Activity kind                            |
+| `authorUserId`   | `string`                                                                                               | Yes         | Actor user id                            |
+| `authorRole`     | `'student' \| 'coordinator'`                                                                           | Yes         | Actor role at write time                 |
+| `text`           | `string`                                                                                               | Conditional | Required for comment/request/reject text |
+| `createdAt`      | `Timestamp`                                                                                            | Yes         | Server creation time                     |
+| `_schemaVersion` | `1`                                                                                                    | Yes         | Schema version                           |
+
+## `internshipApplications` Collection
+
+**Path:** `/internshipApplications/{encodeURIComponent(userId)}__{encodeURIComponent(opportunityId)}`
+
+Deterministic uniqueness sentinel for `POST /api/v1/internships`. It prevents a student from creating duplicate applications for the same opportunity, including concurrent retries.
+
+| Field            | Type        | Required | Description           |
+| ---------------- | ----------- | -------- | --------------------- |
+| `internshipId`   | `string`    | Yes      | Created internship id |
+| `userId`         | `string`    | Yes      | Student owner         |
+| `opportunityId`  | `string`    | Yes      | Applied opportunity   |
+| `createdAt`      | `Timestamp` | Yes      | Server creation time  |
+| `_schemaVersion` | `1`         | Yes      | Schema version        |

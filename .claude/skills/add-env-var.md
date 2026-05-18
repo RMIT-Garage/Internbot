@@ -11,14 +11,14 @@ Add a new environment variable consistently. **Step 1 is classification — get 
 
 Ask the user, or infer from context. Every value is exactly one of:
 
-| #   | Category                                                          | Where it lives                                                              | Injected into CI how                                              |
-| --- | ----------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | **Non-secret config** (project ID, region, app name, URL)         | Committed: `tfvars`, workflow `env:`, code default                          | Hardcoded in workflow `with:` or `env:` — repo is source of truth |
-| 2   | **`NEXT_PUBLIC_*` build values** (visible in browser anyway)      | Committed: workflow `env:` OR code default                                  | Hardcoded in workflow `env:` for build step                       |
-| 3   | **Build-time secret** (API key used during build, NOT in browser) | GCP Secret Manager                                                          | `google-github-actions/get-secretmanager-secrets@v2`              |
-| 4   | **Runtime backend secret** (Stripe, OpenAI, SendGrid)             | GCP Secret Manager via `defineSecret()`                                     | **Never — GitHub Actions does NOT touch these**                   |
-| 5   | **Deploy credential**                                             | Nothing — OIDC/WIF replaces them                                            | `google-github-actions/auth@v2` mints short-lived token           |
-| 6   | **Local dev only**                                                | `backend/.env` (non-secret) or `backend/.secret.local` (secret, gitignored) | N/A — local only                                                  |
+| #   | Category                                                          | Where it lives                                                                                                                                            | Injected into CI how                                                                     |
+| --- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | **Non-secret config** (project ID, region, app name, URL)         | Committed: `tfvars`, workflow `env:`, code default                                                                                                        | Hardcoded in workflow `with:` or `env:` — repo is source of truth                        |
+| 2   | **`NEXT_PUBLIC_*` build values** (visible in browser anyway)      | Firebase web SDK values: Secret Manager `firebase-web-config` (Terraform-owned). Constants (e.g. `NEXT_PUBLIC_APP_NAME`): code default or workflow `env:` | Hosting workflow fetches the secret with `gcloud` and writes each field to `$GITHUB_ENV` |
+| 3   | **Build-time secret** (API key used during build, NOT in browser) | GCP Secret Manager                                                                                                                                        | `google-github-actions/get-secretmanager-secrets@v2`                                     |
+| 4   | **Runtime backend secret** (Stripe, OpenAI, SendGrid)             | GCP Secret Manager via `defineSecret()`                                                                                                                   | **Never — GitHub Actions does NOT touch these**                                          |
+| 5   | **Deploy credential**                                             | Nothing — OIDC/WIF replaces them                                                                                                                          | `google-github-actions/auth@v2` mints short-lived token                                  |
+| 6   | **Local dev only**                                                | `backend/.env` (non-secret) or `backend/.secret.local` (secret, gitignored)                                                                               | N/A — local only                                                                         |
 
 **Litmus test:** "If an attacker knows this value, do they gain any power?" No → config. Yes → secret.
 
@@ -54,28 +54,51 @@ Ask the user, or infer from context. Every value is exactly one of:
 - Add to `frontend/.env.example` with a comment
 - Add to `frontend/.env.local` locally (gitignored)
 - Access via `process.env.NEXT_PUBLIC_NAME`
-- For CI builds: hardcode in the workflow `env:` block (these are public — they ship in the browser bundle, no reason to treat as secret):
-  ```yaml
-  - run: pnpm --filter frontend build
-    env:
-      NEXT_PUBLIC_NAME: "the-actual-value"
-  ```
 
-### Category 3 — Build-time secret (rare)
+**For CI builds, route based on what the value is:**
+
+**2a. Firebase web SDK / app URL values** (e.g. `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`) — owned by Terraform, packed into the `firebase-web-config` Secret Manager secret. Add a key to `local.web_config_json` in `infrastructure/modules/web-app/main.tf`:
+
+```hcl
+locals {
+  web_config_json = jsonencode({
+    apiKey = data.google_firebase_web_app_config.default.api_key
+    # ... existing keys
+    newField = "computed-or-derived-value"
+  })
+}
+```
+
+Then add a matching export in `.github/workflows/_deploy-hosting.yml` so the build step sees it:
+
+```bash
+echo "NEXT_PUBLIC_NEW_FIELD=$(echo "$config_json" | jq -r '.newField')" >> "$GITHUB_ENV"
+```
+
+Add the field to the `jq -e` validation list at the top of the same step.
+
+**2b. Constants that aren't env-specific** (e.g. `NEXT_PUBLIC_APP_NAME = "Internbot"`) — keep them as workflow inputs in `_deploy-hosting.yml` with a default:
+
+```yaml
+inputs:
+  public_new_constant:
+    type: string
+    default: "value"
+```
+
+### Category 3 — Build-time secret (rare, distinct from Category 2a)
+
+For non-Firebase-SDK build-time secrets that don't fit the `firebase-web-config` shape (e.g. a third-party API key needed during the bundle build).
 
 - Create in Secret Manager: `echo -n 'value' | gcloud secrets create NAME --data-file=- --project=internbot-dev-ae3a3`
-- Grant deploy SA access: `gcloud secrets add-iam-policy-binding NAME --member=serviceAccount:github-deploy@... --role=roles/secretmanager.secretAccessor`
-- In workflow:
+- Grant deploy SA access: `gcloud secrets add-iam-policy-binding NAME --member=serviceAccount:github-deploy@... --role=roles/secretmanager.secretAccessor` (or, preferred, manage the binding in Terraform)
+- In the workflow, fetch with `gcloud` after the OIDC auth step:
   ```yaml
-  - uses: google-github-actions/get-secretmanager-secrets@v2
-    id: secrets
-    with:
-      secrets: |-
-        NAME:internbot-dev-ae3a3/name-of-secret
+  - run: |
+      echo "NAME=$(gcloud secrets versions access latest --secret=NAME --project=${{ inputs.firebase_project_id }})" >> "$GITHUB_ENV"
   - run: pnpm --filter frontend build
-    env:
-      NAME: ${{ steps.secrets.outputs.NAME }}
   ```
+  Don't reach for `google-github-actions/get-secretmanager-secrets@v2` — the rest of the repo uses plain `gcloud` to keep one auth surface.
 
 ### Category 4 — Runtime backend secret
 

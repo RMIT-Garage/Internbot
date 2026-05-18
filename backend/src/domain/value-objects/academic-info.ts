@@ -60,10 +60,16 @@ export class AcademicInfo {
       ])
     }
     if (!Number.isFinite(props.unitsAttempted) || props.unitsAttempted < 0) {
-      throw new ValidationError('unitsAttempted must be a non-negative number', 'invalid_academic_info')
+      throw new ValidationError(
+        'unitsAttempted must be a non-negative number',
+        'invalid_academic_info'
+      )
     }
     if (!Number.isFinite(props.creditUnitsEarned) || props.creditUnitsEarned < 0) {
-      throw new ValidationError('creditUnitsEarned must be a non-negative number', 'invalid_academic_info')
+      throw new ValidationError(
+        'creditUnitsEarned must be a non-negative number',
+        'invalid_academic_info'
+      )
     }
     if (!Number.isFinite(props.gpa) || props.gpa < 0 || props.gpa > 4) {
       throw new ValidationError('gpa must be between 0 and 4', 'invalid_academic_info')
