@@ -2,78 +2,74 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useRouter } from 'next/navigation'
-import { LayoutDashboard, FileText, Star, Wand2, Settings, HelpCircle, LogOut } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+import {
+  Bell,
+  BriefcaseBusiness,
+  BrainCircuit,
+  FileCheck2,
+  GraduationCap,
+  LayoutDashboard,
+  ScrollText,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/applications', label: 'Applications', icon: FileText },
-  { href: '/shortlist', label: 'Shortlist', icon: Star },
-  { href: '/advisor', label: 'AI Advisor', icon: Wand2 },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/opportunities', label: 'Opportunities', icon: GraduationCap },
+  { href: '/jobs', label: 'Self-Sourced Jobs', icon: BriefcaseBusiness },
+  { href: '/contracts', label: 'Contracts', icon: FileCheck2 },
+  { href: '/advisor', label: 'AI Advisor', icon: BrainCircuit },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
-  const router = useRouter()
-  const { signOut } = useAuth()
-
-  const handleSignOut = async () => {
-    await signOut()
-    router.push('/login')
-  }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
-      {/* Logo */}
-      <div className="flex items-center gap-2 p-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-sm font-bold text-white">
-          I
+    <aside className="hidden w-72 flex-col border-r border-slate-200 bg-white lg:flex">
+      <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-700 text-white shadow-sm">
+          <ScrollText className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-sm leading-tight font-bold text-red-600">Internbot</p>
-          <p className="text-[10px] tracking-widest text-gray-400 uppercase">Academic Curator</p>
+          <span className="block text-sm font-bold text-slate-950">
+            {process.env.NEXT_PUBLIC_APP_NAME ?? 'Internbot'}
+          </span>
+          <span className="block text-xs text-slate-500">Student Hub</span>
         </div>
       </div>
-
-      {/* Main nav */}
-      <nav className="flex-1 space-y-1 px-4 py-4">
+      <nav className="flex-1 space-y-1.5 p-4">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
+          const active = pathname === href || pathname.startsWith(`${href}/`)
+
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
                 active
-                  ? 'bg-red-50 font-bold text-red-600'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-              }`}
+                  ? 'bg-red-50 text-red-700 shadow-sm ring-1 ring-red-100'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+              )}
             >
-              <Icon size={18} className="shrink-0" />
+              <Icon className="h-4 w-4 shrink-0" />
               {label}
             </Link>
           )
         })}
       </nav>
-
-      {/* Bottom actions */}
-      <div className="space-y-1 border-t border-gray-100 p-4">
-        <Link
-          href="/help"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-        >
-          <HelpCircle size={18} className="shrink-0" />
-          Help Center
-        </Link>
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-        >
-          <LogOut size={18} className="shrink-0" />
-          Logout
-        </button>
+      <div className="border-t border-slate-200 p-4">
+        <div className="rounded-2xl bg-slate-950 p-4 text-white">
+          <p className="text-xs font-bold tracking-[0.18em] text-red-200 uppercase">AI Learning</p>
+          <p className="mt-2 text-sm font-semibold">Learning recommendations ready.</p>
+          <Link
+            href="/advisor"
+            className="mt-3 inline-flex text-xs font-bold text-red-200 hover:text-white"
+          >
+            Open advisor
+          </Link>
+        </div>
       </div>
     </aside>
   )

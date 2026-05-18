@@ -4,21 +4,14 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  LayoutDashboard,
-  FileText,
-  Calendar,
-  FolderOpen,
   Wand2,
   Settings,
-  HelpCircle,
-  Bell,
   MessageSquare,
   Send,
   Paperclip,
   Info,
   CheckCircle,
   CreditCard,
-  ChevronRight,
   LifeBuoy,
   Zap,
 } from 'lucide-react'
@@ -90,9 +83,9 @@ export function AIAdvisorPortal() {
   const [ticketBody, setTicketBody] = useState('')
   const [submittingTicket, setSubmittingTicket] = useState(false)
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  // useEffect(() => {
+  //   chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  // }, [messages])
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
@@ -358,7 +351,7 @@ Do not invent specific policy details you are unsure about — tell the student 
             </div>
 
             {/* Need Human Help */}
-            <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-8 text-white">
+            {/* <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-8 text-white">
               <h4 className="mb-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                 Need Human Help?
               </h4>
@@ -372,20 +365,7 @@ Do not invent specific policy details you are unsure about — tell the student 
                 size={120}
                 className="absolute -right-10 -bottom-10 text-white opacity-[0.03]"
               />
-            </div>
-
-            {/* Response time */}
-            <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <div>
-                <p className="mb-1 text-[9px] font-bold tracking-widest text-gray-400 uppercase">
-                  Avg Response Time
-                </p>
-                <h4 className="text-2xl font-black text-slate-900">Instant</h4>
-              </div>
-              <div className="rounded-xl bg-red-50 p-3 text-red-600">
-                <Zap size={24} />
-              </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
