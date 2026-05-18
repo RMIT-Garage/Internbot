@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        profile: null,
+        profile,
         loading,
         needsVerification,
         signInWithEmail,
