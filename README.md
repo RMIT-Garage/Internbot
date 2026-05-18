@@ -458,7 +458,7 @@ See [docs/CI-CD.md](docs/CI-CD.md) for the full deployment pipeline.
 - **Backend** → Firebase Cloud Functions (`deploy_targets: functions,firestore,storage`)
 - **Infrastructure** → Terraform (GCP project, Firestore DB, Auth, Storage bucket, GitHub WIF/OIDC)
 - **Auth**: OIDC/Workload Identity Federation — no stored service account keys
-- **Frontend hosting**: not deployed from this repo yet
+- **Frontend hosting** → Firebase Hosting (Next.js static export). `NEXT_PUBLIC_FIREBASE_*` values are fetched from Secret Manager (`firebase-web-config`, written by Terraform) at build time
 
 Deploys:
 - Push to `develop` → `deploy-dev.yml` runs CI → terraform apply → firebase deploy → `internbot-dev-ae3a3`

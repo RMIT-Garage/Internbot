@@ -15,15 +15,15 @@
   /─────────────────────────────\
 ```
 
-Backend work uses **four** levels (plus architecture meta-tests). Every phase's PR must include unit + integration + component coverage where applicable.
+Backend work uses **four** levels (plus architecture meta-tests). Every phase's PR must include domain unit + integration + component coverage where applicable.
 
-| Level            | Folder                               | Emulator | Typical duration per test | What it covers                                                                                                                                        |
-| ---------------- | ------------------------------------ | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unit**         | `backend/tests/unit/**`              | No       | < 10ms                    | Pure logic — domain classes & rules, application handlers with mocked UoW, mapper round-trips                                                         |
-| **Integration**  | `backend/tests/integration/**`       | Yes      | 50–200ms                  | Infrastructure bound to real Firestore — repo methods, UoW transactions, driver-error translation, index requirements                                 |
-| **Component**    | `backend/tests/component/**`         | Yes      | 100–500ms                 | Full `createApp()` via `supertest` against Firestore + Firebase Auth emulators. Black-box HTTP contract — one test per spec `Success criteria` bullet |
-| **E2E**          | `e2e/**`                             | Live app | 1–5s                      | Playwright — UI + backend + emulator running together                                                                                                 |
-| **Architecture** | `backend/tests/unit/architecture/**` | No       | < 5ms                     | Dep-rule enforcement (`domain/` no zod, `application/` no firebase-admin, `api/routes/` no direct firebase-admin, no `console.log`, etc.)             |
+| Level            | Folder                          | Emulator | Typical duration per test | What it covers                                                                                                                                        |
+| ---------------- | ------------------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unit**         | `backend/tests/unit/domain/**`  | No       | < 10ms                    | Pure domain logic — aggregate classes, value objects, and domain services/rules only                                                                  |
+| **Integration**  | `backend/tests/integration/**`  | Yes      | 50–200ms                  | CQRS handlers wired to real Firestore UoW, repo methods, UoW transactions, driver-error translation, index requirements                               |
+| **Component**    | `backend/tests/component/**`    | Yes      | 100–500ms                 | Full `createApp()` via `supertest` against Firestore + Firebase Auth emulators. Black-box HTTP contract — one test per spec `Success criteria` bullet |
+| **E2E**          | `e2e/**`                        | Live app | 1–5s                      | Playwright — UI + backend + emulator running together                                                                                                 |
+| **Architecture** | `backend/tests/architecture/**` | No       | < 5ms                     | Dep-rule enforcement (`domain/` no zod, `application/` no firebase-admin, `api/routes/` no direct firebase-admin, no `console.log`, etc.)             |
 
 ## Where each test goes
 
@@ -34,18 +34,15 @@ Pure TypeScript, no network, no emulator. Fast feedback loop.
 - `tests/unit/domain/entities/user.test.ts` — class behaviour (`User.isStudent()`, `User.withStudentProfile(...)`)
 - `tests/unit/domain/value-objects/student-profile.test.ts` — `StudentProfile.isComplete()`, `deriveStatus()`, `equals()`
 - `tests/unit/domain/value-objects/academic-info.test.ts` — `hasAllRequiredFields()`, `equals()`
-- `tests/unit/application/commands/sync-user.test.ts` — handler with **mocked** `UnitOfWork` and `PlatformClaimsService`. Tests authz decisions, domain-rule branches, command-result shape.
-- `tests/unit/application/queries/get-user.test.ts` — same pattern
-- `tests/unit/infrastructure/mappers/user.test.ts` — `mapStorageToUser` / `studentProfileToStorage` round-trips with synthetic `UserStorage` fixtures
-- `tests/unit/architecture/architecture.test.ts` — dep-rule meta-tests
+- `tests/architecture/architecture.test.ts` — dep-rule meta-tests
 
-**Mocks in unit tests**: use `buildMockUow()` from `tests/setup.unit.ts`. Never start the emulator from a unit test.
+Unit tests are **domain-only**. Do not add `tests/unit/api/**`, `tests/unit/application/**`, or mocked-UoW tests. CQRS handlers are covered through integration tests against the real Firestore UoW. API routes, wire DTOs, and mappers are covered through component tests.
 
 ### Integration tests — `backend/tests/integration/`
 
 Infrastructure layer against the real Firestore emulator. These catch Firestore-specific quirks mocks cannot: transaction retries, index errors, serverTimestamp ordering, `updateTime`-based ETags, concurrent write contention.
 
-- `tests/integration/infrastructure/firestore/firestore-user-repository.test.ts` — `create` / `findById` / `findByFirebaseUid` / `update` / `markAcademicInfoConfirmed` against emulator
+- Firestore user repository behavior is exercised through auth-sync integration/component tests: `create` / `findById` / `findByIdentity` / `save` against the emulator
 - `tests/integration/infrastructure/firestore/firestore-unit-of-work.test.ts` — transaction rollback on throw, concurrent execute contention
 - `tests/integration/infrastructure/firestore/translate-firestore-errors.test.ts` — driver-error → DomainError mapping with induced emulator errors
 
@@ -55,8 +52,7 @@ Infrastructure layer against the real Firestore emulator. These catch Firestore-
 
 Black-box HTTP against `createApp()` with real Firestore + Firebase Auth emulators. The definitive "this endpoint meets the spec" test.
 
-- `tests/component/routes/auth.test.ts` — POST /auth/sync: first call (creates doc + sets claims), repeat call, missing studentNumber, concurrent first-call race
-- `tests/component/routes/users.test.ts` — GET /users/:id, PATCH /users/:id, all Success-criteria and Bug-finding bullets from the phase
+- `tests/component/routes/users.test.ts` — JIT bootstrap on first authenticated request (GET /users/me triggers it via the hydrator middleware), GET /users/:id, PATCH /users/:id, derived `studentNumber` from RMIT email, no `firebaseUid` leaked, concurrent first-request race resolves to a single user record
 
 **One `it(...)` per bullet** in the governing phase's `Success criteria` + `Bug-finding cases` in `docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md`. This is the **definitive** contract check.
 
@@ -70,12 +66,13 @@ Playwright, one layer up. Covers user journeys across multiple endpoints + UI na
 
 Every phase PR includes tests at each applicable level:
 
-| When the phase adds…       | Minimum required                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------ |
-| A domain class / VO / rule | Unit tests for the class and its methods                                             |
-| A CQRS handler             | Unit test with mocked UoW covering every authz branch + every success/failure return |
-| A repository method        | Integration test against the emulator                                                |
-| A route (the common case)  | Component test per `Success criteria` + `Bug-finding` bullet                         |
+| When the phase adds…       | Minimum required                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| A domain class / VO / rule | Unit tests for the class and its methods                                               |
+| A CQRS handler             | Integration test against the emulator with the real `FirestoreUnitOfWork`              |
+| A repository method        | Integration test against the emulator                                                  |
+| A route (the common case)  | Component test per `Success criteria` + `Bug-finding` bullet                           |
+| API DTOs / mappers         | Component assertions on request parsing, response body, headers, and persistence state |
 
 If a phase introduces a new aggregate, it ships new fixtures + integration tests for the full repo API.
 
@@ -113,26 +110,28 @@ Five jobs, all blocking merge (see `.github/workflows/_ci.yml`):
 4. **Backend Tests (all tiers + coverage ≥80%)** — boots Firebase emulators via `docker compose`, runs `pnpm --filter backend run test:coverage`. Fails if any coverage metric (lines/statements/functions/branches) drops below 80%.
 5. **Security Scan** — gitleaks secret scan
 
-## Mocking Firebase in unit tests
+## No Firebase mocks in unit tests
 
-`backend/tests/setup.unit.ts` stubs `infrastructure/config/firebase-admin` globally so the Admin SDK never initializes during unit tests. Unit tests use the injected mocks:
+Unit tests stay in `backend/tests/unit/domain/**`, so they must not import API, application, infrastructure, Firestore, Firebase Admin, or mocked `UnitOfWork` helpers. `backend/tests/setup.unit.ts` only freezes the clock for deterministic domain fixtures.
 
-```typescript
-import { createApp } from '../../../src/api/app'
-import { mockVerifyToken, mockPlatformClaimsService, buildMockUow, buildRequestActor } from '../../setup'
+For **integration** and **component** tests, do not mock Firebase — the whole point is to run against real emulator behaviour. These use application handlers and `createApp()` with production wiring.
 
-const { uow, users } = buildMockUow()
-const app = createApp({ verifyToken: mockVerifyToken, uow, platformClaimsService: mockPlatformClaimsService })
+## Time in tests — fixtures must not date-rot
 
-vi.mocked(mockVerifyToken).mockResolvedValue(buildRequestActor({ platformUser: { id: 'usr_me', role: 'student' } }))
-users.findById.mockResolvedValueOnce({ user: …, etag: 'W/"1"' })
-```
+Several handlers and aggregates read `new Date()` directly (semester window check, `confirmedAt` settle, `createdAt`/`updatedAt` stamping). Fixtures encoded as absolute ISO dates silently expire. We learned this when `enrolmentCloseAt: 2026-05-01` started failing on 2026-05-02 with no code change.
 
-For **integration** and **component** tests, DO NOT mock — the whole point is to run against real emulator behaviour. These use `createApp()` with the production defaults.
+Two patterns, picked by tier:
+
+**Unit tests** — clock is frozen globally in `tests/setup.unit.ts` to `TEST_NOW` (`2026-04-01T00:00:00Z`), via `vi.useFakeTimers({ shouldAdvanceTime: true, now: TEST_NOW })` in `beforeEach`. Every unit test runs with the same wall-clock value forever. Align fixture dates around `TEST_NOW` (`createdAt: TEST_NOW`, `enrolmentOpenAt: addDays(TEST_NOW, -7)`) and assertions stay valid regardless of when the suite runs. Tests that need a different now can call `vi.setSystemTime(...)` mid-test — `afterEach` resets.
+
+**Integration + component tests** — emulator stamps timestamps server-side and runs out-of-process, so `vi.useFakeTimers` is not an option. Use the `ALWAYS_OPEN_WINDOW` / `ALWAYS_CLOSED_WINDOW` sentinels from `tests/setup.emulator.ts` for any window-state fixture. They expand to `2000-01-01 → 2099-12-31` (and vice-versa), so they're unambiguous and won't expire in any reasonable lifetime.
+
+If you need a window with a _specific_ relationship to "now" (e.g., "open until tomorrow"), compute it from `Date.now()` rather than hard-coding a calendar date.
 
 ## What to skip
 
 - Don't unit-test Express itself (routing, body parsing) — that's Express's job
 - Don't unit-test the Firestore SDK — that's Firebase's job
-- Don't duplicate coverage: if a component test asserts the full contract, the unit test for the same branch only needs to cover the decision logic, not the HTTP shape
-- Don't write component tests that could be unit tests: if your test doesn't need Firestore, move it to unit
+- Don't unit-test CQRS handlers with mocked UoW — use integration tests with real Firestore UoW
+- Don't unit-test API mappers separately — assert the wire contract in component tests
+- Don't write component tests for pure domain rules: move those to domain unit tests

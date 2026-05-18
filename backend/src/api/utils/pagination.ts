@@ -15,6 +15,16 @@ const MAX_LIMIT = 200
 export interface PageToken {
   path: string
   values: unknown[]
+  /**
+   * Sort binding — `"<field>:<direction>"` (e.g. `"createdAt:desc"`).
+   *
+   * Optional at the token level so the helpers stay endpoint-agnostic, but
+   * list endpoints SHOULD set it. On resume, the request's sort param must
+   * match this value or the call is rejected with 400 — silently using a
+   * cursor against a different sort produces undefined ordering and
+   * "missing data" bugs that are extremely hard to repro.
+   */
+  sort?: string
 }
 
 export function encodePageToken(token: PageToken): string {
@@ -32,6 +42,10 @@ export function decodePageToken(raw: string): PageToken {
       typeof (parsed as PageToken).path !== 'string' ||
       !Array.isArray((parsed as PageToken).values)
     ) {
+      throw new Error('Malformed page token')
+    }
+    const sort = (parsed as PageToken).sort
+    if (sort !== undefined && typeof sort !== 'string') {
       throw new Error('Malformed page token')
     }
     return parsed as PageToken

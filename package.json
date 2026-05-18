@@ -43,6 +43,6 @@
   "devDependencies": {
     "concurrently": "9.2.1",
     "lefthook": "1.13.6",
-    "next": "16.2.1"
+    "next": "16.2.4"
   }
 }

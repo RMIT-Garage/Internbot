@@ -103,31 +103,34 @@ Authentication is only the entry point into the platform. It should not dominate
 ### Authentication Rules
 
 - Verify the Firebase ID token in every backend request.
-- Create or upsert the local app user on the first verified request.
+- Hydrate the platform user from `userIdentities/firebase__{uid}` → `users/{id}` on every request (no JWT custom claims, no client handshake).
+- On a brand-new student-shape email the hydrator JIT-creates the `users/{id}` aggregate in the same transaction as the lookup — there is no dedicated bootstrap endpoint.
+- Restrict student sign-up to RMIT student emails (`s\d+@student.rmit.edu.au`) at the IdP layer via the `enforceStudentEmail` GCIP `beforeUserCreated` blocking function.
+- Enforce a project-level password policy at the IdP layer (min length 8, requires uppercase + lowercase + numeric + non-alphanumeric, `enforcementState: ENFORCE`). Configured by `backend/scripts/configure-password-policy.ts` because the Terraform `google_identity_platform_config` resource does not surface `password_policy_config`; `beforeUserCreated` cannot enforce it either since the blocking-function event payload does not include the raw password.
 
 ### Flow
 
-1. User signs in on the frontend with Firebase Auth.
+1. User signs in on the frontend with Firebase Auth (email/password, RMIT student email enforced by the blocking function).
 2. Firebase Auth returns an ID token for the signed-in user.
-3. Frontend calls `POST /api/v1/auth/sync` with the bearer token.
-4. Backend verifies the token with Firebase Admin.
-5. Backend looks up the existing user by `firebaseUid`.
-6. If no user exists, backend generates a new platform `id` and creates a `users/{id}` document with `firebaseUid`, `role: student`, and an embedded initial `studentProfile`.
-7. Backend returns the user record (identity + role + onboarding state).
-8. Frontend uses the onboarding state to decide the next screen.
+3. Frontend calls any authenticated backend endpoint with the bearer token (typically `GET /api/v1/users/me`).
+4. Backend's auth middleware verifies the token, then runs the platform-user hydrator:
+   - looks up `userIdentities/firebase__{uid}` → `users/{id}` in a transaction
+   - on first request from a new student, the hydrator derives `studentNumber` from the IdP-attested email's local part (`s1234567@student.rmit.edu.au` → `s1234567`), generates a platform `id`, and creates `users/{id}` (with `role: student`, `onboardingStage: profile_pending`, an initial `studentProfile` with `profileStatus: incomplete`) plus the `userIdentities/firebase__{uid}` sentinel atomically
+5. The handler runs against the hydrated `actor.platformUser`.
+6. Frontend uses the response (onboarding state, current workflow step) to decide the next screen.
 
 ### Notes
 
-- The frontend signs in with Firebase Auth first, then calls backend APIs with the Firebase ID token.
-- The backend uses the verified token to identify the caller and load the platform user and workflow state.
-- If the user record does not exist yet, the backend creates it during the first verified request.
+- The frontend signs in with Firebase Auth first, then calls backend APIs with the Firebase ID token. There is no `POST /auth/sync` step — the IdP token is the only thing the frontend ever sends.
+- The backend uses the verified token to identify the caller and load (or JIT-create) the platform user and workflow state.
+- The `studentNumber` is derived server-side from the IdP-attested RMIT student email; clients never send it. It is immutable thereafter (returns `400 immutable_field` on PATCH attempts to change it).
 - Federation with RMIT's institutional identity provider (Entra ID / SSO) is **not in scope** for this platform. Students authenticate directly with Firebase Auth using their RMIT student email.
 
 ### Role Provisioning
 
-- **Platform user id vs Firebase Auth UID.** The `users` collection uses Firestore auto-generated document IDs as the primary key (exposed to clients as `id`). The `firebaseUid` is stored as a separate indexed field on the user document — it is used only to resolve authenticated requests to a platform user, not as a key. URLs, foreign keys, and all domain data reference the platform `id`, never the Firebase UID. Foreign keys to users are named `userId` (e.g. `internships.userId`, `notifications.userId`) to make their reference nature obvious in the data model. This decouples the platform data model from the authentication provider.
-- **Students** self-register through the normal sign-in flow. Any user created through `POST /auth/sync` is assigned `role: student` — this is the only role the public signup path produces. On first sync, the backend generates a new platform `id` (Firestore auto-ID), creates `users/{id}` with `firebaseUid` set to the authenticated Firebase UID and `role: student`, and embeds an initial `studentProfile` map with the supplied `studentNumber`.
-- **Coordinators** are **never** created through the public sign-in flow. Coordinator user records are provisioned manually by an administrator — typically by generating a platform `id`, creating the `users/{id}` document with `role: coordinator` and the coordinator's `firebaseUid`, all out of band. The backend treats coordinator provisioning as an administrative action, not a user-facing feature. Coordinator user documents do not have a `studentProfile` field **and coordinators never own internships** — they only review them. Any attempt by a user with `role: coordinator` to create an internship returns `403`.
+- **Platform user id vs Firebase Auth UID.** The `users` collection uses Firestore auto-generated document IDs as the app-user primary key (exposed to clients as `id`). Auth-provider identifiers live in `userIdentities/{provider}__{providerUserId}` mapping documents and are not stored on `users`. URLs, foreign keys, and all domain data reference the platform `id`, never the Firebase UID. Foreign keys to users are named `userId` (e.g. `internships.userId`, `notifications.userId`) to make their reference nature obvious in the data model. This decouples the platform data model from the authentication provider.
+- **Students** self-register through the normal sign-in flow. Any user JIT-created by the auth middleware is assigned `role: student` — this is the only role the public signup path produces. The hydrator generates a new platform `id` (Firestore auto-ID), creates `users/{id}` with `role: student`, creates `userIdentities/firebase__{firebaseUid}` pointing at that user, and embeds an initial `studentProfile` map with `studentNumber` derived from the IdP-attested email's local part (`s\d+@student.rmit.edu.au` → `s\d+`). All in one transaction.
+- **Coordinators** are **never** created through the public sign-in flow. The `enforceStudentEmail` blocking function rejects non-student-shape emails at the IdP layer, so a coordinator's `coord_*@rmit.edu.au` address cannot self-serve sign up. Coordinator user records are provisioned by an administrator (or admin endpoint) using `adminAuth.createUser()` (which **bypasses** the blocking function) plus a transactional Firestore write that creates the `users/{id}` document with `role: coordinator` and the matching `userIdentities/firebase__{uid}` sentinel. By the time the middleware sees a coordinator request, both records already exist and the JIT branch is never entered. Coordinator user documents do not have a `studentProfile` field **and coordinators never own internships** — they only review them. Any attempt by a user with `role: coordinator` to create an internship returns `403`.
 - **Mixed roles:** a single user record holds exactly one `role`. If a staff member also needs student access (rare), they use a separate Firebase Auth identity and receive a separate platform `id`.
 - Role changes after account creation are an administrative action and are not exposed through the API in this version.
 
@@ -148,27 +151,27 @@ These conventions apply to every endpoint in this section. Per-endpoint specs be
 
 Three casing styles are used consistently across the API — each serving a distinct purpose:
 
-| Context                            | Style         | Examples                                                              |
-| ---------------------------------- | ------------- | --------------------------------------------------------------------- |
-| URL path segments (multi-word)     | `kebab-case`  | `/offer-submissions`, `/ai-reviews`, `/semester-selection` |
-| JSON fields and query params       | `camelCase`   | `studentProfile`, `semesterId`, `pageToken`, `nextPageToken`, `sort` |
+| Context                              | Style        | Examples                                                                                      |
+| ------------------------------------ | ------------ | --------------------------------------------------------------------------------------------- |
+| URL path segments (multi-word)       | `kebab-case` | `/offer-submissions`, `/ai-reviews`, `/semester-selection`                                    |
+| JSON fields and query params         | `camelCase`  | `studentProfile`, `semesterId`, `pageToken`, `nextPageToken`, `sort`                          |
 | Enum / status / activity-type values | `snake_case` | `offer_pending_review`, `approve_offer`, `pre_approved`, `published`, `duplicate_application` |
 
 Rationale: kebab-case URL paths are the web convention (everyone reads them that way); camelCase JSON matches JavaScript/TypeScript client ergonomics without a mapping layer; snake_case enum values are the Firestore convention and stay out of the way of code-generated client field names.
 
 #### Authorization
 
-The per-endpoint `Auth:` label is enforced against `users.role`. On every request, the backend resolves the Firebase ID token's UID to a platform user by looking up `users` where `firebaseUid == token.uid`. The resulting document ID (from `snapshot.id`) is the identity used for all downstream authorization and ownership checks, referred to as `caller.id` in the rules below. `Student` means `caller.role == 'student'`. `Coordinator` means `caller.role == 'coordinator'`. `Student owner` means `caller.role == 'student'` **and** the record's `userId` foreign key matches `caller.id`. `Notification owner` means the `notifications` record's `userId` field matches `caller.id`. `Ticket owner` means the `tickets` record's `userId` field matches `caller.id`. A mismatch returns `403`.
+The per-endpoint `Auth:` label is enforced against `users.role`. The auth middleware resolves the Firebase ID token's UID through `userIdentities/firebase__{uid}` → `users/{id}` on every request (no custom claims, no client handshake — see §6 Authentication). On a brand-new student-shape email the hydrator JIT-creates the platform record in the same transaction. `caller.id` is the platform user id used for downstream authorization and ownership checks. `Student` means `caller.role == 'student'`. `Coordinator` means `caller.role == 'coordinator'`. `Student owner` means `caller.role == 'student'` **and** the record's `userId` foreign key matches `caller.id`. `Notification owner` means the `notifications` record's `userId` field matches `caller.id`. `Ticket owner` means the `tickets` record's `userId` field matches `caller.id`. A mismatch returns `403`.
 
 #### Success status codes
 
 Per-endpoint specs below list only failure codes. Success codes follow this table:
 
-| Code            | When                                                                                                                    |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `200 OK`        | Successful `GET`, `PATCH`, `PUT`, or action `POST` that returns a body                                                  |
-| `201 Created`   | Successful `POST` that creates a new resource. Response includes the created resource body and a `Location` header pointing to its canonical URL |
-| `204 No Content`| Successful mutation that returns no body (rare in this API — used only when explicitly noted per endpoint)              |
+| Code             | When                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `200 OK`         | Successful `GET`, `PATCH`, `PUT`, or action `POST` that returns a body                                                                           |
+| `201 Created`    | Successful `POST` that creates a new resource. Response includes the created resource body and a `Location` header pointing to its canonical URL |
+| `204 No Content` | Successful mutation that returns no body (rare in this API — used only when explicitly noted per endpoint)                                       |
 
 #### Error response shape
 
@@ -181,7 +184,11 @@ All non-2xx responses wrap the error under a top-level `error` object — matchi
     "reason": "duplicate_application",
     "message": "You have already applied to this opportunity.",
     "fields": [
-      { "field": "opportunityId", "code": "already_applied", "message": "Existing internship int_017 covers this opportunity" }
+      {
+        "field": "opportunityId",
+        "code": "already_applied",
+        "message": "Existing internship int_017 covers this opportunity"
+      }
     ]
   }
 }
@@ -196,13 +203,13 @@ Coarse codes (`error.code`): `unauthorized`, `forbidden`, `not_found`, `method_n
 
 Fine reasons (`error.reason`) used in this spec:
 
-| HTTP code | `error.code` | `error.reason` examples |
-| --------- | ------------ | ----------------------- |
-| `409` | `conflict` | `duplicate_application`, `invalid_state_transition`, `enrolment_window_closed`, `semester_not_active`, `opportunity_not_published`, `opportunity_semester_mismatch`, `student_has_no_selected_semester`, `natural_key_exists` |
-| `412` | `precondition_failed` | `etag_mismatch` |
-| `422` | `validation_failed` | `profile_incomplete`, `offer_attachment_missing`, `url_not_on_allowlist`, `missing_required_field`, `comment_required_for_decision` |
-| `403` | `forbidden` | `student_not_owner`, `coordinator_not_allowed`, `role_restricted_action` |
-| `503` | `service_unavailable` | `ai_provider_down`, `email_provider_down` |
+| HTTP code | `error.code`          | `error.reason` examples                                                                                                                                                                                                       |
+| --------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `409`     | `conflict`            | `duplicate_application`, `invalid_state_transition`, `enrolment_window_closed`, `semester_not_active`, `opportunity_not_published`, `opportunity_semester_mismatch`, `student_has_no_selected_semester`, `natural_key_exists` |
+| `412`     | `precondition_failed` | `etag_mismatch`                                                                                                                                                                                                               |
+| `422`     | `validation_failed`   | `profile_incomplete`, `offer_attachment_missing`, `url_not_on_allowlist`, `missing_required_field`, `comment_required_for_decision`                                                                                           |
+| `403`     | `forbidden`           | `student_not_owner`, `coordinator_not_allowed`, `role_restricted_action`                                                                                                                                                      |
+| `503`     | `service_unavailable` | `ai_provider_down`, `email_provider_down`                                                                                                                                                                                     |
 
 The list is not exhaustive — implementations may introduce additional `reason` values as new failure modes emerge. The rule for adding a new reason: each distinct client-facing UX message warrants its own reason code. If two failures would render the same user-facing message, they share a reason.
 
@@ -296,7 +303,7 @@ Not exposed in v1. Non-idempotent `POST` creates (`POST /internships`, `POST /ti
 
 - `POST /internships` — rejects with `409` if the student already has an internship for the opportunity (duplicate-application rule)
 - `POST /semesters` — rejects with `409` if a `(semesterCode, courseCode)` tuple already exists (natural-key uniqueness)
-- `POST /auth/sync` — naturally idempotent; the `firebaseUid` lookup ensures one user per Firebase identity
+- JIT bootstrap (§7.1) — naturally idempotent; the `userIdentities/{provider}__{providerUserId}` sentinel created in the same transaction as the user record ensures one app user per Firebase identity
 
 Endpoints without a domain-level dedup rule (`POST /tickets`, `POST /internships/{id}/comments`, `POST /tickets/{id}/replies`) may produce duplicate records on retry. This is accepted risk in v1. A future revision may add an `Idempotency-Key` header (Stripe-style) backed by a dedicated cache when write volume justifies it.
 
@@ -325,91 +332,63 @@ A machine-readable OpenAPI 3.1 document generated from this spec is the recommen
 
 #### File upload pattern
 
-File-backed records should behave like a single user action in the UI, even though the backend handles them in stages.
+File-backed records use a **backend-mediated, two-step intent + finalize** flow. The frontend never holds GCS credentials and never talks to Firebase Storage rules; the backend authorizes the upload, pre-writes the attachment subdoc in an `uploading` state, and an `OBJECT_FINALIZE` storage event flips the row to `finalized`.
 
-Recommended pattern:
+Flow:
 
-1. Frontend creates a draft record with metadata.
-2. Backend returns the draft ID and expected Cloud Storage path prefix.
-3. Frontend uploads one or more files directly to Cloud Storage when the record type supports attachments.
-4. A Cloud Storage `onObjectFinalized` trigger in Cloud Functions v2 parses the storage path and writes attachment metadata into Firestore.
-5. Frontend calls a submit endpoint only when the user is ready to send the current draft for coordinator review.
-6. Backend verifies that required files and metadata are already present in Firestore, then marks the record ready for review.
+1. Frontend `POST`s to an upload-intents endpoint on the parent record (e.g. `/api/v1/internships/{id}/attachments/upload-intents`) with `fileName` and `contentType`.
+2. Backend authorizes the actor against the parent record, mints an `att_*` id and a path of the form `<parent>/<id>/attachments/<attachmentId>-<sanitisedFileName>`, pre-writes the attachment subdoc with `uploadStatus: 'uploading'`, and returns a short-lived V4 signed `PUT` URL plus the attachment metadata.
+3. Frontend `PUT`s the file bytes directly to the signed URL with the matching `Content-Type`. No Firebase Auth, no Storage rules.
+4. GCS emits an `OBJECT_FINALIZE` Eventarc event. The `SyncAttachmentMetadataWorker` extracts `<attachmentId>` from the path prefix, loads the parent aggregate, calls `aggregate.finalizeAttachment(attachmentId, generation, finalizedAt)`, and persists — flipping `uploadStatus` to `'finalized'` and recording the `storageGeneration`.
+5. Frontend `GET`s the parent record (or attachment) and treats `uploadStatus === 'finalized'` as upload-complete. The read path 404s attachments still in `uploading`.
+6. Frontend `POST`s the submit endpoint (e.g. offer submission) once the file shows up as `finalized`. The submit handler requires at least one `finalized` attachment.
 
 Rules:
 
 - Opportunity attachments (position description documents) are optional.
-- Job offer document is required on the internship before offer submission.
-- Cloud Storage upload completion should not, by itself, start review. It only synchronizes file metadata into Firestore.
-- The backend should be the source of truth for saved attachment metadata. Frontend should not be trusted as the final source of attachment records.
-- The Storage-triggered function should verify that each file path matches the expected user-owned upload prefix before saving attachment metadata.
-- When an internship is edited and resubmitted, old attachment records and files should be replaced so the attachment subcollection stores only the latest active files.
-- If upload fails, the record remains in its current state.
+- Job offer document is required on the internship before offer submission; the gate is `attachments.some((a) => a.isFinalized())`, not `length > 0`.
+- The upload-intent endpoint is the only authorization point. There are no Firebase Storage rules on attachment paths — write access is gated entirely by the signed URL, which is only minted after the backend authorizes the actor against the parent record.
+- The backend is the source of truth for saved attachment metadata. Frontend never sends attachment metadata on submit.
+- The storage trigger is idempotent: `finalizeAttachment` is a no-op when the attachment is already `finalized`, so Pub/Sub redelivery is safe.
+- The storage trigger verifies the path's owner prefix matches the attachment's parent before applying the transition (so a leaked signed URL pointed at a stale path cannot finalize another aggregate's row).
+- Attachments are append-only: the storage trigger never deletes prior files. A student may upload multiple files before submitting; resubmission does not remove previously uploaded attachments. Cleanup of obsolete files (if needed) is a separate concern outside the upload trigger.
+- If the PUT fails, the attachment subdoc stays in `uploading` and is invisible to reads; the record remains in its current state. The frontend may retry the intent + PUT.
 - If submit fails, the frontend may retry submit without recreating the draft.
 - A record in review remains editable until the coordinator makes a final decision.
 - Editing a record under review updates the same internship and the coordinator reviews the latest version.
 
-### 7.1 Authentication and User Sync
+### 7.1 Authentication and JIT Bootstrap
 
-#### `POST /api/v1/auth/sync`
+There is **no** `POST /auth/sync` endpoint. Platform identity is hydrated at the api edge on every request from `userIdentities/firebase__{uid}` → `users/{id}`. On the first request from a brand-new student-shape email **whose IdP token carries `email_verified: true`**, the auth middleware's hydrator transactionally creates the `users/{id}` aggregate plus the `userIdentities` sentinel — no client handshake required. The frontend simply hits any authenticated endpoint (typically `GET /api/v1/users/me`) after sign-in and receives the freshly-bootstrapped record.
 
-Purpose: Verify the Firebase identity and return the platform user record. On first sync for a new student, a platform `id` is generated and a new `users/{id}` document is created with `firebaseUid` set, `role: student`, and an embedded initial `studentProfile`.
+#### Email-verification gate
 
-Auth: Any authenticated Firebase user
+JIT bootstrap refuses to create a platform user record unless the IdP-attested `email_verified` claim is `true`. Without this gate an attacker who self-serve-signed up as `s9999999@student.rmit.edu.au` (a real student's email) would receive a usable token before the legitimate owner ever clicks the verification link, allowing them to squat the platform user record. Frontend self-serve sign-up flow:
 
-Request body:
+1. `createUserWithEmailAndPassword(...)` — Firebase Auth creates the account; the `enforceStudentEmail` blocking function rejects non-RMIT-shape emails.
+2. `sendEmailVerification(user)` — Firebase emails the verification link.
+3. User clicks the link → Firebase flips `emailVerified: true` on the user record.
+4. `auth.currentUser.getIdToken(true)` — force-refresh the ID token so it carries `email_verified: true`.
+5. First call to any authenticated endpoint → JIT bootstrap fires → `users/{id}` created.
 
-| Field         | Type   | Required    | Notes                                                                                                                                                                                                                                                                                                                                |
-| ------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| studentNumber | string | Conditional | Required on the **first** `auth/sync` call for a new student (i.e. when no `users` document with the caller's `firebaseUid` exists yet). Ignored on subsequent calls. The value is **immutable after first-set**: neither `auth/sync` nor `PATCH /users/{id}` can change it — a student who needs a correction must contact a coordinator (out-of-band process in v1). Coordinators never need to send this field |
-| displayName   | string | No          | Optional client-supplied display name                                                                                                                                                                                                                                                                                                |
+Until step 5, the caller is Firebase-authenticated but has no platform identity, and every authenticated route returns `403 no_platform_user`. We deliberately do **not** also use a `beforeUserSignedIn` blocking function: it would reject the implicit sign-in inside `createUserWithEmailAndPassword`, leaving the SDK with no `auth.currentUser` and the frontend unable to call `sendEmailVerification`. Verifier-side enforcement is sufficient — an unverified token reaches no application surface.
 
-Success response:
+#### Side effects of first-request JIT bootstrap
 
-- **First call:** `201 Created` with a `Location` header pointing to `/api/v1/users/{id}`.
-- **Subsequent calls:** `200 OK`.
+- Generates a new platform `id` (Firestore auto-ID).
+- Creates `users/{id}` with `role: student`, `status: active`, `onboardingStage: profile_pending`, `email` from the IdP-attested token, and an embedded `studentProfile: { studentNumber, profileStatus: "incomplete" }` where `studentNumber` is derived from the email's local part (`s\d+@student.rmit.edu.au` → `s\d+`).
+- Creates `userIdentities/firebase__{token.uid}` with `userId: id`.
+- All in a single Firestore transaction; concurrent first-requests from the same uid resolve to the same `users/{id}` record (the `userIdentities` sentinel is the uniqueness lock).
 
-In both cases the response body has the same shape as `GET /api/v1/users/me` (polymorphic by role).
+#### Constraints
 
-```json
-{
-  "id": "usr_aBc123XyZ",
-  "email": "s1234567@student.rmit.edu.au",
-  "displayName": "Alex Chen",
-  "role": "student",
-  "status": "active",
-  "onboardingStage": "profile_pending",
-  "currentWorkflowStep": "profile",
-  "studentProfile": {
-    "studentNumber": "s1234567",
-    "programCode": null,
-    "phone": null,
-    "academicInfo": null,
-    "profileStatus": "incomplete"
-  }
-}
-```
-
-Notes:
-
-- `id` is the platform user identifier (Firestore auto-generated, opaque). Clients should store this and use it as the `{id}` path parameter for user-addressed URLs. `me` is accepted as an alias for the caller's own `id` in all user-addressed URLs (regardless of role).
-- `firebaseUid` is intentionally **not** returned — it is an authentication implementation detail that clients never need. Clients identify users by the platform `id`.
-- On repeat calls, the backend looks up the existing user via `firebaseUid`, updates mutable fields (e.g. `displayName`), and returns the same `id`.
-
-Failure cases:
-
-- `401` invalid or missing Firebase token
-- `403` authenticated user is not allowed into the platform
-- `422` first-time student sync is missing `studentNumber` in the request body (required to create the `users/{id}.studentProfile` record on first call)
-
-Side effects:
-
-- **First call (no existing user):** generates a new platform `id` (Firestore auto-ID), creates `users/{id}` with `firebaseUid: token.uid`, `role: student`, `email` and `displayName` from the Firebase token, and `studentProfile: { studentNumber, profileStatus: "incomplete" }`.
-- **Subsequent calls (existing user):** updates `users/{id}` with any supplied `displayName`. Other fields are preserved.
+- `studentNumber` is **immutable** thereafter: PATCH attempts to change it return `400 immutable_field`. A student who needs a correction must contact a coordinator (out-of-band process in v1).
+- `firebaseUid` is intentionally **not** returned in any response — it is an authentication implementation detail that clients never need. Clients identify users by the platform `id`. `me` is accepted as an alias for the caller's own `id` in all user-addressed URLs (regardless of role).
+- The student-email shape is enforced upstream by the `enforceStudentEmail` GCIP `beforeUserCreated` blocking function. Coordinators are admin-provisioned via `adminAuth.createUser({ emailVerified: true })` (which **bypasses** the blocking function) plus a transactional Firestore write — they never reach the JIT branch.
 
 #### Fetching the caller's own record
 
-There is no separate `GET /me` endpoint. Callers fetch their own record with `GET /api/v1/users/me` (see section 7.2). The response is polymorphic on the target user's `role`.
+Callers fetch their own record with `GET /api/v1/users/me` (see section 7.2). The response is polymorphic on the target user's `role`. On a brand-new student's first call this triggers the JIT bootstrap described above.
 
 #### Workflow step vocabulary (reference)
 
@@ -506,7 +485,7 @@ Failure cases:
 
 #### `PATCH /api/v1/users/{id}`
 
-Purpose: Partially update a user. For students, updates fields on the embedded `studentProfile` nested map. Top-level user fields are **never** writable through this endpoint: `email`, `displayName`, `firebaseUid`, and `role` sync from Firebase Auth at sign-in; `status` and `onboardingStage` are administrative fields set by the backend or by out-of-band admin actions.
+Purpose: Partially update a user. For students, updates fields on the embedded `studentProfile` nested map. Top-level user fields are **never** writable through this endpoint: `email`, `displayName`, and `role` sync from Firebase Auth / admin provisioning; `status` and `onboardingStage` are administrative fields set by the backend or by out-of-band admin actions.
 
 Auth: Student owner only (`{id} == caller.id` and `caller.role == 'student'`). Coordinators have no writable fields on the user resource in v1; `PATCH /users/{id}` with `caller.role == 'coordinator'` returns `405 Method Not Allowed` (with `Allow: GET` header) regardless of body contents.
 
@@ -514,9 +493,9 @@ Concurrency: supported (optional `If-Match` header with the user's current `ETag
 
 Request body (student caller):
 
-| Field          | Type   | Required | Notes                                                                                                                                                                                                                                      |
-| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| studentProfile | object | Yes      | The `studentProfile` nested map to merge onto the user document. Required sub-fields: `programCode`, `academicInfo` (see section 8.2A). Optional sub-fields: `phone`. `studentNumber` is immutable after first-set via `POST /auth/sync` — see failure cases below |
+| Field          | Type   | Required | Notes                                                                                                                                                                                                                                                                 |
+| -------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| studentProfile | object | Yes      | The `studentProfile` nested map to merge onto the user document. Required sub-fields: `programCode`, `academicInfo` (see section 8.2A). Optional sub-fields: `phone`. `studentNumber` is immutable after first-set via JIT bootstrap (§7.1) — see failure cases below |
 
 Student request body example:
 
@@ -542,7 +521,7 @@ Success response: the full updated user resource, same shape as `GET /users/{id}
 
 Failure cases:
 
-- `400` invalid field format, or request body attempts to write a non-writable field (`email`, `displayName`, `role`, `firebaseUid`, `status`, `onboardingStage`), or body attempts to change `studentProfile.studentNumber` to a value different from the one set at first `POST /auth/sync`
+- `400` invalid field format, or request body attempts to write a non-writable field (`email`, `displayName`, `role`, `firebaseUid`, `status`, `onboardingStage`), or body attempts to change `studentProfile.studentNumber` to a value different from the one derived at JIT bootstrap
 - `401` unauthorized
 - `403` caller is a student and not the owner (`{id} != caller.id`) — students cannot update other students' records
 - `405` caller has `role: coordinator` — coordinators have no writable fields in v1 (response includes `Allow: GET`)
@@ -551,8 +530,8 @@ Failure cases:
 
 Notes:
 
-- For students, writes the `studentProfile` nested map on `users/{id}`. Identity fields on the user document (`email`, `displayName`, `firebaseUid`, `role`) are not touched — those sync from Firebase Auth at sign-in time through `POST /auth/sync`.
-- `studentProfile.studentNumber` is set once at first `POST /auth/sync` and is immutable thereafter through this endpoint. Students who need to correct a student number must contact a coordinator; this is a product-level safeguard against impersonation and broken linkage to RMIT academic records. Re-sending the same value in a PATCH body is accepted as a no-op; sending a different value returns `400`.
+- For students, writes the `studentProfile` nested map on `users/{id}`. Identity fields on the user document (`email`, `displayName`, `role`) are not touched — those sync from Firebase Auth / admin provisioning. Auth-provider mappings live in `userIdentities`, not on the user document.
+- `studentProfile.studentNumber` is derived server-side from the IdP-attested RMIT student email at JIT-bootstrap time (§7.1) and is immutable thereafter through this endpoint. Students who need to correct a student number must contact a coordinator; this is a product-level safeguard against impersonation and broken linkage to RMIT academic records. Re-sending the same value in a PATCH body is accepted as a no-op; sending a different value returns `400`.
 - The backend sets `studentProfile.academicInfo.confirmedAt` to the server timestamp **only on the first write that transitions `profileStatus` from `incomplete` to `complete`**. Subsequent edits that keep `profileStatus: complete` leave `confirmedAt` unchanged — the field records the original act of confirmation, not the most recent edit.
 - The backend sets `studentProfile.profileStatus` to `complete` when all required `studentProfile` fields and all required `academicInfo` fields are present; otherwise it remains `incomplete`. `profileStatus: complete` is the precondition for selecting a semester.
 - `PATCH /api/v1/users/me` is an alias that resolves `me` to the caller's own id.
@@ -597,10 +576,10 @@ Auth: Owner only (`{id} == caller.id`). A user can only view their own activity 
 
 Query params:
 
-| Field     | Type   | Required | Notes                                                                                 |
-| --------- | ------ | -------- | ------------------------------------------------------------------------------------- |
-| limit     | number | No       | Page size, default `50`, max `200`                                                    |
-| pageToken | string | No       | Opaque cursor from the previous response's `nextPageToken`. Omit on the first request |
+| Field     | Type   | Required | Notes                                                                                                                  |
+| --------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| limit     | number | No       | Page size, default `50`, max `200`                                                                                     |
+| pageToken | string | No       | Opaque cursor from the previous response's `nextPageToken`. Omit on the first request                                  |
 | sort      | string | No       | Sort order. Allowed field: `createdAt` (newest or oldest first). Prefix with `-` for descending. Default: `-createdAt` |
 
 Success response:
@@ -796,7 +775,8 @@ Success response:
       "id": "att_001",
       "fileName": "position-description.pdf",
       "contentType": "application/pdf",
-      "uploadedAt": "2026-04-04T09:05:00Z"
+      "uploadedAt": "2026-04-04T09:05:00Z",
+      "uploadStatus": "finalized"
     }
   ],
   "createdAt": "2026-04-04T09:00:00Z",
@@ -806,7 +786,7 @@ Success response:
 
 Notes:
 
-- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). See section 8.3A for the attachment shape.
+- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). Attachments still in `uploading` state are filtered out — only `finalized` rows are returned. See section 8.3A for the underlying document shape.
 - To obtain a download URL for a specific attachment, fetch the attachment directly via `GET /opportunities/{id}/attachments/{attachmentId}` — the response includes a `downloadUrl` field (see section 7.11).
 
 Response headers:
@@ -860,10 +840,10 @@ Concurrency: supported (optional `If-Match` header with the opportunity's curren
 
 Request body:
 
-| Field   | Type   | Required | Notes                                                                              |
-| ------- | ------ | -------- | ---------------------------------------------------------------------------------- |
-| to      | string | Yes      | Target status. One of `published`, `archived`                                       |
-| comment | string | No       | Free-text note attached to the activity record (useful for archival reasons)        |
+| Field   | Type   | Required | Notes                                                                        |
+| ------- | ------ | -------- | ---------------------------------------------------------------------------- |
+| to      | string | Yes      | Target status. One of `published`, `archived`                                |
+| comment | string | No       | Free-text note attached to the activity record (useful for archival reasons) |
 
 Allowed transitions:
 
@@ -990,11 +970,11 @@ Concurrency: supported (optional `If-Match` header)
 
 Request body:
 
-| Field     | Type   | Required | Notes                              |
-| --------- | ------ | -------- | ---------------------------------- |
-| offerDate | string | Yes      | ISO 8601 date (UTC)                |
-| startDate | string | Yes      | Internship start date (ISO 8601)   |
-| endDate   | string | No       | Internship end date (ISO 8601)     |
+| Field     | Type   | Required | Notes                            |
+| --------- | ------ | -------- | -------------------------------- |
+| offerDate | string | Yes      | ISO 8601 date (UTC)              |
+| startDate | string | Yes      | Internship start date (ISO 8601) |
+| endDate   | string | No       | Internship end date (ISO 8601)   |
 
 Success response (`201 Created`): the full updated internship resource (same shape as `GET /internships/{id}`). Response includes a `Location` header pointing to `/api/v1/internships/{id}`.
 
@@ -1005,7 +985,7 @@ Failure cases:
 - `404` internship does not exist
 - `409` internship is not in `applied` or `offer_changes_requested` state
 - `412` client sent `If-Match` and it does not match the internship's current `ETag` (only possible when the client opts in to concurrency checks)
-- `422` at least one offer attachment is required in the `attachments` subcollection
+- `422` at least one offer attachment in `finalized` state is required in the `attachments` subcollection (rows still `uploading` do not count)
 - `422` missing or invalid offer details (`offerDate`, `startDate`)
 
 Side effects:
@@ -1066,13 +1046,13 @@ Authorization:
 
 Query params:
 
-| Field         | Type   | Required | Notes                                                                                                                                                                  |
-| ------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| status        | string | No       | Filter by internship status. Repeat the param for multi-value (e.g. `?status=applied&status=offer_pending_review`). Comma-separated lists are not accepted (see §7.0)   |
-| opportunityId | string | No       | Filter to internships for a specific opportunity. Useful for coordinators to see who applied to a given opportunity                                                    |
-| userId        | string | No       | Filter to internships owned by a specific user. Coordinators may pass any `userId`. Students may only pass their own or omit — passing another student's returns `400` |
-| limit         | number | No       | Page size, default `50`, max `200`                                                                                                                                     |
-| pageToken     | string | No       | Opaque cursor from the previous response's `nextPageToken`                                                                                                             |
+| Field         | Type   | Required | Notes                                                                                                                                                                                                        |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| status        | string | No       | Filter by internship status. Repeat the param for multi-value (e.g. `?status=applied&status=offer_pending_review`). Comma-separated lists are not accepted (see §7.0)                                        |
+| opportunityId | string | No       | Filter to internships for a specific opportunity. Useful for coordinators to see who applied to a given opportunity                                                                                          |
+| userId        | string | No       | Filter to internships owned by a specific user. Coordinators may pass any `userId`. Students may only pass their own or omit — passing another student's returns `400`                                       |
+| limit         | number | No       | Page size, default `50`, max `200`                                                                                                                                                                           |
+| pageToken     | string | No       | Opaque cursor from the previous response's `nextPageToken`                                                                                                                                                   |
 | sort          | string | No       | Sort order. Allowed fields: `createdAt`, `lastSubmittedAt`. Prefix with `-` for descending. Default: `-createdAt`. Use `sort=lastSubmittedAt` for coordinators draining the review queue FIFO (oldest first) |
 
 Student example (list own internships):
@@ -1165,7 +1145,8 @@ Success response:
       "id": "att_101",
       "fileName": "offer-letter.pdf",
       "contentType": "application/pdf",
-      "uploadedAt": "2026-04-05T02:50:00Z"
+      "uploadedAt": "2026-04-05T02:50:00Z",
+      "uploadStatus": "finalized"
     }
   ],
   "lastSubmittedAt": "2026-04-05T03:14:12Z",
@@ -1177,7 +1158,7 @@ Success response:
 Notes:
 
 - `opportunity*` fields are denormalized from the linked opportunity at query time for convenience. The canonical source is the `opportunities/{opportunityId}` document.
-- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). See section 8.3A for the attachment shape.
+- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). Attachments still in `uploading` state are filtered out — only `finalized` rows are returned. See section 8.3A for the underlying document shape.
 - To obtain a download URL for a specific attachment, fetch the attachment directly via `GET /internships/{id}/attachments/{attachmentId}` — the response includes a `downloadUrl` field (see section 7.11).
 - The `activity` subcollection is not inlined. Clients fetch it separately via the activity feed endpoints.
 
@@ -1239,13 +1220,13 @@ Auth: Authenticated platform user
 
 Query params:
 
-| Field        | Type   | Required | Notes                                                                                 |
-| ------------ | ------ | -------- | ------------------------------------------------------------------------------------- |
-| status       | string | No       | Filter by `draft`, `active`, or `archived`. Repeat the param for multi-value. If omitted, returns all |
-| semesterCode | string | No       | Filter by academic semester code (e.g. `2026-S1`)                                     |
-| courseCode   | string | No       | Filter by RMIT WIL course code (e.g. `INTE2710`)                                      |
-| limit        | number | No       | Page size, default `50`, max `200`                                                    |
-| pageToken    | string | No       | Opaque cursor from the previous response's `nextPageToken`. Omit on the first request |
+| Field        | Type   | Required | Notes                                                                                                             |
+| ------------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| status       | string | No       | Filter by `draft`, `active`, or `archived`. Repeat the param for multi-value. If omitted, returns all             |
+| semesterCode | string | No       | Filter by academic semester code (e.g. `2026-S1`)                                                                 |
+| courseCode   | string | No       | Filter by RMIT WIL course code (e.g. `INTE2710`)                                                                  |
+| limit        | number | No       | Page size, default `50`, max `200`                                                                                |
+| pageToken    | string | No       | Opaque cursor from the previous response's `nextPageToken`. Omit on the first request                             |
 | sort         | string | No       | Sort order. Allowed fields: `createdAt`, `enrolmentOpenAt`. Prefix with `-` for descending. Default: `-createdAt` |
 
 Success response:
@@ -1403,10 +1384,10 @@ Concurrency: supported (optional `If-Match` header with the semester's current `
 
 Request body:
 
-| Field   | Type   | Required | Notes                                                                  |
-| ------- | ------ | -------- | ---------------------------------------------------------------------- |
-| to      | string | Yes      | Target status. One of `active`, `archived`                              |
-| comment | string | No       | Free-text note attached to the activity record (e.g. archival reason)   |
+| Field   | Type   | Required | Notes                                                                 |
+| ------- | ------ | -------- | --------------------------------------------------------------------- |
+| to      | string | Yes      | Target status. One of `active`, `archived`                            |
+| comment | string | No       | Free-text note attached to the activity record (e.g. archival reason) |
 
 Allowed transitions:
 
@@ -1608,8 +1589,8 @@ Auth: Notification owner
 
 Request body:
 
-| Field | Type    | Required | Notes                                                                                                                   |
-| ----- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Field | Type    | Required | Notes                                                                                                                                                                                      |
+| ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | read  | boolean | Yes      | `true` marks the notification as read; `false` is not accepted in v1 (unread is the default state and cannot be reset). The backend owns the `readAt` timestamp — clients do not supply it |
 
 Success response (`200 OK`): the full updated notification resource (same shape as an item in `GET /notifications`).
@@ -1650,8 +1631,8 @@ Auth: Authenticated platform user. The backend scopes the operation to `notifica
 
 Request body:
 
-| Field | Type    | Required | Notes                                                                                                                                   |
-| ----- | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Field | Type    | Required | Notes                                                                                                                                                                                                             |
+| ----- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | read  | boolean | Yes      | `true` marks all the caller's unread notifications as read. `false` is not accepted in v1 (the API does not support bulk-unread). The backend owns the resulting `readAt` timestamps — clients do not supply them |
 
 Success response (`200 OK`):
@@ -1810,12 +1791,12 @@ Authorization:
 
 Query params:
 
-| Field     | Type   | Required | Notes                                                    |
-| --------- | ------ | -------- | -------------------------------------------------------- |
-| status    | string | No       | Filter by `open`, `in_progress`, `resolved`, or `closed` |
-| limit     | number | No       | Page size, default `50`, max `200`                       |
-| pageToken | string | No       | Opaque cursor                                            |
-| sort      | string | No       | Sort order. Allowed fields: `createdAt`. Prefix with `-` for descending. Default: `-createdAt`                            |
+| Field     | Type   | Required | Notes                                                                                          |
+| --------- | ------ | -------- | ---------------------------------------------------------------------------------------------- |
+| status    | string | No       | Filter by `open`, `in_progress`, `resolved`, or `closed`                                       |
+| limit     | number | No       | Page size, default `50`, max `200`                                                             |
+| pageToken | string | No       | Opaque cursor                                                                                  |
+| sort      | string | No       | Sort order. Allowed fields: `createdAt`. Prefix with `-` for descending. Default: `-createdAt` |
 
 Success response:
 
@@ -1922,22 +1903,22 @@ Concurrency: supported (optional `If-Match` header — recommended when student 
 
 Request body:
 
-| Field   | Type   | Required | Notes                                                                |
-| ------- | ------ | -------- | -------------------------------------------------------------------- |
-| to      | string | Yes      | Target status. One of `open`, `in_progress`, `resolved`, `closed`    |
-| comment | string | No       | Free-text note attached to the activity record                       |
+| Field   | Type   | Required | Notes                                                             |
+| ------- | ------ | -------- | ----------------------------------------------------------------- |
+| to      | string | Yes      | Target status. One of `open`, `in_progress`, `resolved`, `closed` |
+| comment | string | No       | Free-text note attached to the activity record                    |
 
 Allowed transitions:
 
-| From          | To            | Who                               |
-| ------------- | ------------- | --------------------------------- |
-| `open`        | `in_progress` | Coordinator                       |
-| `open`        | `closed`      | Ticket owner or coordinator       |
-| `in_progress` | `resolved`    | Coordinator                       |
-| `in_progress` | `closed`      | Ticket owner or coordinator       |
-| `resolved`    | `closed`      | Ticket owner or coordinator       |
-| `resolved`    | `open`        | Ticket owner (reopen)             |
-| `closed`      | `open`        | Ticket owner (reopen)             |
+| From          | To            | Who                         |
+| ------------- | ------------- | --------------------------- |
+| `open`        | `in_progress` | Coordinator                 |
+| `open`        | `closed`      | Ticket owner or coordinator |
+| `in_progress` | `resolved`    | Coordinator                 |
+| `in_progress` | `closed`      | Ticket owner or coordinator |
+| `resolved`    | `closed`      | Ticket owner or coordinator |
+| `resolved`    | `open`        | Ticket owner (reopen)       |
+| `closed`      | `open`        | Ticket owner (reopen)       |
 
 Success response (`201 Created`): the full updated ticket resource (same shape as `GET /tickets/{id}`). Response includes a `Location` header pointing to `/api/v1/tickets/{id}`.
 
@@ -1960,15 +1941,73 @@ Side effects:
 
 ### 7.11 Attachments
 
-Attachments are file uploads associated with either an opportunity (position description documents) or an internship (offer letter). Upload itself happens directly to Cloud Storage (see section 7.0 → File upload pattern); the endpoints below cover the read path.
+Attachments are file uploads associated with either an opportunity (position description documents) or an internship (offer letter). Uploads are mediated by the backend: the client requests an upload intent, receives a short-lived V4 signed `PUT` URL, and uploads the bytes directly to Cloud Storage. A Cloud Storage `OBJECT_FINALIZE` event then flips the attachment's `uploadStatus` from `uploading` to `finalized`. See section 7.0 → File upload pattern for the full lifecycle.
 
-Attachment metadata (`id`, `fileName`, `contentType`, `uploadedAt`) is returned inline as the `attachments` array on `GET /opportunities/{id}` and `GET /internships/{id}`. To obtain a short-lived signed download URL for a specific attachment, fetch the attachment resource directly using the endpoints below — the `downloadUrl` is a field on the attachment, following the Stripe Files pattern.
+Attachment metadata (`id`, `fileName`, `contentType`, `uploadedAt`, `uploadStatus`) is returned inline as the `attachments` array on `GET /opportunities/{id}` and `GET /internships/{id}` — but only after the attachment has finalized. To obtain a short-lived signed download URL for a specific attachment, fetch the attachment resource directly using the endpoints below — the `downloadUrl` is a field on the attachment, following the Stripe Files pattern.
+
+#### `POST /api/v1/opportunities/{id}/attachments/upload-intents`
+
+Purpose: Authorize a coordinator to upload a position description file, pre-write the attachment subdoc in `uploading` state, and return a short-lived V4 signed `PUT` URL the client uses to upload bytes directly to Cloud Storage.
+
+Auth: Coordinator only.
+
+Request body:
+
+```json
+{
+  "fileName": "position-description.pdf",
+  "contentType": "application/pdf"
+}
+```
+
+Success response (`201 Created`):
+
+```json
+{
+  "attachmentId": "att_aBc123",
+  "uploadUrl": "https://storage.googleapis.com/<bucket>/opportunities/opp_042/attachments/att_aBc123-position-description.pdf?X-Goog-Signature=...",
+  "uploadUrlExpiresAt": "2026-04-05T04:10:00Z",
+  "filePath": "opportunities/opp_042/attachments/att_aBc123-position-description.pdf",
+  "contentType": "application/pdf"
+}
+```
+
+- The signed `PUT` URL is short-lived (~10 minutes). The client must `PUT` the bytes with `Content-Type: application/pdf` (matching the value passed at intent time) before expiry.
+- After `PUT` succeeds, Cloud Storage emits an `OBJECT_FINALIZE` event; the backend worker flips `uploadStatus` to `finalized`. The attachment becomes visible to reads only after that flip.
+- The intent endpoint is idempotent on retries by client: a fresh intent always pre-writes a new `att_*` id, so retrying produces a new attachment row.
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not a coordinator
+- `404` opportunity does not exist
+- `422` `fileName` is empty, contains path separators, or `contentType` is not on the allowlist
+
+#### `POST /api/v1/internships/{id}/attachments/upload-intents`
+
+Purpose: Authorize the owning student to upload an offer document.
+
+Auth: Owning student only.
+
+Allowed states: `applied`, `offer_changes_requested`. Once the offer is `offer_pending_review`, `offer_approved`, or `rejected`, attachment uploads are locked.
+
+Request body and success response: same shape as the opportunity variant above (with `filePath` rooted at `users/{userId}/internships/{id}/attachments/...`).
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not the owning student
+- `404` internship does not exist
+- `409` internship status does not permit attachment uploads (`reason: attachment_locked_in_status`)
+- `422` `fileName` is empty, contains path separators, or `contentType` is not on the allowlist
 
 #### `GET /api/v1/opportunities/{id}/attachments/{attachmentId}`
 
 Purpose: Return a single opportunity attachment's metadata along with a fresh short-lived signed Cloud Storage URL for downloading the underlying file. Standard CRUD read on the attachment sub-resource — the signed URL is a field on the resource, not a separate action endpoint (matching [Stripe Files](https://docs.stripe.com/api/files/object) and GitHub Release assets' `browser_download_url` field).
 
 Auth: Student (if the parent opportunity is `published` and in their semester) or Coordinator.
+
+Behaviour: the endpoint 404s for attachments still in `uploading` (i.e. ones whose `OBJECT_FINALIZE` event has not yet been processed).
 
 Success response (`200 OK`):
 
@@ -1978,6 +2017,7 @@ Success response (`200 OK`):
   "fileName": "position-description.pdf",
   "contentType": "application/pdf",
   "uploadedAt": "2026-04-04T09:05:00Z",
+  "uploadStatus": "finalized",
   "downloadUrl": "https://storage.googleapis.com/<bucket>/opportunities/opp_042/attachments/position-description.pdf?X-Goog-Signature=...",
   "downloadUrlExpiresAt": "2026-04-05T04:10:00Z"
 }
@@ -2008,6 +2048,41 @@ Failure cases:
 - `403` caller is a student and not the owner
 - `404` internship or attachment does not exist
 
+#### `DELETE /api/v1/opportunities/{id}/attachments/{attachmentId}`
+
+Purpose: Delete an opportunity attachment.
+
+Auth: Coordinator only.
+
+Behaviour: the Firestore attachment subdoc is removed atomically inside a transaction. Once the transaction commits the backend stops returning the attachment (list/get queries 404). The Cloud Storage object is then deleted best-effort with `ifGenerationMatch` set to the generation captured by the storage trigger; a concurrent re-upload to the same path is preserved (GCS rejects the precondition with 412 and the new file's metadata is reflected by the trigger). Orphan GCS objects are reclaimed by Firebase Storage's default soft-delete window.
+
+Success response: `204 No Content`.
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not a coordinator
+- `404` opportunity or attachment does not exist
+
+#### `DELETE /api/v1/internships/{id}/attachments/{attachmentId}`
+
+Purpose: Delete an internship attachment.
+
+Auth: Owning student only.
+
+Allowed states: `applied`, `offer_changes_requested`. Once the offer is `offer_pending_review`, `offer_approved`, or `rejected`, attachments are locked.
+
+Behaviour: same dual-write protocol as the opportunity variant — atomic Firestore delete first (so the backend stops returning the attachment immediately), then GCS delete with `ifGenerationMatch` on the captured generation.
+
+Success response: `204 No Content`.
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not the owning student
+- `404` internship or attachment does not exist
+- `409` internship status does not permit attachment deletion (`reason: attachment_locked_in_status`)
+
 ## 8. Firestore Data Model
 
 The Firestore model keeps identity, profile data, opportunities, internship applications, and auxiliary services separate.
@@ -2017,7 +2092,7 @@ The Firestore model keeps identity, profile data, opportunities, internship appl
 - **Document IDs live in the path, not as fields.** Every document's identity is its Firestore document path. Do not duplicate the same value as a field inside the document body. When serializing a document to an API response DTO, the backend copies `snapshot.id` into an `id` field on the output — but the stored document itself does not contain `id`. This avoids drift between the path and the field, and is the pattern Firebase recommends.
 - **Use Firestore auto-generated document IDs** for all collections. Auto-IDs use Firestore's scatter algorithm to spread writes across the keyspace, avoiding hotspotting. Do not use monotonically increasing, sequential, or semantic keys as document IDs. Uniqueness of natural keys (e.g. `(semesterCode, courseCode)` on `semesters`) is enforced at the application layer via a pre-insert query before creating a new document.
 - **Foreign keys are stored as fields** with names like `userId`, `semesterId`, `opportunityId`, `internshipId`. These point to other documents in other collections. `userId` in particular appears on any document that needs to reference a platform user (owner of an internship, author of an activity, recipient of a notification).
-- **Auth provider identifiers are storage-only.** The `firebaseUid` field on `users/{id}` holds the Firebase Auth UID for lookup during request authentication. It is never used as a document ID, a URL parameter, or a foreign key. It exists solely to bridge the auth provider to the platform user record.
+- **Auth provider identifiers are separate from app users.** `users/{id}` is the app user. Provider identifiers live in `userIdentities/{provider}__{providerUserId}` mapping documents and exist solely to bridge an authenticated IdP subject to a platform user.
 - Use root-level collections for main workflow entities that need independent querying across the platform.
 - Keep parent documents focused on the latest summary state. Move unbounded lists and detailed history into subcollections.
 - Store small fixed maps directly in documents (e.g. `users/{id}.studentProfile`). Move growing attachments and activity history into subcollections to keep document size stable.
@@ -2028,14 +2103,15 @@ Readable IDs such as `int_001`, `opp_042`, `usr_aBc123XyZ`, and `sem_abc123xyz` 
 
 ### 8.1 Collection Overview
 
-| Collection      | Document ID       | Purpose                                                                                          |
-| --------------- | ----------------- | ------------------------------------------------------------------------------------------------ |
-| `users`         | auto-generated ID | Platform user identity, role, onboarding state, and (for students) the embedded `studentProfile` |
-| `opportunities` | auto-generated ID | Semester-scoped internship positions created by coordinators or submitted by students            |
-| `internships`   | auto-generated ID | Student applications to opportunities, with offer review workflow                                |
-| `semesters`     | auto-generated ID | Semester records managed in the app                                                              |
-| `notifications` | auto-generated ID | User notification records and delivery tracking                                                  |
-| `tickets`       | auto-generated ID | Support tickets from students to coordinators                                                    |
+| Collection       | Document ID                | Purpose                                                                                          |
+| ---------------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `users`          | auto-generated ID          | Platform user identity, role, onboarding state, and (for students) the embedded `studentProfile` |
+| `userIdentities` | deterministic provider key | Auth-provider identity mapping and uniqueness guard                                              |
+| `opportunities`  | auto-generated ID          | Semester-scoped internship positions created by coordinators or submitted by students            |
+| `internships`    | auto-generated ID          | Student applications to opportunities, with offer review workflow                                |
+| `semesters`      | auto-generated ID          | Semester records managed in the app                                                              |
+| `notifications`  | auto-generated ID          | User notification records and delivery tracking                                                  |
+| `tickets`        | auto-generated ID          | Support tickets from students to coordinators                                                    |
 
 ### 8.1A Recommended Subcollections
 
@@ -2054,7 +2130,6 @@ Document ID: Firestore auto-generated. The ID is the path (e.g. `users/aBc123XyZ
 
 | Field           | Type      | Required | Example                        | Notes                                                                                                                                                                                                                                                                                                                                       |
 | --------------- | --------- | -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| firebaseUid     | string    | Yes      | `aBcDeF...`                    | Firebase Auth UID. Unique across the collection, indexed for auth-middleware lookup. Used only to bridge the auth provider to the platform user record — never exposed in API responses and never used as a foreign key                                                                                                                      |
 | email           | string    | Yes      | `s1234567@student.rmit.edu.au` | Primary email, synced from Firebase Auth                                                                                                                                                                                                                                                                                                    |
 | displayName     | string    | No       | `Alex Chen`                    | User-facing display name, synced from Firebase Auth                                                                                                                                                                                                                                                                                         |
 | role            | string    | Yes      | `student`                      | `student` or `coordinator`                                                                                                                                                                                                                                                                                                                  |
@@ -2089,19 +2164,34 @@ Design notes:
 - `currentStudyLoad` values: `full_time`, `part_time`, or `unknown`. RMIT's standard annual full-time load is 96 credit points (1 EFTSL).
 - A profile is considered `complete` only when all six required fields below are present. This is the condition that unlocks semester selection (see the `409` response on `PUT /users/{id}/semester-selection`).
 
-| Field             | Type            | Required | Example                                           | Notes                                                                                  |
-| ----------------- | --------------- | -------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| programName       | string          | Yes      | `Bachelor of Software Engineering (Professional)` | Program name                                                                           |
-| programLevel      | string          | Yes      | `undergraduate`                                   | `undergraduate` or `postgraduate`                                                      |
-| programStatus     | string          | No       | `active_in_program`                               | Program enrolment status. Values: `active_in_program`, `completed`, `discontinued`     |
-| majors            | array of string | No       | `[]`                                              | Declared majors (may be empty if the program has no major streams, e.g. BP096)         |
-| minors            | array of string | No       | `["Data Science"]`                                | Declared minors                                                                        |
-| unitsAttempted    | number          | Yes      | `192`                                             | Total units attempted                                                                  |
-| creditUnitsEarned | number          | Yes      | `168`                                             | Total units of credit earned                                                           |
-| gpa               | number          | Yes      | `3.2`                                             | Program GPA on RMIT's /4.0 scale                                                       |
-| currentStudyLoad  | string          | Yes      | `full_time`                                       | `full_time`, `part_time`, or `unknown`                                                 |
-| notes             | string          | No       | `Expected to complete prerequisite in Semester 2` | Free-text context from the student                                                     |
+| Field             | Type            | Required | Example                                           | Notes                                                                                                                                                                                   |
+| ----------------- | --------------- | -------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| programName       | string          | Yes      | `Bachelor of Software Engineering (Professional)` | Program name                                                                                                                                                                            |
+| programLevel      | string          | Yes      | `undergraduate`                                   | `undergraduate` or `postgraduate`                                                                                                                                                       |
+| programStatus     | string          | No       | `active_in_program`                               | Program enrolment status. Values: `active_in_program`, `completed`, `discontinued`                                                                                                      |
+| majors            | array of string | No       | `[]`                                              | Declared majors (may be empty if the program has no major streams, e.g. BP096)                                                                                                          |
+| minors            | array of string | No       | `["Data Science"]`                                | Declared minors                                                                                                                                                                         |
+| unitsAttempted    | number          | Yes      | `192`                                             | Total units attempted                                                                                                                                                                   |
+| creditUnitsEarned | number          | Yes      | `168`                                             | Total units of credit earned                                                                                                                                                            |
+| gpa               | number          | Yes      | `3.2`                                             | Program GPA on RMIT's /4.0 scale                                                                                                                                                        |
+| currentStudyLoad  | string          | Yes      | `full_time`                                       | `full_time`, `part_time`, or `unknown`                                                                                                                                                  |
+| notes             | string          | No       | `Expected to complete prerequisite in Semester 2` | Free-text context from the student                                                                                                                                                      |
 | confirmedAt       | timestamp       | No       | server timestamp                                  | When the student first completed their academic info (the PATCH that transitioned `profileStatus` from `incomplete` to `complete`). Not updated on subsequent edits. Set by the backend |
+
+### 8.2C `userIdentities`
+
+Purpose: Mapping from an external identity-provider subject to one platform user. This collection is also the uniqueness guard that prevents two `users` documents from being JIT-provisioned for the same IdP user.
+
+Document ID: deterministic provider key, currently `firebase__{encodeURIComponent(firebaseUid)}`. The ID is not exposed as an app-user id and is never used as a foreign key.
+
+| Field           | Type      | Required | Example                        | Notes                                                 |
+| --------------- | --------- | -------- | ------------------------------ | ----------------------------------------------------- |
+| provider        | string    | Yes      | `firebase`                     | Identity provider namespace                           |
+| providerUserId  | string    | Yes      | `aBcDeF...`                    | Provider subject / Firebase Auth UID                  |
+| userId          | string    | Yes      | `usr_aBc123XyZ`                | Platform user id; points to `users/{userId}`          |
+| emailSnapshot   | string    | No       | `s1234567@student.rmit.edu.au` | Non-authoritative email captured at provisioning time |
+| createdAt       | timestamp | Yes      | server timestamp               | Mapping creation time                                 |
+| \_schemaVersion | number    | Yes      | `1`                            | Storage schema version                                |
 
 ### 8.3 `opportunities`
 
@@ -2133,16 +2223,18 @@ Subcollections:
 
 ### 8.3A Attachment Object
 
-Purpose: Reusable file attachment shape for `attachments` subcollection documents written by the Storage-triggered backend sync. Used by both `opportunities/{id}/attachments` and `internships/{id}/attachments`.
+Purpose: Reusable file attachment shape for `attachments` subcollection documents. The row is pre-written by the upload-intent endpoint with `uploadStatus: 'uploading'` and flipped to `'finalized'` by the Cloud Storage `OBJECT_FINALIZE` trigger. Used by both `opportunities/{id}/attachments` and `internships/{id}/attachments`.
 
-Document ID: Firestore auto-generated. Exposed as `id` in API DTOs from `snapshot.id`; not stored as a field in the document body.
+Document ID: `att_*` prefixed id minted by the upload-intent handler. Exposed as `id` in API DTOs from `snapshot.id`; not stored as a field in the document body. The document id is also embedded as a prefix in `filePath` (e.g. `<parent>/<id>/attachments/<attachmentId>-<sanitisedFileName>`) so the storage trigger can recover it from the GCS event without indexing.
 
-| Field       | Type      | Required | Example                                                        | Notes                  |
-| ----------- | --------- | -------- | -------------------------------------------------------------- | ---------------------- |
-| filePath    | string    | Yes      | `users/usr_aBc123XyZ/internships/int_001/attachments/file.pdf` | Cloud Storage path     |
-| fileName    | string    | No       | `offer.pdf`                                                    | Original file name     |
-| contentType | string    | No       | `application/pdf`                                              | MIME type              |
-| uploadedAt  | timestamp | Yes      | server timestamp                                               | Upload completion time |
+| Field             | Type      | Required | Example                                                                 | Notes                                                                                                                                                                             |
+| ----------------- | --------- | -------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filePath          | string    | Yes      | `users/usr_aBc123XyZ/internships/int_001/attachments/att_xxx-offer.pdf` | Cloud Storage path. Embeds the `att_*` id as the filename prefix.                                                                                                                 |
+| fileName          | string    | No       | `offer.pdf`                                                             | Original file name                                                                                                                                                                |
+| contentType       | string    | No       | `application/pdf`                                                       | MIME type                                                                                                                                                                         |
+| uploadedAt        | timestamp | Yes      | server timestamp                                                        | Initial intent time; updated to GCS `timeCreated` when the storage trigger finalizes.                                                                                             |
+| uploadStatus      | string    | Yes      | `uploading`                                                             | One of `uploading`, `finalized`. Pre-written `uploading` by the intent endpoint; flipped to `finalized` by the storage trigger. Reads 404 attachments that are still `uploading`. |
+| storageGeneration | string    | No       | `1700000000000001`                                                      | GCS object generation captured by the storage trigger. Used as `ifGenerationMatch` on delete to close the dual-write race. Absent on rows still in `uploading` state.             |
 
 ### 8.4 `internships`
 
@@ -2273,7 +2365,7 @@ Firestore auto-creates most single-field indexes. The fields listed below are th
 
 Recommended indexed fields:
 
-- `users.firebaseUid` — single-field index used by auth middleware on every request. Uniqueness is enforced at the application layer (the backend checks for existing documents before creating a new user); Firestore has no native unique-constraint mechanism
+- `userIdentities/{provider}__{providerUserId}` — deterministic document lookup used by the auth middleware's hydrator (§7.1); uniqueness is enforced by creating this document in the same transaction as the app user (whether on JIT bootstrap or admin-provisioned coordinator creation)
 - `users.studentProfile.profileStatus`
 - `users.studentProfile.semesterId`
 - `opportunities.semesterId`
@@ -2402,21 +2494,23 @@ sequenceDiagram
     participant FS as Firestore
 
     S->>F: Opens app
-    F->>FA: Sign in with credentials
-    FA-->>F: Returns ID token (contains firebaseUid)
-    F->>B: POST /api/v1/auth/sync { studentNumber? } (Bearer token)
+    F->>FA: Sign up / sign in with RMIT student email
+    Note over FA: enforceStudentEmail blocking function rejects<br/>non-(s\d+@student.rmit.edu.au) signups at the IdP layer
+    FA-->>F: Returns ID token (contains firebaseUid, email)
+    F->>B: GET /api/v1/users/me (Bearer token)
     B->>FA: Verify ID token
     FA-->>B: Token valid (firebaseUid, email)
-    B->>FS: Query users where firebaseUid == token.firebaseUid
-    alt User does not exist (first-time student sync)
-        Note over B: studentNumber is required on the first sync call
+    B->>FS: TXN: read userIdentities/firebase__{firebaseUid}
+    alt User does not exist (first-time student request)
+        Note over B: Hydrator JIT-bootstraps in the same transaction
+        B->>B: Derive studentNumber from email's local part
         B->>B: Generate platform id (Firestore auto-ID)
-        B->>FS: Create users/{id} with firebaseUid, role: student,<br/>studentProfile: { studentNumber, profileStatus: "incomplete" }
+        B->>FS: TXN: create users/{id} with role: student,<br/>studentProfile: { studentNumber, profileStatus: "incomplete" }
+        B->>FS: TXN: create userIdentities/firebase__{firebaseUid} -> userId
     else User exists
-        B->>FS: Update users/{id} (e.g. displayName)
+        FS-->>B: existing { id, role }
     end
-    Note over B,FS: Coordinator users are provisioned out of band — never through this endpoint.
-    FS-->>B: User record with id from snapshot.id
+    Note over B,FS: Coordinator users are admin-provisioned out of band — they never reach the JIT branch.
     B-->>F: User profile (id, role, onboardingStage, ...)
     F->>S: Route to next workflow step
 ```

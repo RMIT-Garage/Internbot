@@ -79,7 +79,7 @@ All `DomainError`s carry an optional `reason: string` fine sub-code (spec §7.0)
 │                                                                              │
 │ 13. Document not found on findById()         → returns null (NOT a throw)    │
 │     The application handler decides whether null is a NotFoundError or legal │
-│     (e.g. findByFirebaseUid returns null on first sync — that's the signal   │
+│     (e.g. findByIdentity returns null on first sync — that's the signal      │
 │     to create a new user, not an error).                                     │
 │                                                                              │
 │ 14. Raw Firestore driver error               → CATCH, translate or rethrow:  │

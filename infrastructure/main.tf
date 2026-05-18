@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/google-beta"
       version = "~> 6.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
   }
 
   # Partial backend config — bucket is passed per-env via `-backend-config`
@@ -49,6 +53,18 @@ module "firestore" {
 module "auth" {
   source     = "./modules/auth"
   project_id = var.project_id
+  region     = var.region
+
+  # GCIP beforeCreate blocking function — gates Firebase Auth sign-ups at the
+  # IdP layer. Leave `false` on first apply (default); deploy the function
+  # with `firebase deploy --only functions:enforceStudentEmail`, then flip
+  # to `true` in the env tfvars and re-apply. Terraform discovers the
+  # function URL via a data source, so no manual URL hand-off.
+  wire_blocking_function = var.wire_blocking_function
+
+  # Authorized domains for Firebase Auth. `localhost` plus the standard
+  # firebaseapp.com / web.app domains are always included; pass extras here.
+  extra_authorized_domains = var.extra_authorized_domains
 
   depends_on = [module.firebase_project]
 }
@@ -59,6 +75,23 @@ module "storage" {
   location   = var.region
 
   depends_on = [module.firebase_project]
+}
+
+# Cross-service Firestore lookup for Storage rules. Only the `users/{id}/avatar/**`
+# path still uses `firestore.get(userIdentities/...)` — attachment uploads now
+# go through the backend intent endpoint + V4 signed PUT URL instead, with no
+# Storage rule evaluation. If avatars also migrate to the signed-URL flow, this
+# grant can go away entirely.
+resource "google_project_iam_member" "firebase_rules_firestore_cross_service" {
+  project = var.project_id
+  role    = "roles/firebaserules.firestoreServiceAgent"
+  member  = "serviceAccount:service-${data.google_project.this.number}@firebase-rules.iam.gserviceaccount.com"
+
+  depends_on = [
+    module.firebase_project,
+    module.firestore,
+    module.storage,
+  ]
 }
 
 module "hosting" {
@@ -77,6 +110,26 @@ module "github_oidc" {
   deploy_sa_roles      = var.deploy_sa_roles
 
   depends_on = [module.firebase_project]
+}
+
+# Firebase Web App + Secret Manager export of its SDK config.
+# The deploy workflow fetches `firebase-web-config` at build time and
+# unpacks it into NEXT_PUBLIC_* env vars — no GitHub repo variables.
+# See infrastructure/modules/web-app/main.tf for the bootstrap dance on
+# projects that already have a Firebase Web App (terraform import).
+module "web_app" {
+  source                       = "./modules/web-app"
+  project_id                   = var.project_id
+  storage_bucket               = module.storage.bucket_name
+  hosting_site_id              = module.hosting.site_id
+  deploy_service_account_email = module.github_oidc.deploy_service_account
+
+  depends_on = [
+    module.firebase_project,
+    module.storage,
+    module.hosting,
+    module.github_oidc,
+  ]
 }
 
 module "functions_housekeeping" {

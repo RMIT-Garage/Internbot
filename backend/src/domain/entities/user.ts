@@ -1,7 +1,8 @@
 import type { OnboardingStage, Role, UserStatus } from '../value-objects/user-enums'
 import type { AcademicInfo } from '../value-objects/academic-info'
 import type { StudentProfile } from '../value-objects/student-profile'
-import { ForbiddenError } from '../errors'
+import type { UserIdentity } from '../value-objects/user-identity'
+import { ConflictError, ForbiddenError } from '../errors'
 
 /**
  * UserProps — single-object constructor bag for the aggregate.
@@ -9,11 +10,11 @@ import { ForbiddenError } from '../errors'
 export interface UserProps {
   readonly id: string
   readonly version: number
-  readonly firebaseUid: string
   readonly email: string
   readonly role: Role
   readonly status: UserStatus
   readonly onboardingStage: OnboardingStage
+  readonly identity: UserIdentity
   readonly createdAt: Date
   readonly updatedAt: Date
   readonly displayName: string | undefined
@@ -23,31 +24,32 @@ export interface UserProps {
 /**
  * User — root of the user aggregate.
  *
- * Identity by `id` (Firestore auto-id). `firebaseUid` bridges to Firebase
- * Auth and is never used as a foreign key (per WORKFLOW-API-SPEC.md §6).
+ * Identity by `id` (Firestore auto-id). The IdP-issued `identity` value
+ * object is a permanent, immutable field — every aggregate carries it,
+ * registered or rehydrated. Persisted denormalised on `users/{id}` (source
+ * of truth) plus a slim `userIdentities/{key} → { userId }` sentinel that
+ * enforces uniqueness via `txn.create exists=false`.
  *
  * **Mutable aggregate** (Vernon-style DDD): behaviour methods
  * (`changePhone`, `setAcademicInfo`, ...) return `void` and mutate the
  * aggregate's internal state via a private `#props` field. State
  * transitions (e.g. `profileStatus`, `onboardingStage`, `confirmedAt`
  * stamping) happen inside the mutation — handlers don't orchestrate
- * derived state.
- *
- * Private `#props` field (ECMAScript `#` for runtime privacy). External
- * readers go through getters.
+ * derived state. Identity itself is never mutated.
  *
  * Two factories:
- *   - `create(props)` — command-handler input path. Validates required
- *     invariants.
+ *   - `create(props)` — command-handler input path for new aggregates.
+ *     Validates required invariants. The repository persists user + identity
+ *     atomically inside `create(user)`.
  *   - `rehydrate(props)` — storage path. No validation (trust our own
  *     data); the Firestore mapper calls this.
  *
- * `version` is the domain-level concurrency token, set from Firestore's
- * `updateTime.toMillis()` on load. **Never incremented client-side** —
- * Firestore's `updateTime` is the authoritative source, and the
- * repository's `save()` uses `user.version` as the If-Match precondition.
- * On a successful write, Firestore produces a new `updateTime`; the next
- * load will reflect it. The HTTP ETag is derived from `version` at the
+ * `version` is the domain-level concurrency token — an app-managed
+ * monotonic integer persisted on the doc. **Never incremented
+ * client-side**; the repository reads the stored value inside the
+ * transaction, compares against `user.version` for the If-Match check,
+ * and writes `stored + 1` on success. New aggregates start at `0`; the
+ * first save persists `1`. The HTTP ETag is derived from `version` at the
  * API boundary (`W/"${user.version}"`); the domain never references HTTP.
  */
 export class User {
@@ -58,14 +60,11 @@ export class User {
   }
 
   /**
-   * Command-input path — validates required invariants. Used when minting
-   * a fresh aggregate in `SyncUserCommandHandler` before the first
-   * `repo.create(user)` call.
+   * Command-input path for *new* aggregates. Validates required invariants.
+   * The caller is responsible for minting the id (via `IdGenerator`) and
+   * constructing the `identity` VO before calling.
    */
   static create(props: UserProps): User {
-    if (props.firebaseUid.trim().length === 0) {
-      throw new Error('firebaseUid is required')
-    }
     if (props.email.trim().length === 0) {
       throw new Error('email is required')
     }
@@ -83,9 +82,6 @@ export class User {
   get version(): number {
     return this.#props.version
   }
-  get firebaseUid(): string {
-    return this.#props.firebaseUid
-  }
   get email(): string {
     return this.#props.email
   }
@@ -97,6 +93,9 @@ export class User {
   }
   get onboardingStage(): OnboardingStage {
     return this.#props.onboardingStage
+  }
+  get identity(): UserIdentity {
+    return this.#props.identity
   }
   get createdAt(): Date {
     return this.#props.createdAt
@@ -189,6 +188,28 @@ export class User {
     const current = this.#studentProfileOrThrow()
     if (current.academicInfo === undefined) return
     const next = current.withAcademicInfo(undefined).settleStatus(new Date())
+    this.#replaceProfile(next)
+  }
+
+  /**
+   * Enrol the student in a semester. Per WORKFLOW-API-SPEC.md §7.6 the
+   * profile must be `complete` before a semester may be selected — the
+   * domain enforces this here so the handler doesn't have to. Window /
+   * semester-status checks live on the handler (they need the semester
+   * aggregate which the user doesn't carry).
+   *
+   * `semesterSelectedAt` is preserved across re-selection (set on the
+   * first call only) — the value object owns that invariant.
+   */
+  selectSemester(semesterId: string, now: Date): void {
+    const current = this.#studentProfileOrThrow()
+    if (!current.isComplete()) {
+      throw new ConflictError(
+        'Profile must be complete before selecting a semester',
+        'profile_incomplete'
+      )
+    }
+    const next = current.withSemester(semesterId, now)
     this.#replaceProfile(next)
   }
 

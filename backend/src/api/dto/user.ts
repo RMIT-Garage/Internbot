@@ -8,6 +8,20 @@ import {
   studyLoadValues,
   userStatusValues,
 } from '../../domain/value-objects/user-enums'
+import {
+  currentWorkflowStepValues,
+  internshipStatusValues,
+  semesterEnrolmentStateValues,
+} from '../../domain/value-objects/workflow-state'
+import {
+  internshipActivityTypeValues,
+  internshipStatusValues as internshipRecordStatusValues,
+} from '../../domain/value-objects/internship-enums'
+import {
+  opportunityActivityTypeValues,
+  opportunityStatusValues,
+  opportunityVerificationDecisionValues,
+} from '../../domain/value-objects/opportunity-enums'
 
 /**
  * Wire-format response DTOs as Zod schemas.
@@ -23,14 +37,80 @@ import {
  *     coordinator does not
  */
 
-export const currentWorkflowStepSchema = z
-  .enum(['profile', 'semester_selection', 'opportunity_browsing', 'offer_stage', 'completed'])
-  .meta({
-    id: 'CurrentWorkflowStep',
-    description:
-      "Coarse routing-level workflow step derived from the student's profile and internship state (see WORKFLOW-API-SPEC.md §7.1).",
-  })
+export const currentWorkflowStepSchema = z.enum(currentWorkflowStepValues).meta({
+  id: 'CurrentWorkflowStep',
+  description:
+    "Coarse routing-level workflow step derived from the student's profile and internship state (see WORKFLOW-API-SPEC.md §7.1).",
+})
 export type CurrentWorkflowStep = z.infer<typeof currentWorkflowStepSchema>
+
+export const internshipStatusSchema = z.enum(internshipStatusValues).meta({
+  id: 'InternshipStatus',
+  description: 'Fine derived workflow state for display (see WORKFLOW-API-SPEC.md §9.2).',
+})
+export type InternshipStatus = z.infer<typeof internshipStatusSchema>
+
+export const semesterEnrolmentStateSchema = z.enum(semesterEnrolmentStateValues).meta({
+  id: 'SemesterEnrolmentState',
+  description:
+    'Derived display state for the semester enrolment step (see WORKFLOW-API-SPEC.md §7.2).',
+})
+export type SemesterEnrolmentState = z.infer<typeof semesterEnrolmentStateSchema>
+
+export const userWorkflowResponseSchema = z
+  .object({
+    currentWorkflowStep: currentWorkflowStepSchema,
+    internshipStatus: internshipStatusSchema,
+    semesterEnrolmentState: semesterEnrolmentStateSchema,
+  })
+  .meta({
+    id: 'UserWorkflowResponse',
+    description:
+      'Body of GET /api/v1/users/{id}/workflow. All three fields are derived (none are persisted).',
+  })
+export type UserWorkflowResponse = z.infer<typeof userWorkflowResponseSchema>
+
+const activityFeedTypeValues = [
+  ...internshipActivityTypeValues,
+  ...opportunityActivityTypeValues,
+] as const
+
+const activityFeedStatusValues = [
+  ...internshipRecordStatusValues,
+  ...opportunityStatusValues,
+] as const
+
+export const userActivityFeedItemResponseSchema = z
+  .object({
+    id: z.string().meta({ example: 'act_xYz789aBc' }),
+    resourceType: z.enum(['internship', 'opportunity']),
+    internshipId: z.string().nullable().meta({ example: 'int_001' }),
+    opportunityId: z.string().nullable().meta({ example: 'opp_001' }),
+    type: z.enum(activityFeedTypeValues),
+    authorUserId: z.string().meta({ example: 'usr_coord01' }),
+    authorRole: z.enum(roleValues),
+    text: z.string().nullable().meta({ example: 'Offer looks good, approved.' }),
+    from: z.enum(activityFeedStatusValues).nullable(),
+    to: z.enum(activityFeedStatusValues).nullable(),
+    decision: z.enum(opportunityVerificationDecisionValues).nullable(),
+    createdAt: z.string().datetime().meta({ example: '2026-04-05T10:30:00Z' }),
+  })
+  .meta({
+    id: 'UserActivityFeedItemResponse',
+    description: 'One activity-feed entry authored by the caller.',
+  })
+export type UserActivityFeedItemResponse = z.infer<typeof userActivityFeedItemResponseSchema>
+
+export const userActivityFeedResponseSchema = z
+  .object({
+    items: z.array(userActivityFeedItemResponseSchema),
+    nextPageToken: z.string().nullable(),
+  })
+  .meta({
+    id: 'UserActivityFeedResponse',
+    description: 'Paginated activity feed for the caller.',
+  })
+export type UserActivityFeedResponse = z.infer<typeof userActivityFeedResponseSchema>
 
 export const academicInfoResponseSchema = z
   .object({
@@ -45,6 +125,7 @@ export const academicInfoResponseSchema = z
     currentStudyLoad: z.enum(studyLoadValues),
     notes: z.string().optional(),
     confirmedAt: z.string().datetime().nullable().meta({
+      example: '2026-04-05T03:14:12Z',
       description:
         'Set once at first profile-complete transition; not rewritten on subsequent edits.',
     }),
@@ -59,10 +140,15 @@ export const studentProfileResponseSchema = z
   .object({
     studentNumber: z.string().meta({ example: 's1234567' }),
     programCode: z.string().nullable().meta({ example: 'BP096' }),
-    phone: z.string().nullable(),
+    phone: z.string().nullable().meta({ example: '+61 4 1234 5678' }),
     academicInfo: academicInfoResponseSchema.nullable(),
-    semesterId: z.string().nullable().optional(),
-    semesterSelectedAt: z.string().datetime().nullable().optional(),
+    semesterId: z.string().nullable().optional().meta({ example: 'sem_aBc123XyZ' }),
+    semesterSelectedAt: z
+      .string()
+      .datetime()
+      .nullable()
+      .optional()
+      .meta({ example: '2026-04-05T03:14:12Z' }),
     profileStatus: z.enum(profileStatusValues),
   })
   .meta({
@@ -73,8 +159,8 @@ export type StudentProfileResponse = z.infer<typeof studentProfileResponseSchema
 
 const userResponseBase = z.object({
   id: z.string().meta({ example: 'usr_aBc123XyZ' }),
-  email: z.string().email(),
-  displayName: z.string().nullable(),
+  email: z.string().email().meta({ example: 's1234567@student.rmit.edu.au' }),
+  displayName: z.string().nullable().meta({ example: 'Alex Chen' }),
   status: z.enum(userStatusValues),
   onboardingStage: z.enum(onboardingStageValues),
 })

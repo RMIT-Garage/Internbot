@@ -23,9 +23,13 @@ describe('GET /api/openapi.json — component', () => {
     expect(res.body.info.title).toBe('Internbot API')
 
     // Known v1 paths are present
-    expect(res.body.paths['/api/v1/auth/sync']).toBeDefined()
+    expect(res.body.paths['/api/v1/users/me']).toBeDefined()
     expect(res.body.paths['/api/v1/users/{id}']).toBeDefined()
     expect(res.body.paths['/api/health']).toBeDefined()
+
+    // /auth/sync was retired in favour of JIT bootstrap in the hydrator
+    // middleware (Pattern B); the spec must no longer advertise it.
+    expect(res.body.paths['/api/v1/auth/sync']).toBeUndefined()
 
     // Auth scheme exposed
     expect(res.body.components.securitySchemes.bearerAuth).toMatchObject({
@@ -35,7 +39,6 @@ describe('GET /api/openapi.json — component', () => {
 
     // Schemas from .meta({ id }) lifted to components/schemas
     expect(res.body.components.schemas.UserResponse).toBeDefined()
-    expect(res.body.components.schemas.AuthSyncRequest).toBeDefined()
     expect(res.body.components.schemas.ErrorResponse).toBeDefined()
   })
 
