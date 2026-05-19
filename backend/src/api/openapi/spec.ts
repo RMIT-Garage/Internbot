@@ -22,11 +22,8 @@ import {
 import {
   listOpportunitiesOperation,
   getOpportunityOperation,
-<<<<<<< HEAD
-=======
   getOpportunityAttachmentOperation,
   deleteOpportunityAttachmentOperation,
->>>>>>> origin/develop
   createOpportunityOperation,
   patchOpportunityOperation,
   transitionOpportunityOperation,
@@ -35,11 +32,8 @@ import {
 import {
   listInternshipsOperation,
   getInternshipOperation,
-<<<<<<< HEAD
-=======
   getInternshipAttachmentOperation,
   deleteInternshipAttachmentOperation,
->>>>>>> origin/develop
   createInternshipOperation,
   patchInternshipOperation,
   submitInternshipOfferOperation,
@@ -126,13 +120,10 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
         get: getOpportunityOperation,
         patch: patchOpportunityOperation,
       },
-<<<<<<< HEAD
-=======
       '/api/v1/opportunities/{id}/attachments/{attachmentId}': {
         get: getOpportunityAttachmentOperation,
         delete: deleteOpportunityAttachmentOperation,
       },
->>>>>>> origin/develop
       '/api/v1/opportunities/{id}/transitions': { post: transitionOpportunityOperation },
       '/api/v1/opportunities/{id}/verifications': { post: verifyOpportunityOperation },
       '/api/v1/internships': {
@@ -143,13 +134,10 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
         get: getInternshipOperation,
         patch: patchInternshipOperation,
       },
-<<<<<<< HEAD
-=======
       '/api/v1/internships/{id}/attachments/{attachmentId}': {
         get: getInternshipAttachmentOperation,
         delete: deleteInternshipAttachmentOperation,
       },
->>>>>>> origin/develop
       '/api/v1/internships/{id}/offer-submissions': {
         post: submitInternshipOfferOperation,
       },
