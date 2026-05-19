@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/google-beta"
       version = "~> 6.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
   }
 
   # Partial backend config — bucket is passed per-env via `-backend-config`
@@ -73,6 +77,11 @@ module "storage" {
   depends_on = [module.firebase_project]
 }
 
+# Cross-service Firestore lookup for Storage rules. Only the `users/{id}/avatar/**`
+# path still uses `firestore.get(userIdentities/...)` — attachment uploads now
+# go through the backend intent endpoint + V4 signed PUT URL instead, with no
+# Storage rule evaluation. If avatars also migrate to the signed-URL flow, this
+# grant can go away entirely.
 resource "google_project_iam_member" "firebase_rules_firestore_cross_service" {
   project = var.project_id
   role    = "roles/firebaserules.firestoreServiceAgent"

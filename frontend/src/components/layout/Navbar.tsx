@@ -1,17 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Navbar() {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, signOut } = useAuth()
+  const isCoordinatorArea = pathname?.startsWith('/coordinator') ?? false
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/login')
+    router.push(isCoordinatorArea ? '/coordinator/login' : '/login')
   }
 
   return (

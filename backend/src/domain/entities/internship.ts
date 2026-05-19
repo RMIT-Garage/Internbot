@@ -10,6 +10,7 @@ import type { InternshipDomainEvent } from '../events/internship-events'
 import {
   InternshipApplied,
   InternshipAttachmentAdded,
+  InternshipAttachmentFinalized,
   InternshipAttachmentRemoved,
   InternshipCommented,
   InternshipDecided,
@@ -346,17 +347,38 @@ export class Internship {
   }
 
   /**
-   * Adopt an attachment finalized by the storage trigger. Validates that the
-   * trigger's path-derived owner matches this internship's `userId` and that
-   * we haven't already absorbed an attachment with the same id (idempotent).
-   * Returns true if the attachment was newly added; false otherwise. Stages
-   * the addition so the repo's `save()` writes the subdoc atomically.
+   * Pre-write an attachment subdoc in `uploading` state. Called by the
+   * upload-intent handler before the client PUTs to GCS via the signed URL.
+   * Validates that the caller-supplied owner matches this internship's
+   * `userId` and that the attachment id isn't already used. Returns true
+   * when newly added; false otherwise.
    */
-  recordSyncedAttachment(attachment: Attachment, expectedUserId: string): boolean {
+  recordAttachmentUploadIntent(attachment: Attachment, expectedUserId: string): boolean {
     if (this.#props.userId !== expectedUserId) return false
     if (this.#attachments.some((a) => a.id === attachment.id)) return false
     this.#attachments.push(attachment)
     this.#pendingEvents.push(new InternshipAttachmentAdded(attachment))
+    return true
+  }
+
+  /**
+   * Transition an existing `uploading` attachment to `finalized` after the
+   * Cloud Storage `OBJECT_FINALIZE` event confirms the upload landed. No-op
+   * (returns false) if the attachment id is unknown or already finalized —
+   * keeps the worker idempotent under event redelivery.
+   */
+  finalizeAttachment(
+    attachmentId: string,
+    storageGeneration: string | undefined,
+    finalizedAt: Date
+  ): boolean {
+    const index = this.#attachments.findIndex((a) => a.id === attachmentId)
+    if (index < 0) return false
+    const existing = this.#attachments[index]!
+    if (existing.isFinalized()) return false
+    const finalized = existing.withFinalized(storageGeneration, finalizedAt)
+    this.#attachments[index] = finalized
+    this.#pendingEvents.push(new InternshipAttachmentFinalized(finalized, finalizedAt))
     return true
   }
 
@@ -389,6 +411,7 @@ function eventRotatesParent(event: InternshipDomainEvent): boolean {
       return true
     case 'internship_commented':
     case 'internship_attachment_added':
+    case 'internship_attachment_finalized':
       return false
   }
 }

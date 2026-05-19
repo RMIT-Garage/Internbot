@@ -211,6 +211,7 @@ function attachment(id = 'att_001'): Attachment {
     contentType: 'application/pdf',
     uploadedAt: NOW,
     storageGeneration: '1234567890',
+    uploadStatus: 'finalized',
   })
 }
 
