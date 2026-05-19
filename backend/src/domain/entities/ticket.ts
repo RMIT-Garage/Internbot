@@ -3,6 +3,8 @@ import type { TicketStatus } from '../value-objects/ticket-enums'
 import { TicketActivity } from '../value-objects/ticket-activity'
 import { TicketReply } from '../value-objects/ticket-reply'
 import { ConflictError, ForbiddenError, ValidationError } from '../errors'
+import type { TicketDomainEvent } from '../events/ticket-events'
+import { TicketTransitioned, TicketReplied } from '../events/ticket-events'
 
 export interface TicketProps {
   readonly id: string
@@ -44,14 +46,18 @@ const ALLOWED_TRANSITIONS: readonly AllowedTransition[] = [
  * fields, so every write is a `transition` activity row plus a status change.
  * Reply threads live under `tickets/{id}/replies` and are independent of the
  * ticket's own ETag (replies do not rotate `version`).
+ *
+ * The aggregate emits domain events for transactional mutations:
+ * `TicketTransitioned` (state change — rotates version) and `TicketReplied`
+ * (conversation thread — no version rotation). The repository's `save()`
+ * drains `pendingEvents` and translates each event to its Firestore writes.
  */
 export class Ticket {
   #props: TicketProps
-  #pendingActivity: TicketActivity | undefined
+  #pendingEvents: TicketDomainEvent[] = []
 
-  private constructor(props: TicketProps, pendingActivity?: TicketActivity) {
+  private constructor(props: TicketProps) {
     this.#props = props
-    this.#pendingActivity = pendingActivity
   }
 
   static create(props: TicketProps): Ticket {
@@ -121,21 +127,28 @@ export class Ticket {
   get updatedAt(): Date {
     return this.#props.updatedAt
   }
-  get pendingActivity(): TicketActivity | undefined {
-    return this.#pendingActivity
+  /**
+   * Transient domain events emitted by mutation methods. Drained by
+   * `TicketRepository.save` which translates each event into its
+   * Firestore writes inside one transaction.
+   */
+  get pendingEvents(): readonly TicketDomainEvent[] {
+    return this.#pendingEvents
   }
 
   /**
    * Apply a state transition. Throws when the (from → to) pair is not in the
    * allowed table, or when the actor's role is not permitted to perform the
-   * transition. Returns the activity record so callers can persist it.
+   * transition. Emits a `TicketTransitioned` event for the repository's
+   * `save()` to persist (parent status update + activity record) inside one
+   * transaction.
    */
   transition(
     details: TicketTransitionDetails,
     actor: { userId: string; role: Role; isOwner: boolean },
     activityId: string,
     now: Date
-  ): TicketActivity {
+  ): void {
     const allowed = ALLOWED_TRANSITIONS.find(
       (t) => t.from === this.#props.status && t.to === details.to
     )
@@ -160,27 +173,29 @@ export class Ticket {
       )
     }
 
+    const from = this.#props.status
+    this.#props = { ...this.#props, status: details.to, updatedAt: now }
     const activity = TicketActivity.transition({
       id: activityId,
-      from: this.#props.status,
+      from,
       to: details.to,
       actorUserId: actor.userId,
       actorRole: actor.role,
       comment: details.comment,
       createdAt: now,
     })
-    this.#props = { ...this.#props, status: details.to, updatedAt: now }
-    this.#pendingActivity = activity
-    return activity
+    this.#pendingEvents.push(new TicketTransitioned(activity))
   }
 
   /**
-   * Build a reply VO scoped to this ticket. The aggregate stays unchanged
-   * apart from `updatedAt`; callers persist the reply separately so that
-   * adding a reply does not rotate the ticket's ETag.
+   * Add a reply on this ticket. Bumps `updatedAt` but does *not* rotate
+   * `version` — replies are conversation-thread items, not state mutations.
+   * Emits a `TicketReplied` event drained by the repository's `save()`.
+   * Returns the created VO so callers that need to surface it in their HTTP
+   * response (e.g. POST replies) don't have to re-read the event list.
    */
-  reply(
-    activityId: string,
+  addReply(
+    replyId: string,
     actor: { userId: string; role: Role; isOwner: boolean },
     text: string,
     now: Date
@@ -189,17 +204,16 @@ export class Ticket {
       throw new ForbiddenError('Students may only reply to their own tickets', 'student_not_owner')
     }
 
-    return TicketReply.create({
-      id: activityId,
+    const reply = TicketReply.create({
+      id: replyId,
       authorUserId: actor.userId,
       authorRole: actor.role,
       text,
       createdAt: now,
     })
-  }
-
-  bumpUpdatedAt(now: Date): void {
+    this.#pendingEvents.push(new TicketReplied(reply))
     this.#props = { ...this.#props, updatedAt: now }
+    return reply
   }
 }
 

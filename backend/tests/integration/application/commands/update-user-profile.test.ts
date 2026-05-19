@@ -5,6 +5,8 @@ import { GetUserQueryHandler } from '../../../../src/application/queries/get-use
 import { createPlatformUserHydrator } from '../../../../src/api/auth/platform-user-hydrator'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreUserQueryService } from '../../../../src/infrastructure/firestore/firestore-user-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import {
   initEmulator,
   clearDocs,
@@ -28,7 +30,11 @@ async function seedStudent(): Promise<{ id: string; firebaseUid: string; student
   const studentNumber = `s${Math.floor(Math.random() * 1e9)}`
   const email = `${studentNumber}@student.rmit.edu.au`
   await ensureFirebaseUser(firebaseUid, email)
-  const hydrate = createPlatformUserHydrator(new FirestoreUnitOfWork(), firestoreIdGenerator)
+  const hydrate = createPlatformUserHydrator(
+    firestoreUserQueryService,
+    new FirestoreUnitOfWork(),
+    firestoreIdGenerator
+  )
   const platformUser = await hydrate({ firebaseUid, email, emailVerified: true })
   if (!platformUser) throw new Error('JIT bootstrap failed in test seed')
   trackDoc('users', platformUser.id)
@@ -48,8 +54,11 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('owner with all required academic fields transitions profileStatus to complete and sets confirmedAt', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
-    const read = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const read = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     await update.handle({
       actor: actorFor(student.id, 'student'),
@@ -68,7 +77,10 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('attempting to change studentNumber to a different value throws ValidationError with immutable_field', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       update.handle({
@@ -81,7 +93,10 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('same studentNumber is a no-op (accepted)', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await update.handle({
       actor: actorFor(student.id, 'student'),
@@ -92,7 +107,10 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('coordinator caller is rejected with MethodNotAllowedError (role_restricted_action, allow=GET)', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       update.handle({
@@ -110,7 +128,10 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
   it('student updating another student is rejected with ForbiddenError (student_not_owner)', async () => {
     const owner = await seedStudent()
     const other = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       update.handle({
@@ -123,7 +144,10 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('stale If-Match throws PreconditionFailedError with etag_mismatch', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
 
     await expect(
       update.handle({
@@ -137,8 +161,11 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('partial patch that leaves academicInfo missing keeps profileStatus=incomplete', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
-    const read = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const read = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     await update.handle({
       actor: actorFor(student.id, 'student'),
@@ -156,8 +183,11 @@ describe('UpdateUserProfileCommandHandler — integration', () => {
 
   it('confirmedAt is NOT rewritten on subsequent complete-to-complete patches', async () => {
     const student = await seedStudent()
-    const update = new UpdateUserProfileCommandHandler(new FirestoreUnitOfWork())
-    const read = new GetUserQueryHandler(new FirestoreUnitOfWork())
+    const update = new UpdateUserProfileCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    )
+    const read = new GetUserQueryHandler(firestoreUserQueryService, defaultAuthorizationService)
 
     await update.handle({
       actor: actorFor(student.id, 'student'),

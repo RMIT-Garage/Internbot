@@ -9,6 +9,7 @@ import {
 } from '../../schemas/internship'
 import {
   internshipActivityResponseSchema,
+  internshipAttachmentDownloadResponseSchema,
   internshipListResponseSchema,
   internshipResponseSchema,
 } from '../../dto/internship'
@@ -17,6 +18,10 @@ import { internshipStatusValues } from '../../../domain/value-objects/internship
 
 const internshipIdPathParams = z.object({
   id: z.string().meta({ example: 'int_042', description: 'Platform internship id.' }),
+})
+
+const internshipAttachmentPathParams = internshipIdPathParams.extend({
+  attachmentId: z.string().meta({ example: 'att_101', description: 'Attachment id.' }),
 })
 
 const ifMatchHeaderSchema = z.object({
@@ -80,6 +85,55 @@ export const getInternshipOperation: ZodOpenApiOperationObject = {
     },
     '404': {
       description: 'No internship exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
+export const getInternshipAttachmentOperation: ZodOpenApiOperationObject = {
+  operationId: 'getInternshipAttachment',
+  summary: 'Return an internship attachment download resource',
+  description:
+    'Returns attachment metadata with a fresh short-lived V4 signed Cloud Storage URL. Students can read only their own internship attachments; coordinators can read all.',
+  tags: ['Internships'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: internshipAttachmentPathParams },
+  responses: {
+    '200': {
+      description: 'Attachment found with a fresh signed download URL.',
+      content: { 'application/json': { schema: internshipAttachmentDownloadResponseSchema } },
+    },
+    '403': {
+      description: 'Student caller does not own the parent internship.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No internship or attachment exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
+export const deleteInternshipAttachmentOperation: ZodOpenApiOperationObject = {
+  operationId: 'deleteInternshipAttachment',
+  summary: 'Delete an internship attachment',
+  description:
+    'Owner-only (the student whose internship it is). Allowed only while the internship is `applied` or `offer_changes_requested`. Atomically removes the attachment metadata, then deletes the GCS object using `ifGenerationMatch` so a concurrent re-upload on the same path is preserved.',
+  tags: ['Internships'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: internshipAttachmentPathParams },
+  responses: {
+    '204': { description: 'Attachment deleted.' },
+    '403': {
+      description: 'Caller is not the owning student.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No internship or attachment exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '409': {
+      description: 'Internship status does not permit attachment deletion.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

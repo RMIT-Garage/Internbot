@@ -2,20 +2,39 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function identityDoc() {
+      return firestore.get(
+        /databases/(default)/documents/userIdentities/$('firebase__' + request.auth.uid)
+      );
+    }
+
+    function platformUserId() {
+      return identityDoc().data.userId;
+    }
+
+    function isPlatformUser(userId) {
+      return signedIn() && platformUserId() == userId;
+    }
+
     // users/{userId}/avatar/**
-    // Each user can read/write only their own avatar folder.
-    // Max 5MB, images only.
+    // Avatars are the only Storage path the frontend still uploads to
+    // directly via the Firebase SDK. All attachment uploads (internship offer
+    // letters, opportunity position descriptions) go through the backend
+    // intent endpoint + V4 signed PUT URL — no SDK, no Storage rules involved.
     match /users/{userId}/avatar/{allPaths=**} {
-      allow read:  if request.auth != null && request.auth.token.platformUserId == userId;
-      allow write: if request.auth != null
-                   && request.auth.token.platformUserId == userId
+      allow read:  if isPlatformUser(userId);
+      allow write: if isPlatformUser(userId)
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
 
-    // Add new storage path rules above this comment using the /firebase-collection skill.
-
-    // Default deny
+    // Default deny — including attachment paths. The backend mints V4 signed
+    // PUT URLs that authorize uploads out-of-band, so Storage rules never need
+    // to evaluate cross-service Firestore lookups for those paths.
     match /{allPaths=**} {
       allow read, write: if false;
     }

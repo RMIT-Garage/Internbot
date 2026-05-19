@@ -8,6 +8,9 @@ import { VerifyOpportunityCommandHandler } from '../../../../src/application/com
 import { ListOpportunitiesQueryHandler } from '../../../../src/application/queries/list-opportunities'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { firestoreOpportunityQueryService } from '../../../../src/infrastructure/firestore/firestore-opportunity-query-service'
+import { firestoreUserQueryService } from '../../../../src/infrastructure/firestore/firestore-user-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { adminDb } from '../../../../src/infrastructure/config/firebase-admin'
 import { User } from '../../../../src/domain/entities/user'
 import { UserIdentity } from '../../../../src/domain/value-objects/user-identity'
@@ -28,8 +31,12 @@ function actorFor(
 
 async function activeSemester(): Promise<string> {
   const uow = new FirestoreUnitOfWork()
-  const create = new CreateSemesterCommandHandler(uow, firestoreIdGenerator)
-  const transition = new TransitionSemesterCommandHandler(uow)
+  const create = new CreateSemesterCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
+  const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
   const actor = actorFor('coordinator')
   const { id } = await create.handle({
     actor,
@@ -53,7 +60,7 @@ async function seedStudent(studentId: string, semesterId: string | undefined): P
   const now = new Date()
   const providerUserId = `fb_${randomUUID()}`
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id: studentId,
         version: 0,
@@ -105,6 +112,7 @@ describe('Opportunities commands — integration', () => {
     const semesterId = await activeSemester()
     const handler = new CreateOpportunityCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
 
@@ -124,6 +132,7 @@ describe('Opportunities commands — integration', () => {
     await seedStudent('usr_student_no_sem', undefined)
     const handler = new CreateOpportunityCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
 
@@ -139,13 +148,17 @@ describe('Opportunities commands — integration', () => {
     const semesterId = await activeSemester()
     const create = new CreateOpportunityCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     const actor = actorFor('coordinator', 'usr_coord')
     const { id } = await create.handle({ actor, payload: { ...basePayload, semesterId } })
     trackDoc('opportunities', id)
 
-    await new TransitionOpportunityCommandHandler(new FirestoreUnitOfWork()).handle({
+    await new TransitionOpportunityCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService
+    ).handle({
       actor,
       opportunityId: id,
       to: 'published',
@@ -166,6 +179,7 @@ describe('Opportunities commands — integration', () => {
     await seedStudent('usr_submitter', semesterId)
     const create = new CreateOpportunityCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     const { id } = await create.handle({
@@ -176,6 +190,7 @@ describe('Opportunities commands — integration', () => {
 
     await new VerifyOpportunityCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('coordinator', 'usr_coord'),
@@ -199,6 +214,7 @@ describe('Opportunities commands — integration', () => {
     const actor = actorFor('coordinator', 'usr_coord')
     const create = new CreateOpportunityCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     const { id } = await create.handle({ actor, payload: { ...basePayload, semesterId } })
@@ -212,7 +228,11 @@ describe('Opportunities commands — integration', () => {
     trackDoc('internships', appA)
     trackDoc('internships', appB)
 
-    const result = await new ListOpportunitiesQueryHandler(new FirestoreUnitOfWork()).handle({
+    const result = await new ListOpportunitiesQueryHandler(
+      firestoreOpportunityQueryService,
+      firestoreUserQueryService,
+      defaultAuthorizationService
+    ).handle({
       actor,
       filter: {
         semesterId,

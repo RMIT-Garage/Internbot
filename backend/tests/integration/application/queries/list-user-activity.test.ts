@@ -2,6 +2,9 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { ListUserActivityQueryHandler } from '../../../../src/application/queries/list-user-activity'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
+import { firestoreActivityFeedQueryService } from '../../../../src/infrastructure/firestore/firestore-activity-feed-query-service'
+import { firestoreUserQueryService } from '../../../../src/infrastructure/firestore/firestore-user-query-service'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { adminDb, Timestamp } from '../../../../src/infrastructure/config/firebase-admin'
 import { User } from '../../../../src/domain/entities/user'
 import { UserIdentity } from '../../../../src/domain/value-objects/user-identity'
@@ -19,7 +22,7 @@ function actorFor(role: 'student' | 'coordinator', id: string): RequestActor {
 async function seedUser(role: 'student' | 'coordinator', id: string): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id,
         version: 0,
@@ -122,7 +125,11 @@ describe('ListUserActivityQueryHandler — integration', () => {
       createdAt: new Date('2026-04-05T11:00:00Z'),
     })
 
-    const result = await new ListUserActivityQueryHandler(new FirestoreUnitOfWork()).handle({
+    const result = await new ListUserActivityQueryHandler(
+      firestoreActivityFeedQueryService,
+      firestoreUserQueryService,
+      defaultAuthorizationService
+    ).handle({
       actor: actorFor('student', userId),
       userId,
       filter: { limit: 50, sortDirection: 'desc', cursor: undefined },
@@ -160,7 +167,11 @@ describe('ListUserActivityQueryHandler — integration', () => {
       createdAt: new Date('2026-04-05T11:00:00Z'),
     })
 
-    const handler = new ListUserActivityQueryHandler(new FirestoreUnitOfWork())
+    const handler = new ListUserActivityQueryHandler(
+      firestoreActivityFeedQueryService,
+      firestoreUserQueryService,
+      defaultAuthorizationService
+    )
     const first = await handler.handle({
       actor: actorFor('coordinator', userId),
       userId,
@@ -189,7 +200,11 @@ describe('ListUserActivityQueryHandler — integration', () => {
       createdAt: new Date('2026-04-05T12:00:00Z'),
     })
 
-    const result = await new ListUserActivityQueryHandler(new FirestoreUnitOfWork()).handle({
+    const result = await new ListUserActivityQueryHandler(
+      firestoreActivityFeedQueryService,
+      firestoreUserQueryService,
+      defaultAuthorizationService
+    ).handle({
       actor: actorFor('coordinator', userId),
       userId,
       filter: { limit: 50, sortDirection: 'desc', cursor: undefined },
@@ -213,7 +228,11 @@ describe('ListUserActivityQueryHandler — integration', () => {
     await seedUser('coordinator', otherId)
 
     await expect(
-      new ListUserActivityQueryHandler(new FirestoreUnitOfWork()).handle({
+      new ListUserActivityQueryHandler(
+        firestoreActivityFeedQueryService,
+        firestoreUserQueryService,
+        defaultAuthorizationService
+      ).handle({
         actor: actorFor('coordinator', userId),
         userId: otherId,
         filter: { limit: 50, sortDirection: 'desc', cursor: undefined },

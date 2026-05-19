@@ -5,9 +5,18 @@ import type {
   OpportunityVerificationDecision,
   WorkMode,
 } from '../value-objects/opportunity-enums'
+import type { Attachment } from '../value-objects/attachment'
 import { OpportunityTransition } from '../value-objects/opportunity-transition'
 import { OpportunityVerification } from '../value-objects/opportunity-verification'
-import { ConflictError, ValidationError } from '../errors'
+import { ConflictError, NotFoundError, ValidationError } from '../errors'
+import type { OpportunityDomainEvent } from '../events/opportunity-events'
+import {
+  OpportunityAttachmentAdded,
+  OpportunityAttachmentFinalized,
+  OpportunityAttachmentRemoved,
+  OpportunityTransitioned,
+  OpportunityVerified,
+} from '../events/opportunity-events'
 
 export interface OpportunityProps {
   readonly id: string
@@ -38,11 +47,18 @@ export interface OpportunityProps {
  */
 export class Opportunity {
   #props: OpportunityProps
-  #pendingTransition: OpportunityTransition | undefined
-  #pendingVerification: OpportunityVerification | undefined
+  #attachments: Attachment[]
+  /**
+   * Transient domain events emitted by mutation methods. Drained by
+   * `OpportunityRepository.save` and translated to Firestore writes inside
+   * one transaction. Empty for rehydrated aggregates that haven't been
+   * mutated yet.
+   */
+  #pendingEvents: OpportunityDomainEvent[] = []
 
-  private constructor(props: OpportunityProps) {
+  private constructor(props: OpportunityProps, attachments: readonly Attachment[] = []) {
     this.#props = props
+    this.#attachments = [...attachments]
   }
 
   static create(props: OpportunityProps): Opportunity {
@@ -54,8 +70,8 @@ export class Opportunity {
     return new Opportunity(props)
   }
 
-  static rehydrate(props: OpportunityProps): Opportunity {
-    return new Opportunity(props)
+  static rehydrate(props: OpportunityProps, attachments: readonly Attachment[] = []): Opportunity {
+    return new Opportunity(props, attachments)
   }
 
   get id(): string {
@@ -109,11 +125,59 @@ export class Opportunity {
   get updatedAt(): Date {
     return this.#props.updatedAt
   }
-  get pendingTransition(): OpportunityTransition | undefined {
-    return this.#pendingTransition
+  get pendingEvents(): readonly OpportunityDomainEvent[] {
+    return this.#pendingEvents
   }
-  get pendingVerification(): OpportunityVerification | undefined {
-    return this.#pendingVerification
+  get attachments(): readonly Attachment[] {
+    return this.#attachments
+  }
+
+  /**
+   * Hard-deletes an opportunity attachment. Coordinator-only — the handler
+   * enforces role; the aggregate enforces existence. The repo removes the
+   * Firestore subdoc and writes an `attachmentPurgeQueue` outbox row inside
+   * the same txn for the worker to GC the GCS object.
+   */
+  removeAttachment(attachmentId: string, removedByUserId: string, now: Date): void {
+    const index = this.#attachments.findIndex((a) => a.id === attachmentId)
+    const existing = index >= 0 ? this.#attachments[index] : undefined
+    if (!existing) {
+      throw new NotFoundError('Attachment', attachmentId)
+    }
+
+    this.#attachments.splice(index, 1)
+    this.#pendingEvents.push(new OpportunityAttachmentRemoved(existing, removedByUserId, now))
+  }
+
+  /**
+   * Pre-write an attachment subdoc in `uploading` state. Called by the
+   * upload-intent handler before the client PUTs to GCS via the signed URL.
+   */
+  recordAttachmentUploadIntent(attachment: Attachment): boolean {
+    if (this.#attachments.some((a) => a.id === attachment.id)) return false
+    this.#attachments.push(attachment)
+    this.#pendingEvents.push(new OpportunityAttachmentAdded(attachment))
+    return true
+  }
+
+  /**
+   * Transition an existing `uploading` attachment to `finalized` after the
+   * Cloud Storage `OBJECT_FINALIZE` event confirms the upload landed.
+   * Idempotent under event redelivery.
+   */
+  finalizeAttachment(
+    attachmentId: string,
+    storageGeneration: string | undefined,
+    finalizedAt: Date
+  ): boolean {
+    const index = this.#attachments.findIndex((a) => a.id === attachmentId)
+    if (index < 0) return false
+    const existing = this.#attachments[index]!
+    if (existing.isFinalized()) return false
+    const finalized = existing.withFinalized(storageGeneration, finalizedAt)
+    this.#attachments[index] = finalized
+    this.#pendingEvents.push(new OpportunityAttachmentFinalized(finalized, finalizedAt))
+    return true
   }
 
   changeEmployerName(employerName: string): void {
@@ -165,13 +229,14 @@ export class Opportunity {
 
     const from = this.#props.status
     this.#props = { ...this.#props, status: target }
-    this.#pendingTransition = OpportunityTransition.create({
+    const transition = OpportunityTransition.create({
       from,
       to: target,
       actorUserId,
       comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new OpportunityTransitioned(transition))
   }
 
   verify(
@@ -205,7 +270,7 @@ export class Opportunity {
       verifiedByUserId: actorUserId,
       verifiedAt: now,
     }
-    this.#pendingVerification = OpportunityVerification.create({
+    const verification = OpportunityVerification.create({
       from,
       to,
       decision,
@@ -213,6 +278,7 @@ export class Opportunity {
       comment,
       createdAt: now,
     })
+    this.#pendingEvents.push(new OpportunityVerified(verification))
   }
 }
 

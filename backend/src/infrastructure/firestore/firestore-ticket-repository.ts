@@ -1,17 +1,7 @@
 import { z } from 'zod'
-import {
-  Timestamp,
-  type Query,
-  type QueryDocumentSnapshot,
-  type Transaction,
-} from 'firebase-admin/firestore'
-import { FieldValue, Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
-import type {
-  TicketListCursor,
-  TicketListFilter,
-  TicketListPage,
-  TicketRepository,
-} from '../../domain/repositories/ticket-repository'
+import { Timestamp, type Transaction } from 'firebase-admin/firestore'
+import { FieldValue, adminDb } from '../config/firebase-admin'
+import type { TicketRepository } from '../../domain/repositories/ticket-repository'
 import { Ticket, TICKET_SCHEMA_VERSION } from '../../domain/entities/ticket'
 import type { TicketActivity } from '../../domain/value-objects/ticket-activity'
 import type { TicketReply } from '../../domain/value-objects/ticket-reply'
@@ -26,7 +16,7 @@ import { translateFirestoreErrors } from './translate-firestore-errors'
 
 const firestoreTimestamp = z.instanceof(Timestamp)
 
-const ticketStorageSchema = z.object({
+export const ticketStorageSchema = z.object({
   userId: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),
@@ -79,7 +69,7 @@ type TicketReplyWrite = {
 }
 type TicketReplyDoc = TicketReplyWrite & { createdAt: Timestamp | ServerTimestamp }
 
-const COLLECTION = 'tickets'
+export const TICKET_COLLECTION = 'tickets'
 
 function mapStorageToTicket(id: string, storage: TicketStorage): Ticket {
   return Ticket.rehydrate({
@@ -136,7 +126,7 @@ export class FirestoreTicketRepository implements TicketRepository {
   async findById(id: string): Promise<Ticket | null> {
     return translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(id)
+        const ref = adminDb.collection(TICKET_COLLECTION).doc(id)
         const snap = await this.txn.get(ref)
         if (!snap.exists) return null
         return parseTicket(snap.id, snap.data())
@@ -145,46 +135,37 @@ export class FirestoreTicketRepository implements TicketRepository {
     )
   }
 
-  async list(filter: TicketListFilter): Promise<TicketListPage> {
-    return translateFirestoreErrors(
+  /**
+   * Upsert. `aggregate.version === 0` → first-write path: writes the ticket
+   * doc (the historical `create`). Else → optimistic-lock update path:
+   * drains `pendingEvents` — `TicketTransitioned` writes parent status +
+   * activity row and rotates version; `TicketReplied` writes the reply doc
+   * and bumps updatedAt only (replies don't rotate version).
+   */
+  async save(ticket: Ticket): Promise<void> {
+    if (ticket.version === 0) {
+      await this.insertNew(ticket)
+      return
+    }
+    await this.updateExisting(ticket)
+  }
+
+  async delete(id: string): Promise<void> {
+    await translateFirestoreErrors(
       async () => {
-        let q: Query = adminDb.collection(COLLECTION)
-        if (filter.userId !== undefined) q = q.where('userId', '==', filter.userId)
-        if (filter.status !== undefined) q = q.where('status', '==', filter.status)
-
-        q = q.orderBy('createdAt', filter.sortDirection).orderBy('__name__', filter.sortDirection)
-
-        if (filter.cursor) {
-          q = q.startAfter(FsTimestamp.fromDate(filter.cursor.lastValue), filter.cursor.lastDocId)
-        }
-
-        q = q.limit(filter.limit + 1)
-        const result = await q.get()
-        const hasMore = result.size > filter.limit
-        const docs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
-        const items = docs.map((doc) => parseTicket(doc.id, doc.data()))
-
-        let nextCursor: TicketListCursor | null = null
-        if (hasMore) {
-          const last = docs[docs.length - 1]!
-          nextCursor = {
-            sortField: 'createdAt',
-            sortDirection: filter.sortDirection,
-            lastValue: timestampField(last, 'createdAt').toDate(),
-            lastDocId: last.id,
-          }
-        }
-
-        return { items, nextCursor }
+        const ref = adminDb.collection(TICKET_COLLECTION).doc(id)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) throw new NotFoundError('Ticket', id)
+        this.txn.delete(ref)
       },
-      { op: 'tickets.list', resource: 'Ticket' }
+      { op: 'tickets.delete', resource: 'Ticket', id }
     )
   }
 
-  async create(ticket: Ticket): Promise<void> {
+  private async insertNew(ticket: Ticket): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(ticket.id)
+        const ref = adminDb.collection(TICKET_COLLECTION).doc(ticket.id)
         const doc: TicketCreateDoc = {
           ...ticketToCreatePayload(ticket),
           createdAt: FieldValue.serverTimestamp(),
@@ -192,14 +173,14 @@ export class FirestoreTicketRepository implements TicketRepository {
         }
         this.txn.create(ref, doc)
       },
-      { op: 'tickets.create', resource: 'Ticket', id: ticket.id }
+      { op: 'tickets.save', resource: 'Ticket', id: ticket.id }
     )
   }
 
-  async applyTransition(ticket: Ticket, activity: TicketActivity): Promise<void> {
+  private async updateExisting(ticket: Ticket): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(ticket.id)
+        const ref = adminDb.collection(TICKET_COLLECTION).doc(ticket.id)
         const snap = await this.txn.get(ref)
         if (!snap.exists) throw new NotFoundError('Ticket', ticket.id)
 
@@ -208,49 +189,38 @@ export class FirestoreTicketRepository implements TicketRepository {
           throw new PreconditionFailedError('Resource version does not match')
         }
 
-        const update: TicketUpdateDoc = {
-          status: ticket.status,
-          version: stored + 1,
-          updatedAt: FieldValue.serverTimestamp(),
+        for (const event of ticket.pendingEvents) {
+          switch (event.kind) {
+            case 'ticket_transitioned': {
+              const activity = event.activity
+              const update: TicketUpdateDoc = {
+                status: ticket.status,
+                version: stored + 1,
+                updatedAt: FieldValue.serverTimestamp(),
+              }
+              this.txn.update(ref, update)
+              this.txn.set(ref.collection('activity').doc(activity.id), {
+                ...activityToPayload(activity),
+                createdAt: FieldValue.serverTimestamp(),
+              } satisfies TicketActivityDoc)
+              break
+            }
+            case 'ticket_replied': {
+              const reply = event.reply
+              // Replies do not rotate version — bump updatedAt only.
+              this.txn.update(ref, { updatedAt: FieldValue.serverTimestamp() })
+              this.txn.set(ref.collection('replies').doc(reply.id), {
+                ...replyToPayload(reply),
+                createdAt: FieldValue.serverTimestamp(),
+              } satisfies TicketReplyDoc)
+              break
+            }
+          }
         }
-        this.txn.update(ref, update)
-
-        this.txn.set(ref.collection('activity').doc(activity.id), {
-          ...activityToPayload(activity),
-          createdAt: FieldValue.serverTimestamp(),
-        } satisfies TicketActivityDoc)
       },
-      { op: 'tickets.applyTransition', resource: 'Ticket', id: ticket.id }
+      { op: 'tickets.save', resource: 'Ticket', id: ticket.id }
     )
   }
-
-  async addReply(ticketId: string, reply: TicketReply, _now: Date): Promise<void> {
-    await translateFirestoreErrors(
-      async () => {
-        const ref = adminDb.collection(COLLECTION).doc(ticketId)
-        const snap = await this.txn.get(ref)
-        if (!snap.exists) throw new NotFoundError('Ticket', ticketId)
-
-        // Bump updatedAt without rotating version — replies do not change
-        // the ETag-protected ticket state.
-        this.txn.update(ref, { updatedAt: FieldValue.serverTimestamp() })
-
-        this.txn.set(ref.collection('replies').doc(reply.id), {
-          ...replyToPayload(reply),
-          createdAt: FieldValue.serverTimestamp(),
-        } satisfies TicketReplyDoc)
-      },
-      { op: 'tickets.addReply', resource: 'Ticket', id: ticketId }
-    )
-  }
-}
-
-function timestampField(doc: QueryDocumentSnapshot, field: string): Timestamp {
-  const value = doc.data()[field]
-  if (!(value instanceof Timestamp)) {
-    throw new Error(`${doc.ref.path}.${field} is not a Firestore Timestamp`)
-  }
-  return value
 }
 
 export function parseTicket(id: string, raw: unknown): Ticket {

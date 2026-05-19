@@ -1,8 +1,13 @@
 import type { RequestActor } from '../actor'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import type { InternshipResult } from '../models/internship'
-import { ForbiddenError, NotFoundError } from '../../domain/errors'
+import type { InternshipQueryService } from '../ports/queries/internship-query-service'
+import type { OpportunityQueryService } from '../ports/queries/opportunity-query-service'
+import type { UserQueryService } from '../ports/queries/user-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { InternshipReadModel } from '../read-models/internship'
+import { NotFoundError } from '../../domain/errors'
 import { buildInternshipReadModel } from '../read-models/internship'
+
+export type InternshipResult = InternshipReadModel
 
 export interface GetInternshipQuery {
   actor: RequestActor
@@ -10,24 +15,26 @@ export interface GetInternshipQuery {
 }
 
 export class GetInternshipQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly internshipQueries: InternshipQueryService,
+    private readonly opportunityQueries: OpportunityQueryService,
+    private readonly userQueries: UserQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: GetInternshipQuery): Promise<InternshipResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    const internship = await this.internshipQueries.findById(q.internshipId)
+    if (!internship) throw new NotFoundError('Internship', q.internshipId)
 
-    return this.uow.execute(async (ctx) => {
-      const internship = await ctx.internships.findById(q.internshipId)
-      if (!internship) throw new NotFoundError('Internship', q.internshipId)
-      if (platformUser.role === 'student' && internship.userId !== platformUser.id) {
-        throw new ForbiddenError(
-          'Students may only read their own internships',
-          'student_not_owner'
-        )
-      }
-      return buildInternshipReadModel(ctx, internship)
-    })
+    this.authz.requireSelfOrRole(q.actor, internship.userId, 'coordinator', 'student_not_owner')
+
+    return buildInternshipReadModel(
+      {
+        users: this.userQueries,
+        opportunities: this.opportunityQueries,
+        internships: this.internshipQueries,
+      },
+      internship
+    )
   }
 }

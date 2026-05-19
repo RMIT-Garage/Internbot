@@ -1,9 +1,30 @@
 import { onRequest } from 'firebase-functions/v2/https'
 import { beforeUserCreated, HttpsError } from 'firebase-functions/v2/identity'
+import { onObjectFinalized } from 'firebase-functions/v2/storage'
 import type { BlockingFunction } from 'firebase-functions/v1'
 import { createApp } from './api/app'
+import { FinalizeStorageAttachmentCommandHandler } from './application/commands/finalize-storage-attachment'
+import { resolveStorageBucket } from './infrastructure/config/storage-bucket'
+import { firestoreUnitOfWork } from './infrastructure/firestore/firestore-unit-of-work'
+import { SyncAttachmentMetadataWorker } from './workers/sync-attachment-metadata'
 
 const app = createApp()
+const syncAttachmentMetadataWorker = new SyncAttachmentMetadataWorker(
+  new FinalizeStorageAttachmentCommandHandler(firestoreUnitOfWork)
+)
+
+// Resolved at deploy parse time. The Firebase CLI loads this module to
+// discover function configs before uploading; if `bucket` is omitted the CLI
+// tries to auto-discover the project's "default" bucket (`<project>.appspot.com`
+// / `.firebasestorage.app`), which doesn't exist for this project — Terraform
+// provisions a plain `<project_id>-storage` bucket instead. Without the
+// explicit bucket the deploy fails with `Can't find the storage bucket region`.
+const STORAGE_BUCKET = resolveStorageBucket()
+if (!STORAGE_BUCKET) {
+  throw new Error(
+    'Could not resolve storage bucket: set FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, or one of FIREBASE_PROJECT_ID / GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT.'
+  )
+}
 
 /**
  * Main API Cloud Function — Express fat-lambda pattern.
@@ -23,6 +44,35 @@ export const api = onRequest(
     cors: true,
   },
   app
+)
+
+/**
+ * Cloud Storage finalize trigger — flips a pre-written attachment subdoc
+ * from `uploading` to `finalized` after the client's signed-URL PUT lands.
+ *
+ * Flow: the `POST /attachments/upload-intents` endpoint authz's the caller,
+ * pre-writes the Firestore attachment subdoc in `uploading` state, and
+ * returns a V4 signed PUT URL. The client uploads directly to GCS; Cloud
+ * Storage emits OBJECT_FINALIZE; Eventarc delivers it; this function parses
+ * the path, locates the matching subdoc, and transitions its state.
+ *
+ * `retry: true` opts the Eventarc subscription into retry-on-error (default
+ * Pub/Sub backoff, 7-day TTL). Transient Firestore failures propagate so
+ * Pub/Sub redelivers (the transition is idempotent — re-finalizing an
+ * already-finalized attachment is a no-op). Logical failures (invalid path,
+ * parent missing, attachment id unknown) are absorbed inside the handler so
+ * they do not loop.
+ */
+export const syncAttachmentMetadata = onObjectFinalized(
+  {
+    bucket: STORAGE_BUCKET,
+    region: 'australia-southeast1',
+    maxInstances: 10,
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    retry: true,
+  },
+  (event) => syncAttachmentMetadataWorker.handle(event)
 )
 
 /**

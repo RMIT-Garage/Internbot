@@ -1,19 +1,13 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
   type User,
 } from 'firebase/auth'
 import { auth } from './client'
-import { sendEmailVerification } from 'firebase/auth'
-
-const googleProvider = new GoogleAuthProvider()
-googleProvider.addScope('email')
-googleProvider.addScope('profile')
 
 export async function signInWithEmail(email: string, password: string): Promise<User> {
   const result = await signInWithEmailAndPassword(auth, email, password)
@@ -27,13 +21,21 @@ export async function signUpWithEmail(
 ): Promise<User> {
   const result = await createUserWithEmailAndPassword(auth, email, password)
   await updateProfile(result.user, { displayName })
-  await sendEmailVerification(result.user)
+  // The account is already created at this point; if the verification email
+  // can't be queued (network blip, throttle), don't fail the sign-up — the
+  // user can resend later from the dashboard.
+  try {
+    await sendEmailVerification(result.user)
+  } catch (error) {
+    console.error('[auth] failed to send verification email:', error)
+  }
   return result.user
 }
 
-export async function signInWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider)
-  return result.user
+export async function resendVerificationEmail(): Promise<void> {
+  const user = auth.currentUser
+  if (!user) throw new Error('No signed-in user to send a verification email to.')
+  await sendEmailVerification(user)
 }
 
 export async function signOut(): Promise<void> {

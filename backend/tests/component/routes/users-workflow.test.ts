@@ -90,7 +90,7 @@ async function makeCoordinator() {
       displayName: undefined,
       studentProfile: undefined,
     })
-    await ctx.users.create(coord)
+    await ctx.users.save(coord)
   })
   trackDoc('users', platformUserId)
 

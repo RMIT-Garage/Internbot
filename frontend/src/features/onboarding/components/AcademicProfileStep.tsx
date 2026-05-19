@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Bell, UserCircle, ShieldCheck, Lightbulb, ChevronDown, ArrowRight } from 'lucide-react'
+import { ChevronDown, ArrowRight } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload, ProgramLevel } from '@/features/profile/types'
 import { Navbar } from '@/components/layout/Navbar'
 
@@ -28,6 +28,7 @@ const schema = z.object({
     .max(4, 'Max 4.0'),
   unitsAttempted: z.coerce.number({ invalid_type_error: 'Must be a number' }).min(0),
   creditUnitsEarned: z.coerce.number({ invalid_type_error: 'Must be a number' }).min(0),
+  currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -57,6 +58,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -66,6 +68,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
       gpa: ai?.gpa ?? undefined,
       unitsAttempted: ai?.unitsAttempted ?? undefined,
       creditUnitsEarned: ai?.creditUnitsEarned ?? undefined,
+      currentStudyLoad: ai?.currentStudyLoad ?? 'full_time',
     },
   })
 
@@ -77,6 +80,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
         gpa: values.gpa,
         unitsAttempted: values.unitsAttempted,
         creditUnitsEarned: values.creditUnitsEarned,
+        currentStudyLoad: values.currentStudyLoad,
       },
     },
   })
@@ -85,7 +89,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     try {
       await onSave(buildPayload(values))
       toast.success('Academic info saved!')
-      router.push('/onboarding/review')
+      router.push('/onboarding/credits')
     } catch {
       toast.error('Failed to save. Please try again.')
     }
@@ -106,7 +110,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
       <div className="mx-auto max-w-5xl px-8 py-12">
         {/* Stepper */}
         <div className="relative mb-16 flex items-center justify-center">
-          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
+          <div className="absolute left-0 top-5 -z-10 h-px w-full bg-gray-100" />
           <div className="flex w-full max-w-2xl justify-between">
             {STEPS.map((step) => {
               const isActive = step.key === 'academic'
@@ -152,13 +156,13 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
                 {/* Program name */}
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     Program Name
                   </label>
                   <div className="relative">
                     <select
                       {...register('programName')}
-                      className="w-full appearance-none rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 font-medium text-slate-700 transition-all outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full appearance-none rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 font-medium text-slate-700 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
                     >
                       {PROGRAMS.map((p) => (
                         <option key={p} value={p}>
@@ -168,7 +172,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                     </select>
                     <ChevronDown
                       size={20}
-                      className="pointer-events-none absolute top-1/2 right-5 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
                   {errors.programName && (
@@ -179,7 +183,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                 {/* Level + GPA */}
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Program Level
                     </label>
                     <div className="flex rounded-xl border border-gray-100 bg-slate-50 p-1">
@@ -208,7 +212,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                     </div>
                   </div>
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Current GPA (0.0 – 4.0)
                     </label>
                     <input
@@ -218,7 +222,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       min="0"
                       max="4"
                       placeholder="3.8"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
                     />
                     {errors.gpa && (
                       <p className="mt-1 text-xs text-red-500">{errors.gpa.message}</p>
@@ -226,10 +230,37 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                   </div>
                 </div>
 
+                {/* Study Load */}
+                <div>
+                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Study Load
+                  </label>
+                  <div className="flex rounded-xl border border-gray-100 bg-slate-50 p-1">
+                    {(['full_time', 'part_time', 'unknown'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setValue('currentStudyLoad', option)}
+                        className={`flex-1 rounded-lg py-3 text-sm font-bold transition ${
+                          option === (watch('currentStudyLoad') ?? 'full_time')
+                            ? 'border border-gray-100 bg-white text-red-600 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                      >
+                        {option === 'full_time'
+                          ? 'Full Time'
+                          : option === 'part_time'
+                            ? 'Part Time'
+                            : 'Unknown'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Units */}
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Units Attempted
                     </label>
                     <input
@@ -237,14 +268,14 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       type="number"
                       min="0"
                       placeholder="24"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
                     />
                     {errors.unitsAttempted && (
                       <p className="mt-1 text-xs text-red-500">{errors.unitsAttempted.message}</p>
                     )}
                   </div>
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Credit Units Earned
                     </label>
                     <input
@@ -252,7 +283,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       type="number"
                       min="0"
                       placeholder="18"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
                     />
                     {errors.creditUnitsEarned && (
                       <p className="mt-1 text-xs text-red-500">
@@ -280,57 +311,6 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-
-          {/* Right panels — 4 cols */}
-          <div className="space-y-6 lg:col-span-4">
-            {/* Verification card */}
-            <div className="rounded-2xl bg-blue-600 p-8 text-white">
-              <div className="mb-4 flex items-center gap-3">
-                <ShieldCheck size={24} className="text-blue-100" />
-                <h3 className="text-sm font-bold tracking-widest uppercase">Data Verification</h3>
-              </div>
-              <p className="mb-6 text-sm leading-relaxed font-medium text-blue-50">
-                All academic information provided must match your official RMIT transcript exactly.
-                Discrepancies may delay your graduation audit or course credit processing.
-              </p>
-              <a
-                href="#"
-                className="border-b border-blue-300 pb-0.5 text-xs font-bold transition hover:text-white"
-              >
-                Request Official Transcript →
-              </a>
-            </div>
-
-            {/* Pro tip */}
-            <div className="rounded-2xl border border-gray-100 bg-slate-50 p-8">
-              <div className="flex gap-4">
-                <div className="h-fit shrink-0 rounded-xl bg-white p-3 shadow-sm">
-                  <Lightbulb size={24} className="text-red-500" />
-                </div>
-                <div>
-                  <h4 className="mb-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Pro Tip
-                  </h4>
-                  <p className="text-xs leading-relaxed font-medium text-slate-500">
-                    Your GPA is calculated on a 4.0 scale for international comparability. If your
-                    transcript uses a different scale, use the RMIT conversion guide.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Image card */}
-            <div className="group relative overflow-hidden rounded-2xl border border-gray-100 grayscale">
-              <div className="flex h-48 w-full items-center justify-center bg-gray-200 text-sm text-gray-400">
-                RMIT Campus
-              </div>
-              <div className="absolute bottom-4 left-4">
-                <p className="text-[10px] font-black tracking-[0.2em] text-white uppercase drop-shadow-md">
-                  Institutional Integrity
-                </p>
-              </div>
             </div>
           </div>
         </div>

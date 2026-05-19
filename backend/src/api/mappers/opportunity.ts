@@ -1,15 +1,22 @@
 import type { RequestActor } from '../../application/actor'
 import type {
+  ListOpportunitiesQuery,
   OpportunityListResultWithCursor,
-  OpportunityReadModel,
-  OpportunityResult,
-} from '../../application/models/opportunity'
+} from '../../application/queries/list-opportunities'
+import type { OpportunityResult } from '../../application/queries/get-opportunity'
+import type { AttachmentDownloadResult } from '../../application/queries/get-internship-attachment'
+import type {
+  CreateOpportunityAttachmentUploadIntentCommand,
+  CreateOpportunityAttachmentUploadIntentResult,
+} from '../../application/commands/create-opportunity-attachment-upload-intent'
 import type { CreateOpportunityCommand } from '../../application/commands/create-opportunity'
 import type { UpdateOpportunityCommand } from '../../application/commands/update-opportunity'
 import type { TransitionOpportunityCommand } from '../../application/commands/transition-opportunity'
 import type { VerifyOpportunityCommand } from '../../application/commands/verify-opportunity'
-import type { ListOpportunitiesQuery } from '../../application/queries/list-opportunities'
-import type { OpportunityListCursor } from '../../domain/repositories/opportunity-repository'
+import type {
+  OpportunityListCursor,
+  OpportunityReadModel,
+} from '../../application/read-models/opportunity'
 import type {
   OpportunityStatus,
   OpportunityType,
@@ -19,12 +26,18 @@ import {
   opportunityTypeValues,
 } from '../../domain/value-objects/opportunity-enums'
 import type {
+  CreateOpportunityAttachmentUploadIntentRequest,
   CreateOpportunityRequest,
   PatchOpportunityRequest,
   TransitionOpportunityRequest,
   VerifyOpportunityRequest,
 } from '../schemas/opportunity'
-import type { OpportunityListResponse, OpportunityResponse } from '../dto/opportunity'
+import type {
+  OpportunityAttachmentDownloadResponse,
+  OpportunityAttachmentUploadIntentResponse,
+  OpportunityListResponse,
+  OpportunityResponse,
+} from '../dto/opportunity'
 import { formatETag, parseIfMatch } from '../utils/etag'
 import { decodePageToken, encodePageToken } from '../utils/pagination'
 
@@ -257,6 +270,7 @@ function readModelToResponse(model: OpportunityReadModel): OpportunityResponse {
       fileName: a.fileName ?? null,
       contentType: a.contentType ?? null,
       uploadedAt: a.uploadedAt.toISOString(),
+      uploadStatus: a.uploadStatus,
     })),
     createdAt: opportunity.createdAt.toISOString(),
     updatedAt: opportunity.updatedAt.toISOString(),
@@ -265,6 +279,46 @@ function readModelToResponse(model: OpportunityReadModel): OpportunityResponse {
 
 export function toOpportunityResponse(result: OpportunityResult): OpportunityResponse {
   return readModelToResponse(result)
+}
+
+export function toOpportunityAttachmentDownloadResponse(
+  result: AttachmentDownloadResult
+): OpportunityAttachmentDownloadResponse {
+  return {
+    id: result.attachment.id,
+    fileName: result.attachment.fileName ?? null,
+    contentType: result.attachment.contentType ?? null,
+    uploadedAt: result.attachment.uploadedAt.toISOString(),
+    uploadStatus: result.attachment.uploadStatus,
+    downloadUrl: result.downloadUrl,
+    downloadUrlExpiresAt: result.downloadUrlExpiresAt.toISOString(),
+  }
+}
+
+export function toCreateOpportunityAttachmentUploadIntentCommand(
+  actor: RequestActor,
+  opportunityId: string,
+  body: CreateOpportunityAttachmentUploadIntentRequest
+): CreateOpportunityAttachmentUploadIntentCommand {
+  return {
+    actor,
+    opportunityId,
+    fileName: body.fileName,
+    contentType: body.contentType,
+  }
+}
+
+export function toOpportunityAttachmentUploadIntentResponse(
+  result: CreateOpportunityAttachmentUploadIntentResult,
+  contentType: string
+): OpportunityAttachmentUploadIntentResponse {
+  return {
+    attachmentId: result.attachmentId,
+    filePath: result.filePath,
+    uploadUrl: result.uploadUrl,
+    uploadExpiresAt: result.uploadExpiresAt.toISOString(),
+    contentType,
+  }
 }
 
 export function toOpportunityListResponse(

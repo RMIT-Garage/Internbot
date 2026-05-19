@@ -2,10 +2,11 @@
  * Architecture boundary tests.
  *
  * Enforces Clean Architecture dependency rule:
- *   domain ← application ← infrastructure ← api
+ *   domain ← application ← infrastructure ← {api, workers}
  *
- * Each layer may only import from layers to its left (inner layers).
- * Violations are caught here before they silently drift.
+ * `api/` (HTTP transport) and `workers/` (event-bus transport) are peer
+ * outermost layers — both may import from inner layers but never from each
+ * other. Violations are caught here before they silently drift.
  *
  * Also enforces:
  *   - infrastructure/config/firebase-admin is the sole Firebase Admin entry point
@@ -97,12 +98,37 @@ describe('Architecture boundaries', () => {
     }
   })
 
-  describe('infrastructure/ — must not import api/', () => {
+  describe('infrastructure/ — must not import api/ or workers/', () => {
     const infraDir = path.join(SRC, 'infrastructure')
     const files = getFiles(infraDir)
 
     if (files.length === 0) {
       it('infrastructure/ has no files yet (skip)', () => expect(true).toBe(true))
+    }
+
+    for (const file of files) {
+      const rel = path.relative(SRC, file)
+      it(`${rel} does not import api/ or workers/`, () => {
+        for (const imp of getImportedPaths(file)) {
+          const isRelative = imp.startsWith('.')
+          if (!isRelative) continue
+          const resolved = path.resolve(path.dirname(file), imp)
+          const relResolved = path.relative(SRC, resolved)
+          expect(
+            relResolved,
+            `${rel} imports '${imp}' — infrastructure/ must not depend on api/ or workers/`
+          ).not.toMatch(/^(api|workers)/)
+        }
+      })
+    }
+  })
+
+  describe('workers/ — must not import api/ (peer outermost transports)', () => {
+    const workersDir = path.join(SRC, 'workers')
+    const files = getFiles(workersDir)
+
+    if (files.length === 0) {
+      it('workers/ has no files yet (skip)', () => expect(true).toBe(true))
     }
 
     for (const file of files) {
@@ -115,8 +141,29 @@ describe('Architecture boundaries', () => {
           const relResolved = path.relative(SRC, resolved)
           expect(
             relResolved,
-            `${rel} imports '${imp}' — infrastructure/ must not depend on api/`
+            `${rel} imports '${imp}' — workers/ and api/ are peer transports; route HTTP through api/, events through workers/`
           ).not.toMatch(/^api/)
+        }
+      })
+    }
+  })
+
+  describe('api/ — must not import workers/ (peer outermost transports)', () => {
+    const apiDir = path.join(SRC, 'api')
+    const files = getFiles(apiDir)
+
+    for (const file of files) {
+      const rel = path.relative(SRC, file)
+      it(`${rel} does not import workers/`, () => {
+        for (const imp of getImportedPaths(file)) {
+          const isRelative = imp.startsWith('.')
+          if (!isRelative) continue
+          const resolved = path.resolve(path.dirname(file), imp)
+          const relResolved = path.relative(SRC, resolved)
+          expect(
+            relResolved,
+            `${rel} imports '${imp}' — api/ must not reach into workers/`
+          ).not.toMatch(/^workers/)
         }
       })
     }
@@ -162,13 +209,13 @@ describe('Architecture boundaries', () => {
     }
   })
 
-  describe('application/ — must not import zod, firebase-admin, or api/', () => {
+  describe('application/ — must not import zod, firebase-admin, api/, or workers/', () => {
     const appDir = path.join(SRC, 'application')
     const files = getFiles(appDir)
 
     for (const file of files) {
       const rel = path.relative(SRC, file)
-      it(`${rel} does not import zod, firebase-admin, or reach into api/`, () => {
+      it(`${rel} does not import zod, firebase-admin, or reach into api/ or workers/`, () => {
         const content = getContent(file)
         expect(
           /from\s+['"]zod['"]/.test(content),
@@ -184,8 +231,8 @@ describe('Architecture boundaries', () => {
           const relResolved = path.relative(SRC, resolved)
           expect(
             relResolved,
-            `${rel} imports '${imp}' — application/ must not reach into api/`
-          ).not.toMatch(/^api/)
+            `${rel} imports '${imp}' — application/ must not reach into api/ or workers/`
+          ).not.toMatch(/^(api|workers)/)
         }
       })
     }

@@ -10,6 +10,7 @@ import { AddInternshipCommentCommandHandler } from '../../../../src/application/
 import { DecideInternshipOfferCommandHandler } from '../../../../src/application/commands/decide-internship-offer'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { adminDb, Timestamp } from '../../../../src/infrastructure/config/firebase-admin'
 import { User } from '../../../../src/domain/entities/user'
 import { UserIdentity } from '../../../../src/domain/value-objects/user-identity'
@@ -35,7 +36,7 @@ async function seedUser(
 ): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id,
         version: 0,
@@ -71,8 +72,12 @@ async function seedUser(
 
 async function activeSemester(): Promise<string> {
   const uow = new FirestoreUnitOfWork()
-  const create = new CreateSemesterCommandHandler(uow, firestoreIdGenerator)
-  const transition = new TransitionSemesterCommandHandler(uow)
+  const create = new CreateSemesterCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
+  const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
   const actor = actorFor('coordinator')
   const { id } = await create.handle({
     actor,
@@ -95,8 +100,12 @@ async function activeSemester(): Promise<string> {
 async function publishedOpportunity(semesterId: string): Promise<string> {
   const uow = new FirestoreUnitOfWork()
   const actor = actorFor('coordinator', 'usr_coord_actor')
-  const create = new CreateOpportunityCommandHandler(uow, firestoreIdGenerator)
-  const transition = new TransitionOpportunityCommandHandler(uow)
+  const create = new CreateOpportunityCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
+  const transition = new TransitionOpportunityCommandHandler(uow, defaultAuthorizationService)
   const { id } = await create.handle({
     actor,
     payload: {
@@ -118,6 +127,7 @@ async function publishedOpportunity(semesterId: string): Promise<string> {
 async function createAppliedInternship(studentId: string, opportunityId: string): Promise<string> {
   const { id } = await new CreateInternshipCommandHandler(
     new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
     firestoreIdGenerator
   ).handle({
     actor: actorFor('student', studentId),
@@ -146,6 +156,7 @@ async function submitForReview(studentId: string, internshipId: string): Promise
   await addAttachment(internshipId)
   await new SubmitInternshipOfferCommandHandler(
     new FirestoreUnitOfWork(),
+    defaultAuthorizationService,
     firestoreIdGenerator
   ).handle({
     actor: actorFor('student', studentId),
@@ -193,7 +204,11 @@ describe('Internship commands — integration', () => {
     await createAppliedInternship(studentId, opportunityId)
 
     await expect(
-      new CreateInternshipCommandHandler(new FirestoreUnitOfWork(), firestoreIdGenerator).handle({
+      new CreateInternshipCommandHandler(
+        new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
         actor: actorFor('student', studentId),
         payload: { opportunityId },
       })
@@ -210,6 +225,7 @@ describe('Internship commands — integration', () => {
     await expect(
       new SubmitInternshipOfferCommandHandler(
         new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
         firestoreIdGenerator
       ).handle({
         actor: actorFor('student', studentId),
@@ -233,6 +249,7 @@ describe('Internship commands — integration', () => {
 
     await new SubmitInternshipOfferCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('student', studentId),
@@ -266,6 +283,7 @@ describe('Internship commands — integration', () => {
     const before = await adminDb.collection('internships').doc(internshipId).get()
     const result = await new AddInternshipCommentCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('coordinator', coordinatorId),
@@ -297,6 +315,7 @@ describe('Internship commands — integration', () => {
 
     await new DecideInternshipOfferCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     ).handle({
       actor: actorFor('coordinator', coordinatorId),
@@ -336,6 +355,7 @@ describe('Internship commands — integration', () => {
     await expect(
       new DecideInternshipOfferCommandHandler(
         new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
         firestoreIdGenerator
       ).handle({
         actor: actorFor('coordinator', coordinatorId),
@@ -356,6 +376,7 @@ describe('Internship commands — integration', () => {
     await expect(
       new DecideInternshipOfferCommandHandler(
         new FirestoreUnitOfWork(),
+        defaultAuthorizationService,
         firestoreIdGenerator
       ).handle({
         actor: actorFor('student', studentId),

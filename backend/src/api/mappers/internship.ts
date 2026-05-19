@@ -5,18 +5,26 @@ import type { UpdateInternshipCommand } from '../../application/commands/update-
 import type { SubmitInternshipOfferCommand } from '../../application/commands/submit-internship-offer'
 import type { AddInternshipCommentCommand } from '../../application/commands/add-internship-comment'
 import type { DecideInternshipOfferCommand } from '../../application/commands/decide-internship-offer'
-import type { ListInternshipsQuery } from '../../application/queries/list-internships'
 import type {
-  InternshipActivityResult,
   InternshipListResultWithCursor,
-  InternshipResult,
-} from '../../application/models/internship'
-import type { InternshipReadModel } from '../../application/read-models/internship'
-import type { InternshipListCursor } from '../../domain/repositories/internship-repository'
+  ListInternshipsQuery,
+} from '../../application/queries/list-internships'
+import type { InternshipActivityResult } from '../../application/commands/add-internship-comment'
+import type { InternshipResult } from '../../application/queries/get-internship'
+import type { AttachmentDownloadResult } from '../../application/queries/get-internship-attachment'
+import type {
+  CreateInternshipAttachmentUploadIntentCommand,
+  CreateInternshipAttachmentUploadIntentResult,
+} from '../../application/commands/create-internship-attachment-upload-intent'
+import type {
+  InternshipListCursor,
+  InternshipReadModel,
+} from '../../application/read-models/internship'
 import type { InternshipStatus } from '../../domain/value-objects/internship-enums'
 import { internshipStatusValues } from '../../domain/value-objects/internship-enums'
 import type {
   AddInternshipCommentRequest,
+  CreateInternshipAttachmentUploadIntentRequest,
   CreateInternshipRequest,
   DecideInternshipOfferRequest,
   PatchInternshipRequest,
@@ -24,6 +32,8 @@ import type {
 } from '../schemas/internship'
 import type {
   InternshipActivityResponse,
+  InternshipAttachmentDownloadResponse,
+  InternshipAttachmentUploadIntentResponse,
   InternshipListItemResponse,
   InternshipListResponse,
   InternshipResponse,
@@ -261,6 +271,7 @@ function readModelToResponse(model: InternshipReadModel): InternshipResponse {
       fileName: a.fileName ?? null,
       contentType: a.contentType ?? null,
       uploadedAt: a.uploadedAt.toISOString(),
+      uploadStatus: a.uploadStatus,
     })),
     lastSubmittedAt: dateToIso(internship.lastSubmittedAt),
     createdAt: internship.createdAt.toISOString(),
@@ -287,6 +298,46 @@ function readModelToListItem(model: InternshipReadModel): InternshipListItemResp
 
 export function toInternshipResponse(result: InternshipResult): InternshipResponse {
   return readModelToResponse(result)
+}
+
+export function toInternshipAttachmentDownloadResponse(
+  result: AttachmentDownloadResult
+): InternshipAttachmentDownloadResponse {
+  return {
+    id: result.attachment.id,
+    fileName: result.attachment.fileName ?? null,
+    contentType: result.attachment.contentType ?? null,
+    uploadedAt: result.attachment.uploadedAt.toISOString(),
+    uploadStatus: result.attachment.uploadStatus,
+    downloadUrl: result.downloadUrl,
+    downloadUrlExpiresAt: result.downloadUrlExpiresAt.toISOString(),
+  }
+}
+
+export function toCreateInternshipAttachmentUploadIntentCommand(
+  actor: RequestActor,
+  internshipId: string,
+  body: CreateInternshipAttachmentUploadIntentRequest
+): CreateInternshipAttachmentUploadIntentCommand {
+  return {
+    actor,
+    internshipId,
+    fileName: body.fileName,
+    contentType: body.contentType,
+  }
+}
+
+export function toInternshipAttachmentUploadIntentResponse(
+  result: CreateInternshipAttachmentUploadIntentResult,
+  contentType: string
+): InternshipAttachmentUploadIntentResponse {
+  return {
+    attachmentId: result.attachmentId,
+    filePath: result.filePath,
+    uploadUrl: result.uploadUrl,
+    uploadExpiresAt: result.uploadExpiresAt.toISOString(),
+    contentType,
+  }
 }
 
 export function toInternshipListResponse(

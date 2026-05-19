@@ -2,9 +2,15 @@ import type { RequestActor } from '../actor'
 import type { CommandMetadata } from '../command-metadata'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
+import type { AuthorizationService } from '../ports/authorization-service'
 import type { TicketTransitionDetails } from '../../domain/entities/ticket'
+import type { TicketActivity } from '../../domain/value-objects/ticket-activity'
 import { Notification } from '../../domain/entities/notification'
-import { ForbiddenError, NotFoundError, PreconditionFailedError } from '../../domain/errors'
+import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
+
+export interface TicketActivityResult {
+  readonly activity: TicketActivity
+}
 
 export interface TransitionTicketCommand {
   actor: RequestActor
@@ -20,20 +26,17 @@ export interface TransitionTicketResult {
 export class TransitionTicketCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: TransitionTicketCommand): Promise<TransitionTicketResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    this.authz.requirePlatformUser(cmd.actor)
 
     const activityId = this.idGenerator.next()
     const now = new Date()
 
     return this.uow.execute(async (ctx) => {
-      // All reads first (Firestore txn rule: all reads before any writes).
       const ticket = await ctx.tickets.findById(cmd.ticketId)
       if (!ticket) throw new NotFoundError('Ticket', cmd.ticketId)
 
@@ -42,28 +45,29 @@ export class TransitionTicketCommandHandler {
         throw new PreconditionFailedError('Resource version does not match')
       }
 
+      const platformUser = this.authz.requireSelfOrRole(
+        cmd.actor,
+        ticket.userId,
+        ['coordinator'],
+        'student_not_owner'
+      )
       const isOwner = ticket.userId === platformUser.id
-      if (platformUser.role === 'student' && !isOwner) {
-        throw new ForbiddenError(
-          'Students may only transition their own tickets',
-          'student_not_owner'
-        )
-      }
 
+      // Reads-before-writes: load coordinators in-txn for student fan-out.
       const coordinators = platformUser.role === 'student' ? await ctx.users.listCoordinators() : []
 
       const fromStatus = ticket.status
-      const activity = ticket.transition(
+      ticket.transition(
         cmd.payload,
         { userId: platformUser.id, role: platformUser.role, isOwner },
         activityId,
         now
       )
-      await ctx.tickets.applyTransition(ticket, activity)
+      await ctx.tickets.save(ticket)
 
       if (platformUser.role === 'student') {
         for (const coordinator of coordinators) {
-          await ctx.notifications.create(
+          await ctx.notifications.save(
             Notification.forTicketTransition({
               id: this.idGenerator.next(),
               userId: coordinator.id,
@@ -75,7 +79,7 @@ export class TransitionTicketCommandHandler {
           )
         }
       } else {
-        await ctx.notifications.create(
+        await ctx.notifications.save(
           Notification.forTicketTransition({
             id: this.idGenerator.next(),
             userId: ticket.userId,

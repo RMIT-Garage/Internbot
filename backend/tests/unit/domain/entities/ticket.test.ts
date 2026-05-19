@@ -85,7 +85,7 @@ describe('Ticket.transition', () => {
   it('coordinator can move open → in_progress and stages a transition activity with actorRole', () => {
     const t = ticket('open')
 
-    const activity = t.transition(
+    t.transition(
       { to: 'in_progress', comment: 'looking now' },
       { userId: 'usr_coord', role: 'coordinator', isOwner: false },
       'act_001',
@@ -94,13 +94,17 @@ describe('Ticket.transition', () => {
 
     expect(t.status).toBe('in_progress')
     expect(t.updatedAt).toBe(LATER)
+    expect(t.pendingEvents).toHaveLength(1)
+    const event = t.pendingEvents[0]!
+    expect(event.kind).toBe('ticket_transitioned')
+    if (event.kind !== 'ticket_transitioned') throw new Error('expected transitioned')
+    const activity = event.activity
     expect(activity.type).toBe('transition')
     expect(activity.from).toBe('open')
     expect(activity.to).toBe('in_progress')
     expect(activity.actorUserId).toBe('usr_coord')
     expect(activity.actorRole).toBe('coordinator')
     expect(activity.comment).toBe('looking now')
-    expect(t.pendingActivity).toBe(activity)
   })
 
   it('student owner can close their own open ticket', () => {
@@ -176,7 +180,7 @@ describe('Ticket.transition', () => {
 
 describe('Ticket.reply', () => {
   it('builds a reply VO with author + role + trimmed text', () => {
-    const reply = ticket('open').reply(
+    const reply = ticket('open').addReply(
       'rep_001',
       { userId: 'usr_coord', role: 'coordinator', isOwner: false },
       '  Will follow up  ',
@@ -192,7 +196,7 @@ describe('Ticket.reply', () => {
 
   it('rejects empty text', () => {
     expect(() =>
-      ticket('open').reply(
+      ticket('open').addReply(
         'rep_001',
         { userId: 'usr_coord', role: 'coordinator', isOwner: false },
         '   ',
@@ -203,7 +207,7 @@ describe('Ticket.reply', () => {
 
   it('rejects student non-owner with student_not_owner', () => {
     expect(() =>
-      ticket('open', 'usr_other').reply(
+      ticket('open', 'usr_other').addReply(
         'rep_001',
         { userId: 'usr_student', role: 'student', isOwner: false },
         'hi',

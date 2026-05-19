@@ -4,6 +4,7 @@ import {
   opportunityTypeValues,
   workModeValues,
 } from '../../domain/value-objects/opportunity-enums'
+import { attachmentUploadStatusValues } from '../../domain/value-objects/attachment'
 
 export const opportunityAttachmentResponseSchema = z
   .object({
@@ -11,6 +12,11 @@ export const opportunityAttachmentResponseSchema = z
     fileName: z.string().nullable().meta({ example: 'position-description.pdf' }),
     contentType: z.string().nullable().meta({ example: 'application/pdf' }),
     uploadedAt: z.string().datetime().meta({ example: '2026-04-04T09:05:00Z' }),
+    uploadStatus: z.enum(attachmentUploadStatusValues).meta({
+      example: 'finalized',
+      description:
+        'Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable.',
+    }),
   })
   .meta({
     id: 'OpportunityAttachmentResponse',
@@ -18,6 +24,41 @@ export const opportunityAttachmentResponseSchema = z
   })
 
 export type OpportunityAttachmentResponse = z.infer<typeof opportunityAttachmentResponseSchema>
+
+export const opportunityAttachmentDownloadResponseSchema = opportunityAttachmentResponseSchema
+  .extend({
+    downloadUrl: z.string().url(),
+    downloadUrlExpiresAt: z.string().datetime(),
+  })
+  .meta({
+    id: 'OpportunityAttachmentDownloadResponse',
+    description:
+      'Opportunity attachment metadata with a fresh short-lived Cloud Storage signed URL.',
+  })
+
+export type OpportunityAttachmentDownloadResponse = z.infer<
+  typeof opportunityAttachmentDownloadResponseSchema
+>
+
+export const opportunityAttachmentUploadIntentResponseSchema = z
+  .object({
+    attachmentId: z.string().meta({ example: 'att_001' }),
+    filePath: z.string().meta({
+      example: 'opportunities/opp_042/attachments/att_001-position-description.pdf',
+    }),
+    uploadUrl: z.string().url(),
+    uploadExpiresAt: z.string().datetime().meta({ example: '2026-04-04T09:15:00Z' }),
+    contentType: z.string().meta({ example: 'application/pdf' }),
+  })
+  .meta({
+    id: 'OpportunityAttachmentUploadIntentResponse',
+    description:
+      'V4 signed PUT URL the coordinator can upload a position-description file to. The URL is bound to the supplied `contentType` — the client MUST send a matching `Content-Type` header on the PUT.',
+  })
+
+export type OpportunityAttachmentUploadIntentResponse = z.infer<
+  typeof opportunityAttachmentUploadIntentResponseSchema
+>
 
 export const opportunityResponseSchema = z
   .object({

@@ -20,18 +20,22 @@ import { GetNotificationQueryHandler } from '../../application/queries/get-notif
 import { MarkNotificationReadCommandHandler } from '../../application/commands/mark-notification-read'
 import { MarkAllNotificationsReadCommandHandler } from '../../application/commands/mark-all-notifications-read'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
+import type { AuthorizationService } from '../../application/ports/authorization-service'
+import type { NotificationQueryService } from '../../application/ports/queries/notification-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface NotificationsRouterDeps {
   uow: UnitOfWork
+  authz: AuthorizationService
+  notificationQueries: NotificationQueryService
 }
 
 export function createNotificationsRouter(deps: NotificationsRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
-  const listNotifications = new ListNotificationsQueryHandler(deps.uow)
-  const getNotification = new GetNotificationQueryHandler(deps.uow)
-  const markNotificationRead = new MarkNotificationReadCommandHandler(deps.uow)
-  const markAllNotificationsRead = new MarkAllNotificationsReadCommandHandler(deps.uow)
+  const listNotifications = new ListNotificationsQueryHandler(deps.notificationQueries, deps.authz)
+  const getNotification = new GetNotificationQueryHandler(deps.notificationQueries, deps.authz)
+  const markNotificationRead = new MarkNotificationReadCommandHandler(deps.uow, deps.authz)
+  const markAllNotificationsRead = new MarkAllNotificationsReadCommandHandler(deps.uow, deps.authz)
 
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {

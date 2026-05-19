@@ -1,5 +1,4 @@
 import { auth } from '@/lib/firebase/client'
-import { getFirebaseAuth } from '@/lib/firebase/client'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -14,10 +13,10 @@ export class ApiError extends Error {
   }
 }
 
-async function getAuthHeader(): Promise<Record<string, string>> {
-  const user = getFirebaseAuth().currentUser
+async function getAuthHeader(forceRefresh: boolean): Promise<Record<string, string>> {
+  const user = auth.currentUser
   if (!user) return {}
-  const token = await user.getIdToken()
+  const token = await user.getIdToken(forceRefresh)
   return { Authorization: `Bearer ${token}` }
 }
 
@@ -31,20 +30,26 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit = {
   }
 
   const { body, headers, ...rest } = init
-  const authHeader = await getAuthHeader()
   const hasBody = body !== undefined
-  console.log('API URL:', process.env.NEXT_PUBLIC_API_URL)
-  console.log('Auth header:', await getAuthHeader())
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-      ...authHeader,
-      ...(headers ?? {}),
-    },
-    body: hasBody ? JSON.stringify(body) : undefined,
-  })
+  const send = async (forceRefresh: boolean) => {
+    const authHeader = await getAuthHeader(forceRefresh)
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: {
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+        ...authHeader,
+        ...(headers ?? {}),
+      },
+      body: hasBody ? JSON.stringify(body) : undefined,
+    })
+  }
+
+  let response = await send(false)
+
+  if (response.status === 401 && auth.currentUser) {
+    response = await send(true)
+  }
 
   const contentType = response.headers.get('content-type') ?? ''
   const parsed: unknown = contentType.includes('application/json')
@@ -52,12 +57,28 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit = {
     : await response.text()
 
   if (!response.ok) {
-    const message =
-      typeof parsed === 'object' && parsed && 'message' in parsed
-        ? String((parsed as { message: unknown }).message)
-        : `Request failed with status ${response.status}`
-    throw new ApiError(response.status, parsed, message)
+    throw new ApiError(response.status, parsed, extractErrorMessage(parsed, response.status))
   }
 
   return parsed as T
+}
+
+/**
+ * Pick a human-readable message out of the backend's RFC 9457 error body
+ * (see backend/src/api/middleware/error-handler.ts):
+ *   { type, title, status, detail, error: { code, message, reason?, fields? } }
+ * Falls back through `detail` → `error.message` → `message` → status string.
+ */
+function extractErrorMessage(body: unknown, status: number): string {
+  if (typeof body === 'object' && body !== null) {
+    const b = body as { detail?: unknown; message?: unknown; error?: unknown }
+    if (typeof b.detail === 'string' && b.detail) return b.detail
+    if (typeof b.error === 'object' && b.error !== null) {
+      const inner = (b.error as { message?: unknown }).message
+      if (typeof inner === 'string' && inner) return inner
+    }
+    if (typeof b.message === 'string' && b.message) return b.message
+  }
+  if (typeof body === 'string' && body) return body
+  return `Request failed with status ${status}`
 }

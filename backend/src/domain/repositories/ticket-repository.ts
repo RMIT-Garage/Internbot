@@ -1,40 +1,21 @@
 import type { Ticket } from '../entities/ticket'
-import type { TicketActivity } from '../value-objects/ticket-activity'
-import type { TicketReply } from '../value-objects/ticket-reply'
-import type { TicketStatus } from '../value-objects/ticket-enums'
 
-export interface TicketListCursor {
-  readonly sortField: 'createdAt'
-  readonly sortDirection: 'asc' | 'desc'
-  readonly lastValue: Date
-  readonly lastDocId: string
-}
-
-export interface TicketListFilter {
-  readonly userId: string | undefined
-  readonly status: TicketStatus | undefined
-  readonly limit: number
-  readonly sortDirection: 'asc' | 'desc'
-  readonly cursor: TicketListCursor | undefined
-}
-
-export interface TicketListPage {
-  readonly items: readonly Ticket[]
-  readonly nextCursor: TicketListCursor | null
-}
-
+/**
+ * Write-side port over the `tickets` aggregate. Pure-DDD/CQRS surface —
+ * exactly three methods (`findById`, `save`, `delete`).
+ *
+ * `save` is an upsert: `aggregate.version === 0` → first-write; else
+ * optimistic-lock update. Drains `pendingEvents` and translates each event:
+ *   - `TicketTransitioned` (emitted by `transition`) → rotate version,
+ *     write status update, append activity row.
+ *   - `TicketReplied` (emitted by `addReply`) → bump `updatedAt` only,
+ *     append reply row, do NOT rotate version (replies are conversation-
+ *     thread items, not state mutations).
+ *
+ * Read-side `list` lives on `TicketQueryService`.
+ */
 export interface TicketRepository {
   findById(id: string): Promise<Ticket | null>
-  list(filter: TicketListFilter): Promise<TicketListPage>
-  create(ticket: Ticket): Promise<void>
-  /**
-   * Persist a state transition: rotate the ticket's stored version (OCC),
-   * append the activity record, and bump `updatedAt`. Atomic via UoW txn.
-   */
-  applyTransition(ticket: Ticket, activity: TicketActivity): Promise<void>
-  /**
-   * Append a reply and bump the parent's `updatedAt` without rotating its
-   * version — replies are conversation-thread items, not state mutations.
-   */
-  addReply(ticketId: string, reply: TicketReply, now: Date): Promise<void>
+  save(ticket: Ticket): Promise<void>
+  delete(id: string): Promise<void>
 }

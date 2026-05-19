@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { CreateSemesterCommandHandler } from '../../../../src/application/commands/create-semester'
 import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
+import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
 import { initEmulator, clearDocs, trackDoc } from '../../../setup.emulator'
 import { adminDb } from '../../../../src/infrastructure/config/firebase-admin'
 import type { RequestActor } from '../../../../src/application/actor'
@@ -31,6 +32,7 @@ describe('CreateSemesterCommandHandler — integration', () => {
   it('coordinator with valid payload creates a semester doc', async () => {
     const handler = new CreateSemesterCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     const code = uniqueSemesterCode()
@@ -65,6 +67,7 @@ describe('CreateSemesterCommandHandler — integration', () => {
   it('rejects student with role_restricted_action', async () => {
     const handler = new CreateSemesterCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     await expect(
@@ -85,6 +88,7 @@ describe('CreateSemesterCommandHandler — integration', () => {
   it('duplicate (semesterCode, courseCode) returns ConflictError natural_key_exists', async () => {
     const handler = new CreateSemesterCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     const code = uniqueSemesterCode()
@@ -107,6 +111,7 @@ describe('CreateSemesterCommandHandler — integration', () => {
   it('concurrent creates with the same natural key produce exactly one document', async () => {
     const handler = new CreateSemesterCommandHandler(
       new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
       firestoreIdGenerator
     )
     const code = uniqueSemesterCode()

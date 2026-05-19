@@ -1,7 +1,12 @@
 import type { RequestActor } from '../actor'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import type { TicketResult } from '../models/ticket'
-import { ForbiddenError, NotFoundError } from '../../domain/errors'
+import type { TicketQueryService } from '../ports/queries/ticket-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { Ticket } from '../../domain/entities/ticket'
+import { NotFoundError } from '../../domain/errors'
+
+export interface TicketResult {
+  readonly ticket: Ticket
+}
 
 export interface GetTicketQuery {
   actor: RequestActor
@@ -9,21 +14,21 @@ export interface GetTicketQuery {
 }
 
 export class GetTicketQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly ticketQueries: TicketQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: GetTicketQuery): Promise<TicketResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    // requirePlatformUser before findById so an unhydrated caller hits a
+    // 403 `no_platform_user` rather than leaking 404 / existence info.
+    this.authz.requirePlatformUser(q.actor)
 
-    return this.uow.execute(async (ctx) => {
-      const ticket = await ctx.tickets.findById(q.ticketId)
-      if (!ticket) throw new NotFoundError('Ticket', q.ticketId)
-      if (platformUser.role === 'student' && ticket.userId !== platformUser.id) {
-        throw new ForbiddenError('Students may only read their own tickets', 'ticket_not_owner')
-      }
-      return { ticket }
-    })
+    const ticket = await this.ticketQueries.findById(q.ticketId)
+    if (!ticket) throw new NotFoundError('Ticket', q.ticketId)
+
+    this.authz.requireSelfOrRole(q.actor, ticket.userId, 'coordinator', 'ticket_not_owner')
+
+    return { ticket }
   }
 }

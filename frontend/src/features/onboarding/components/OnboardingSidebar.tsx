@@ -47,7 +47,7 @@ export function OnboardingSidebar({ currentStep }: Props) {
         {/* Heading */}
         <div className="mb-12">
           <h1 className="mb-1 text-2xl font-semibold">Profile Setup</h1>
-          <p className="text-[10px] font-medium tracking-widest text-gray-400 uppercase">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
             Onboarding Progress
           </p>
         </div>
@@ -73,13 +73,6 @@ export function OnboardingSidebar({ currentStep }: Props) {
 
       {/* Footer */}
       <div className="space-y-1.5 border-t border-gray-100 pt-6">
-        <a
-          href="/help"
-          className="flex items-center gap-3 rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
-        >
-          <MessageCircle size={20} className="text-gray-400" />
-          Help Center
-        </a>
         <button
           onClick={handleSignOut}
           className="flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-50"

@@ -1,13 +1,14 @@
 import { z } from 'zod'
-import { Timestamp, type Query, type Transaction } from 'firebase-admin/firestore'
+import { Timestamp, type Transaction } from 'firebase-admin/firestore'
 import { FieldValue, Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
-import type {
-  OpportunityAttachment,
-  OpportunityListCursor,
-  OpportunityListFilter,
-  OpportunityListPage,
-  OpportunityRepository,
-} from '../../domain/repositories/opportunity-repository'
+import type { OpportunityRepository } from '../../domain/repositories/opportunity-repository'
+import {
+  Attachment,
+  ATTACHMENT_SCHEMA_VERSION,
+  attachmentUploadStatusValues,
+  type AttachmentProps,
+  type AttachmentUploadStatus,
+} from '../../domain/value-objects/attachment'
 import { Opportunity, OPPORTUNITY_SCHEMA_VERSION } from '../../domain/entities/opportunity'
 import type { OpportunityTransition } from '../../domain/value-objects/opportunity-transition'
 import type { OpportunityVerification } from '../../domain/value-objects/opportunity-verification'
@@ -22,10 +23,11 @@ import {
 } from '../../domain/value-objects/opportunity-enums'
 import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 import { translateFirestoreErrors } from './translate-firestore-errors'
+import { buildAttachmentPurgeQueueDoc, newAttachmentPurgeQueueRef } from './attachment-purge-queue'
 
 const firestoreTimestamp = z.instanceof(Timestamp)
 
-const opportunityStorageSchema = z.object({
+export const opportunityStorageSchema = z.object({
   semesterId: z.string().min(1),
   type: z.enum(opportunityTypeValues),
   employerName: z.string().min(1),
@@ -45,16 +47,18 @@ const opportunityStorageSchema = z.object({
   _schemaVersion: z.literal(1),
 })
 
-const attachmentStorageSchema = z.object({
+export const opportunityAttachmentStorageSchema = z.object({
   filePath: z.string().min(1),
   fileName: z.string().optional(),
   contentType: z.string().optional(),
   uploadedAt: firestoreTimestamp,
+  storageGeneration: z.string().optional(),
+  uploadStatus: z.enum(attachmentUploadStatusValues).optional(),
   _schemaVersion: z.number().int().optional(),
 })
 
 type OpportunityStorage = z.infer<typeof opportunityStorageSchema>
-type AttachmentStorage = z.infer<typeof attachmentStorageSchema>
+type AttachmentStorage = z.infer<typeof opportunityAttachmentStorageSchema>
 
 type ServerTimestamp = ReturnType<typeof FieldValue.serverTimestamp>
 type DeleteField = ReturnType<typeof FieldValue.delete>
@@ -106,6 +110,15 @@ type OpportunityCreateDoc = OpportunityCreateWrite & {
 type OpportunityUpdateDoc = OpportunityUpdateWrite & { updatedAt: ServerTimestamp }
 type OpportunityTransitionDoc = OpportunityTransitionWrite & { updatedAt: ServerTimestamp }
 type OpportunityVerificationDoc = OpportunityVerificationWrite & { updatedAt: ServerTimestamp }
+type AttachmentWrite = {
+  filePath: string
+  fileName?: string
+  contentType?: string
+  storageGeneration?: string
+  uploadStatus: AttachmentUploadStatus
+  _schemaVersion: typeof ATTACHMENT_SCHEMA_VERSION
+}
+type AttachmentDoc = AttachmentWrite & { uploadedAt: Timestamp | ServerTimestamp }
 
 type OpportunityActivityWrite = {
   type: OpportunityActivityType
@@ -120,32 +133,39 @@ type OpportunityActivityWrite = {
 }
 type OpportunityActivityDoc = OpportunityActivityWrite & { createdAt: ServerTimestamp }
 
-const COLLECTION = 'opportunities'
+export const OPPORTUNITY_COLLECTION = 'opportunities'
 
 function tsToDate(ts: Timestamp | undefined): Date | undefined {
   return ts ? ts.toDate() : undefined
 }
 
-function mapStorageToOpportunity(id: string, storage: OpportunityStorage): Opportunity {
-  return Opportunity.rehydrate({
-    id,
-    version: storage.version,
-    semesterId: storage.semesterId,
-    type: storage.type,
-    employerName: storage.employerName,
-    jobTitle: storage.jobTitle,
-    descriptionText: storage.descriptionText,
-    workMode: storage.workMode,
-    location: storage.location,
-    sourceUrl: storage.sourceUrl,
-    status: storage.status,
-    createdByUserId: storage.createdByUserId,
-    submittedByUserId: storage.submittedByUserId,
-    verifiedByUserId: storage.verifiedByUserId,
-    verifiedAt: tsToDate(storage.verifiedAt),
-    createdAt: storage.createdAt.toDate(),
-    updatedAt: storage.updatedAt.toDate(),
-  })
+function mapStorageToOpportunity(
+  id: string,
+  storage: OpportunityStorage,
+  attachments: readonly Attachment[]
+): Opportunity {
+  return Opportunity.rehydrate(
+    {
+      id,
+      version: storage.version,
+      semesterId: storage.semesterId,
+      type: storage.type,
+      employerName: storage.employerName,
+      jobTitle: storage.jobTitle,
+      descriptionText: storage.descriptionText,
+      workMode: storage.workMode,
+      location: storage.location,
+      sourceUrl: storage.sourceUrl,
+      status: storage.status,
+      createdByUserId: storage.createdByUserId,
+      submittedByUserId: storage.submittedByUserId,
+      verifiedByUserId: storage.verifiedByUserId,
+      verifiedAt: tsToDate(storage.verifiedAt),
+      createdAt: storage.createdAt.toDate(),
+      updatedAt: storage.updatedAt.toDate(),
+    },
+    attachments
+  )
 }
 
 function opportunityToCreatePayload(o: Opportunity): OpportunityCreateWrite {
@@ -209,104 +229,66 @@ function verificationToActivityPayload(v: OpportunityVerification): OpportunityA
   }
 }
 
+function attachmentToPayload(attachment: Attachment): AttachmentDoc {
+  return {
+    filePath: attachment.filePath,
+    ...(attachment.fileName !== undefined ? { fileName: attachment.fileName } : {}),
+    ...(attachment.contentType !== undefined ? { contentType: attachment.contentType } : {}),
+    ...(attachment.storageGeneration !== undefined
+      ? { storageGeneration: attachment.storageGeneration }
+      : {}),
+    uploadStatus: attachment.uploadStatus,
+    uploadedAt: FsTimestamp.fromDate(attachment.uploadedAt),
+    _schemaVersion: ATTACHMENT_SCHEMA_VERSION,
+  }
+}
+
 export class FirestoreOpportunityRepository implements OpportunityRepository {
   constructor(private readonly txn: Transaction) {}
 
   async findById(id: string): Promise<Opportunity | null> {
     return translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(id)
-        const snap = await this.txn.get(ref)
-        if (!snap.exists) return null
-        return parseOpportunity(snap.id, snap.data())
+        const ref = adminDb.collection(OPPORTUNITY_COLLECTION).doc(id)
+        const [parentSnap, attachmentSnap] = await Promise.all([
+          this.txn.get(ref),
+          this.txn.get(ref.collection('attachments').orderBy('uploadedAt', 'asc')),
+        ])
+        if (!parentSnap.exists) return null
+        const attachments = attachmentSnap.docs.map((doc) =>
+          parseOpportunityAttachment(doc.id, doc.data())
+        )
+        return parseOpportunity(parentSnap.id, parentSnap.data(), attachments)
       },
       { op: 'opportunities.findById', resource: 'Opportunity', id }
     )
   }
 
-  async list(filter: OpportunityListFilter): Promise<OpportunityListPage> {
-    return translateFirestoreErrors(
-      async () => {
-        let q: Query = adminDb.collection(COLLECTION)
-
-        if (filter.semesterId !== undefined) {
-          q = q.where('semesterId', '==', filter.semesterId)
-        }
-        if (filter.status && filter.status.length > 0) {
-          q =
-            filter.status.length === 1
-              ? q.where('status', '==', filter.status[0])
-              : q.where('status', 'in', [...filter.status])
-        }
-        if (filter.type !== undefined) {
-          q = q.where('type', '==', filter.type)
-        }
-
-        q = q
-          .orderBy(filter.sortField, filter.sortDirection)
-          .orderBy('__name__', filter.sortDirection)
-
-        if (filter.cursor) {
-          q = q.startAfter(filter.cursor.lastValue ?? null, filter.cursor.lastDocId)
-        }
-
-        q = q.limit(filter.limit + 1)
-        const result = await q.get()
-        const hasMore = result.size > filter.limit
-        const docs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
-        const items = docs.map((doc) => parseOpportunity(doc.id, doc.data()))
-
-        let nextCursor: OpportunityListCursor | null = null
-        if (hasMore) {
-          const last = docs[docs.length - 1]!
-          const value = last.data()['createdAt']
-          const lastValue = value && typeof value.toDate === 'function' ? value.toDate() : null
-          nextCursor = {
-            sortField: filter.sortField,
-            sortDirection: filter.sortDirection,
-            lastValue,
-            lastDocId: last.id,
-          }
-        }
-
-        return { items, nextCursor }
-      },
-      { op: 'opportunities.list', resource: 'Opportunity' }
-    )
+  /** Upsert. `version === 0` → first-write; else optimistic-lock update. */
+  async save(opportunity: Opportunity): Promise<void> {
+    if (opportunity.version === 0) {
+      await this.insertNew(opportunity)
+      return
+    }
+    await this.updateExisting(opportunity)
   }
 
-  async countApplications(opportunityId: string): Promise<number> {
-    return translateFirestoreErrors(
-      async () => {
-        const snap = await adminDb
-          .collection('internships')
-          .where('opportunityId', '==', opportunityId)
-          .get()
-        return snap.size
-      },
-      { op: 'opportunities.countApplications', resource: 'Opportunity', id: opportunityId }
-    )
-  }
-
-  async listAttachments(opportunityId: string): Promise<readonly OpportunityAttachment[]> {
-    return translateFirestoreErrors(
-      async () => {
-        const snap = await adminDb
-          .collection(COLLECTION)
-          .doc(opportunityId)
-          .collection('attachments')
-          .orderBy('uploadedAt', 'asc')
-          .get()
-        return snap.docs.map((doc) => parseAttachment(doc.id, doc.data()))
-      },
-      { op: 'opportunities.listAttachments', resource: 'Opportunity', id: opportunityId }
-    )
-  }
-
-  async create(opportunity: Opportunity): Promise<void> {
+  async delete(id: string): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(opportunity.id)
+        const ref = adminDb.collection(OPPORTUNITY_COLLECTION).doc(id)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) throw new NotFoundError('Opportunity', id)
+        this.txn.delete(ref)
+      },
+      { op: 'opportunities.delete', resource: 'Opportunity', id }
+    )
+  }
+
+  private async insertNew(opportunity: Opportunity): Promise<void> {
+    await translateFirestoreErrors(
+      async () => {
+        const ref = adminDb.collection(OPPORTUNITY_COLLECTION).doc(opportunity.id)
         const doc: OpportunityCreateDoc = {
           ...opportunityToCreatePayload(opportunity),
           createdAt: FieldValue.serverTimestamp(),
@@ -314,14 +296,14 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
         }
         this.txn.create(ref, doc)
       },
-      { op: 'opportunities.create', resource: 'Opportunity' }
+      { op: 'opportunities.save', resource: 'Opportunity', id: opportunity.id }
     )
   }
 
-  async save(opportunity: Opportunity): Promise<void> {
+  private async updateExisting(opportunity: Opportunity): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(opportunity.id)
+        const ref = adminDb.collection(OPPORTUNITY_COLLECTION).doc(opportunity.id)
         const snap = await this.txn.get(ref)
         if (!snap.exists) throw new NotFoundError('Opportunity', opportunity.id)
 
@@ -330,8 +312,39 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           throw new PreconditionFailedError('Resource version does not match')
         }
 
-        const transition = opportunity.pendingTransition
-        if (transition) {
+        const writeAttachmentMutations = (): void => {
+          for (const event of opportunity.pendingEvents) {
+            if (
+              event.kind === 'opportunity_attachment_added' ||
+              event.kind === 'opportunity_attachment_finalized'
+            ) {
+              const attachment = event.attachment
+              this.txn.set(
+                ref.collection('attachments').doc(attachment.id),
+                attachmentToPayload(attachment)
+              )
+            } else if (event.kind === 'opportunity_attachment_removed') {
+              const attachment = event.attachment
+              this.txn.delete(ref.collection('attachments').doc(attachment.id))
+              this.txn.create(
+                newAttachmentPurgeQueueRef(adminDb),
+                buildAttachmentPurgeQueueDoc({
+                  parentCollection: 'opportunities',
+                  parentId: opportunity.id,
+                  attachmentId: attachment.id,
+                  filePath: attachment.filePath,
+                  storageGeneration: attachment.storageGeneration,
+                  requestedByUserId: event.removedByUserId,
+                })
+              )
+            }
+          }
+        }
+
+        const transitionEvent = opportunity.pendingEvents.find(
+          (e) => e.kind === 'opportunity_transitioned'
+        )
+        if (transitionEvent) {
           const update: OpportunityTransitionDoc = {
             status: opportunity.status,
             version: stored + 1,
@@ -339,15 +352,18 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           }
           this.txn.update(ref, update)
           const activityDoc: OpportunityActivityDoc = {
-            ...transitionToActivityPayload(transition),
+            ...transitionToActivityPayload(transitionEvent.transition),
             createdAt: FieldValue.serverTimestamp(),
           }
           this.txn.set(ref.collection('activity').doc(), activityDoc)
+          writeAttachmentMutations()
           return
         }
 
-        const verification = opportunity.pendingVerification
-        if (verification) {
+        const verificationEvent = opportunity.pendingEvents.find(
+          (e) => e.kind === 'opportunity_verified'
+        )
+        if (verificationEvent) {
           const update: OpportunityVerificationDoc = {
             status: opportunity.status,
             verifiedByUserId: opportunity.verifiedByUserId!,
@@ -357,10 +373,11 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           }
           this.txn.update(ref, update)
           const activityDoc: OpportunityActivityDoc = {
-            ...verificationToActivityPayload(verification),
+            ...verificationToActivityPayload(verificationEvent.verification),
             createdAt: FieldValue.serverTimestamp(),
           }
           this.txn.set(ref.collection('activity').doc(), activityDoc)
+          writeAttachmentMutations()
           return
         }
 
@@ -369,32 +386,41 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
           updatedAt: FieldValue.serverTimestamp(),
         }
         this.txn.update(ref, update)
+        writeAttachmentMutations()
       },
       { op: 'opportunities.save', resource: 'Opportunity', id: opportunity.id }
     )
   }
 }
 
-function parseOpportunity(id: string, raw: unknown): Opportunity {
+export function parseOpportunity(
+  id: string,
+  raw: unknown,
+  attachments: readonly Attachment[] = []
+): Opportunity {
   const parsed = opportunityStorageSchema.safeParse(raw)
   if (!parsed.success) {
     throw new Error(`opportunities/${id} storage-shape validation failed: ${parsed.error.message}`)
   }
-  return mapStorageToOpportunity(id, parsed.data)
+  return mapStorageToOpportunity(id, parsed.data, attachments)
 }
 
-function parseAttachment(id: string, raw: unknown): OpportunityAttachment {
-  const parsed = attachmentStorageSchema.safeParse(raw)
+export function parseOpportunityAttachment(id: string, raw: unknown): Attachment {
+  const parsed = opportunityAttachmentStorageSchema.safeParse(raw)
   if (!parsed.success) {
     throw new Error(
       `opportunities/*/attachments/${id} storage-shape validation failed: ${parsed.error.message}`
     )
   }
   const data: AttachmentStorage = parsed.data
-  return {
+  const props: AttachmentProps = {
     id,
+    filePath: data.filePath,
     fileName: data.fileName,
     contentType: data.contentType,
     uploadedAt: data.uploadedAt.toDate(),
+    storageGeneration: data.storageGeneration,
+    uploadStatus: data.uploadStatus ?? 'finalized',
   }
+  return Attachment.rehydrate(props)
 }

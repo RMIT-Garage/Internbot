@@ -4,6 +4,7 @@ import type { ZodError } from 'zod'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import { ApiError } from '../errors'
 import {
+  createOpportunityAttachmentUploadIntentRequestSchema,
   createOpportunityRequestSchema,
   patchOpportunityRequestSchema,
   transitionOpportunityRequestSchema,
@@ -14,7 +15,10 @@ import {
 import {
   etagFromOpportunity,
   parseListOpportunitiesQuery,
+  toCreateOpportunityAttachmentUploadIntentCommand,
   toCreateOpportunityCommand,
+  toOpportunityAttachmentDownloadResponse,
+  toOpportunityAttachmentUploadIntentResponse,
   toOpportunityListResponse,
   toOpportunityResponse,
   toTransitionOpportunityCommand,
@@ -25,25 +29,67 @@ import { CreateOpportunityCommandHandler } from '../../application/commands/crea
 import { UpdateOpportunityCommandHandler } from '../../application/commands/update-opportunity'
 import { TransitionOpportunityCommandHandler } from '../../application/commands/transition-opportunity'
 import { VerifyOpportunityCommandHandler } from '../../application/commands/verify-opportunity'
+import { DeleteOpportunityAttachmentCommandHandler } from '../../application/commands/delete-opportunity-attachment'
+import { CreateOpportunityAttachmentUploadIntentCommandHandler } from '../../application/commands/create-opportunity-attachment-upload-intent'
 import { GetOpportunityQueryHandler } from '../../application/queries/get-opportunity'
+import { GetOpportunityAttachmentQueryHandler } from '../../application/queries/get-opportunity-attachment'
 import { ListOpportunitiesQueryHandler } from '../../application/queries/list-opportunities'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { IdGenerator } from '../../application/ports/id-generator'
+import type { AttachmentStorage } from '../../application/ports/attachment-storage'
+import type { AuthorizationService } from '../../application/ports/authorization-service'
+import type { UserQueryService } from '../../application/ports/queries/user-query-service'
+import type { OpportunityQueryService } from '../../application/ports/queries/opportunity-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface OpportunitiesRouterDeps {
   uow: UnitOfWork
   idGenerator: IdGenerator
+  attachmentStorage: AttachmentStorage
+  authz: AuthorizationService
+  userQueries: UserQueryService
+  opportunityQueries: OpportunityQueryService
+  attachmentDownloadTtlMs?: number
 }
 
 export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): ExpressRouter {
   const router: ExpressRouter = Router()
-  const createOpportunity = new CreateOpportunityCommandHandler(deps.uow, deps.idGenerator)
-  const updateOpportunity = new UpdateOpportunityCommandHandler(deps.uow)
-  const transitionOpportunity = new TransitionOpportunityCommandHandler(deps.uow)
-  const verifyOpportunity = new VerifyOpportunityCommandHandler(deps.uow, deps.idGenerator)
-  const getOpportunity = new GetOpportunityQueryHandler(deps.uow)
-  const listOpportunities = new ListOpportunitiesQueryHandler(deps.uow)
+  const createOpportunity = new CreateOpportunityCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator
+  )
+  const updateOpportunity = new UpdateOpportunityCommandHandler(deps.uow, deps.authz)
+  const transitionOpportunity = new TransitionOpportunityCommandHandler(deps.uow, deps.authz)
+  const verifyOpportunity = new VerifyOpportunityCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator
+  )
+  const deleteAttachment = new DeleteOpportunityAttachmentCommandHandler(deps.uow, deps.authz)
+  const createAttachmentUploadIntent = new CreateOpportunityAttachmentUploadIntentCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator,
+    deps.attachmentStorage
+  )
+  const getOpportunity = new GetOpportunityQueryHandler(
+    deps.opportunityQueries,
+    deps.userQueries,
+    deps.authz
+  )
+  const getOpportunityAttachment = new GetOpportunityAttachmentQueryHandler(
+    deps.opportunityQueries,
+    deps.userQueries,
+    deps.authz,
+    deps.attachmentStorage,
+    { ttlMs: deps.attachmentDownloadTtlMs }
+  )
+  const listOpportunities = new ListOpportunitiesQueryHandler(
+    deps.opportunityQueries,
+    deps.userQueries,
+    deps.authz
+  )
 
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -78,6 +124,64 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
       next(err)
     }
   })
+
+  router.get(
+    '/:id/attachments/:attachmentId',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { actor } = req as AuthenticatedRequest
+        const result = await getOpportunityAttachment.handle({
+          actor,
+          opportunityId: paramId(req),
+          attachmentId: paramAttachmentId(req),
+        })
+        res.setHeader('Cache-Control', 'private, no-store')
+        res.status(200).json(toOpportunityAttachmentDownloadResponse(result))
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
+
+  router.delete(
+    '/:id/attachments/:attachmentId',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { actor } = req as AuthenticatedRequest
+        await deleteAttachment.handle({
+          actor,
+          opportunityId: paramId(req),
+          attachmentId: paramAttachmentId(req),
+        })
+        res.status(204).send()
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
+
+  router.post(
+    '/:id/attachments/upload-intents',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const parsed = createOpportunityAttachmentUploadIntentRequestSchema.safeParse(req.body)
+        if (!parsed.success) {
+          next(zodBodyError(parsed.error))
+          return
+        }
+        const { actor } = req as AuthenticatedRequest
+        const result = await createAttachmentUploadIntent.handle(
+          toCreateOpportunityAttachmentUploadIntentCommand(actor, paramId(req), parsed.data)
+        )
+        res.setHeader('Cache-Control', 'private, no-store')
+        res
+          .status(201)
+          .json(toOpportunityAttachmentUploadIntentResponse(result, parsed.data.contentType))
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
 
   router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -198,6 +302,11 @@ export function createOpportunitiesRouter(deps: OpportunitiesRouterDeps): Expres
 
 function paramId(req: Request): string {
   const raw = req.params['id']
+  return Array.isArray(raw) ? raw[0]! : raw!
+}
+
+function paramAttachmentId(req: Request): string {
+  const raw = req.params['attachmentId']
   return Array.isArray(raw) ? raw[0]! : raw!
 }
 

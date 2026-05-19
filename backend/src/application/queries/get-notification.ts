@@ -1,7 +1,12 @@
 import type { RequestActor } from '../actor'
-import type { NotificationResult } from '../models/notification'
-import type { UnitOfWork } from '../ports/unit-of-work'
-import { ForbiddenError, NotFoundError } from '../../domain/errors'
+import type { NotificationQueryService } from '../ports/queries/notification-query-service'
+import type { AuthorizationService } from '../ports/authorization-service'
+import type { Notification } from '../../domain/entities/notification'
+import { NotFoundError } from '../../domain/errors'
+
+export interface NotificationResult {
+  readonly notification: Notification
+}
 
 export interface GetNotificationQuery {
   actor: RequestActor
@@ -9,24 +14,17 @@ export interface GetNotificationQuery {
 }
 
 export class GetNotificationQueryHandler {
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly notificationQueries: NotificationQueryService,
+    private readonly authz: AuthorizationService
+  ) {}
 
   async handle(q: GetNotificationQuery): Promise<NotificationResult> {
-    const platformUser = q.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
+    this.authz.requirePlatformUser(q.actor)
 
-    return this.uow.execute(async (ctx) => {
-      const notification = await ctx.notifications.findById(q.notificationId)
-      if (!notification) throw new NotFoundError('Notification', q.notificationId)
-      if (notification.userId !== platformUser.id) {
-        throw new ForbiddenError(
-          'Users may only read their own notifications',
-          'notification_not_owner'
-        )
-      }
-      return { notification }
-    })
+    const notification = await this.notificationQueries.findById(q.notificationId)
+    if (!notification) throw new NotFoundError('Notification', q.notificationId)
+    this.authz.requireSelfOrRole(q.actor, notification.userId, [], 'notification_not_owner')
+    return { notification }
   }
 }

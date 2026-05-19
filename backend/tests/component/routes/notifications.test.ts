@@ -40,7 +40,7 @@ type NotificationWire = {
 async function provisionUser(user: TestUser): Promise<void> {
   const now = new Date()
   await new FirestoreUnitOfWork().execute(async (ctx) => {
-    await ctx.users.create(
+    await ctx.users.save(
       User.create({
         id: user.platformUserId,
         version: 0,

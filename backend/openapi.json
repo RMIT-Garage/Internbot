@@ -1889,6 +1889,135 @@
         }
       }
     },
+    "/api/v1/opportunities/{id}/attachments/{attachmentId}": {
+      "get": {
+        "operationId": "getOpportunityAttachment",
+        "summary": "Return an opportunity attachment download resource",
+        "description": "Returns attachment metadata with a fresh short-lived V4 signed Cloud Storage URL. Students can read only attachments on visible opportunities.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "schema": {
+              "type": "string",
+              "example": "att_001",
+              "description": "Attachment id."
+            },
+            "required": true,
+            "description": "Attachment id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment found with a fresh signed download URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityAttachmentDownloadResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Student cannot see the parent opportunity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No opportunity or attachment exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteOpportunityAttachment",
+        "summary": "Delete an opportunity attachment",
+        "description": "Coordinator-only. Atomically removes the attachment metadata, then deletes the GCS object using `ifGenerationMatch` so a concurrent re-upload on the same path is preserved.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "schema": {
+              "type": "string",
+              "example": "att_001",
+              "description": "Attachment id."
+            },
+            "required": true,
+            "description": "Attachment id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Attachment deleted."
+          },
+          "403": {
+            "description": "Caller is not a coordinator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No opportunity or attachment exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/opportunities/{id}/transitions": {
       "post": {
         "operationId": "transitionOpportunity",
@@ -2442,6 +2571,145 @@
           },
           "422": {
             "description": "Empty body or domain validation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/internships/{id}/attachments/{attachmentId}": {
+      "get": {
+        "operationId": "getInternshipAttachment",
+        "summary": "Return an internship attachment download resource",
+        "description": "Returns attachment metadata with a fresh short-lived V4 signed Cloud Storage URL. Students can read only their own internship attachments; coordinators can read all.",
+        "tags": ["Internships"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "int_042",
+              "description": "Platform internship id."
+            },
+            "required": true,
+            "description": "Platform internship id."
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "schema": {
+              "type": "string",
+              "example": "att_101",
+              "description": "Attachment id."
+            },
+            "required": true,
+            "description": "Attachment id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment found with a fresh signed download URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternshipAttachmentDownloadResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Student caller does not own the parent internship.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No internship or attachment exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteInternshipAttachment",
+        "summary": "Delete an internship attachment",
+        "description": "Owner-only (the student whose internship it is). Allowed only while the internship is `applied` or `offer_changes_requested`. Atomically removes the attachment metadata, then deletes the GCS object using `ifGenerationMatch` so a concurrent re-upload on the same path is preserved.",
+        "tags": ["Internships"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "int_042",
+              "description": "Platform internship id."
+            },
+            "required": true,
+            "description": "Platform internship id."
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "schema": {
+              "type": "string",
+              "example": "att_101",
+              "description": "Attachment id."
+            },
+            "required": true,
+            "description": "Attachment id."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Attachment deleted."
+          },
+          "403": {
+            "description": "Caller is not the owning student.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No internship or attachment exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Internship status does not permit attachment deletion.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4814,11 +5082,80 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-04T09:05:00Z"
+          },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
           }
         },
-        "required": ["id", "fileName", "contentType", "uploadedAt"],
+        "required": ["id", "fileName", "contentType", "uploadedAt", "uploadStatus"],
         "additionalProperties": false,
         "description": "Attachment metadata for an opportunity position-description file."
+      },
+      "OpportunityAttachmentDownloadResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "att_001"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "position-description.pdf"
+          },
+          "contentType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "application/pdf"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-04T09:05:00Z"
+          },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "downloadUrlExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "fileName",
+          "contentType",
+          "uploadedAt",
+          "uploadStatus",
+          "downloadUrl",
+          "downloadUrlExpiresAt"
+        ],
+        "additionalProperties": false,
+        "description": "Opportunity attachment metadata with a fresh short-lived Cloud Storage signed URL."
       },
       "InternshipListResponse": {
         "type": "object",
@@ -5177,11 +5514,80 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-05T02:50:00Z"
+          },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
           }
         },
-        "required": ["id", "fileName", "contentType", "uploadedAt"],
+        "required": ["id", "fileName", "contentType", "uploadedAt", "uploadStatus"],
         "additionalProperties": false,
         "description": "Attachment metadata for an internship offer document."
+      },
+      "InternshipAttachmentDownloadResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "att_001"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "offer-letter.pdf"
+          },
+          "contentType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "example": "application/pdf"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-05T02:50:00Z"
+          },
+          "uploadStatus": {
+            "type": "string",
+            "enum": ["uploading", "finalized"],
+            "example": "finalized",
+            "description": "Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable."
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "downloadUrlExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "fileName",
+          "contentType",
+          "uploadedAt",
+          "uploadStatus",
+          "downloadUrl",
+          "downloadUrlExpiresAt"
+        ],
+        "additionalProperties": false,
+        "description": "Internship attachment metadata with a fresh short-lived Cloud Storage signed URL."
       },
       "InternshipActivityResponse": {
         "type": "object",

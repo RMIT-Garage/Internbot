@@ -1,11 +1,8 @@
 import { z } from 'zod'
 import { Timestamp, type Transaction } from 'firebase-admin/firestore'
 import { FieldValue, Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
-import type {
-  IdentityProvider,
-  UserIdentityLookup,
-  UserRepository,
-} from '../../domain/repositories/user-repository'
+import type { UserRepository } from '../../domain/repositories/user-repository'
+import type { IdentityProvider, UserIdentityLookup } from '../../domain/value-objects/user-identity'
 import { User, USER_SCHEMA_VERSION } from '../../domain/entities/user'
 import { UserIdentity } from '../../domain/value-objects/user-identity'
 import { StudentProfile } from '../../domain/value-objects/student-profile'
@@ -72,7 +69,7 @@ const userIdentityStorageSchema = z.object({
   emailSnapshot: z.string().email().optional(),
 })
 
-const userStorageSchema = z.object({
+export const userStorageSchema = z.object({
   email: z.string().email(),
   displayName: z.string().optional(),
   role: z.enum(roleValues),
@@ -100,7 +97,6 @@ const userIdentitySentinelSchema = z.object({
 })
 
 type UserStorage = z.infer<typeof userStorageSchema>
-type UserIdentitySentinel = z.infer<typeof userIdentitySentinelSchema>
 
 // ---------- write-shape types (typed Firestore payloads) ----------
 //
@@ -169,11 +165,6 @@ type UserIdentitySentinelDoc = {
 }
 
 // ---------- storage ↔ domain mappers (colocated with the repo) ----------
-//
-// Firestore types stay confined to this file. Domain aggregates are
-// constructed via `rehydrate` factories on the storage path (no validation
-// — trust persisted data). The write path returns the typed write shapes
-// above, which the repo composes with server-timestamp sentinels.
 
 function tsToDate(ts: Timestamp | undefined): Date | undefined {
   return ts ? ts.toDate() : undefined
@@ -276,10 +267,7 @@ function userToCreatePayload(u: User): UserCreateWrite {
     status: u.status,
     onboardingStage: u.onboardingStage,
     identity: identityToStorage(u.identity),
-    // Create is the first save — first persisted version is always 1.
-    // The in-memory aggregate's `version: 0` is "not yet persisted"; we
-    // never reuse the aggregate after `create()` (the route dispatches a
-    // fresh `findById`), so the in-memory/storage skew is harmless.
+    // First persisted version is always 1.
     version: 1,
     _schemaVersion: USER_SCHEMA_VERSION,
   }
@@ -301,26 +289,19 @@ function userToUpdatePayload(u: User, nextVersion: number): UserUpdateWrite {
 
 // ---------------------------------------------------------------------
 
-const COLLECTION = 'users'
-const SENTINEL_COLLECTION = 'userIdentities'
+export const USER_COLLECTION = 'users'
+export const USER_IDENTITY_SENTINEL_COLLECTION = 'userIdentities'
 
-function sentinelDocId(identity: UserIdentityLookup): string {
+export function userIdentitySentinelDocId(identity: UserIdentityLookup): string {
   return `${identity.provider}__${encodeURIComponent(identity.providerUserId)}`
 }
 
 /**
- * Session-scoped Firestore implementation of `UserRepository`.
+ * Session-scoped Firestore implementation of `UserRepository`. Pure-DDD/CQRS
+ * write surface — `findById`, `save` (upsert), `delete`. List/identity reads
+ * live on `UserQueryService`.
  *
  * Constructed by `FirestoreUnitOfWork.execute` with a live `Transaction`.
- * All reads/writes run inside the transaction; there is no public
- * constructor path that bypasses it.
- *
- * Reads return `User | null` (the aggregate root directly) — identity is
- * denormalised onto `users/{id}.identity` so a single doc read populates
- * the full aggregate. HTTP-specific concerns like ETag formatting live at
- * the api boundary. The domain-level concurrency token is `User.version`,
- * an app-managed monotonic integer persisted alongside the doc and bumped
- * on every save.
  */
 export class FirestoreUserRepository implements UserRepository {
   constructor(private readonly txn: Transaction) {}
@@ -328,7 +309,7 @@ export class FirestoreUserRepository implements UserRepository {
   async findById(id: string): Promise<User | null> {
     return translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(id)
+        const ref = adminDb.collection(USER_COLLECTION).doc(id)
         const snap = await this.txn.get(ref)
         if (!snap.exists) return null
         return parseUser(snap.id, snap.data())
@@ -337,24 +318,52 @@ export class FirestoreUserRepository implements UserRepository {
     )
   }
 
-  async findByIdentity(identity: UserIdentityLookup): Promise<User | null> {
+  /**
+   * Coordinator roster, read inside the active txn. Used by command
+   * handlers for in-transaction notification fan-out (e.g. ticket
+   * created → notify all coordinators, atomically). Firestore allows
+   * collection-query reads in a transaction as long as they happen
+   * before any writes.
+   */
+  async listCoordinators(): Promise<readonly User[]> {
     return translateFirestoreErrors(
       async () => {
-        const sentinelRef = adminDb.collection(SENTINEL_COLLECTION).doc(sentinelDocId(identity))
-        const sentinelSnap = await this.txn.get(sentinelRef)
-        if (!sentinelSnap.exists) return null
-
-        const sentinel = parseSentinel(sentinelRef.id, sentinelSnap.data())
-        const userRef = adminDb.collection(COLLECTION).doc(sentinel.userId)
-        const userSnap = await this.txn.get(userRef)
-        if (!userSnap.exists) {
-          // Sentinel pointing at a missing user is a data-integrity bug,
-          // not a user-facing 404. Surface loudly so it's caught in CI.
-          throw new NotFoundError('User', sentinel.userId)
-        }
-        return parseUser(userSnap.id, userSnap.data())
+        const query = adminDb.collection(USER_COLLECTION).where('role', '==', 'coordinator')
+        const snap = await this.txn.get(query)
+        return snap.docs.map((doc) => parseUser(doc.id, doc.data()))
       },
-      { op: 'users.findByIdentity', resource: 'User' }
+      { op: 'users.listCoordinators', resource: 'User' }
+    )
+  }
+
+  /** Upsert. `version === 0` → first-write; else optimistic-lock update. */
+  async save(user: User): Promise<void> {
+    if (user.version === 0) {
+      await this.insertNew(user)
+      return
+    }
+    await this.updateExisting(user)
+  }
+
+  /**
+   * Hard-delete a user + their identity-uniqueness sentinel atomically.
+   * The sentinel doc id is rebuilt from the persisted identity (loaded
+   * inside the txn) so we never delete a stale key.
+   */
+  async delete(id: string): Promise<void> {
+    await translateFirestoreErrors(
+      async () => {
+        const ref = adminDb.collection(USER_COLLECTION).doc(id)
+        const snap = await this.txn.get(ref)
+        if (!snap.exists) throw new NotFoundError('User', id)
+        const user = parseUser(snap.id, snap.data())
+        const sentinelRef = adminDb
+          .collection(USER_IDENTITY_SENTINEL_COLLECTION)
+          .doc(userIdentitySentinelDocId(user.identity))
+        this.txn.delete(sentinelRef)
+        this.txn.delete(ref)
+      },
+      { op: 'users.delete', resource: 'User', id }
     )
   }
 
@@ -371,27 +380,22 @@ export class FirestoreUserRepository implements UserRepository {
   }
 
   /**
-   * Insert a freshly-constructed aggregate. Called from the auth-edge JIT
-   * bootstrap on first request from a verified student email. The aggregate
-   * must already carry a non-empty id (obtained via `nextIdentity()` before
-   * construction — see Vernon IDDD ch. 5) and a populated `identity` VO.
-   *
-   * Writes two docs atomically inside the txn:
+   * Insert path. Writes two docs atomically inside the txn:
    *   1. `users/{id}` — full aggregate including denormalised identity.
    *   2. `userIdentities/{key}` — slim `{ userId }` sentinel via
    *      `txn.create(... exists=false)` to enforce identity uniqueness.
    *
-   * The sentinel write fails with `already-exists` if a concurrent
-   * register raced past us; that is mapped to
+   * The sentinel write fails with `already-exists` if a concurrent register
+   * raced past us; that is mapped to
    * `ConflictError('identity_already_exists')` by the error translator.
    */
-  async create(user: User): Promise<void> {
+  private async insertNew(user: User): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(user.id)
+        const ref = adminDb.collection(USER_COLLECTION).doc(user.id)
         const sentinelRef = adminDb
-          .collection(SENTINEL_COLLECTION)
-          .doc(sentinelDocId(user.identity))
+          .collection(USER_IDENTITY_SENTINEL_COLLECTION)
+          .doc(userIdentitySentinelDocId(user.identity))
 
         const doc: UserCreateDoc = {
           ...userToCreatePayload(user),
@@ -406,28 +410,20 @@ export class FirestoreUserRepository implements UserRepository {
         this.txn.create(ref, doc)
         this.txn.create(sentinelRef, sentinelDoc)
       },
-      { op: 'users.create', resource: 'User', conflictReason: 'identity_already_exists' }
+      { op: 'users.save', resource: 'User', conflictReason: 'identity_already_exists' }
     )
   }
 
   /**
-   * Persist mutations on an existing aggregate with optimistic concurrency.
-   *
-   * Reads the current doc's `version` field inside the transaction and
-   * rejects with `PreconditionFailedError` if it doesn't match
-   * `user.version`. On success, bumps `version` to `stored + 1` and writes
-   * only the mutable fields — identity fields (`email`, `role`,
-   * `identity`) stay put. `updatedAt` is rewritten to server time on every
-   * save.
-   *
-   * The version field is app-managed (not derived from `updateTime`) so it
-   * round-trips cleanly through HTTP `If-Match` headers and is suitable for
-   * use as an `aggregateVersion` in outbox events.
+   * Update path. Reads the current doc's `version` field inside the
+   * transaction and rejects with `PreconditionFailedError` if it doesn't
+   * match `user.version`. On success, bumps `version` to `stored + 1` and
+   * writes only the mutable fields — identity stays put.
    */
-  async save(user: User): Promise<void> {
+  private async updateExisting(user: User): Promise<void> {
     await translateFirestoreErrors(
       async () => {
-        const ref = adminDb.collection(COLLECTION).doc(user.id)
+        const ref = adminDb.collection(USER_COLLECTION).doc(user.id)
         const snap = await this.txn.get(ref)
         if (!snap.exists) throw new NotFoundError('User', user.id)
 
@@ -447,7 +443,7 @@ export class FirestoreUserRepository implements UserRepository {
   }
 }
 
-function parseUser(id: string, raw: unknown): User {
+export function parseUser(id: string, raw: unknown): User {
   const parsed = userStorageSchema.safeParse(raw)
   if (!parsed.success) {
     throw new Error(`users/${id} storage-shape validation failed: ${parsed.error.message}`)
@@ -455,7 +451,10 @@ function parseUser(id: string, raw: unknown): User {
   return mapStorageToUser(id, parsed.data)
 }
 
-function parseSentinel(id: string, raw: unknown): UserIdentitySentinel {
+export function parseUserIdentitySentinel(
+  id: string,
+  raw: unknown
+): z.infer<typeof userIdentitySentinelSchema> {
   const parsed = userIdentitySentinelSchema.safeParse(raw)
   if (!parsed.success) {
     throw new Error(`userIdentities/${id} storage-shape validation failed: ${parsed.error.message}`)

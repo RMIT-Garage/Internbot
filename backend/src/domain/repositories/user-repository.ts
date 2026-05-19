@@ -1,56 +1,29 @@
 import type { User } from '../entities/user'
-import type { IdentityProvider, UserIdentityLookup } from '../value-objects/user-identity'
-
-// Re-export so existing callers (handlers, infra) keep their imports stable.
-export type { IdentityProvider, UserIdentityLookup }
 
 /**
- * UserRepository — session-scoped read/write port over the `users` aggregate.
+ * Write-side port over the `users` aggregate. Pure-DDD/CQRS surface
+ * (`findById` / `save` / `delete`) plus the narrow `listCoordinators`
+ * read used by command handlers for in-transaction notification fan-out.
  *
- * Obtained from `UnitOfWorkContext.users` inside `uow.execute(...)`.
- * Domain-layer port: implementations live in `infrastructure/` and must
- * never leak persistence types (Firestore Timestamp, DocumentSnapshot,
- * etc.) through this interface.
+ * `save` is an upsert: when `aggregate.version === 0` it writes the user
+ * doc together with the slim `userIdentities/{key}` uniqueness sentinel
+ * (used by the auth-edge JIT bootstrap on first verified-email request);
+ * otherwise it enforces optimistic concurrency against the persisted
+ * `version`. Identity is intentionally *not* part of the update payload —
+ * it is immutable for the lifetime of a User; callers that want to change
+ * provider or providerUserId must mint a new aggregate.
  *
- * Reads return `User | null` (the aggregate root directly) — every returned
- * `User` carries its `identity` VO, populated from the denormalised
- * `users/{id}.identity` field. The aggregate carries its own concurrency
- * token as `user.version`; `save(user)` uses that token as the optimistic-
- * lock precondition.
+ * `listCoordinators` lives on the write-side repo (not on
+ * `UserQueryService`) so command handlers can resolve coordinator
+ * recipients **inside** the same Firestore transaction that writes the
+ * source aggregate + notification fan-out — strongly consistent recipients
+ * with no outbox / eventual-consistency window. Read-side `findByIdentity`
+ * stays on `UserQueryService` (used by the auth-edge hydrator outside
+ * any transaction).
  */
 export interface UserRepository {
   findById(id: string): Promise<User | null>
-  findByIdentity(identity: UserIdentityLookup): Promise<User | null>
-  listCoordinators(): Promise<readonly User[]>
-
-  /**
-   * Insert a freshly-constructed `User` aggregate. Used by the auth-edge
-   * JIT bootstrap on first request from a verified student email. The
-   * aggregate must already carry a non-empty id (the application service
-   * mints it via `IdGenerator` before construction) and a populated
-   * `identity` VO. The implementation writes the user doc (with
-   * denormalised identity) and the slim `userIdentities/{key}` uniqueness
-   * sentinel atomically — identity uniqueness enforcement lives there,
-   * not in the handler.
-   */
-  create(user: User): Promise<void>
-
-  /**
-   * Persist mutations to an existing `User` aggregate with optimistic
-   * concurrency enforcement.
-   *
-   * Reads the current document version inside the active transaction;
-   * rejects with `PreconditionFailedError` if it does not match
-   * `user.version`. Callers that want to bypass the check (e.g. system
-   * migrations) should mint a new aggregate instead.
-   *
-   * Identity is intentionally *not* part of the update payload — it is
-   * immutable for the lifetime of a User. Callers that want to change
-   * provider or providerUserId must mint a new aggregate.
-   *
-   * Does not mutate the passed-in `user.version`. After a successful
-   * write, Firestore produces a new `updateTime` — callers that need the
-   * refreshed version must re-read.
-   */
   save(user: User): Promise<void>
+  delete(id: string): Promise<void>
+  listCoordinators(): Promise<readonly User[]>
 }

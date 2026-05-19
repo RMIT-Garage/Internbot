@@ -1,9 +1,9 @@
 import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { IdGenerator } from '../ports/id-generator'
+import type { AuthorizationService } from '../ports/authorization-service'
 import { Notification } from '../../domain/entities/notification'
 import { Ticket } from '../../domain/entities/ticket'
-import { ForbiddenError } from '../../domain/errors'
 
 export interface CreateTicketCommand {
   actor: RequestActor
@@ -21,23 +21,19 @@ export interface CreateTicketResult {
 export class CreateTicketCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
+    private readonly authz: AuthorizationService,
     private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: CreateTicketCommand): Promise<CreateTicketResult> {
-    const platformUser = cmd.actor.platformUser
-    if (!platformUser) {
-      throw new ForbiddenError('Caller has no platform user record.', 'no_platform_user')
-    }
-    if (platformUser.role !== 'student') {
-      throw new ForbiddenError('Only students may open tickets', 'role_restricted_action')
-    }
+    const platformUser = this.authz.requireRole(cmd.actor, 'student')
 
     const ticketId = this.idGenerator.next()
     const now = new Date()
 
     return this.uow.execute(async (ctx) => {
-      // Read first (Firestore txn rule: all reads before any writes).
+      // Firestore transactions require all reads before any writes — load
+      // the coordinator recipient set first, then perform the saves.
       const coordinators = await ctx.users.listCoordinators()
 
       const ticket = Ticket.open({
@@ -48,10 +44,10 @@ export class CreateTicketCommandHandler {
         category: cmd.payload.category,
         now,
       })
-      await ctx.tickets.create(ticket)
+      await ctx.tickets.save(ticket)
 
       for (const coordinator of coordinators) {
-        await ctx.notifications.create(
+        await ctx.notifications.save(
           Notification.forNewTicket({
             id: this.idGenerator.next(),
             userId: coordinator.id,
