@@ -220,11 +220,20 @@ export default function StudentOpportunitiesPage() {
 
   return (
     <div className="space-y-6">
-      <CoordinatorPageHeader
-        eyebrow="Opportunities"
-        title="Available Internships"
-        description="Browse and apply to internship opportunities available in your semester."
-      />
+      <div className="flex items-start justify-between gap-4">
+        <CoordinatorPageHeader
+          eyebrow="Opportunities"
+          title="Available Internships"
+          description="Browse and apply to internship opportunities available in your semester."
+        />
+        <button
+          type="button"
+          onClick={() => router.push('/student/opportunities')}
+          className="shrink-0 rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+        >
+          Change Semester
+        </button>
+      </div>
 
       {/* KPI ROW */}
       <div className="grid gap-4 md:grid-cols-3">
