@@ -20,7 +20,7 @@ export default function CoordinatorAIAdvisorPage() {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="AI Advisor"
+        eyebrow="AI Insights"
         title="Institutional Intelligence Center"
         description="Batch review signals, compliance analysis, suitability scoring, and anomaly detection for internship governance workflows."
         actions={
@@ -35,7 +35,7 @@ export default function CoordinatorAIAdvisorPage() {
               href="/coordinator/audits"
               className="rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800"
             >
-              Review audit trace
+              Review activity trace
             </Link>
           </>
         }
@@ -47,7 +47,7 @@ export default function CoordinatorAIAdvisorPage() {
           value="88%"
           detail="Across active submissions"
           icon={Gauge}
-          tone="purple"
+          tone="charcoal"
           progress={88}
         />
         <KPIStatCard
@@ -63,7 +63,7 @@ export default function CoordinatorAIAdvisorPage() {
           value="41"
           detail="Low-risk institutional checks"
           icon={CheckCircle2}
-          tone="green"
+          tone="neutral"
           progress={78}
         />
         <KPIStatCard
@@ -71,13 +71,18 @@ export default function CoordinatorAIAdvisorPage() {
           value="14"
           detail="Ready for assisted review"
           icon={Layers3}
-          tone="blue"
+          tone="red"
           progress={54}
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            Backend integration pending: no coordinator AI review endpoint is available in the
+            current workflow API. Advisory output below is frontend-only until backend support is
+            published.
+          </div>
           <AIInsightCard
             title="Executive AI Summary"
             confidence={93}
@@ -111,7 +116,7 @@ export default function CoordinatorAIAdvisorPage() {
                   <p className="font-bold text-slate-950">{check.label}</p>
                   <div className="h-2 rounded-full bg-slate-100">
                     <div
-                      className="h-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600"
+                      className="h-2 rounded-full bg-red-700"
                       style={{ width: `${check.score}%` }}
                     />
                   </div>
@@ -125,20 +130,20 @@ export default function CoordinatorAIAdvisorPage() {
         <aside className="space-y-6">
           <AnalyticsStrip
             items={[
-              { label: 'AI alerts', value: 7, detail: 'Open signals', tone: 'purple' },
+              { label: 'AI alerts', value: 7, detail: 'Open signals', tone: 'red' },
               { label: 'High risk', value: 2, detail: 'Immediate review', tone: 'red' },
-              { label: 'Low risk', value: 18, detail: 'Batch candidates', tone: 'green' },
+              { label: 'Low risk', value: 18, detail: 'Batch candidates', tone: 'charcoal' },
               {
                 label: 'Audit links',
                 value: auditLogs.length,
                 detail: 'Traceable events',
-                tone: 'blue',
+                tone: 'neutral',
               },
             ]}
           />
           <SurfaceCard className="p-5">
             <h2 className="flex items-center gap-2 font-bold text-slate-950">
-              <WandSparkles className="h-5 w-5 text-purple-700" />
+              <WandSparkles className="h-5 w-5 text-red-700" />
               Recommendation Feed
             </h2>
             <div className="mt-4">
@@ -146,7 +151,7 @@ export default function CoordinatorAIAdvisorPage() {
             </div>
           </SurfaceCard>
           <SurfaceCard className="p-5">
-            <BrainCircuit className="h-5 w-5 text-purple-700" />
+            <BrainCircuit className="h-5 w-5 text-red-700" />
             <h2 className="mt-4 font-bold text-slate-950">Batch Review Tools</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               API-backed batch approvals can later connect here once institutional sign-off and

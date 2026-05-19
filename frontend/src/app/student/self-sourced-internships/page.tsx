@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { OpportunitiesService } from '@/lib/api/openapi-client'
 import { CreateOpportunityRequest } from '@/api/models/CreateOpportunityRequest'
+import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
 
 export default function Page() {
   const router = useRouter()
@@ -37,12 +38,12 @@ export default function Page() {
       })
 
       router.push(`/student/self-sourced-internships/submission?id=${opportunity.id}`)
-    } catch (err: any) {
-      const reason: string | undefined = err.body?.error?.reason
+    } catch (err: unknown) {
+      const reason = getApiErrorReason(err)
       setError(
         reason === 'no_selected_semester'
           ? 'You must select a semester before submitting an internship.'
-          : err.message || 'Failed to submit. Please try again.'
+          : getApiErrorMessage(err, 'Failed to submit. Please try again.')
       )
     } finally {
       setSubmitting(false)

@@ -8,6 +8,7 @@ import {
   type ApprovalColumn,
   TableDetailLink,
 } from '@/components/coordinator/ApprovalTable'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { FilterBar } from '@/components/coordinator/FilterBar'
 import { Pagination } from '@/components/coordinator/Pagination'
 import { AIInsightCard, AnalyticsStrip } from '@/components/coordinator/Premium'
@@ -34,6 +35,7 @@ const statusOptions = [
   { label: 'Pending', value: 'pending' },
   { label: 'Flagged', value: 'flagged' },
   { label: 'Approved', value: 'approved' },
+  { label: 'Rejected', value: 'rejected' },
   { label: 'Changes requested', value: 'changes_requested' },
 ]
 
@@ -85,9 +87,13 @@ export function JobsList() {
       return response.items.map(mapOpportunityToSelfSourcedJob)
     },
     selfSourcedJobs,
-    'self-sourced-jobs',
+    'placement-reviews',
     { emptyData: [] }
   )
+
+  if (loading) {
+    return <CoordinatorContentSkeleton title="Loading review queue..." />
+  }
 
   const filteredJobs = jobs
     .filter((job) => matchesParam(job.status, status))
@@ -153,22 +159,27 @@ export function JobsList() {
     {
       key: 'details',
       header: 'View Details',
-      render: (job) => <TableDetailLink href={`/coordinator/jobs/${job.id}`} />,
+      render: (job) => (
+        <TableDetailLink href={`/coordinator/jobs/review?id=${encodeURIComponent(job.id)}`} />
+      ),
     },
   ]
 
   return (
     <>
       <AIInsightCard
-        title={`Self-Sourced Job AI Preview (${source === 'api' ? 'API-backed' : 'fallback data'})`}
+        title={`Placement Review AI Insights (${source === 'api' ? 'API-backed' : 'fallback data'})`}
         confidence={91}
         insight="Remote supervision and unclear learning outcomes are the most common concerns in the current job approval queue."
       />
-      {(loading || error) && (
+      {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {loading
-            ? 'Loading self-sourced opportunities from the workflow API...'
-            : `Using isolated fallback data: ${error}`}
+          {`Using isolated fallback data: ${error}`}
+        </div>
+      )}
+      {!loading && !error && source === 'api' && jobs.length === 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          Backend connected, but no records exist yet.
         </div>
       )}
       <AnalyticsStrip
@@ -177,7 +188,7 @@ export function JobsList() {
             label: 'Pending',
             value: filteredJobs.filter((job) => job.status === 'pending').length,
             detail: 'New role checks',
-            tone: 'blue',
+            tone: 'charcoal',
           },
           {
             label: 'Flagged',
@@ -195,7 +206,7 @@ export function JobsList() {
             label: 'Approved',
             value: filteredJobs.filter((job) => job.status === 'approved').length,
             detail: 'Ready placements',
-            tone: 'green',
+            tone: 'charcoal',
           },
         ]}
       />
@@ -232,7 +243,7 @@ export function JobsList() {
         rows={paged.rows}
         columns={columns}
         getRowKey={(job) => job.id}
-        emptyMessage="No self-sourced job submissions match these filters."
+        emptyMessage="No placement reviews match these filters."
       />
       <Pagination
         page={paged.page}

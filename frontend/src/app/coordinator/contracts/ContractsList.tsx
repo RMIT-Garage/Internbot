@@ -8,6 +8,7 @@ import {
   type ApprovalColumn,
   TableDetailLink,
 } from '@/components/coordinator/ApprovalTable'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { FilterBar } from '@/components/coordinator/FilterBar'
 import { Pagination } from '@/components/coordinator/Pagination'
 import { AIInsightCard, AnalyticsStrip } from '@/components/coordinator/Premium'
@@ -34,6 +35,7 @@ const statusOptions = [
   { label: 'Pending', value: 'pending' },
   { label: 'Flagged', value: 'flagged' },
   { label: 'Approved', value: 'approved' },
+  { label: 'Rejected', value: 'rejected' },
   { label: 'Changes requested', value: 'changes_requested' },
 ]
 
@@ -88,6 +90,10 @@ export function ContractsList() {
     'contracts',
     { emptyData: [] }
   )
+
+  if (loading) {
+    return <CoordinatorContentSkeleton title="Loading review queue..." />
+  }
 
   const filteredContracts = contracts
     .filter((contract) => matchesParam(contract.status, status))
@@ -154,7 +160,11 @@ export function ContractsList() {
     {
       key: 'details',
       header: 'View Details',
-      render: (contract) => <TableDetailLink href={`/coordinator/contracts/${contract.id}`} />,
+      render: (contract) => (
+        <TableDetailLink
+          href={`/coordinator/contracts/review?id=${encodeURIComponent(contract.id)}`}
+        />
+      ),
     },
   ]
 
@@ -165,11 +175,14 @@ export function ContractsList() {
         confidence={89}
         insight="High-risk contracts are mostly missing insurance clauses or date alignment. Prioritise flagged rows before standard pending approvals."
       />
-      {(loading || error) && (
+      {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {loading
-            ? 'Loading internship offer reviews from the workflow API...'
-            : `Using isolated fallback data: ${error}`}
+          {`Using isolated fallback data: ${error}`}
+        </div>
+      )}
+      {!loading && !error && source === 'api' && contracts.length === 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          Backend connected, but no records exist yet.
         </div>
       )}
       <AnalyticsStrip
@@ -178,7 +191,7 @@ export function ContractsList() {
             label: 'Pending',
             value: filteredContracts.filter((contract) => contract.status === 'pending').length,
             detail: 'Awaiting review',
-            tone: 'blue',
+            tone: 'charcoal',
           },
           {
             label: 'Flagged',

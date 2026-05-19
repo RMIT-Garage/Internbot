@@ -57,8 +57,8 @@ export default function StudentDashboardPage() {
         setInternships(internshipsRes.items)
         setNotifications(notifRes.items)
         setUnreadCount(notifRes.unreadCount)
-      } catch (err: any) {
-        setError(err.message || 'Failed to load dashboard')
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard')
       } finally {
         setLoading(false)
       }

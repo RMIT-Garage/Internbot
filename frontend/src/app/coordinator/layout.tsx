@@ -22,5 +22,9 @@ export default function CoordinatorLayout({ children }: { children: React.ReactN
     )
   }
 
-  return <CoordinatorShell>{children}</CoordinatorShell>
+  return (
+    <CoordinatorShell>
+      <div key={pathname}>{children}</div>
+    </CoordinatorShell>
+  )
 }

@@ -11,6 +11,7 @@ import { StatusBadge, type CoordinatorStatus } from '@/components/student/Status
 import { AnalyticsStrip } from '@/components/student/Premium'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
+import { getApiErrorMessage } from '@/lib/api/errors'
 
 type SortDirection = 'asc' | 'desc'
 
@@ -91,8 +92,8 @@ export function ContractsList() {
         setLoading(true)
         const res = await InternshipsService.listInternships()
         setInternships(res.items)
-      } catch (err: any) {
-        setError(err.message || 'Failed to load applications')
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'Failed to load applications'))
       } finally {
         setLoading(false)
       }
