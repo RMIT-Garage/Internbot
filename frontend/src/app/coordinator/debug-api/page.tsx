@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { User } from 'firebase/auth'
 import { RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { auth } from '@/lib/firebase/client'
 import { apiFetch, ApiError } from '@/lib/api/client'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
 
@@ -49,8 +49,10 @@ const coordinatorAuditChecklist = [
 
 export default function CoordinatorDebugApiPage() {
   const { user, profile, loading, needsVerification } = useAuth()
+  const [firebaseCurrentUserPresent, setFirebaseCurrentUserPresent] = useState(false)
   const [firebaseTokenPresent, setFirebaseTokenPresent] = useState(false)
   const [firebaseUserEmail, setFirebaseUserEmail] = useState<string | null>(null)
+  const [firebaseAuthError, setFirebaseAuthError] = useState<string | null>(null)
   const [results, setResults] = useState<DebugEndpointResult[]>([])
   const [running, setRunning] = useState(false)
 
@@ -60,18 +62,42 @@ export default function CoordinatorDebugApiPage() {
       providerUserPresent: Boolean(user),
       providerEmail: user?.email ?? null,
       profileRole: profile?.role ?? null,
-      firebaseCurrentUserPresent: Boolean(auth.currentUser),
+      firebaseCurrentUserPresent,
       firebaseUserEmail,
       firebaseTokenPresent,
+      firebaseAuthError,
       needsVerification,
     }),
-    [user, profile, firebaseUserEmail, firebaseTokenPresent, needsVerification]
+    [
+      user,
+      profile,
+      firebaseCurrentUserPresent,
+      firebaseUserEmail,
+      firebaseTokenPresent,
+      firebaseAuthError,
+      needsVerification,
+    ]
   )
 
   const runChecks = useCallback(async () => {
     setRunning(true)
-    const currentUser = auth.currentUser
+    let currentUser: User | null = null
+    setFirebaseAuthError(null)
+    try {
+      const firebaseClient = await import('@/lib/firebase/client')
+      currentUser = firebaseClient.auth.currentUser
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? `Firebase auth unavailable: ${error.message}`
+          : 'Firebase auth unavailable in this environment.'
+      setFirebaseAuthError(message)
+      setFirebaseCurrentUserPresent(false)
+      setFirebaseUserEmail(null)
+      setFirebaseTokenPresent(false)
+    }
     setFirebaseUserEmail(currentUser?.email ?? null)
+    setFirebaseCurrentUserPresent(Boolean(currentUser))
     if (currentUser) {
       const token = await currentUser.getIdToken().catch(() => '')
       setFirebaseTokenPresent(token.length > 0)
