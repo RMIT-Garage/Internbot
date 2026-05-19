@@ -60,14 +60,14 @@ export function EmailPasswordLoginForm({
       <div className="space-y-1.5">
         <label
           htmlFor={emailId}
-          className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+          className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
         >
           {emailLabel}
         </label>
         <div className="relative">
           <Mail
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
           />
           <input
             id={emailId}
@@ -75,7 +75,7 @@ export function EmailPasswordLoginForm({
             autoComplete="username"
             placeholder={emailPlaceholder}
             aria-invalid={errors.email ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
             {...register('email')}
           />
         </div>
@@ -86,7 +86,7 @@ export function EmailPasswordLoginForm({
         <div className="flex items-center justify-between">
           <label
             htmlFor={passwordId}
-            className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
           >
             Password
           </label>
@@ -102,7 +102,7 @@ export function EmailPasswordLoginForm({
         <div className="relative">
           <Lock
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
           />
           <input
             id={passwordId}
@@ -110,7 +110,7 @@ export function EmailPasswordLoginForm({
             autoComplete="current-password"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
             {...register('password')}
           />
         </div>
@@ -120,7 +120,7 @@ export function EmailPasswordLoginForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+        className="bg-brand-500 hover:bg-brand-600 focus-visible:outline-brand-500 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? 'Signing in…' : submitLabel}
         {!isSubmitting && <ArrowRight aria-hidden="true" className="size-4" />}
