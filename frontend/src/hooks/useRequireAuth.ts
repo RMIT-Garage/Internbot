@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from './useAuth'
+import { getRedirectPath } from '@/features/auth/utils/redirect'
 
 /**
  * Gate for protected pages: bounces to /login if signed out and to
@@ -34,7 +35,7 @@ export function useRequireAuth(): { ready: boolean } {
  * provisioned profile is available, or to /verify-email if Firebase has
  * a session but the email is still unverified.
  */
-export function useRedirectIfAuthed(target = '/dashboard'): { ready: boolean } {
+export function useRedirectIfAuthed(target?: string): { ready: boolean } {
   const { user, profile, loading, needsVerification } = useAuth()
   const router = useRouter()
 
@@ -46,7 +47,7 @@ export function useRedirectIfAuthed(target = '/dashboard'): { ready: boolean } {
       return
     }
     if (profile) {
-      router.replace(target)
+      router.replace(target ?? getRedirectPath(undefined, profile.role))
     }
   }, [user, profile, loading, needsVerification, router, target])
 

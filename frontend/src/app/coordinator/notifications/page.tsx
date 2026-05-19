@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Bell, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
 import { coordinatorNotifications } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
@@ -67,6 +68,19 @@ export default function CoordinatorNotificationsPage() {
     }
   }
 
+  if (resource.loading) {
+    return (
+      <div className="space-y-6">
+        <CoordinatorPageHeader
+          eyebrow="Notification Center"
+          title="Notifications"
+          description="Workflow-linked alerts, student follow-ups, and system-generated approval updates."
+        />
+        <CoordinatorContentSkeleton title="Loading notifications..." />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
@@ -83,11 +97,9 @@ export default function CoordinatorNotificationsPage() {
           </button>
         }
       />
-      {(resource.loading || resource.error) && (
+      {resource.error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {resource.loading
-            ? 'Loading notifications from the workflow API...'
-            : `Using isolated fallback data: ${resource.error}`}
+          {`Using isolated fallback data: ${resource.error}`}
         </div>
       )}
       <SurfaceCard className="overflow-hidden">
@@ -95,9 +107,16 @@ export default function CoordinatorNotificationsPage() {
           {resource.data.unreadCount} unread notifications
         </div>
         <div className="divide-y divide-slate-100">
-          {resource.data.items.map((notification) => (
+          {resource.data.items.length === 0 && (
+            <div className="px-5 py-10 text-center text-sm text-slate-500">
+              {resource.source === 'api'
+                ? 'Backend connected, but no records exist yet.'
+                : 'No notifications to show.'}
+            </div>
+          )}
+          {resource.data.items.map((notification, index) => (
             <div
-              key={notification.id}
+              key={`${notification.id}-${index}`}
               className="flex gap-4 px-5 py-4 transition hover:bg-slate-50"
             >
               <div className={notification.unread ? 'text-red-700' : 'text-slate-400'}>

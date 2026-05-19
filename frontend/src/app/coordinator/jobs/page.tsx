@@ -7,8 +7,8 @@ export default function CoordinatorJobsPage() {
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Approval Queue"
-        title="Self-Sourced Job Approvals"
-        description="Triage student-submitted roles with AI advisory previews, workplace risk signals, and review actions."
+        title="Placement Reviews"
+        description="Triage student-submitted placements with AI insights, workplace risk signals, and review actions."
       />
       <Suspense fallback={<div className="text-sm text-zinc-500">Loading jobs...</div>}>
         <JobsList />
