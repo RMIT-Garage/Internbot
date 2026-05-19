@@ -17,15 +17,16 @@ import type {
 } from './mockData'
 
 export function internshipStatusToApprovalStatus(status: string): ApprovalStatus {
+  if (status === 'offer_pending_review') return 'pending'
   if (status === 'offer_approved') return 'approved'
   if (status === 'offer_changes_requested') return 'changes_requested'
-  if (status === 'rejected') return 'flagged'
-  return 'pending'
+  if (status === 'rejected') return 'rejected'
+  return 'flagged'
 }
 
 export function opportunityStatusToApprovalStatus(status: string): ApprovalStatus {
-  if (status === 'published') return 'approved'
-  if (status === 'rejected') return 'changes_requested'
+  if (status === 'published' || status === 'approved') return 'approved'
+  if (status === 'rejected') return 'rejected'
   if (status === 'pending_verification') return 'pending'
   return 'flagged'
 }
@@ -80,6 +81,9 @@ export function mapInternshipToContractApproval(
 
 export function mapSemesterToInventory(semester: SemesterResponse) {
   return {
+    id: semester.id,
+    semesterCode: semester.semesterCode,
+    courseCode: semester.courseCode,
     name: semester.displayName,
     status: semester.status === 'draft' ? 'pending' : semester.status,
     students: 0,
@@ -94,9 +98,9 @@ export function mapSemesterToInventory(semester: SemesterResponse) {
 
 export function mapNotification(notification: NotificationResponse) {
   const href = notification.relatedInternshipId
-    ? `/coordinator/contracts/${notification.relatedInternshipId}`
+    ? `/coordinator/contracts/review?id=${encodeURIComponent(notification.relatedInternshipId)}`
     : notification.relatedOpportunityId
-      ? `/coordinator/jobs/${notification.relatedOpportunityId}`
+      ? `/coordinator/jobs/review?id=${encodeURIComponent(notification.relatedOpportunityId)}`
       : '/coordinator/notifications'
 
   return {
@@ -123,18 +127,22 @@ export function mapActivity(item: UserActivityFeedItemResponse) {
 export function deriveStudentsFromInternships(
   internships: Array<InternshipListItemResponse | InternshipResponse>
 ): CoordinatorStudent[] {
-  return internships.map((item) => ({
-    id: item.userId,
-    name: item.userId,
-    studentId: item.userId,
-    course: item.studentProgramCode ?? 'Program pending',
-    semester: 'Current semester',
-    overallStatus: studentStatus(item.status),
-    email: 'Email available from user profile endpoint',
-    year: 'Current',
-    placementStatus: item.status.replace(/_/g, ' '),
-    lastAudit: item.lastSubmittedAt ?? item.createdAt,
-  }))
+  return internships
+    .map((item, index) => ({
+      rowId: `${item.userId}-${item.id}-${index}`,
+      recordId: item.id,
+      id: item.userId,
+      name: item.userId,
+      studentId: item.userId,
+      course: item.studentProgramCode ?? 'Program pending',
+      semester: 'Current semester',
+      overallStatus: studentStatus(item.status),
+      email: 'Additional student profile data unavailable.',
+      year: 'Current',
+      placementStatus: item.status.replace(/_/g, ' '),
+      lastAudit: item.lastSubmittedAt ?? item.createdAt,
+    }))
+    .sort((a, b) => Date.parse(b.lastAudit ?? '') - Date.parse(a.lastAudit ?? ''))
 }
 
 export function buildPendingApprovals(
@@ -143,22 +151,22 @@ export function buildPendingApprovals(
 ): PendingApproval[] {
   return [
     ...jobs
-      .filter((job) => job.status === 'pending' || job.status === 'flagged')
+      .filter((job) => job.status === 'pending')
       .map((job) => ({
         id: job.id,
         studentName: job.studentName,
-        type: 'Self-Sourced Job' as const,
+        type: 'Placement Review' as const,
         date: job.submissionDate,
-        href: `/coordinator/jobs/${job.id}`,
+        href: `/coordinator/jobs/review?id=${encodeURIComponent(job.id)}`,
       })),
     ...contracts
-      .filter((contract) => contract.status === 'pending' || contract.status === 'flagged')
+      .filter((contract) => contract.status === 'pending')
       .map((contract) => ({
         id: contract.id,
         studentName: contract.studentName,
         type: 'Contract' as const,
         date: contract.submissionDate,
-        href: `/coordinator/contracts/${contract.id}`,
+        href: `/coordinator/contracts/review?id=${encodeURIComponent(contract.id)}`,
       })),
   ]
     .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
@@ -172,14 +180,19 @@ function shortDate(value: string) {
 }
 
 function activityTone(value: string): WorkflowTone {
-  if (value.includes('approved') || value.includes('published')) return 'green'
   if (value.includes('reject')) return 'red'
-  if (value.includes('change') || value.includes('pending')) return 'amber'
-  return 'blue'
+  if (value.includes('change') || value.includes('pending')) return 'neutral'
+  return value.includes('approved') || value.includes('published') ? 'charcoal' : 'neutral'
 }
 
 function studentStatus(status: string): StudentOverallStatus {
   if (status === 'offer_approved') return 'approved'
-  if (status === 'rejected' || status === 'offer_changes_requested') return 'needs_attention'
+  if (
+    status === 'rejected' ||
+    status === 'offer_changes_requested' ||
+    status === 'offer_pending_review'
+  ) {
+    return 'needs_attention'
+  }
   return 'on_track'
 }

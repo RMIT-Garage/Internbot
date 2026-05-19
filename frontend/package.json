@@ -13,10 +13,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "generate:api": "openapi --input src/app/openapi.json --output src/api --client axios"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
+    "axios": "^1.16.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "firebase": "12.12.1",
@@ -42,6 +44,7 @@
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.1",
     "jsdom": "26.1.0",
+    "openapi-typescript-codegen": "^0.30.0",
     "prettier": "3.8.1",
     "prettier-plugin-tailwindcss": "0.6.14",
     "tailwindcss": "4.2.2",

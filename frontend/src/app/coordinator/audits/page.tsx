@@ -14,13 +14,13 @@ export default function CoordinatorAuditsPage() {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Institutional Audit Logs"
-        title="Audit and Activity Trace"
+        eyebrow="Institutional Activity Logs"
+        title="Activity Logs"
         description="Searchable system history, actor distribution, anomaly detection, and export-ready compliance events."
         actions={
           <PendingActionButton message="Audit export API integration pending.">
             <Download className="h-4 w-4" />
-            Export audit
+            Export activity
           </PendingActionButton>
         }
       />
@@ -38,7 +38,7 @@ export default function CoordinatorAuditsPage() {
           value={3}
           detail="Staff, AI, and system"
           icon={Users}
-          tone="blue"
+          tone="charcoal"
           progress={68}
         />
         <KPIStatCard
@@ -46,27 +46,32 @@ export default function CoordinatorAuditsPage() {
           value={1}
           detail="High severity signal"
           icon={WandSparkles}
-          tone="purple"
+          tone="red"
           progress={22}
         />
       </div>
       <AIInsightCard
-        title="AI Anomaly Detection"
+        title="AI Activity Insights"
         confidence={88}
         insight="The system detected one high-priority compliance anomaly in the contract workflow. No unusual actor distribution patterns were found."
       />
       <AnalyticsStrip
         items={[
-          { label: 'Coordinator actions', value: 2, detail: 'Manual staff events', tone: 'blue' },
-          { label: 'AI events', value: 1, detail: 'Advisor generated', tone: 'purple' },
-          { label: 'System events', value: 1, detail: 'Automated notices', tone: 'green' },
+          {
+            label: 'Coordinator actions',
+            value: 2,
+            detail: 'Manual staff events',
+            tone: 'charcoal',
+          },
+          { label: 'AI events', value: 1, detail: 'Advisor generated', tone: 'red' },
+          { label: 'System events', value: 1, detail: 'Automated notices', tone: 'neutral' },
           { label: 'High severity', value: 1, detail: 'Immediate review', tone: 'red' },
         ]}
       />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <SurfaceCard className="overflow-hidden">
           <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="text-lg font-bold text-slate-950">Searchable Logs</h2>
+            <h2 className="text-lg font-bold text-slate-950">Activity Logs</h2>
             <p className="text-sm text-slate-500">Recent institutional workflow events.</p>
           </div>
           <div className="overflow-x-auto">

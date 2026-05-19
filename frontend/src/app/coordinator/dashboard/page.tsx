@@ -20,13 +20,9 @@ import {
   SurfaceCard,
   TimelineFeed,
 } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
-import {
-  actionAlerts,
-  dashboardKpis,
-  pendingApprovals,
-  recentActivity,
-} from '@/lib/coordinator/mockData'
+import { dashboardKpis } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import {
   listInternships,
@@ -44,7 +40,7 @@ import {
 import { formatDate } from '@/lib/utils'
 
 const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['blue', 'amber', 'purple', 'green', 'red'] as const
+const kpiTones = ['charcoal', 'neutral', 'red', 'charcoal', 'red'] as const
 
 export default function CoordinatorDashboardPage() {
   const dashboardResource = useCoordinatorApiResource(
@@ -54,25 +50,64 @@ export default function CoordinatorDashboardPage() {
           '[coordinator/dashboard] backend filters: limit only; dashboard summaries are derived client-side'
         )
       }
-      const [internships, opportunities, notifications, activity] = await Promise.all([
-        listInternships({ limit: 100 }),
-        listOpportunities({ limit: 100 }),
-        listNotifications({ limit: 20 }),
-        listMyActivity({ limit: 6 }),
-      ])
+      const [internshipsResult, opportunitiesResult, notificationsResult, activityResult] =
+        await Promise.allSettled([
+          listInternships({ limit: 100 }),
+          listOpportunities({ limit: 100 }),
+          listNotifications({ limit: 20 }),
+          listMyActivity({ limit: 6 }),
+        ])
+      const internships =
+        internshipsResult.status === 'fulfilled'
+          ? internshipsResult.value
+          : { items: [], nextPageToken: null }
+      const opportunities =
+        opportunitiesResult.status === 'fulfilled'
+          ? opportunitiesResult.value
+          : { items: [], nextPageToken: null }
+      const notifications =
+        notificationsResult.status === 'fulfilled'
+          ? notificationsResult.value
+          : { items: [], nextPageToken: null, unreadCount: 0 }
+      const activity =
+        activityResult.status === 'fulfilled'
+          ? activityResult.value
+          : { items: [], nextPageToken: null }
       const contracts = internships.items.map(mapInternshipToContractApproval)
       const jobs = opportunities.items
         .filter((item) => item.type === 'custom')
         .map(mapOpportunityToSelfSourcedJob)
       const approvals = buildPendingApprovals(jobs, contracts)
+      const failedRequests = [
+        internshipsResult.status === 'rejected'
+          ? 'Internship records are currently unavailable.'
+          : null,
+        opportunitiesResult.status === 'rejected'
+          ? 'Opportunity records are currently unavailable.'
+          : null,
+        notificationsResult.status === 'rejected'
+          ? 'Workflow notifications are currently unavailable.'
+          : null,
+        activityResult.status === 'rejected' ? 'Recent activity is currently unavailable.' : null,
+      ].filter((item): item is string => Boolean(item))
+      const pendingContracts = contracts.filter((item) => item.status === 'pending').length
+      const pendingJobs = jobs.filter((item) => item.status === 'pending').length
+      const needsAttention = contracts.filter(
+        (item) => item.status === 'changes_requested' || item.status === 'rejected'
+      ).length
 
       return {
         approvals,
-        recent: activity.items.length ? activity.items.map(mapActivity) : recentActivity,
+        recent: activity.items.map(mapActivity),
+        approvalEmptyMessage:
+          jobs.length + contracts.length === 0
+            ? 'Backend connected, but no records exist yet.'
+            : 'No placement reviews are pending coordinator action.',
         alerts: [
-          `${contracts.filter((item) => item.status === 'pending').length} internship offers pending review.`,
-          `${jobs.filter((item) => item.status === 'pending').length} self-sourced roles pending verification.`,
+          `${pendingContracts} internship offers pending review.`,
+          `${pendingJobs} placement reviews pending verification.`,
           `${notifications.unreadCount} unread workflow notifications.`,
+          ...failedRequests,
         ],
         kpis: [
           {
@@ -100,9 +135,9 @@ export default function CoordinatorDashboardPage() {
             progress: 36,
           },
           {
-            title: 'Contracts flagged',
-            value: contracts.filter((item) => item.status === 'flagged').length,
-            detail: 'Rejected or high-risk offers',
+            title: 'Needs attention',
+            value: needsAttention,
+            detail: 'Rejected or changes requested',
             progress: 18,
           },
         ],
@@ -110,9 +145,10 @@ export default function CoordinatorDashboardPage() {
       }
     },
     {
-      approvals: pendingApprovals,
-      recent: recentActivity,
-      alerts: actionAlerts,
+      approvals: [],
+      recent: [],
+      approvalEmptyMessage: 'Dashboard data is unavailable.',
+      alerts: ['Backend integration unavailable.'],
       kpis: dashboardKpis,
       notifications: [],
     },
@@ -121,6 +157,7 @@ export default function CoordinatorDashboardPage() {
       emptyData: {
         approvals: [],
         recent: [],
+        approvalEmptyMessage: 'Dashboard data is unavailable.',
         alerts: ['Workflow API returned an error. See console for response details.'],
         kpis: dashboardKpis.map((item) => ({ ...item, value: 0, progress: 0 })),
         notifications: [],
@@ -128,6 +165,27 @@ export default function CoordinatorDashboardPage() {
     }
   )
   const dashboard = dashboardResource.data
+
+  if (dashboardResource.loading) {
+    return (
+      <div className="space-y-6">
+        <CoordinatorPageHeader
+          eyebrow="Coordinator Hub"
+          title="Work Integrated Learning Cohort"
+          description="Semester 1 2026 review operations, approval queues, AI-assisted risk triage, and student workflow tracking."
+          actions={
+            <>
+              <PillButton href="/coordinator/contracts?status=pending" variant="secondary">
+                Review contracts
+              </PillButton>
+              <PillButton href="/coordinator/opportunities">Create opportunity</PillButton>
+            </>
+          }
+        />
+        <CoordinatorContentSkeleton title="Loading coordinator dashboard..." />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -168,7 +226,7 @@ export default function CoordinatorDashboardPage() {
             label: 'Queue velocity',
             value: '+18%',
             detail: 'Review throughput this week',
-            tone: 'green',
+            tone: 'charcoal',
           },
           {
             label: 'AI risk cluster',
@@ -180,7 +238,7 @@ export default function CoordinatorDashboardPage() {
             label: 'Notifications sent',
             value: '42',
             detail: 'Automated student updates',
-            tone: 'blue',
+            tone: 'neutral',
           },
           {
             label: 'Advisor confidence',
@@ -193,15 +251,13 @@ export default function CoordinatorDashboardPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
         <div className="space-y-6">
-          {(dashboardResource.loading || dashboardResource.error) && (
+          {dashboardResource.error && (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              {dashboardResource.loading
-                ? 'Loading workflow data from internships, opportunities, notifications, and activity APIs...'
-                : `Using isolated fallback data: ${dashboardResource.error}`}
+              {`Using isolated fallback data: ${dashboardResource.error}`}
             </div>
           )}
           <AIInsightCard
-            title="AI Advisor Insights"
+            title="AI Insights"
             confidence={92}
             href="/coordinator/ai-advisor"
             insight="Contract reviews are trending 18% faster this week, but six submissions have institutional risk markers. Prioritise insurance clauses, remote supervision cadence, and weekly hour limits."
@@ -210,7 +266,7 @@ export default function CoordinatorDashboardPage() {
           <SurfaceCard className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Review Queue</h2>
+                <h2 className="text-lg font-bold text-slate-950">Placement Reviews</h2>
                 <p className="text-sm text-slate-500">
                   Priority submissions requiring coordinator action.
                 </p>
@@ -223,9 +279,14 @@ export default function CoordinatorDashboardPage() {
               </Link>
             </div>
             <div className="divide-y divide-slate-100">
+              {dashboard.approvals.length === 0 && (
+                <div className="px-5 py-10 text-center text-sm text-slate-500">
+                  {dashboard.approvalEmptyMessage}
+                </div>
+              )}
               {dashboard.approvals.map((item) => (
                 <div
-                  key={item.id}
+                  key={`${item.type}-${item.id}`}
                   className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                 >
                   <div>
@@ -256,8 +317,8 @@ export default function CoordinatorDashboardPage() {
             </p>
             <h2 className="mt-2 text-xl font-bold text-slate-950">Review and approvals</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Students are submitting self-sourced roles and contracts. Coordinator focus is on
-              evidence quality, compliance, and notification turnaround.
+              Students are submitting placements and contracts. Coordinator focus is on evidence
+              quality, compliance, and notification turnaround.
             </p>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center">
               {['Week 8', '72%', '9 days'].map((item, index) => (
@@ -303,7 +364,7 @@ export default function CoordinatorDashboardPage() {
             icon: FileCheck2,
           },
           {
-            title: 'Self-sourced jobs',
+            title: 'Placement reviews',
             href: '/coordinator/jobs?status=pending',
             icon: BriefcaseBusiness,
           },

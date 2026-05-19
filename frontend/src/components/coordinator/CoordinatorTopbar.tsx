@@ -2,19 +2,16 @@
 
 import Link from 'next/link'
 import { Bell, LogOut, Plus, Search, User } from 'lucide-react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { clearCoordinatorPreviewSession } from '@/lib/coordinator/auth'
 
 export function CoordinatorTopbar() {
   const router = useRouter()
-  const pathname = usePathname()
   const { user, signOut } = useAuth()
 
   const handleSignOut = async () => {
-    clearCoordinatorPreviewSession()
     await signOut()
-    router.push(pathname?.startsWith('/coordinator') ? '/coordinator/login' : '/login')
+    router.push('/login')
   }
 
   return (

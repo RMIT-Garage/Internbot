@@ -18,13 +18,13 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/coordinator/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/coordinator/jobs', label: 'Self-Sourced Jobs', icon: BriefcaseBusiness },
+  { href: '/coordinator/jobs', label: 'Placement Reviews', icon: BriefcaseBusiness },
+  { href: '/coordinator/opportunities', label: 'Opportunities', icon: GraduationCap },
   { href: '/coordinator/contracts', label: 'Contracts', icon: FileCheck2 },
   { href: '/coordinator/students', label: 'Students', icon: Users },
   { href: '/coordinator/semesters', label: 'Semesters', icon: CalendarDays },
-  { href: '/coordinator/opportunities', label: 'Opportunities', icon: GraduationCap },
-  { href: '/coordinator/ai-advisor', label: 'AI Advisor', icon: BrainCircuit },
-  { href: '/coordinator/audits', label: 'Audit Logs', icon: ClipboardList },
+  { href: '/coordinator/ai-advisor', label: 'AI Insights', icon: BrainCircuit },
+  { href: '/coordinator/audits', label: 'Activity Logs', icon: ClipboardList },
   { href: '/coordinator/notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -75,7 +75,7 @@ export function CoordinatorSidebar() {
             href="/coordinator/ai-advisor"
             className="mt-3 inline-flex text-xs font-bold text-red-200 hover:text-white"
           >
-            Open advisor
+            Open insights
           </Link>
         </div>
       </div>
