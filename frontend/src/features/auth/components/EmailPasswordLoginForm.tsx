@@ -44,7 +44,7 @@ export function EmailPasswordLoginForm({
         router.push('/verify-email')
         return
       }
-      router.push(getRedirectPath())
+      router.push(getRedirectPath(undefined, result.kind === 'ok' ? result.user.role : undefined))
     } catch (error) {
       console.error('[EmailPasswordLoginForm] sign-in failed:', error)
       toast.error(getAuthErrorMessage(error, 'Email or password is incorrect.'))
@@ -59,14 +59,14 @@ export function EmailPasswordLoginForm({
       <div className="space-y-1.5">
         <label
           htmlFor={emailId}
-          className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+          className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
         >
           {emailLabel}
         </label>
         <div className="relative">
           <Mail
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
           />
           <input
             id={emailId}
@@ -74,7 +74,7 @@ export function EmailPasswordLoginForm({
             autoComplete="username"
             placeholder={emailPlaceholder}
             aria-invalid={errors.email ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
             {...register('email')}
           />
         </div>
@@ -85,7 +85,7 @@ export function EmailPasswordLoginForm({
         <div className="flex items-center justify-between">
           <label
             htmlFor={passwordId}
-            className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
           >
             Password
           </label>
@@ -101,7 +101,7 @@ export function EmailPasswordLoginForm({
         <div className="relative">
           <Lock
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
           />
           <input
             id={passwordId}
@@ -109,7 +109,7 @@ export function EmailPasswordLoginForm({
             autoComplete="current-password"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2"
+            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
             {...register('password')}
           />
         </div>

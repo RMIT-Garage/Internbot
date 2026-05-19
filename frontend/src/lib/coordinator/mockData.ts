@@ -1,6 +1,6 @@
-export type ApprovalStatus = 'pending' | 'approved' | 'changes_requested' | 'flagged'
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'changes_requested' | 'flagged'
 export type StudentOverallStatus = 'on_track' | 'needs_attention' | 'approved' | 'inactive'
-export type WorkflowTone = 'red' | 'green' | 'blue' | 'amber'
+export type WorkflowTone = 'red' | 'charcoal' | 'neutral'
 
 export interface SummaryStateCount {
   label: string
@@ -18,7 +18,7 @@ export interface SummaryMetric {
 export interface PendingApproval {
   id: string
   studentName: string
-  type: 'Contract' | 'Self-Sourced Job'
+  type: 'Contract' | 'Placement Review'
   date: string
   href: string
 }
@@ -61,6 +61,8 @@ export interface ContractApproval {
 }
 
 export interface CoordinatorStudent {
+  rowId: string
+  recordId?: string
   id: string
   name: string
   studentId: string
@@ -71,6 +73,7 @@ export interface CoordinatorStudent {
   year?: string
   placementStatus?: string
   lastAudit?: string
+  internshipCount?: number
 }
 
 export const semesters = ['Semester 1 2026', 'Semester 2 2026', 'Summer 2026'] as const
@@ -94,7 +97,7 @@ export const coordinatorSummary: SummaryMetric[] = [
     ],
   },
   {
-    title: 'Self-Sourced Jobs',
+    title: 'Placement Reviews',
     total: 31,
     description: 'Student-submitted opportunities',
     states: [
@@ -119,37 +122,37 @@ export const pendingApprovals: PendingApproval[] = [
   {
     id: 'job-001',
     studentName: 'Maya Singh',
-    type: 'Self-Sourced Job',
+    type: 'Placement Review',
     date: '2026-05-08',
-    href: '/coordinator/jobs/job-001',
+    href: '/coordinator/jobs/review?id=job-001',
   },
   {
     id: 'contract-001',
     studentName: 'Noah Tran',
     type: 'Contract',
     date: '2026-05-07',
-    href: '/coordinator/contracts/contract-001',
+    href: '/coordinator/contracts/review?id=contract-001',
   },
   {
     id: 'job-002',
     studentName: 'Ava Williams',
-    type: 'Self-Sourced Job',
+    type: 'Placement Review',
     date: '2026-05-06',
-    href: '/coordinator/jobs/job-002',
+    href: '/coordinator/jobs/review?id=job-002',
   },
   {
     id: 'contract-002',
     studentName: 'Ethan Chen',
     type: 'Contract',
     date: '2026-05-05',
-    href: '/coordinator/contracts/contract-002',
+    href: '/coordinator/contracts/review?id=contract-002',
   },
   {
     id: 'job-003',
     studentName: 'Olivia Brown',
-    type: 'Self-Sourced Job',
+    type: 'Placement Review',
     date: '2026-05-04',
-    href: '/coordinator/jobs/job-003',
+    href: '/coordinator/jobs/review?id=job-003',
   },
 ]
 
@@ -362,6 +365,7 @@ export const contractApprovals: ContractApproval[] = [
 
 export const coordinatorStudents: CoordinatorStudent[] = [
   {
+    rowId: 'student-001',
     id: 'student-001',
     name: 'Maya Singh',
     studentId: 's3894412',
@@ -374,6 +378,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     lastAudit: '2026-05-08',
   },
   {
+    rowId: 'student-002',
     id: 'student-002',
     name: 'Noah Tran',
     studentId: 's3898910',
@@ -386,6 +391,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     lastAudit: '2026-05-07',
   },
   {
+    rowId: 'student-003',
     id: 'student-003',
     name: 'Ava Williams',
     studentId: 's3912044',
@@ -398,6 +404,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     lastAudit: '2026-05-06',
   },
   {
+    rowId: 'student-004',
     id: 'student-004',
     name: 'Liam Nguyen',
     studentId: 's3927710',
@@ -410,6 +417,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     lastAudit: '2026-04-28',
   },
   {
+    rowId: 'student-005',
     id: 'student-005',
     name: 'Charlotte Lee',
     studentId: 's3900788',
@@ -422,6 +430,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     lastAudit: '2026-04-21',
   },
   {
+    rowId: 'student-006',
     id: 'student-006',
     name: 'Henry Wilson',
     studentId: 's3874021',
@@ -451,22 +460,22 @@ export const recentActivity = [
     tone: 'red' as WorkflowTone,
   },
   {
-    title: 'Self-sourced job submitted',
+    title: 'Placement review submitted',
     description: 'Maya Singh submitted Northbank Digital role for approval.',
     time: '42 min ago',
-    tone: 'blue' as WorkflowTone,
+    tone: 'neutral' as WorkflowTone,
   },
   {
     title: 'Coordinator note added',
     description: 'Follow-up requested on Ava Williams remote supervision plan.',
     time: 'Today, 10:20 AM',
-    tone: 'amber' as WorkflowTone,
+    tone: 'neutral' as WorkflowTone,
   },
   {
     title: 'Contract approved',
     description: 'Zara Ali placement agreement archived and student notified.',
     time: 'Yesterday',
-    tone: 'green' as WorkflowTone,
+    tone: 'charcoal' as WorkflowTone,
   },
 ]
 
@@ -478,14 +487,20 @@ export const actionAlerts = [
 
 export const semesterInventory = [
   {
+    id: 'semester-001',
+    semesterCode: '2026-S1',
+    courseCode: 'INTE2710',
     name: 'Semester 1 2026',
-    status: 'active',
+    status: 'active' as const,
     students: 128,
     window: 'Feb 26 - Jun 21',
     phase: 'Review and approvals',
     flagged: 10,
   },
   {
+    id: 'semester-002',
+    semesterCode: '2026-S2',
+    courseCode: 'INTE2710',
     name: 'Semester 2 2026',
     status: 'pending',
     students: 92,
@@ -494,6 +509,9 @@ export const semesterInventory = [
     flagged: 3,
   },
   {
+    id: 'semester-003',
+    semesterCode: '2026-SU',
+    courseCode: 'INTE2710',
     name: 'Summer 2026',
     status: 'archived',
     students: 41,
@@ -508,35 +526,69 @@ export const opportunities = [
     id: 'opp-001',
     title: 'Frontend Engineering Internship',
     company: 'Northbank Digital',
-    status: 'active',
+    semesterId: 'semester-001',
+    type: 'pre_approved' as const,
+    descriptionText: 'Build accessible frontend features for student-facing placement workflows.',
+    workMode: 'hybrid' as const,
+    location: 'Melbourne',
+    sourceUrl: 'https://careerhub.rmit.edu.au/jobs/opp-001',
+    status: 'active' as const,
+    statusRaw: 'published' as const,
     applications: 18,
     engagement: 'High',
     closingDate: '2026-05-28',
+    createdByUserId: 'coordinator-demo',
+    submittedByUserId: null,
+    verifiedByUserId: 'coordinator-demo',
+    verifiedAt: '2026-05-01',
   },
   {
     id: 'opp-002',
     title: 'Cyber Security Operations Placement',
     company: 'Redline Managed Services',
-    status: 'active',
+    semesterId: 'semester-001',
+    type: 'pre_approved' as const,
+    descriptionText:
+      'Support security monitoring, triage, and reporting in a managed services team.',
+    workMode: 'onsite' as const,
+    location: 'Melbourne',
+    sourceUrl: 'https://careerhub.rmit.edu.au/jobs/opp-002',
+    status: 'active' as const,
+    statusRaw: 'published' as const,
     applications: 12,
     engagement: 'Medium',
     closingDate: '2026-06-04',
+    createdByUserId: 'coordinator-demo',
+    submittedByUserId: null,
+    verifiedByUserId: 'coordinator-demo',
+    verifiedAt: '2026-05-02',
   },
   {
     id: 'opp-003',
     title: 'Data Analytics Internship',
     company: 'Civic Insights',
-    status: 'pending',
+    semesterId: 'semester-002',
+    type: 'custom' as const,
+    descriptionText: 'Prepare dashboards and analytics datasets for civic service reporting.',
+    workMode: 'remote' as const,
+    location: 'Remote',
+    status: 'pending' as const,
+    sourceUrl: null,
+    statusRaw: 'pending_verification' as const,
     applications: 7,
     engagement: 'Rising',
     closingDate: '2026-06-11',
+    createdByUserId: null,
+    submittedByUserId: 'student-demo',
+    verifiedByUserId: null,
+    verifiedAt: null,
   },
 ]
 
 export const auditLogs = [
   {
     id: 'audit-001',
-    actor: 'AI Advisor',
+    actor: 'AI Insights',
     action: 'Flagged missing insurance clause',
     target: 'Ethan Chen Contract',
     timestamp: '2026-05-09 09:42',
@@ -572,15 +624,15 @@ export const coordinatorNotifications = [
   {
     id: 'note-001',
     title: 'Contract risk detected',
-    body: 'AI Advisor identified insurance language missing from SecureStack agreement.',
+    body: 'AI Insights identified insurance language missing from SecureStack agreement.',
     urgency: 'High',
     unread: true,
-    href: '/coordinator/contracts/contract-002',
+    href: '/coordinator/contracts/review?id=contract-002',
   },
   {
     id: 'note-002',
     title: 'Review queue updated',
-    body: 'Three self-sourced jobs moved into pending approval.',
+    body: 'Three placement reviews moved into pending approval.',
     urgency: 'Medium',
     unread: true,
     href: '/coordinator/jobs',
