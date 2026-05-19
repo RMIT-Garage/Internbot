@@ -9,8 +9,8 @@ const navItems = [
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-60 flex-col border-r border-zinc-200 bg-white lg:flex dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex h-14 items-center border-b border-zinc-200 px-4 dark:border-zinc-800">
+    <aside className="hidden w-60 flex-col border-r border-black/10 bg-white lg:flex dark:border-white/10 dark:bg-black">
+      <div className="flex h-14 items-center border-b border-black/10 px-4 dark:border-white/10">
         <span className="text-sm font-semibold">{process.env.NEXT_PUBLIC_APP_NAME ?? 'App'}</span>
       </div>
       <nav className="flex-1 space-y-1 p-3">
@@ -18,7 +18,7 @@ export function Sidebar() {
           <Link
             key={href}
             href={href}
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-black/70 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
           >
             <Icon className="h-4 w-4 shrink-0" />
             {label}

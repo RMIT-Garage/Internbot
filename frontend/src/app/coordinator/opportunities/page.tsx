@@ -1,14 +1,14 @@
 'use client'
 
 import { BarChart3, BriefcaseBusiness, Plus, Sparkles } from 'lucide-react'
-import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
+import { PendingActionButton } from '@/components/student/PendingActionButton'
 import {
   AIInsightCard,
   CoordinatorPageHeader,
   KPIStatCard,
   SurfaceCard,
-} from '@/components/coordinator/Premium'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
+} from '@/components/student/Premium'
+import { StatusBadge } from '@/components/student/StatusBadge'
 import { opportunities } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { listOpportunities } from '@/lib/coordinator/api'

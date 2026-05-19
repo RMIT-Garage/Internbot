@@ -171,26 +171,46 @@ export default function Page() {
         {/* RIGHT SIDEBAR */}
         <div className="col-span-4 space-y-6">
           {/* INFO CARD */}
-          <div className="rounded-3xl border border-slate-100 bg-white p-7 shadow-sm">
-            <div className="mb-6">
-              <h4 className="text-sm font-bold text-slate-900">What happens next?</h4>
-              <p className="text-[10px] font-bold tracking-widest text-red-600 uppercase">
+          <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-7 pt-7 pb-6">
+              <p className="mb-1.5 text-[10px] font-bold tracking-widest text-rose-600 uppercase">
                 Review Process
               </p>
+              <h4 className="text-base font-bold text-slate-900">What happens next?</h4>
             </div>
 
-            <ol className="space-y-3 text-sm text-slate-500">
-              <li className="flex gap-2">
-                <span className="font-bold text-rose-600">1.</span>
-                Your submission is sent to a coordinator for verification.
+            <ol className="px-7 py-5">
+              <li className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-rose-600">
+                    1
+                  </span>
+                  <div className="mt-2 h-10 w-px bg-slate-200" />
+                </div>
+                <p className="pt-0.5 pb-5 text-sm leading-relaxed text-slate-500">
+                  Your submission is sent to a coordinator for verification.
+                </p>
               </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-rose-600">2.</span>
-                Once approved, the opportunity becomes available in your semester.
+              <li className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-rose-600">
+                    2
+                  </span>
+                  <div className="mt-2 h-10 w-px bg-slate-200" />
+                </div>
+                <p className="pt-0.5 pb-5 text-sm leading-relaxed text-slate-500">
+                  Once approved, the opportunity becomes available in your semester.
+                </p>
               </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-rose-600">3.</span>
-                You can then apply and upload your offer letter.
+              <li className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-rose-600">
+                    3
+                  </span>
+                </div>
+                <p className="pt-0.5 text-sm leading-relaxed text-slate-500">
+                  You can then apply and upload your offer letter.
+                </p>
               </li>
             </ol>
           </div>

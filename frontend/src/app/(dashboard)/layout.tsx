@@ -9,7 +9,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-100" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-black/20 border-t-red-600 dark:border-white/20 dark:border-t-red-400" />
       </div>
     )
   }

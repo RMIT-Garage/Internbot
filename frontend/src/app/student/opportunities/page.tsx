@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 import {
   AIInsightCard,
@@ -44,9 +44,11 @@ function opportunityStatusToBadge(status: string): CoordinatorStatus {
 }
 
 export default function StudentOpportunitiesPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const semesterId = searchParams.get('semesterId') ?? undefined
+  const { user } = useAuth()
+
+  // Confirmed semester lives in state — resets to null on every page refresh,
+  // which brings the user back to the semester selection screen.
+  const [confirmedSemesterId, setConfirmedSemesterId] = useState<string | null>(null)
 
   // Semester selection state
   const [semesters, setSemesters] = useState<SemesterResponse[]>([])
@@ -61,36 +63,44 @@ export default function StudentOpportunitiesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load semesters + pre-select the user's current semester
+  // Load semesters + pre-select the user's current semester.
+  // Gated on `user` so it only runs after Firebase Auth has initialized —
+  // otherwise OpenAPI.TOKEN returns '' and the API calls get a silent 401.
   useEffect(() => {
-    const loadSemesters = async () => {
-      try {
-        setLoadingSemesters(true)
-        const [semesterRes, user] = await Promise.all([
-          SemestersService.listSemesters(['active']),
-          UsersService.getMyProfile(),
-        ])
-        setSemesters(semesterRes.items)
-        if (user.role === 'student') {
-          setSelectedSemester(user.studentProfile?.semesterId ?? null)
-        }
-      } catch {
-        // Non-fatal — semester selection will still work
-      } finally {
-        setLoadingSemesters(false)
-      }
-    }
-    loadSemesters()
-  }, [])
+    if (!user) return
+    let active = true
 
-  // Load opportunities once a semesterId is known from the URL
+    const load = async () => {
+      setLoadingSemesters(true)
+      // Use allSettled so a profile error never blocks semester loading
+      const [semRes, profileRes] = await Promise.allSettled([
+        SemestersService.listSemesters(['active']),
+        UsersService.getMyProfile(),
+      ])
+      if (!active) return
+      if (semRes.status === 'fulfilled') {
+        setSemesters(semRes.value.items)
+      }
+      if (profileRes.status === 'fulfilled' && profileRes.value.role === 'student') {
+        setSelectedSemester(profileRes.value.studentProfile?.semesterId ?? null)
+      }
+      setLoadingSemesters(false)
+    }
+
+    load()
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  // Load opportunities once the semester is confirmed
   useEffect(() => {
-    if (!semesterId) return
+    if (!confirmedSemesterId) return
     const loadData = async () => {
       try {
         setLoading(true)
         const [oppRes, intRes] = await Promise.all([
-          OpportunitiesService.listOpportunities(semesterId),
+          OpportunitiesService.listOpportunities(confirmedSemesterId),
           InternshipsService.listInternships(),
         ])
         setOpportunities(oppRes.items)
@@ -102,7 +112,7 @@ export default function StudentOpportunitiesPage() {
       }
     }
     loadData()
-  }, [semesterId])
+  }, [confirmedSemesterId])
 
   const confirmSemester = async () => {
     if (!selectedSemester) {
@@ -113,7 +123,7 @@ export default function StudentOpportunitiesPage() {
       setSubmitting(true)
       setSemesterError(null)
       await UsersService.putMySemesterSelection({ semesterId: selectedSemester })
-      router.push(`/student/opportunities?semesterId=${selectedSemester}`)
+      setConfirmedSemesterId(selectedSemester)
     } catch (err: any) {
       const reason: string | undefined = err.body?.error?.reason
       setSemesterError(
@@ -125,7 +135,7 @@ export default function StudentOpportunitiesPage() {
   }
 
   // ── Semester selection step ────────────────────────────────────────────────
-  if (!semesterId) {
+  if (!confirmedSemesterId) {
     return (
       <div className="space-y-6">
         <CoordinatorPageHeader
@@ -228,7 +238,7 @@ export default function StudentOpportunitiesPage() {
         />
         <button
           type="button"
-          onClick={() => router.push('/student/opportunities')}
+          onClick={() => setConfirmedSemesterId(null)}
           className="shrink-0 rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
         >
           Change Semester
@@ -242,7 +252,7 @@ export default function StudentOpportunitiesPage() {
           value={activeCount}
           detail="Published opportunities"
           icon={BriefcaseBusiness}
-          tone="green"
+          tone="red"
           progress={
             opportunities.length > 0 ? Math.round((activeCount / opportunities.length) * 100) : 0
           }
@@ -252,7 +262,7 @@ export default function StudentOpportunitiesPage() {
           value={appliedCount}
           detail="Submitted applications"
           icon={BarChart3}
-          tone="blue"
+          tone="dark"
           progress={
             activeCount > 0 ? Math.min(Math.round((appliedCount / activeCount) * 100), 100) : 0
           }
@@ -262,7 +272,7 @@ export default function StudentOpportunitiesPage() {
           value={opportunities.length}
           detail="Opportunities this semester"
           icon={Sparkles}
-          tone="purple"
+          tone="light"
           progress={100}
         />
       </div>

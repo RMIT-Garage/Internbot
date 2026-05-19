@@ -16,7 +16,7 @@ export function CoordinatorPageHeader({
 }) {
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-      <div className="pointer-events-none absolute top-0 right-0 h-28 w-72 rounded-bl-full bg-gradient-to-l from-red-50 via-blue-50 to-transparent" />
+      <div className="pointer-events-none absolute top-0 right-0 h-28 w-72 rounded-bl-full bg-gradient-to-l from-red-50/70 to-transparent" />
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           {eyebrow && (
@@ -66,7 +66,7 @@ export function KPIStatCard({
   value: string | number
   detail: string
   icon: LucideIcon
-  tone?: 'red' | 'blue' | 'green' | 'amber' | 'purple'
+  tone?: 'red' | 'blue' | 'green' | 'amber' | 'purple' | 'dark' | 'light'
   progress?: number
 }) {
   const tones = {
@@ -75,6 +75,8 @@ export function KPIStatCard({
     green: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     amber: 'bg-amber-50 text-amber-700 ring-amber-100',
     purple: 'bg-purple-50 text-purple-700 ring-purple-100',
+    dark: 'bg-slate-950 text-white ring-slate-800',
+    light: 'bg-white text-slate-950 ring-slate-200',
   }
 
   return (
@@ -145,7 +147,7 @@ export function AnalyticsStrip({
     label: string
     value: string | number
     detail: string
-    tone?: 'red' | 'blue' | 'green' | 'purple' | 'charcoal'
+    tone?: 'red' | 'blue' | 'green' | 'purple' | 'charcoal' | 'dark' | 'light'
   }>
 }) {
   const toneClasses = {
@@ -154,6 +156,8 @@ export function AnalyticsStrip({
     green: 'text-emerald-700 bg-emerald-50',
     purple: 'text-purple-700 bg-purple-50',
     charcoal: 'text-slate-950 bg-white ring-1 ring-slate-200',
+    dark: 'text-white bg-slate-950',
+    light: 'text-slate-950 bg-slate-100',
   }
 
   return (

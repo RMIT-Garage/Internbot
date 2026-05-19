@@ -16,7 +16,7 @@ const statusStyles = {
   inactive:
     'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
   active:
-    'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300',
+    'border-zinc-800 bg-zinc-950 text-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-white',
   archived:
     'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
   rejected:
