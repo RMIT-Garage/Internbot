@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { NotificationsService } from '@/lib/api/openapi-client'
 import type { NotificationResponse } from '@/lib/api/openapi-client'
+import { getApiErrorMessage } from '@/lib/api/errors'
 
 function CoordinatorPageHeader({
   eyebrow,
@@ -65,8 +66,8 @@ export default function StudentNotificationsPage() {
         const res = await NotificationsService.listNotifications()
         setItems(res.items)
         setUnreadCount(res.unreadCount)
-      } catch (err: any) {
-        setError(err.message || 'Failed to load notifications')
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'Failed to load notifications'))
       } finally {
         setLoading(false)
       }

@@ -2,16 +2,19 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import axios from 'axios'
-import type { AxiosError, AxiosRequestConfig, AxiosResponse, AxiosInstance } from 'axios'
-import FormData from 'form-data'
-
 import { ApiError } from './ApiError'
 import type { ApiRequestOptions } from './ApiRequestOptions'
 import type { ApiResult } from './ApiResult'
 import { CancelablePromise } from './CancelablePromise'
 import type { OnCancel } from './CancelablePromise'
 import type { OpenAPIConfig } from './OpenAPI'
+
+interface HttpResponse<T = unknown> {
+  data: T
+  status: number
+  statusText: string
+  headers: Record<string, unknown>
+}
 
 export const isDefined = <T>(
   value: T | null | undefined
@@ -161,13 +164,10 @@ export const getHeaders = async (
     resolve(options, config.HEADERS),
   ])
 
-  const formHeaders = (typeof formData?.getHeaders === 'function' && formData?.getHeaders()) || {}
-
   const headers = Object.entries({
     Accept: 'application/json',
     ...additionalHeaders,
     ...options.headers,
-    ...formHeaders,
   })
     .filter(([_, value]) => isDefined(value))
     .reduce(
@@ -216,36 +216,42 @@ export const sendRequest = async <T>(
   body: any,
   formData: FormData | undefined,
   headers: Record<string, string>,
-  onCancel: OnCancel,
-  axiosClient: AxiosInstance
-): Promise<AxiosResponse<T>> => {
-  const source = axios.CancelToken.source()
-
-  const requestConfig: AxiosRequestConfig = {
-    url,
+  onCancel: OnCancel
+): Promise<HttpResponse<T>> => {
+  const controller = new AbortController()
+  const requestConfig: RequestInit = {
     headers,
-    data: body ?? formData,
+    body: (body ?? formData) as BodyInit | null | undefined,
     method: options.method,
-    withCredentials: config.WITH_CREDENTIALS,
-    withXSRFToken: config.CREDENTIALS === 'include' ? config.WITH_CREDENTIALS : false,
-    cancelToken: source.token,
+    credentials: config.WITH_CREDENTIALS ? config.CREDENTIALS : 'same-origin',
+    signal: controller.signal,
   }
 
-  onCancel(() => source.cancel('The user aborted a request.'))
+  onCancel(() => controller.abort('The user aborted a request.'))
 
-  try {
-    return await axiosClient.request(requestConfig)
-  } catch (error) {
-    const axiosError = error as AxiosError<T>
-    if (axiosError.response) {
-      return axiosError.response
-    }
-    throw error
+  const response = await fetch(url, requestConfig)
+  const contentType = response.headers.get('content-type') ?? ''
+  const data =
+    response.status === 204
+      ? undefined
+      : contentType.includes('application/json')
+        ? await response.json()
+        : await response.text()
+  const responseHeaders: Record<string, unknown> = {}
+  response.headers.forEach((value, key) => {
+    responseHeaders[key] = value
+  })
+
+  return {
+    data: data as T,
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
   }
 }
 
 export const getResponseHeader = (
-  response: AxiosResponse<any>,
+  response: HttpResponse<any>,
   responseHeader?: string
 ): string | undefined => {
   if (responseHeader) {
@@ -257,7 +263,7 @@ export const getResponseHeader = (
   return undefined
 }
 
-export const getResponseBody = (response: AxiosResponse<any>): any => {
+export const getResponseBody = (response: HttpResponse<any>): any => {
   if (response.status !== 204) {
     return response.data
   }
@@ -310,8 +316,7 @@ export const catchErrorCodes = (options: ApiRequestOptions, result: ApiResult): 
  */
 export const request = <T>(
   config: OpenAPIConfig,
-  options: ApiRequestOptions,
-  axiosClient: AxiosInstance = axios
+  options: ApiRequestOptions
 ): CancelablePromise<T> => {
   return new CancelablePromise(async (resolve, reject, onCancel) => {
     try {
@@ -328,8 +333,7 @@ export const request = <T>(
           body,
           formData,
           headers,
-          onCancel,
-          axiosClient
+          onCancel
         )
         const responseBody = getResponseBody(response)
         const responseHeader = getResponseHeader(response, options.responseHeader)

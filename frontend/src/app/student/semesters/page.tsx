@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react'
 
 import { SemestersService, UsersService } from '@/lib/api/openapi-client'
 import type { SemesterResponse } from '@/lib/api/openapi-client'
+import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -40,8 +41,8 @@ export default function StudentSemestersPage() {
         if (user.role === 'student') {
           setSelectedSemester(user.studentProfile?.semesterId ?? null)
         }
-      } catch (err: any) {
-        setError(err.message || 'Failed to load semesters')
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'Failed to load semesters'))
       } finally {
         setLoading(false)
       }
@@ -65,9 +66,12 @@ export default function StudentSemestersPage() {
       await UsersService.putMySemesterSelection({ semesterId: selectedSemester })
 
       router.push(`/student/opportunities?semesterId=${selectedSemester}`)
-    } catch (err: any) {
-      const reason: string | undefined = err.body?.error?.reason
-      setError((reason && CONFLICT_MESSAGES[reason]) ?? err.message ?? 'Failed to select semester')
+    } catch (err: unknown) {
+      const reason = getApiErrorReason(err)
+      setError(
+        (reason && CONFLICT_MESSAGES[reason]) ??
+          getApiErrorMessage(err, 'Failed to select semester')
+      )
     } finally {
       setSubmitting(false)
     }

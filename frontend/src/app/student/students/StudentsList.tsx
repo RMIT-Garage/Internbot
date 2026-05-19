@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { FilterBar } from '@/components/student/FilterBar'
 import { Pagination } from '@/components/student/Pagination'
 import { SurfaceCard } from '@/components/student/Premium'
-import { StatusBadge } from '@/components/student/StatusBadge'
+import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 
 function matchesParam(value: string, param?: string) {
   if (!param || param === 'all') return true
@@ -37,7 +37,7 @@ const coordinatorStudents = [
     studentId: 'S12345',
     course: 'Computer Science',
     semester: '2024 S1',
-    overallStatus: 'on_track',
+    overallStatus: 'on_track' as CoordinatorStatus,
   },
   {
     id: '2',
@@ -46,7 +46,7 @@ const coordinatorStudents = [
     studentId: 'S12346',
     course: 'Software Engineering',
     semester: '2024 S2',
-    overallStatus: 'needs_attention',
+    overallStatus: 'needs_attention' as CoordinatorStatus,
   },
   {
     id: '3',
@@ -55,7 +55,7 @@ const coordinatorStudents = [
     studentId: 'S12347',
     course: 'Information Technology',
     semester: '2025 S1',
-    overallStatus: 'approved',
+    overallStatus: 'approved' as CoordinatorStatus,
   },
   {
     id: '4',
@@ -64,7 +64,7 @@ const coordinatorStudents = [
     studentId: 'S12348',
     course: 'Computer Science',
     semester: '2024 S1',
-    overallStatus: 'inactive',
+    overallStatus: 'inactive' as CoordinatorStatus,
   },
 ]
 
@@ -96,8 +96,8 @@ export function StudentsList() {
   // ✅ FIX: removed broken API/hook layer, using mock data directly
   const students = coordinatorStudents
   const loading = false
-  const error = null
-  const source = 'fallback'
+  const error: string | null = null
+  const source = 'fallback data'
 
   const filteredStudents = students
     .filter((student) => matchesParam(student.overallStatus, status))
@@ -124,7 +124,7 @@ export function StudentsList() {
         )}
 
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Directory source: {source === 'api' ? 'API-derived records' : 'fallback data'}
+          Directory source: {source}
         </div>
 
         <FilterBar

@@ -3,6 +3,8 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, BrainCircuit, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+type StudentTone = 'red' | 'charcoal' | 'neutral' | 'blue' | 'green' | 'purple' | 'amber'
+
 export function CoordinatorPageHeader({
   eyebrow,
   title,
@@ -66,13 +68,17 @@ export function KPIStatCard({
   value: string | number
   detail: string
   icon: LucideIcon
-  tone?: 'red' | 'charcoal' | 'neutral'
+  tone?: StudentTone
   progress?: number
 }) {
   const tones = {
     red: 'bg-red-50 text-red-700 ring-red-100',
     charcoal: 'bg-slate-950 text-white ring-slate-900',
     neutral: 'bg-slate-100 text-slate-800 ring-slate-200',
+    blue: 'bg-blue-50 text-blue-700 ring-blue-100',
+    green: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    purple: 'bg-purple-50 text-purple-700 ring-purple-100',
+    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
   }
 
   return (
@@ -143,13 +149,17 @@ export function AnalyticsStrip({
     label: string
     value: string | number
     detail: string
-    tone?: 'red' | 'charcoal' | 'neutral'
+    tone?: StudentTone
   }>
 }) {
   const toneClasses = {
     red: 'text-red-700 bg-red-50',
     charcoal: 'text-slate-950 bg-white ring-1 ring-slate-200',
     neutral: 'text-slate-800 bg-slate-100',
+    blue: 'text-blue-700 bg-blue-50',
+    green: 'text-emerald-700 bg-emerald-50',
+    purple: 'text-purple-700 bg-purple-50',
+    amber: 'text-amber-700 bg-amber-50',
   }
 
   return (
@@ -205,9 +215,9 @@ export function TimelineFeed({
 }: {
   items: Array<{
     title: string
-    description: string
+    description?: string
     time: string
-    tone?: 'red' | 'charcoal' | 'neutral'
+    tone?: StudentTone
   }>
 }) {
   return (
@@ -219,12 +229,18 @@ export function TimelineFeed({
               'mt-1 h-2.5 w-2.5 rounded-full ring-4',
               item.tone === 'charcoal' && 'bg-slate-950 ring-slate-100',
               item.tone === 'neutral' && 'bg-slate-500 ring-slate-100',
+              item.tone === 'blue' && 'bg-blue-600 ring-blue-50',
+              item.tone === 'green' && 'bg-emerald-600 ring-emerald-50',
+              item.tone === 'purple' && 'bg-purple-600 ring-purple-50',
+              item.tone === 'amber' && 'bg-amber-600 ring-amber-50',
               (!item.tone || item.tone === 'red') && 'bg-red-600 ring-red-50'
             )}
           />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-            <p className="mt-1 text-sm leading-5 text-slate-500">{item.description}</p>
+            {item.description && (
+              <p className="mt-1 text-sm leading-5 text-slate-500">{item.description}</p>
+            )}
             <p className="mt-1 text-xs font-medium text-slate-400">{item.time}</p>
           </div>
         </div>

@@ -19,9 +19,9 @@ interface ReviewDecisionPanelProps {
   id: string
   kind: 'contract' | 'job'
   defaultNotes: string
-  canReview: boolean
-  reviewedStatus: CoordinatorStatus
-  backHref: string
+  canReview?: boolean
+  reviewedStatus?: CoordinatorStatus
+  backHref?: string
   onSuccess?: (decision: ReviewDecision, notes: string) => void
   onAlreadyReviewed?: () => Promise<void> | void
 }
@@ -32,9 +32,9 @@ export function ReviewDecisionPanel({
   id,
   kind,
   defaultNotes,
-  canReview,
-  reviewedStatus,
-  backHref,
+  canReview = true,
+  reviewedStatus = 'pending',
+  backHref = kind === 'contract' ? '/student/contracts' : '/student/jobs',
   onSuccess,
   onAlreadyReviewed,
 }: ReviewDecisionPanelProps) {
