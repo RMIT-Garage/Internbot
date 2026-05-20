@@ -6,30 +6,23 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, Building2, Clock3, FileText, ShieldCheck, User } from 'lucide-react'
 import { AIInsightCard, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
-import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipResponse } from '@/lib/api/openapi-client'
 import { formatDate } from '@/lib/utils'
 
-function internshipStatusToBadge(status: InternshipResponse['status']): StudentStatus {
+function internshipStatusToBadge(status: InternshipResponse['status']): CoordinatorStatus {
   switch (status) {
-    case 'applied':
-      return 'applied'
-
-    case 'offer_pending_review':
-      return 'offer_pending_review'
-
-    case 'offer_changes_requested':
-      return 'offer_changes_requested'
-
     case 'offer_approved':
-      return 'offer_approved'
-
+      return 'approved'
+    case 'offer_changes_requested':
+      return 'changes_requested'
     case 'rejected':
       return 'rejected'
-
+    case 'offer_pending_review':
+      return 'on_track'
     default:
-      return 'applied'
+      return 'pending'
   }
 }
 

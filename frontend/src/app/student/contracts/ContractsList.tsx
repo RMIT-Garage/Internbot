@@ -7,7 +7,7 @@ import { ArrowUpDown } from 'lucide-react'
 
 import { FilterBar } from '@/components/student/FilterBar'
 import { Pagination } from '@/components/student/Pagination'
-import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import { AnalyticsStrip } from '@/components/student/Premium'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
@@ -15,15 +15,15 @@ import { getApiErrorMessage } from '@/lib/api/errors'
 
 type SortDirection = 'asc' | 'desc'
 
-function internshipStatusToBadge(status: InternshipListItemResponse.status): StudentStatus {
-  const map: Record<string, StudentStatus> = {
-    applied: 'applied',
-    offer_pending_review: 'offer_pending_review',
-    offer_changes_requested: 'offer_changes_requested',
-    offer_approved: 'offer_approved',
+function internshipStatusToBadge(status: InternshipListItemResponse.status): CoordinatorStatus {
+  const map: Record<string, CoordinatorStatus> = {
+    applied: 'pending',
+    offer_pending_review: 'on_track',
+    offer_changes_requested: 'changes_requested',
+    offer_approved: 'approved',
     rejected: 'rejected',
   }
-  return map[status] ?? 'applied'
+  return map[status] ?? 'pending'
 }
 
 function matchesParam(value: string, param?: string) {

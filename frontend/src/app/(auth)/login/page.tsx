@@ -12,7 +12,7 @@ export default function LoginPage() {
     <div className="relative isolate flex min-h-screen flex-col overflow-hidden bg-zinc-950 text-white">
       <div
         aria-hidden="true"
-        className="contrast-110 absolute inset-0 -z-10 bg-[url('/login-bg.jpg')] bg-cover bg-center grayscale-[10%]"
+        className="absolute inset-0 -z-10 bg-[url('/login-bg.jpg')] bg-cover bg-center contrast-110 grayscale-[10%]"
       />
       <div
         aria-hidden="true"
@@ -25,7 +25,7 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Welcome to Internbot
             </h1>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-zinc-300">
+            <p className="text-[11px] font-semibold tracking-[0.25em] text-zinc-300 uppercase">
               Institutional Internship Portal
             </p>
           </div>
@@ -55,7 +55,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-4 border-t border-zinc-100 pt-4 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+            <div className="mt-6 flex items-center justify-center gap-4 border-t border-zinc-100 pt-4 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
               <Link href="/support" className="hover:text-zinc-600">
                 Technical Support
               </Link>
@@ -80,7 +80,7 @@ function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
       <dt className="text-2xl font-bold tracking-tight">{value}</dt>
-      <dd className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
+      <dd className="text-[11px] font-semibold tracking-[0.2em] text-zinc-400 uppercase">
         {label}
       </dd>
     </div>

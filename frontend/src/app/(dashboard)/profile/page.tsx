@@ -1,39 +1,27 @@
 'use client'
 
 import { useAuth } from '@/hooks/useAuth'
-import { useRequireAuth } from '@/hooks/useRequireAuth'
-import { useUserProfile } from '@/features/profile/hooks/useUserProfile'
-import { ProfileView } from '@/features/profile/components/ProfileView'
-import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
-import type { StudentUser } from '@/features/profile/types'
 
 export default function ProfilePage() {
-  const { ready } = useRequireAuth()
-  const { user, loading, error, updateProfile, saving } = useUserProfile()
+  const { user } = useAuth()
 
-  if (!ready || loading) {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <LoadingSpinner size="md" />
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+        <p className="mt-1 text-sm text-zinc-500">Manage your account details.</p>
       </div>
-    )
-  }
 
-  if (error) {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Email</p>
+          <p className="mt-1 text-sm">{user?.email ?? '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">User ID</p>
+          <p className="mt-1 font-mono text-sm text-zinc-500">{user?.uid ?? '—'}</p>
+        </div>
       </div>
-    )
-  }
-
-  if (!user || user.role !== 'student') {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <p className="text-sm text-gray-500">Profile is only available for students.</p>
-      </div>
-    )
-  }
-
-  return <ProfileView user={user as StudentUser} onSave={updateProfile} saving={saving} />
+    </div>
+  )
 }
