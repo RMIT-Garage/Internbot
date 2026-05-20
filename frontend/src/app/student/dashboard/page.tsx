@@ -30,7 +30,7 @@ import type {
 } from '@/lib/api/openapi-client'
 
 const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['red', 'charcoal', 'neutral'] as const
+const kpiTones = ['red', 'charcoal', 'neutral', 'red', 'red'] as const
 
 export default function StudentDashboardPage() {
   const [user, setUser] = useState<StudentUserResponse | null>(null)
