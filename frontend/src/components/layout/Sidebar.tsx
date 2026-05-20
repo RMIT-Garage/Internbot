@@ -61,7 +61,7 @@ export function Sidebar() {
       </nav>
       <div className="border-t border-slate-200 p-4">
         <div className="rounded-2xl bg-slate-950 p-4 text-white">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-200">AI Learning</p>
+          <p className="text-xs font-bold tracking-[0.18em] text-red-200 uppercase">AI Learning</p>
           <p className="mt-2 text-sm font-semibold">Learning recommendations ready.</p>
           <Link
             href="/advisor"

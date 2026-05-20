@@ -3,32 +3,20 @@
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import {
-  hasCoordinatorPreviewSession,
-  isCoordinatorLoginPath,
-  isCoordinatorRole,
-} from '@/lib/coordinator/auth'
+import { isCoordinatorRole } from '@/lib/coordinator/auth'
 
 export function useRequireCoordinatorAuth({ disabled = false } = {}): { ready: boolean } {
   const { user, profile, loading, needsVerification } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const hasPreviewSession = hasCoordinatorPreviewSession()
 
   useEffect(() => {
-    if (disabled || loading || isCoordinatorLoginPath(pathname)) return
-
-    if (hasPreviewSession) {
-      return
-    }
+    if (disabled || loading) return
 
     if (!user) {
-      const currentPath =
-        typeof window === 'undefined'
-          ? pathname
-          : `${window.location.pathname}${window.location.search}`
+      const currentPath = getCurrentCoordinatorPath(pathname)
       const redirect = currentPath ? `?redirect=${encodeURIComponent(currentPath)}` : ''
-      router.replace(`/coordinator/login${redirect}`)
+      router.replace(`/login${redirect}`)
       return
     }
 
@@ -40,12 +28,19 @@ export function useRequireCoordinatorAuth({ disabled = false } = {}): { ready: b
     if (profile && !isCoordinatorRole(profile.role)) {
       router.replace('/dashboard')
     }
-  }, [user, profile, loading, needsVerification, router, pathname, disabled, hasPreviewSession])
+  }, [user, profile, loading, needsVerification, router, pathname, disabled])
 
   return {
-    ready:
-      disabled ||
-      hasPreviewSession ||
-      (!loading && !!user && !!profile && isCoordinatorRole(profile.role)),
+    ready: disabled || (!loading && !!user && !!profile && isCoordinatorRole(profile.role)),
   }
+}
+
+function getCurrentCoordinatorPath(pathname: string | null): string {
+  if (typeof window === 'undefined') return withTrailingSlash(pathname ?? '')
+  return `${withTrailingSlash(window.location.pathname)}${window.location.search}`
+}
+
+function withTrailingSlash(path: string): string {
+  if (!path || path.endsWith('/')) return path
+  return `${path}/`
 }

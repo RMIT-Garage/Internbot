@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   // Static HTML export — output written to `frontend/out/`. Deployed to
   // Firebase Hosting; no Node runtime. Security headers live in firebase.json
   // (there is no server to set them here).
-  output: 'export',
+  // output: 'export',
   trailingSlash: true,
   images: {
     // `next/image` Optimization requires a server. Static export must opt out.

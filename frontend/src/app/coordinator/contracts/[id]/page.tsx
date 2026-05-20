@@ -74,7 +74,7 @@ export default async function CoordinatorContractReviewPage({ params }: Contract
                 ['Placement host', contract.placementHost],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">
                     {label}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-slate-950">{value}</p>
@@ -96,7 +96,7 @@ export default async function CoordinatorContractReviewPage({ params }: Contract
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <AIInsightCard
-            title="AI Advisory Report"
+            title="AI Insights"
             confidence={contract.aiConfidence ?? 86}
             insight={`Institutional checks found ${contract.aiIssues.length} review signals. Risk level is ${contract.riskLevel ?? 'Low'} based on clause coverage, signatures, and date alignment.`}
           />
@@ -110,7 +110,7 @@ export default async function CoordinatorContractReviewPage({ params }: Contract
               {contract.aiIssues.map((issue) => (
                 <div
                   key={issue}
-                  className="flex gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"
+                  className="flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-900"
                 >
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   {issue}
@@ -128,6 +128,9 @@ export default async function CoordinatorContractReviewPage({ params }: Contract
               id={contract.id}
               kind="contract"
               defaultNotes={contract.notes.join('\n')}
+              canReview={contract.status === 'pending'}
+              reviewedStatus={contract.status}
+              backHref="/coordinator/contracts"
             />
           </SurfaceCard>
         </aside>

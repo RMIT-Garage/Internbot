@@ -44,8 +44,7 @@ export function EmailPasswordLoginForm({
         router.push('/verify-email')
         return
       }
-      router.push(getRedirectPath())
-      // router.push('/dashboard') // temporary for testing
+      router.push(getRedirectPath(undefined, result.kind === 'ok' ? result.user.role : undefined))
     } catch (error) {
       console.error('[EmailPasswordLoginForm] sign-in failed:', error)
       toast.error(getAuthErrorMessage(error, 'Email or password is incorrect.'))

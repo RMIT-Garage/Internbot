@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { User } from 'firebase/auth'
 import { RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { auth } from '@/lib/firebase/client'
 import { apiFetch, ApiError } from '@/lib/api/client'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
 
@@ -26,7 +26,7 @@ const debugEndpoints = [
   },
   { label: 'Opportunities', path: '/api/v1/opportunities?limit=100&sort=-createdAt' },
   {
-    label: 'Self-sourced opportunities',
+    label: 'Placement review opportunities',
     path: '/api/v1/opportunities?type=custom&limit=100&sort=-createdAt',
   },
   { label: 'Semesters', path: '/api/v1/semesters?limit=100' },
@@ -34,10 +34,25 @@ const debugEndpoints = [
   { label: 'My activity', path: '/api/v1/users/me/activity?limit=20' },
 ] as const
 
+const coordinatorAuditChecklist = [
+  'Auth: shared Firebase/backend login, coordinator/staff/admin role guard, no coordinator-only login form.',
+  'Dashboard: internships, opportunities, notifications, and activity endpoints connected with empty/error states.',
+  'Students: internship-derived directory with stable row keys, loading/empty/error states.',
+  'Jobs: custom opportunities list, static-export-safe review links, verification actions through opportunity verification endpoint.',
+  'Contracts: internship offer review queue, static-export-safe review links, decisions endpoint for approve/reject/request changes.',
+  'Semesters: list, create, and display-name update wired to semester endpoints.',
+  'Opportunities: list, create, and editable title/employer fields wired to opportunity endpoints.',
+  'Notifications: list, mark one read, and mark all read states wired to notification endpoints.',
+  'AI insights: backend integration pending until an AI review endpoint exists.',
+  'Tickets: no coordinator ticket frontend route is present, so ticket APIs are not surfaced.',
+] as const
+
 export default function CoordinatorDebugApiPage() {
   const { user, profile, loading, needsVerification } = useAuth()
+  const [firebaseCurrentUserPresent, setFirebaseCurrentUserPresent] = useState(false)
   const [firebaseTokenPresent, setFirebaseTokenPresent] = useState(false)
   const [firebaseUserEmail, setFirebaseUserEmail] = useState<string | null>(null)
+  const [firebaseAuthError, setFirebaseAuthError] = useState<string | null>(null)
   const [results, setResults] = useState<DebugEndpointResult[]>([])
   const [running, setRunning] = useState(false)
 
@@ -47,18 +62,42 @@ export default function CoordinatorDebugApiPage() {
       providerUserPresent: Boolean(user),
       providerEmail: user?.email ?? null,
       profileRole: profile?.role ?? null,
-      firebaseCurrentUserPresent: Boolean(auth.currentUser),
+      firebaseCurrentUserPresent,
       firebaseUserEmail,
       firebaseTokenPresent,
+      firebaseAuthError,
       needsVerification,
     }),
-    [user, profile, firebaseUserEmail, firebaseTokenPresent, needsVerification]
+    [
+      user,
+      profile,
+      firebaseCurrentUserPresent,
+      firebaseUserEmail,
+      firebaseTokenPresent,
+      firebaseAuthError,
+      needsVerification,
+    ]
   )
 
   const runChecks = useCallback(async () => {
     setRunning(true)
-    const currentUser = auth.currentUser
+    let currentUser: User | null = null
+    setFirebaseAuthError(null)
+    try {
+      const firebaseClient = await import('@/lib/firebase/client')
+      currentUser = firebaseClient.auth.currentUser
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? `Firebase auth unavailable: ${error.message}`
+          : 'Firebase auth unavailable in this environment.'
+      setFirebaseAuthError(message)
+      setFirebaseCurrentUserPresent(false)
+      setFirebaseUserEmail(null)
+      setFirebaseTokenPresent(false)
+    }
     setFirebaseUserEmail(currentUser?.email ?? null)
+    setFirebaseCurrentUserPresent(Boolean(currentUser))
     if (currentUser) {
       const token = await currentUser.getIdToken().catch(() => '')
       setFirebaseTokenPresent(token.length > 0)
@@ -130,6 +169,17 @@ export default function CoordinatorDebugApiPage() {
         </pre>
       </SurfaceCard>
 
+      <SurfaceCard className="p-5">
+        <h2 className="font-bold text-slate-950">Coordinator Frontend Audit Checklist</h2>
+        <ul className="mt-4 space-y-2 text-sm text-slate-600">
+          {coordinatorAuditChecklist.map((item) => (
+            <li key={item} className="rounded-xl bg-slate-50 px-3 py-2">
+              {item}
+            </li>
+          ))}
+        </ul>
+      </SurfaceCard>
+
       <div className="grid gap-4">
         {results.map((result) => (
           <SurfaceCard key={result.path} className="p-5">
@@ -141,7 +191,7 @@ export default function CoordinatorDebugApiPage() {
               <span
                 className={
                   result.ok
-                    ? 'rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700'
+                    ? 'rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-950'
                     : 'rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700'
                 }
               >
@@ -150,15 +200,15 @@ export default function CoordinatorDebugApiPage() {
             </div>
             <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Status</p>
+                <p className="text-xs font-bold text-slate-500 uppercase">Status</p>
                 <p className="mt-1 font-bold text-slate-950">{result.status ?? 'n/a'}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Item count</p>
+                <p className="text-xs font-bold text-slate-500 uppercase">Item count</p>
                 <p className="mt-1 font-bold text-slate-950">{result.itemCount ?? 'not a list'}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Fallback</p>
+                <p className="text-xs font-bold text-slate-500 uppercase">Fallback</p>
                 <p className="mt-1 font-bold text-slate-950">never used on this debug route</p>
               </div>
             </div>

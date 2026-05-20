@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ShieldCheck, AlertCircle, ExternalLink, Settings, Wand2 } from 'lucide-react'
+import { ShieldCheck, AlertCircle, ExternalLink, Settings } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload } from '../types'
 import { ProfileEditForm } from './ProfileEditForm'
 
@@ -134,39 +134,13 @@ export function ProfileView({ user, onSave, saving }: Props) {
           )}
         </div>
 
-        {/* AI advisor card */}
-        {ai && (
-          <div className="rounded-xl border border-l-4 border-gray-200 border-l-blue-500 bg-white p-6">
-            <div className="mb-2 flex items-center gap-2">
-              <div className="rounded bg-blue-600 p-1.5 text-white">
-                <Wand2 size={14} />
-              </div>
-              <h3 className="text-sm font-bold text-blue-900">Internbot AI Advisor</h3>
-            </div>
-            <p className="text-[11px] leading-relaxed text-gray-600">
-              Based on your <span className="font-bold text-slate-800">{ai.gpa} GPA</span> and{' '}
-              <span className="font-bold text-slate-800">{ai.programName}</span> focus, check the{' '}
-              <span className="font-bold text-red-600">AI Advisor</span> tab for personalised
-              internship recommendations.
-            </p>
-          </div>
-        )}
-
         {/* Edit / discard buttons */}
-        <button
+        {/* <button
           onClick={() => setEditing(true)}
           className="w-full rounded-lg bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700"
         >
           EDIT PROFILE
-        </button>
-
-        {/* Institutional links */}
-        <div className="space-y-3 pt-2">
-          <h4 className="text-[10px] font-bold text-gray-400 uppercase">Institutional Links</h4>
-          <LinkItem label="Official Transcript (PDF)" />
-          <LinkItem label="Privacy & Consent Settings" />
-          <LinkItem label="Public Portfolio URL" />
-        </div>
+        </button> */}
       </div>
 
       {/* Edit form modal */}
