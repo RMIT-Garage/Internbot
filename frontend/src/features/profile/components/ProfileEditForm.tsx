@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { StudentUser, UpdateProfilePayload } from '../types'
-import type { SubmitHandler } from 'react-hook-form'
+import type { Resolver, SubmitHandler } from 'react-hook-form'
 
 const schema = z.object({
   phone: z.string().min(1, 'Phone is required'),
@@ -33,7 +33,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
   const ai = user.studentProfile.academicInfo
 
   const form = useForm<FormValues>({
-    resolver: zodResolver<FormValues>(schema),
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       phone: user.studentProfile.phone ?? '',
       programName: ai?.programName ?? '',
