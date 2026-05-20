@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 import { BarChart3, BriefcaseBusiness, Plus, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -76,6 +77,7 @@ function mapOpportunityRow(item: OpportunityResponse): OpportunityRow {
 }
 
 export default function CoordinatorOpportunitiesPage() {
+  const { loading: authLoading } = useAuth()
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
@@ -100,7 +102,7 @@ export default function CoordinatorOpportunitiesPage() {
     },
     [] as SemesterResponse[],
     'opportunity-semesters',
-    { emptyData: [] }
+    { emptyData: [], enabled: !authLoading }
   )
 
   const {
@@ -122,7 +124,7 @@ export default function CoordinatorOpportunitiesPage() {
     },
     opportunities,
     'opportunities',
-    { emptyData: [] }
+    { emptyData: [], enabled: !authLoading }
   )
 
   const semesterLabels = useMemo(() => {
