@@ -21,7 +21,7 @@ import {
   SurfaceCard,
 } from '@/components/student/Premium'
 
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { UsersService, InternshipsService, NotificationsService } from '@/lib/api/openapi-client'
 import type {
   StudentUserResponse,
@@ -30,7 +30,7 @@ import type {
 } from '@/lib/api/openapi-client'
 
 const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['dark', 'light', 'red', 'dark', 'red'] as const
+const kpiTones = ['red', 'charcoal', 'neutral'] as const
 
 export default function StudentDashboardPage() {
   const [user, setUser] = useState<StudentUserResponse | null>(null)
@@ -109,15 +109,15 @@ export default function StudentDashboardPage() {
 
   const workflowStep = user?.currentWorkflowStep ?? 'profile'
 
-  function internshipStatusToBadge(status: string): CoordinatorStatus {
-    const map: Record<string, CoordinatorStatus> = {
-      applied: 'pending',
-      offer_pending_review: 'on_track',
-      offer_changes_requested: 'changes_requested',
-      offer_approved: 'approved',
+  function internshipStatusToBadge(status: string): StudentStatus {
+    const map: Record<string, StudentStatus> = {
+      applied: 'applied',
+      offer_pending_review: 'offer_pending_review',
+      offer_changes_requested: 'offer_changes_requested',
+      offer_approved: 'offer_approved',
       rejected: 'rejected',
     }
-    return map[status] ?? 'pending'
+    return map[status] ?? 'applied'
   }
 
   return (
@@ -212,7 +212,7 @@ export default function StudentDashboardPage() {
                 label: 'Approved offers',
                 value: String(approved),
                 detail: 'Confirmed placements',
-                tone: 'dark',
+                tone: 'red',
               },
               {
                 label: 'Unread notifications',
@@ -224,7 +224,7 @@ export default function StudentDashboardPage() {
                 label: 'Workflow step',
                 value: workflowStep.replace(/_/g, ' '),
                 detail: 'Current stage',
-                tone: 'light',
+                tone: 'charcoal',
               },
             ]}
           />

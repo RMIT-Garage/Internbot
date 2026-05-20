@@ -5,21 +5,28 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { formatDate } from '@/lib/utils'
 
-function internshipStatusToBadge(status: InternshipListItemResponse['status']): CoordinatorStatus {
+function internshipStatusToBadge(status: InternshipListItemResponse['status']): StudentStatus {
   switch (status) {
     case 'applied':
-      return 'pending'
+      return 'applied'
+
     case 'offer_pending_review':
-      return 'on_track'
+      return 'offer_pending_review'
+
     case 'offer_changes_requested':
-      return 'changes_requested'
+      return 'offer_changes_requested'
+
     case 'offer_approved':
-      return 'approved'
+      return 'offer_approved'
+
     case 'rejected':
       return 'rejected'
+
+    default:
+      return 'applied'
   }
 }
 

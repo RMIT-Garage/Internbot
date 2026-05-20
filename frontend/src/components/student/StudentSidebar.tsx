@@ -22,7 +22,7 @@ const navItems = [
   },
   { href: '/student/contracts', label: 'Contracts', icon: FileCheck2 },
   { href: '/student/opportunities', label: 'Opportunities', icon: GraduationCap },
-  { href: '/student/ai-advisor', label: 'AI Advisor', icon: BrainCircuit },
+  { href: '/student/advisor', label: 'AI Advisor', icon: BrainCircuit },
   { href: '/student/notifications', label: 'Notifications', icon: Bell },
 ]
 

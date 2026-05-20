@@ -12,14 +12,14 @@ export default function RegisterPage() {
       <div className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 sm:p-10">
         <div className="flex items-center justify-between gap-6">
           <div className="flex flex-1 items-center gap-3">
-            <span className="text-brand-600 text-[10px] font-bold tracking-[0.2em] uppercase">
+            <span className="text-brand-600 text-[10px] font-bold uppercase tracking-[0.2em]">
               Step 01 of 02
             </span>
             <div className="relative h-0.5 flex-1 bg-zinc-200">
               <div className="bg-brand-500 absolute inset-y-0 left-0 w-1/2" />
             </div>
           </div>
-          <span className="text-[10px] font-bold tracking-[0.2em] text-zinc-500 uppercase">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
             Account Creation
           </span>
         </div>

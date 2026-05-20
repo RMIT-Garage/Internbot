@@ -30,26 +30,26 @@ export function FilterBar({ selects, search }: FilterBarProps) {
     >
       {search && (
         <label className="grid gap-1 md:col-span-2">
-          <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
             {search.label}
           </span>
           <input
             name={search.name}
             defaultValue={search.value}
             placeholder={search.placeholder}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-red-500"
           />
         </label>
       )}
       {selects.map((select) => (
         <label key={select.name} className="grid gap-1">
-          <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
             {select.label}
           </span>
           <select
             name={select.name}
             defaultValue={select.value ?? 'all'}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-red-500"
           >
             {select.options.map((option) => (
               <option key={option.value} value={option.value}>
