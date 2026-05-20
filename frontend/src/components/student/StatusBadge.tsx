@@ -6,7 +6,7 @@ const statusStyles = {
   approved:
     'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
   changes_requested:
-    'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300',
+    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
   flagged:
     'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
   rejected:

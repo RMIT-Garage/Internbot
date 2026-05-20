@@ -147,18 +147,18 @@ export function ContractsList() {
     <>
       <AnalyticsStrip
         items={[
-          { label: 'Applied', value: pendingCount, detail: 'Awaiting response', tone: 'blue' },
+          { label: 'Applied', value: pendingCount, detail: 'Awaiting response', tone: 'charcoal' },
           {
             label: 'Offer pending',
             value: reviewCount,
             detail: 'Under coordinator review',
-            tone: 'purple',
+            tone: 'charcoal',
           },
           {
             label: 'Approved',
             value: approvedCount,
             detail: 'Confirmed placements',
-            tone: 'green',
+            tone: 'red',
           },
           {
             label: 'Flagged',
