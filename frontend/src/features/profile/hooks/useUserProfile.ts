@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/api/client'
 import type { PlatformUser, UpdateProfilePayload } from '../types'
-import { getFirebaseAuth } from '@/lib/firebase/client'
 
 interface UseUserProfileResult {
   user: PlatformUser | null
