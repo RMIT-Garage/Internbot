@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 
 import {
-  AIInsightCard,
   AnalyticsStrip,
   CoordinatorPageHeader,
   KPIStatCard,
@@ -31,7 +30,7 @@ import type {
 } from '@/lib/api/openapi-client'
 
 const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['blue', 'amber', 'purple', 'green', 'red'] as const
+const kpiTones = ['dark', 'light', 'red', 'dark', 'red'] as const
 
 export default function StudentDashboardPage() {
   const [user, setUser] = useState<StudentUserResponse | null>(null)
@@ -137,6 +136,37 @@ export default function StudentDashboardPage() {
         }
       />
 
+      {/* QUICK LINKS */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          {
+            title: 'Browse internships',
+            href: '/student/opportunities',
+            icon: BriefcaseBusiness,
+          },
+          {
+            title: 'My applications',
+            href: '/student/contracts',
+            icon: FileCheck2,
+          },
+          {
+            title: 'Profile setup',
+            href: '/student/semesters',
+            icon: Users,
+          },
+        ].map(({ title, href, icon: Icon }) => (
+          <Link
+            key={title}
+            href={href}
+            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <Icon className="h-5 w-5 text-red-700" />
+            <p className="mt-4 font-bold text-slate-950">{title}</p>
+            <p className="mt-1 text-sm text-slate-500">Open</p>
+          </Link>
+        ))}
+      </div>
+
       {loading && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
           Loading dashboard...
@@ -176,25 +206,25 @@ export default function StudentDashboardPage() {
                 label: 'Active applications',
                 value: String(applied + pendingReview),
                 detail: 'Applied or pending review',
-                tone: 'blue',
+                tone: 'red',
               },
               {
                 label: 'Approved offers',
                 value: String(approved),
                 detail: 'Confirmed placements',
-                tone: 'green',
+                tone: 'dark',
               },
               {
                 label: 'Unread notifications',
                 value: String(unreadCount),
                 detail: 'Requires your attention',
-                tone: 'purple',
+                tone: 'red',
               },
               {
                 label: 'Workflow step',
                 value: workflowStep.replace(/_/g, ' '),
                 detail: 'Current stage',
-                tone: 'charcoal',
+                tone: 'light',
               },
             ]}
           />
@@ -202,14 +232,6 @@ export default function StudentDashboardPage() {
           {/* MAIN GRID */}
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
             <div className="space-y-6">
-              {/* INSIGHT CARD */}
-              <AIInsightCard
-                title="AI Student Insights"
-                confidence={85}
-                href="/student/ai-advisor"
-                insight="Focus on completing your profile and applying to active internships to improve match score and visibility."
-              />
-
               {/* RECENT INTERNSHIPS */}
               <SurfaceCard className="overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -329,37 +351,6 @@ export default function StudentDashboardPage() {
                 </div>
               </SurfaceCard>
             </div>
-          </div>
-
-          {/* QUICK LINKS */}
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              {
-                title: 'Browse internships',
-                href: '/student/opportunities',
-                icon: BriefcaseBusiness,
-              },
-              {
-                title: 'My applications',
-                href: '/student/contracts',
-                icon: FileCheck2,
-              },
-              {
-                title: 'Profile setup',
-                href: '/student/semesters',
-                icon: Users,
-              },
-            ].map(({ title, href, icon: Icon }) => (
-              <Link
-                key={title}
-                href={href}
-                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Icon className="h-5 w-5 text-red-700" />
-                <p className="mt-4 font-bold text-slate-950">{title}</p>
-                <p className="mt-1 text-sm text-slate-500">Open</p>
-              </Link>
-            ))}
           </div>
         </>
       )}

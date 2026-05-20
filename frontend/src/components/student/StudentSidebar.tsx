@@ -54,6 +54,12 @@ export function StudentSidebar() {
             <Link
               key={href}
               href={href}
+              onClick={(e) => {
+                if (active) {
+                  e.preventDefault()
+                  window.location.reload()
+                }
+              }}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
                 active
@@ -67,22 +73,6 @@ export function StudentSidebar() {
           )
         })}
       </nav>
-
-      {/* FOOTER — unchanged design */}
-      <div className="border-t border-slate-200 p-4">
-        <div className="rounded-2xl bg-slate-950 p-4 text-white">
-          <p className="text-xs font-bold tracking-[0.18em] text-red-200 uppercase">AI Learning</p>
-
-          <p className="mt-2 text-sm font-semibold">Learning recommendations ready.</p>
-
-          <Link
-            href="/student/ai-advisor"
-            className="mt-3 inline-flex text-xs font-bold text-red-200 hover:text-white"
-          >
-            Open advisor
-          </Link>
-        </div>
-      </div>
     </aside>
   )
 }

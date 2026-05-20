@@ -14,6 +14,7 @@ interface CoordinatorApiResource<T> {
 
 interface CoordinatorApiResourceOptions<T> {
   emptyData?: T
+  enabled?: boolean
 }
 
 export function useCoordinatorApiResource<T>(
@@ -22,6 +23,7 @@ export function useCoordinatorApiResource<T>(
   depsKey = '',
   options: CoordinatorApiResourceOptions<T> = {}
 ): CoordinatorApiResource<T> {
+  const enabled = options.enabled ?? true
   const getLoadingData = () => options.emptyData ?? fallback
   const [data, setData] = useState<T>(getLoadingData)
   const [loading, setLoading] = useState(true)
@@ -39,6 +41,8 @@ export function useCoordinatorApiResource<T>(
   }, [load, fallback, options.emptyData])
 
   useEffect(() => {
+    if (!enabled) return
+
     let active = true
     queueMicrotask(() => {
       if (!active) return
@@ -82,7 +86,7 @@ export function useCoordinatorApiResource<T>(
     return () => {
       active = false
     }
-  }, [version, depsKey])
+  }, [version, depsKey, enabled])
 
   return {
     data,

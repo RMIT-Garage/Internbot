@@ -149,6 +149,14 @@ Do not invent specific policy details you are unsure about — tell the student 
     }
   }
 
+  const CATEGORY_MAP: Record<string, string> = {
+    Eligibility: 'eligibility',
+    'Credit Points': 'credit_points',
+    'Self-Sourcing': 'self_sourcing',
+    CareerHub: 'careerhub',
+    Other: 'other',
+  }
+
   const handleSubmitTicket = async () => {
     if (!ticketSubject.trim() || !ticketBody.trim()) {
       toast.error('Please fill in both subject and message.')
@@ -162,22 +170,25 @@ Do not invent specific policy details you are unsure about — tell the student 
         body: JSON.stringify({
           subject: ticketSubject,
           body: ticketBody,
-          category: ticketCategory.toLowerCase(),
+          category: CATEGORY_MAP[ticketCategory],
         }),
       })
       toast.success('Ticket submitted! An administrator will respond shortly.')
       setTicketSubject('')
       setTicketBody('')
       setTicketCategory(TICKET_CATEGORIES[0]!)
-    } catch {
-      toast.error('Failed to submit ticket. Please try again.')
+    } catch (err) {
+      // Log the real error so you can see what's going wrong
+      console.error('Ticket submission failed:', err)
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(`Failed to submit ticket: ${message}`)
     } finally {
       setSubmittingTicket(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F9FAFB] font-sans text-slate-800">
+    <div className="flex min-h-screen font-sans text-slate-800">
       {/* Main */}
       <div className="flex flex-1 flex-col">
         <div className="mx-auto grid w-full max-w-7xl grid-cols-12 gap-8 p-10">
@@ -193,7 +204,7 @@ Do not invent specific policy details you are unsure about — tell the student 
                   <h3 className="text-lg font-black text-slate-900">Internbot Advisor</h3>
                   <div className="flex items-center gap-1.5">
                     <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-green-600">
+                    <span className="text-[10px] font-bold tracking-widest text-green-600 uppercase">
                       Always online for RMIT Students
                     </span>
                   </div>
@@ -202,7 +213,7 @@ Do not invent specific policy details you are unsure about — tell the student 
               <div className="flex max-w-xs gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
                 <Info size={16} className="mt-0.5 shrink-0 text-blue-600" />
                 <div>
-                  <p className="mb-0.5 text-[9px] font-black uppercase tracking-tight text-blue-800">
+                  <p className="mb-0.5 text-[9px] font-black tracking-tight text-blue-800 uppercase">
                     Advisory Note
                   </p>
                   <p className="text-[10px] leading-tight text-blue-700">
@@ -254,12 +265,12 @@ Do not invent specific policy details you are unsure about — tell the student 
                 <button
                   onClick={() => sendMessage(input)}
                   disabled={isLoading || !input.trim()}
-                  className="flex items-center gap-2 rounded-lg bg-red-700 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-lg bg-red-700 px-5 py-2.5 text-xs font-black tracking-widest text-white uppercase shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Send <Send size={14} />
                 </button>
               </div>
-              <p className="mt-4 text-center text-[9px] font-bold uppercase tracking-widest text-gray-300">
+              <p className="mt-4 text-center text-[9px] font-bold tracking-widest text-gray-300 uppercase">
                 Powered by RMIT Academic Intelligence
               </p>
             </div>
@@ -269,7 +280,7 @@ Do not invent specific policy details you are unsure about — tell the student 
           <div className="col-span-4 space-y-6">
             {/* Popular Questions */}
             <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
-              <h3 className="mb-8 text-xs font-black uppercase tracking-[0.15em] text-slate-800">
+              <h3 className="mb-8 text-xs font-black tracking-[0.15em] text-slate-800 uppercase">
                 Popular Questions
               </h3>
               <div className="space-y-6">
@@ -291,7 +302,7 @@ Do not invent specific policy details you are unsure about — tell the student 
                 <div className="rounded-lg bg-red-50 p-2 text-red-600">
                   <LifeBuoy size={20} />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.15em]">Support Ticket</h3>
+                <h3 className="text-xs font-black tracking-[0.15em] uppercase">Support Ticket</h3>
               </div>
               <p className="mb-6 text-[11px] leading-relaxed text-slate-500">
                 AI couldn&apos;t help? Submit a ticket to an Academic Administrator for a direct
@@ -300,7 +311,7 @@ Do not invent specific policy details you are unsure about — tell the student 
 
               <div className="mb-6 space-y-4">
                 <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase text-gray-400">
+                  <label className="mb-2 block text-[10px] font-bold text-gray-400 uppercase">
                     Subject
                   </label>
                   <input
@@ -312,7 +323,7 @@ Do not invent specific policy details you are unsure about — tell the student 
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase text-gray-400">
+                  <label className="mb-2 block text-[10px] font-bold text-gray-400 uppercase">
                     Category
                   </label>
                   <select
@@ -328,7 +339,7 @@ Do not invent specific policy details you are unsure about — tell the student 
                   </select>
                 </div>
                 <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase text-gray-400">
+                  <label className="mb-2 block text-[10px] font-bold text-gray-400 uppercase">
                     Message
                   </label>
                   <textarea
@@ -343,7 +354,7 @@ Do not invent specific policy details you are unsure about — tell the student 
               <button
                 onClick={handleSubmitTicket}
                 disabled={submittingTicket}
-                className="w-full rounded-xl bg-red-700 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-xl bg-red-700 py-4 text-xs font-black tracking-widest text-white uppercase shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submittingTicket ? 'Submitting…' : 'Submit Ticket'}
               </button>
@@ -468,7 +479,7 @@ function FAQItem({
         {icon}
       </div>
       <div className="flex flex-col justify-center">
-        <h5 className="mb-0.5 text-xs font-black leading-tight text-slate-800">{title}</h5>
+        <h5 className="mb-0.5 text-xs leading-tight font-black text-slate-800">{title}</h5>
         <p className="text-[10px] font-medium text-gray-400">{sub}</p>
       </div>
     </div>
