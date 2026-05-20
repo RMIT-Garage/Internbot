@@ -33,7 +33,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
   const ai = user.studentProfile.academicInfo
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver<FormValues>(schema),
     defaultValues: {
       phone: user.studentProfile.phone ?? '',
       programName: ai?.programName ?? '',
