@@ -37,7 +37,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Self-Sourced Job Review"
+        eyebrow="Placement Review"
         title={job.jobTitle}
         description={`${job.studentName} submitted ${job.company} for institutional approval.`}
         actions={
@@ -75,7 +75,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
                 return (
                   <div key={label as string} className="rounded-2xl bg-slate-50 p-4">
                     <DetailIcon className="h-4 w-4 text-red-700" />
-                    <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
                       {label as string}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-slate-950">{value as string}</p>
@@ -102,7 +102,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <AIInsightCard
-            title="AI Advisory Report"
+            title="AI Insights"
             confidence={job.aiConfidence ?? 88}
             insight={job.aiAdvisory}
           />
@@ -110,14 +110,14 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           <SurfaceCard className="p-6">
             <h2 className="text-lg font-bold text-slate-950">Risk Analysis</h2>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Risk level</p>
+              <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Risk level</p>
               <p className="mt-1 text-2xl font-bold text-slate-950">{job.riskLevel ?? 'Low'}</p>
             </div>
             <div className="mt-4 space-y-2">
               {(job.concerns.length ? job.concerns : ['No concerns recorded.']).map((concern) => (
                 <div
                   key={concern}
-                  className="flex gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"
+                  className="flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-900"
                 >
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   {concern}
@@ -131,7 +131,14 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
               <MessageSquareText className="h-5 w-5 text-red-700" />
               Reviewer Notes
             </h2>
-            <ReviewDecisionPanel id={job.id} kind="job" defaultNotes={job.notes.join('\n')} />
+            <ReviewDecisionPanel
+              id={job.id}
+              kind="job"
+              defaultNotes={job.notes.join('\n')}
+              canReview={job.status === 'pending'}
+              reviewedStatus={job.status}
+              backHref="/coordinator/jobs"
+            />
           </SurfaceCard>
         </aside>
       </div>

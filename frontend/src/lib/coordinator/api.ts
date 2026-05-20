@@ -121,6 +121,36 @@ export function verifyOpportunity(
   })
 }
 
+export function createOpportunity(body: {
+  semesterId?: string
+  type?: 'pre_approved' | 'custom'
+  employerName: string
+  jobTitle: string
+  descriptionText: string
+  workMode?: 'onsite' | 'hybrid' | 'remote'
+  location?: string
+  sourceUrl?: string
+}) {
+  return apiFetch<OpportunityResponse>('/api/v1/opportunities', { method: 'POST', body })
+}
+
+export function updateOpportunity(
+  opportunity: Pick<OpportunityResponse, 'id'>,
+  body: {
+    employerName?: string
+    jobTitle?: string
+    descriptionText?: string
+    workMode?: 'onsite' | 'hybrid' | 'remote' | null
+    location?: string | null
+    sourceUrl?: string | null
+  }
+) {
+  return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${opportunity.id}`, {
+    method: 'PATCH',
+    body,
+  })
+}
+
 export function listSemesters(query: Query = {}) {
   const sanitized = sanitizeQuery(query, semesterQueryKeys, 'semesters')
   const path = withQuery('/api/v1/semesters', sanitized)
@@ -137,6 +167,20 @@ export function createSemester(body: {
   enrolmentCloseAt?: string | null
 }) {
   return apiFetch<SemesterResponse>('/api/v1/semesters', { method: 'POST', body })
+}
+
+export function updateSemester(
+  semester: Pick<SemesterResponse, 'id'>,
+  body: {
+    displayName?: string
+    enrolmentOpenAt?: string | null
+    enrolmentCloseAt?: string | null
+  }
+) {
+  return apiFetch<SemesterResponse>(`/api/v1/semesters/${semester.id}`, {
+    method: 'PATCH',
+    body,
+  })
 }
 
 export function listNotifications(query: Query = {}) {

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '@/lib/api/client'
-import { hasCoordinatorPreviewSession } from '@/lib/coordinator/auth'
 
 interface CoordinatorApiResource<T> {
   data: T
@@ -15,6 +14,7 @@ interface CoordinatorApiResource<T> {
 
 interface CoordinatorApiResourceOptions<T> {
   emptyData?: T
+  enabled?: boolean
 }
 
 export function useCoordinatorApiResource<T>(
@@ -23,10 +23,12 @@ export function useCoordinatorApiResource<T>(
   depsKey = '',
   options: CoordinatorApiResourceOptions<T> = {}
 ): CoordinatorApiResource<T> {
-  const [data, setData] = useState<T>(fallback)
+  const enabled = options.enabled ?? true
+  const getLoadingData = () => options.emptyData ?? fallback
+  const [data, setData] = useState<T>(getLoadingData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [source, setSource] = useState<'api' | 'fallback'>('fallback')
+  const [source, setSource] = useState<'api' | 'fallback'>('api')
   const [version, setVersion] = useState(0)
   const loadRef = useRef(load)
   const fallbackRef = useRef(fallback)
@@ -39,11 +41,15 @@ export function useCoordinatorApiResource<T>(
   }, [load, fallback, options.emptyData])
 
   useEffect(() => {
+    if (!enabled) return
+
     let active = true
     queueMicrotask(() => {
       if (!active) return
+      setData(emptyDataRef.current ?? fallbackRef.current)
       setLoading(true)
       setError(null)
+      setSource('api')
     })
 
     Promise.resolve()
@@ -55,7 +61,7 @@ export function useCoordinatorApiResource<T>(
       })
       .catch((err: unknown) => {
         if (!active) return
-        const canUseFallback = !(err instanceof ApiError) || hasCoordinatorPreviewSession()
+        const canUseFallback = !(err instanceof ApiError)
         if (process.env.NODE_ENV === 'development') {
           console.debug('[coordinator-resource] load failed', {
             depsKey,
@@ -80,7 +86,7 @@ export function useCoordinatorApiResource<T>(
     return () => {
       active = false
     }
-  }, [version, depsKey])
+  }, [version, depsKey, enabled])
 
   return {
     data,

@@ -1,25 +1,41 @@
 'use client'
 
+import { useState } from 'react'
 import { CalendarDays, Plus, Sparkles } from 'lucide-react'
-import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
+import { toast } from 'sonner'
 import {
   AIInsightCard,
   CoordinatorPageHeader,
   KPIStatCard,
   SurfaceCard,
 } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { semesterInventory } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { listSemesters } from '@/lib/coordinator/api'
+import { createSemester, listSemesters, updateSemester } from '@/lib/coordinator/api'
 import { mapSemesterToInventory } from '@/lib/coordinator/apiMappers'
 
 export default function CoordinatorSemestersPage() {
+  const [showCreate, setShowCreate] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    semesterCode: '',
+    courseCode: '',
+    displayName: '',
+    status: 'draft',
+    enrolmentOpenAt: '',
+    enrolmentCloseAt: '',
+  })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
   const {
     data: semesters,
     loading,
     error,
     source,
+    setData,
+    reload,
   } = useCoordinatorApiResource(
     async () => {
       if (process.env.NODE_ENV === 'development') {
@@ -35,6 +51,19 @@ export default function CoordinatorSemestersPage() {
     { emptyData: [] }
   )
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <CoordinatorPageHeader
+          eyebrow="Semester Management"
+          title="Semester Operations"
+          description="Manage intake windows, lifecycle phases, cohort enrollment, and approval workload across academic periods."
+        />
+        <CoordinatorContentSkeleton title="Loading semesters..." />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
@@ -42,22 +71,90 @@ export default function CoordinatorSemestersPage() {
         title="Semester Operations"
         description="Manage intake windows, lifecycle phases, cohort enrollment, and approval workload across academic periods."
         actions={
-          <PendingActionButton
-            message="Create semester API integration pending."
-            className="border-red-700 bg-red-700 text-white hover:bg-red-800"
+          <button
+            type="button"
+            onClick={() => setShowCreate((current) => !current)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-700 bg-red-700 px-4 text-sm font-bold text-white transition hover:bg-red-800"
           >
             <Plus className="h-4 w-4" />
             Create New Semester
-          </PendingActionButton>
+          </button>
         }
       />
+      {showCreate && (
+        <SurfaceCard className="p-5">
+          <form className="grid gap-3 md:grid-cols-3" onSubmit={handleCreateSemester}>
+            <TextInput
+              label="Semester code"
+              value={createForm.semesterCode}
+              placeholder="2026-S2"
+              onChange={(value) =>
+                setCreateForm((current) => ({ ...current, semesterCode: value }))
+              }
+            />
+            <TextInput
+              label="Course code"
+              value={createForm.courseCode}
+              placeholder="INTE2710"
+              onChange={(value) =>
+                setCreateForm((current) => ({ ...current, courseCode: value.toUpperCase() }))
+              }
+            />
+            <TextInput
+              label="Display name"
+              value={createForm.displayName}
+              placeholder="Semester 2 2026"
+              onChange={(value) => setCreateForm((current) => ({ ...current, displayName: value }))}
+            />
+            <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+              Status
+              <select
+                value={createForm.status}
+                onChange={(event) =>
+                  setCreateForm((current) => ({ ...current, status: event.target.value }))
+                }
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+              >
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
+            <TextInput
+              label="Open at"
+              type="datetime-local"
+              value={createForm.enrolmentOpenAt}
+              onChange={(value) =>
+                setCreateForm((current) => ({ ...current, enrolmentOpenAt: value }))
+              }
+            />
+            <TextInput
+              label="Close at"
+              type="datetime-local"
+              value={createForm.enrolmentCloseAt}
+              onChange={(value) =>
+                setCreateForm((current) => ({ ...current, enrolmentCloseAt: value }))
+              }
+            />
+            <div className="md:col-span-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex h-10 items-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? 'Creating...' : 'Create semester'}
+              </button>
+            </div>
+          </form>
+        </SurfaceCard>
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         <KPIStatCard
           title="Active cohorts"
           value="3"
           detail="Across 2026 intake windows"
           icon={CalendarDays}
-          tone="blue"
+          tone="charcoal"
           progress={72}
         />
         <KPIStatCard
@@ -65,7 +162,7 @@ export default function CoordinatorSemestersPage() {
           value="261"
           detail="Total semester participation"
           icon={Plus}
-          tone="green"
+          tone="neutral"
           progress={81}
         />
         <KPIStatCard
@@ -73,7 +170,7 @@ export default function CoordinatorSemestersPage() {
           value="7"
           detail="Setup and workload signals"
           icon={Sparkles}
-          tone="purple"
+          tone="red"
           progress={46}
         />
       </div>
@@ -82,11 +179,14 @@ export default function CoordinatorSemestersPage() {
         confidence={87}
         insight="Semester 2 should open coordinator review capacity one week earlier based on current contract turnaround and projected application volume."
       />
-      {(loading || error) && (
+      {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {loading
-            ? 'Loading semesters from the workflow API...'
-            : `Using isolated fallback data: ${error}`}
+          {`Using isolated fallback data: ${error}`}
+        </div>
+      )}
+      {!loading && !error && source === 'api' && semesters.length === 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          Backend connected, but no records exist yet.
         </div>
       )}
       <SurfaceCard className="overflow-hidden">
@@ -98,7 +198,7 @@ export default function CoordinatorSemestersPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
               <tr>
                 {[
                   'Semester',
@@ -117,7 +217,38 @@ export default function CoordinatorSemestersPage() {
             <tbody className="divide-y divide-slate-100">
               {semesters.map((semester) => (
                 <tr key={semester.name} className="hover:bg-slate-50">
-                  <td className="px-5 py-4 font-bold text-slate-950">{semester.name}</td>
+                  <td className="px-5 py-4 font-bold text-slate-950">
+                    {editingId === semester.id ? (
+                      <form
+                        className="flex min-w-64 gap-2"
+                        onSubmit={(event) => handleUpdateSemester(event, semester.id)}
+                      >
+                        <input
+                          value={editingName}
+                          onChange={(event) => setEditingName(event.target.value)}
+                          className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          className="h-9 rounded-xl bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
+                        >
+                          Save
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(semester.id)
+                          setEditingName(semester.name)
+                        }}
+                        className="text-left font-bold text-slate-950 hover:text-red-700"
+                      >
+                        {semester.name}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-5 py-4">
                     <StatusBadge status={semester.status as 'active' | 'pending' | 'archived'} />
                   </td>
@@ -141,5 +272,96 @@ export default function CoordinatorSemestersPage() {
         ))}
       </div>
     </div>
+  )
+
+  async function handleCreateSemester(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!createForm.semesterCode || !createForm.courseCode || !createForm.displayName) {
+      toast.error('Semester code, course code, and display name are required.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const created = await createSemester({
+        semesterCode: createForm.semesterCode,
+        courseCode: createForm.courseCode,
+        displayName: createForm.displayName,
+        status: createForm.status as 'draft' | 'active' | 'archived',
+        ...(createForm.enrolmentOpenAt
+          ? { enrolmentOpenAt: new Date(createForm.enrolmentOpenAt).toISOString() }
+          : {}),
+        ...(createForm.enrolmentCloseAt
+          ? { enrolmentCloseAt: new Date(createForm.enrolmentCloseAt).toISOString() }
+          : {}),
+      })
+      setData([mapSemesterToInventory(created), ...semesters])
+      setShowCreate(false)
+      setCreateForm({
+        semesterCode: '',
+        courseCode: '',
+        displayName: '',
+        status: 'draft',
+        enrolmentOpenAt: '',
+        enrolmentCloseAt: '',
+      })
+      toast.success('Semester created.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Semester API unavailable.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleUpdateSemester(event: React.FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault()
+    if (!editingName.trim()) {
+      toast.error('Display name is required.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const updated = await updateSemester({ id }, { displayName: editingName.trim() })
+      setData(
+        semesters.map((semester) =>
+          semester.id === id ? mapSemesterToInventory(updated) : semester
+        )
+      )
+      setEditingId(null)
+      toast.success('Semester updated.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Semester API unavailable.')
+      reload()
+    } finally {
+      setSaving(false)
+    }
+  }
+}
+
+function TextInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  type?: string
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+      {label}
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+      />
+    </label>
   )
 }
