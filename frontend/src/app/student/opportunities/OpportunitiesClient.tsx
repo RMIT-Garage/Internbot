@@ -12,7 +12,7 @@ import {
   SurfaceCard,
 } from '@/components/student/Premium'
 
-import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import {
   OpportunitiesService,
   InternshipsService,
@@ -33,15 +33,15 @@ const CONFLICT_MESSAGES: Record<string, string> = {
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
 }
 
-function opportunityStatusToBadge(status: string): StudentStatus {
-  const map: Record<string, StudentStatus> = {
-    applied: 'applied',
-    offer_pending_review: 'offer_pending_review',
-    offer_changes_requested: 'offer_changes_requested',
-    offer_approved: 'offer_approved',
+function opportunityStatusToBadge(status: string): CoordinatorStatus {
+  const map: Record<string, CoordinatorStatus> = {
+    published: 'active',
+    draft: 'pending',
+    pending_verification: 'on_track',
     rejected: 'rejected',
+    archived: 'archived',
   }
-  return map[status] ?? 'applied'
+  return map[status] ?? 'pending'
 }
 
 export default function StudentOpportunitiesPage() {
@@ -244,7 +244,7 @@ export default function StudentOpportunitiesPage() {
           value={activeCount}
           detail="Published opportunities"
           icon={BriefcaseBusiness}
-          tone="red"
+          tone="green"
           progress={
             opportunities.length > 0 ? Math.round((activeCount / opportunities.length) * 100) : 0
           }
@@ -254,7 +254,7 @@ export default function StudentOpportunitiesPage() {
           value={appliedCount}
           detail="Submitted applications"
           icon={BarChart3}
-          tone="charcoal"
+          tone="blue"
           progress={
             activeCount > 0 ? Math.min(Math.round((appliedCount / activeCount) * 100), 100) : 0
           }
@@ -264,7 +264,7 @@ export default function StudentOpportunitiesPage() {
           value={opportunities.length}
           detail="Opportunities this semester"
           icon={Sparkles}
-          tone="neutral"
+          tone="purple"
           progress={100}
         />
       </div>
