@@ -25,7 +25,11 @@ export function VerifyEmailPanel() {
       return
     }
     if (profile) {
-      router.replace(getDefaultRedirectPath(profile.role))
+      if (profile.role === 'student') {
+        router.replace('/onboarding/personal')
+      } else {
+        router.replace(getDefaultRedirectPath(profile.role))
+      }
     }
   }, [user, profile, loading, router])
 

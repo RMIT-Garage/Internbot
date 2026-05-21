@@ -45,6 +45,7 @@ export function EmailPasswordLoginForm({
         return
       }
       router.push(getRedirectPath(undefined, result.kind === 'ok' ? result.user.role : undefined))
+      // router.push('/onboarding/personal')
     } catch (error) {
       console.error('[EmailPasswordLoginForm] sign-in failed:', error)
       toast.error(getAuthErrorMessage(error, 'Email or password is incorrect.'))
