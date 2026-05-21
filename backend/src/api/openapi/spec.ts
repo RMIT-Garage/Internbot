@@ -23,6 +23,7 @@ import {
   listOpportunitiesOperation,
   getOpportunityOperation,
   getOpportunityAttachmentOperation,
+  createOpportunityAttachmentUploadIntentOperation,
   deleteOpportunityAttachmentOperation,
   createOpportunityOperation,
   patchOpportunityOperation,
@@ -33,6 +34,7 @@ import {
   listInternshipsOperation,
   getInternshipOperation,
   getInternshipAttachmentOperation,
+  createInternshipAttachmentUploadIntentOperation,
   deleteInternshipAttachmentOperation,
   createInternshipOperation,
   patchInternshipOperation,
@@ -120,6 +122,9 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
         get: getOpportunityOperation,
         patch: patchOpportunityOperation,
       },
+      '/api/v1/opportunities/{id}/attachments/upload-intents': {
+        post: createOpportunityAttachmentUploadIntentOperation,
+      },
       '/api/v1/opportunities/{id}/attachments/{attachmentId}': {
         get: getOpportunityAttachmentOperation,
         delete: deleteOpportunityAttachmentOperation,
@@ -133,6 +138,9 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       '/api/v1/internships/{id}': {
         get: getInternshipOperation,
         patch: patchInternshipOperation,
+      },
+      '/api/v1/internships/{id}/attachments/upload-intents': {
+        post: createInternshipAttachmentUploadIntentOperation,
       },
       '/api/v1/internships/{id}/attachments/{attachmentId}': {
         get: getInternshipAttachmentOperation,

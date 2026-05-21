@@ -1,6 +1,7 @@
 import type { ZodOpenApiOperationObject } from 'zod-openapi'
 import { z } from 'zod'
 import {
+  createOpportunityAttachmentUploadIntentRequestSchema,
   createOpportunityRequestSchema,
   patchOpportunityRequestSchema,
   transitionOpportunityRequestSchema,
@@ -8,6 +9,7 @@ import {
 } from '../../schemas/opportunity'
 import {
   opportunityAttachmentDownloadResponseSchema,
+  opportunityAttachmentUploadIntentResponseSchema,
   opportunityListResponseSchema,
   opportunityResponseSchema,
 } from '../../dto/opportunity'
@@ -115,6 +117,42 @@ export const getOpportunityAttachmentOperation: ZodOpenApiOperationObject = {
     },
     '404': {
       description: 'No opportunity or attachment exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
+export const createOpportunityAttachmentUploadIntentOperation: ZodOpenApiOperationObject = {
+  operationId: 'createOpportunityAttachmentUploadIntent',
+  summary: 'Reserve an opportunity attachment upload slot',
+  description:
+    'Coordinator-only. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the coordinator uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.',
+  tags: ['Opportunities'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: opportunityIdPathParams },
+  requestBody: {
+    required: true,
+    content: {
+      'application/json': { schema: createOpportunityAttachmentUploadIntentRequestSchema },
+    },
+  },
+  responses: {
+    '201': {
+      description: 'Upload intent created. Use `uploadUrl` to PUT the file bytes.',
+      content: {
+        'application/json': { schema: opportunityAttachmentUploadIntentResponseSchema },
+      },
+    },
+    '403': {
+      description: 'Caller is not a coordinator.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No opportunity exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '422': {
+      description: 'Missing or invalid `fileName` / `contentType`.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

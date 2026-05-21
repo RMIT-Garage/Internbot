@@ -3,10 +3,12 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { AddInternshipCommentRequest } from '../models/AddInternshipCommentRequest'
+import type { CreateInternshipAttachmentUploadIntentRequest } from '../models/CreateInternshipAttachmentUploadIntentRequest'
 import type { CreateInternshipRequest } from '../models/CreateInternshipRequest'
 import type { DecideInternshipOfferRequest } from '../models/DecideInternshipOfferRequest'
 import type { InternshipActivityResponse } from '../models/InternshipActivityResponse'
 import type { InternshipAttachmentDownloadResponse } from '../models/InternshipAttachmentDownloadResponse'
+import type { InternshipAttachmentUploadIntentResponse } from '../models/InternshipAttachmentUploadIntentResponse'
 import type { InternshipListResponse } from '../models/InternshipListResponse'
 import type { InternshipResponse } from '../models/InternshipResponse'
 import type { PatchInternshipRequest } from '../models/PatchInternshipRequest'
@@ -129,6 +131,34 @@ export class InternshipsService {
         409: `Internship is terminal and not editable.`,
         412: `Stale \`If-Match\`.`,
         422: `Empty body or domain validation failure.`,
+      },
+    })
+  }
+  /**
+   * Reserve an internship attachment upload slot
+   * Student-owner only. Allowed only while the internship is `applied` or `offer_changes_requested`. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the client uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.
+   * @param id Platform internship id.
+   * @param requestBody
+   * @returns InternshipAttachmentUploadIntentResponse Upload intent created. Use `uploadUrl` to PUT the file bytes.
+   * @throws ApiError
+   */
+  public static createInternshipAttachmentUploadIntent(
+    id: string,
+    requestBody: CreateInternshipAttachmentUploadIntentRequest
+  ): CancelablePromise<InternshipAttachmentUploadIntentResponse> {
+    return __request(OpenAPI, {
+      method: 'POST',
+      url: '/api/v1/internships/{id}/attachments/upload-intents',
+      path: {
+        id: id,
+      },
+      body: requestBody,
+      mediaType: 'application/json',
+      errors: {
+        403: `Caller is not the owning student.`,
+        404: `No internship exists with the supplied id.`,
+        409: `Internship status does not permit attachment upload.`,
+        422: `Missing or invalid \`fileName\` / \`contentType\`.`,
       },
     })
   }
