@@ -167,11 +167,11 @@ Do not invent specific policy details you are unsure about — tell the student 
     try {
       await apiFetch('/api/v1/tickets', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           subject: ticketSubject,
           body: ticketBody,
           category: CATEGORY_MAP[ticketCategory],
-        }),
+        },
       })
       toast.success('Ticket submitted! An administrator will respond shortly.')
       setTicketSubject('')
