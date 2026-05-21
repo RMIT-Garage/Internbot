@@ -1,26 +1,16 @@
 import { cn } from '@/lib/utils'
 
 const statusStyles = {
-  pending:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
-  approved:
-    'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
-  changes_requested:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
-  flagged:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
-  rejected:
-    'border-red-300 bg-white text-red-800 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-200',
-  on_track:
-    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
-  needs_attention:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
-  inactive:
-    'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
-  active:
-    'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
-  archived:
-    'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
+  pending: 'border-black/20 bg-white text-black',
+  approved: 'border-black bg-black text-white',
+  changes_requested: 'border-red-200 bg-red-50 text-red-700',
+  flagged: 'border-red-200 bg-red-50 text-red-700',
+  on_track: 'border-black/20 bg-black/5 text-black',
+  needs_attention: 'border-red-200 bg-red-50 text-red-700',
+  inactive: 'border-black/20 bg-white text-black/50',
+  active: 'border-black bg-black text-white',
+  archived: 'border-black/20 bg-white text-black/50',
+  rejected: 'border-red-200 bg-red-50 text-red-700',
 }
 
 const statusLabels = {
