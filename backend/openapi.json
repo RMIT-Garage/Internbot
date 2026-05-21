@@ -1889,6 +1889,84 @@
         }
       }
     },
+    "/api/v1/opportunities/{id}/attachments/upload-intents": {
+      "post": {
+        "operationId": "createOpportunityAttachmentUploadIntent",
+        "summary": "Reserve an opportunity attachment upload slot",
+        "description": "Coordinator-only. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the coordinator uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.",
+        "tags": ["Opportunities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "opp_042",
+              "description": "Platform opportunity id."
+            },
+            "required": true,
+            "description": "Platform opportunity id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOpportunityAttachmentUploadIntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload intent created. Use `uploadUrl` to PUT the file bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityAttachmentUploadIntentResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a coordinator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No opportunity exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid `fileName` / `contentType`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/opportunities/{id}/attachments/{attachmentId}": {
       "get": {
         "operationId": "getOpportunityAttachment",
@@ -2571,6 +2649,94 @@
           },
           "422": {
             "description": "Empty body or domain validation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/internships/{id}/attachments/upload-intents": {
+      "post": {
+        "operationId": "createInternshipAttachmentUploadIntent",
+        "summary": "Reserve an internship attachment upload slot",
+        "description": "Student-owner only. Allowed only while the internship is `applied` or `offer_changes_requested`. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the client uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.",
+        "tags": ["Internships"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "int_042",
+              "description": "Platform internship id."
+            },
+            "required": true,
+            "description": "Platform internship id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInternshipAttachmentUploadIntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload intent created. Use `uploadUrl` to PUT the file bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternshipAttachmentUploadIntentResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not the owning student.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No internship exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Internship status does not permit attachment upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid `fileName` / `contentType`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3995,6 +4161,31 @@
         "additionalProperties": false,
         "description": "Body for PATCH /api/v1/opportunities/:id. Lifecycle fields are rejected with 400. See WORKFLOW-API-SPEC.md §7.3."
       },
+      "CreateOpportunityAttachmentUploadIntentRequest": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "position-description.pdf"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "application/pdf",
+              "image/png",
+              "image/jpeg",
+              "application/msword",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ],
+            "example": "application/pdf"
+          }
+        },
+        "required": ["fileName", "contentType"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/opportunities/:id/attachments/upload-intents. Returns a signed PUT URL the coordinator uploads the file bytes to directly."
+      },
       "TransitionOpportunityRequest": {
         "type": "object",
         "properties": {
@@ -4068,6 +4259,31 @@
         },
         "additionalProperties": false,
         "description": "Body for PATCH /api/v1/internships/:id. Lifecycle and ownership fields are rejected with 400."
+      },
+      "CreateInternshipAttachmentUploadIntentRequest": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "offer-letter.pdf"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "application/pdf",
+              "image/png",
+              "image/jpeg",
+              "application/msword",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ],
+            "example": "application/pdf"
+          }
+        },
+        "required": ["fileName", "contentType"],
+        "additionalProperties": false,
+        "description": "Body for POST /api/v1/internships/:id/attachments/upload-intents. Returns a signed PUT URL the student-owner uploads the file bytes to directly."
       },
       "SubmitInternshipOfferRequest": {
         "type": "object",
@@ -5094,6 +5310,36 @@
         "additionalProperties": false,
         "description": "Attachment metadata for an opportunity position-description file."
       },
+      "OpportunityAttachmentUploadIntentResponse": {
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string",
+            "example": "att_001"
+          },
+          "filePath": {
+            "type": "string",
+            "example": "opportunities/opp_042/attachments/att_001-position-description.pdf"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "uploadExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-04T09:15:00Z"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "application/pdf"
+          }
+        },
+        "required": ["attachmentId", "filePath", "uploadUrl", "uploadExpiresAt", "contentType"],
+        "additionalProperties": false,
+        "description": "V4 signed PUT URL the coordinator can upload a position-description file to. The URL is bound to the supplied `contentType` — the client MUST send a matching `Content-Type` header on the PUT."
+      },
       "OpportunityAttachmentDownloadResponse": {
         "type": "object",
         "properties": {
@@ -5525,6 +5771,37 @@
         "required": ["id", "fileName", "contentType", "uploadedAt", "uploadStatus"],
         "additionalProperties": false,
         "description": "Attachment metadata for an internship offer document."
+      },
+      "InternshipAttachmentUploadIntentResponse": {
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string",
+            "example": "att_001"
+          },
+          "filePath": {
+            "type": "string",
+            "example": "users/usr_aBc123XyZ/internships/int_042/attachments/att_001-offer-letter.pdf"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://storage.googleapis.com/...attachments/att_001-offer-letter.pdf?X-Goog-Signature=..."
+          },
+          "uploadExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "example": "2026-04-04T09:15:00Z"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "application/pdf"
+          }
+        },
+        "required": ["attachmentId", "filePath", "uploadUrl", "uploadExpiresAt", "contentType"],
+        "additionalProperties": false,
+        "description": "V4 signed PUT URL the student-owner can upload an offer document to. The URL is bound to the supplied `contentType` — the client MUST send a matching `Content-Type` header on the PUT."
       },
       "InternshipAttachmentDownloadResponse": {
         "type": "object",

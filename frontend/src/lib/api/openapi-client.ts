@@ -30,6 +30,8 @@ export type {
   InternshipResponse,
   InternshipListResponse,
   InternshipListItemResponse,
+  CreateInternshipAttachmentUploadIntentRequest,
+  InternshipAttachmentUploadIntentResponse,
   NotificationResponse,
   NotificationListResponse,
   TicketResponse,
