@@ -75,7 +75,7 @@ export function EmailPasswordLoginForm({
             autoComplete="username"
             placeholder={emailPlaceholder}
             aria-invalid={errors.email ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
+            className="block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('email')}
           />
         </div>
@@ -93,7 +93,7 @@ export function EmailPasswordLoginForm({
           {showForgotPassword && (
             <Link
               href="/forgot-password"
-              className="text-brand-600 hover:text-brand-700 text-xs font-medium"
+              className="text-xs font-medium text-red-600 hover:text-red-700"
             >
               Forgot Password?
             </Link>
@@ -110,7 +110,7 @@ export function EmailPasswordLoginForm({
             autoComplete="current-password"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
+            className="block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('password')}
           />
         </div>
@@ -120,7 +120,7 @@ export function EmailPasswordLoginForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="bg-brand-500 hover:bg-brand-600 focus-visible:outline-brand-500 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? 'Signing in…' : submitLabel}
         {!isSubmitting && <ArrowRight aria-hidden="true" className="size-4" />}

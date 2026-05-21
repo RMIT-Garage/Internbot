@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth'
-import type { UserResponse } from './api'
+import type { UserResponse } from '@/lib/api/openapi-client'
 
 export interface AuthContextValue {
   user: User | null

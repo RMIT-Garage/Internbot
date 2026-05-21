@@ -3,9 +3,10 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { getDefaultRedirectPath } from '@/features/auth/utils/redirect'
 
 // Static export has no server-side redirect, so we bounce on the client.
-// Signed-in + verified → /dashboard. Signed-in + unverified → /verify-email.
+// Signed-in + verified → role-aware dashboard. Signed-in + unverified → /verify-email.
 // Signed-out → /login (the actual welcome screen with Student/Staff tabs).
 export default function LandingPage() {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function LandingPage() {
       return
     }
     if (profile) {
-      router.replace('/dashboard')
+      router.replace(getDefaultRedirectPath(profile.role))
     }
   }, [user, profile, loading, needsVerification, router])
 

@@ -5,7 +5,7 @@ export function AuthLogo({ className }: { className?: string }) {
     <div className={cn('inline-flex flex-col items-center gap-1.5', className)}>
       <div
         aria-hidden="true"
-        className="bg-brand-500 flex size-10 items-center justify-center rounded-md text-white shadow-sm"
+        className="flex size-10 items-center justify-center rounded-md bg-red-500 text-white shadow-sm"
       >
         <svg
           viewBox="0 0 24 24"

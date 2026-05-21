@@ -77,7 +77,7 @@ describe('EmailPasswordLoginForm', () => {
     expect(signInWithEmailMock).not.toHaveBeenCalled()
   })
 
-  it('calls signInWithEmail and navigates to /dashboard on success', async () => {
+  it('calls signInWithEmail and navigates to the student dashboard on success', async () => {
     signInWithEmailMock.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<EmailPasswordLoginForm {...baseProps} />)
@@ -89,7 +89,7 @@ describe('EmailPasswordLoginForm', () => {
     await waitFor(() =>
       expect(signInWithEmailMock).toHaveBeenCalledWith('jane@rmit.edu.au', 'secret')
     )
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/dashboard'))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/student/dashboard'))
     expect(toastErrorMock).not.toHaveBeenCalled()
   })
 

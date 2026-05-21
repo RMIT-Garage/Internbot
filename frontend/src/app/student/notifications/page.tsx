@@ -8,43 +8,7 @@ import { toast } from 'sonner'
 import { NotificationsService } from '@/lib/api/openapi-client'
 import type { NotificationResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage } from '@/lib/api/errors'
-
-function CoordinatorPageHeader({
-  eyebrow,
-  title,
-  description,
-  actions,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-  actions?: React.ReactNode
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{eyebrow}</p>
-          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
-          <p className="text-sm text-slate-600">{description}</p>
-        </div>
-        {actions}
-      </div>
-    </div>
-  )
-}
-
-function SurfaceCard({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div className={`rounded-2xl border border-slate-200 bg-white ${className}`}>{children}</div>
-  )
-}
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 
 function notifHref(notif: NotificationResponse): string {
   if (notif.relatedInternshipId) return `/student/contracts/${notif.relatedInternshipId}`

@@ -647,42 +647,6 @@ export const coordinatorNotifications = [
   },
 ]
 
-export const aiAdvisorReports = [
-  {
-    id: 'ai-001',
-    title: 'Contract compliance batch',
-    description:
-      '6 agreements contain clauses or signature patterns that require coordinator review.',
-    confidence: 92,
-    type: 'Contracts',
-    severity: 'High',
-  },
-  {
-    id: 'ai-002',
-    title: 'Remote supervision suitability',
-    description:
-      'Remote-only job submissions need clearer meeting cadence and escalation protocols.',
-    confidence: 86,
-    type: 'Jobs',
-    severity: 'Medium',
-  },
-  {
-    id: 'ai-003',
-    title: 'Cohort readiness projection',
-    description: 'Semester 2 acceptance pace is tracking 11% behind the previous intake cycle.',
-    confidence: 81,
-    type: 'Students',
-    severity: 'Medium',
-  },
-]
-
-export const aiComplianceChecks = [
-  { label: 'Insurance wording', score: 74, trend: 'Needs review' },
-  { label: 'Host supervision', score: 88, trend: 'Stable' },
-  { label: 'Learning alignment', score: 91, trend: 'Strong' },
-  { label: 'Weekly hours', score: 79, trend: 'Watch' },
-]
-
 export function getSelfSourcedJob(id: string) {
   return selfSourcedJobs.find((job) => job.id === id)
 }
