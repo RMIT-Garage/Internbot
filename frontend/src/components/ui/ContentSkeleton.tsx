@@ -36,13 +36,41 @@ export function ContentSkeleton({ title }: { title: string }) {
   )
 }
 
-/** Single KPI card placeholder. Used inside any `grid md:grid-cols-3` row. */
+/**
+ * Single KPI card placeholder. Mirrors `KPIStatCard` from `student/Premium.tsx`
+ * exactly — title/value/detail on the left, icon block on the right, progress
+ * bar at the bottom — so cards don't grow vertically when data lands.
+ */
 export function KpiCardSkeleton() {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="mt-4 h-8 w-16 bg-slate-200" />
-      <Skeleton className="mt-3 h-3 w-32" />
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="mt-2 h-8 w-16 bg-slate-200" />
+          <Skeleton className="mt-1 h-3 w-32" />
+        </div>
+        <Skeleton className="h-10 w-10 shrink-0 rounded-xl bg-slate-100" />
+      </div>
+      <Skeleton className="mt-5 h-2 w-full rounded-full bg-slate-100" />
+    </div>
+  )
+}
+
+/**
+ * Four-tile horizontal strip mirroring `AnalyticsStrip` from `student/Premium`.
+ * Drop in directly below the KPI grid on dashboard-style pages.
+ */
+export function AnalyticsStripSkeleton() {
+  return (
+    <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="rounded-2xl bg-slate-50 p-4">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="mt-3 h-7 w-16 rounded-xl bg-slate-200" />
+          <Skeleton className="mt-3 h-3 w-28" />
+        </div>
+      ))}
     </div>
   )
 }

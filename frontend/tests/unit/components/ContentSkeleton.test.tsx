@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
 
 import {
+  AnalyticsStripSkeleton,
   CardGridSkeleton,
   ContentSkeleton,
   DetailHeroSkeleton,
@@ -49,13 +50,27 @@ describe('ContentSkeleton', () => {
 })
 
 describe('KpiCardSkeleton', () => {
-  it('renders a card-shaped block with three placeholder bars', () => {
+  it('renders the card frame with a body row and a progress bar', () => {
     const { container } = render(<KpiCardSkeleton />)
     const card = container.firstChild as HTMLElement
     expect(card.className).toContain('rounded-2xl')
     expect(card.className).toContain('border')
-    // Three skeleton bars inside: label, value, detail
-    expect(card.children).toHaveLength(3)
+    // Two children: the title/value/detail + icon row, and the progress bar
+    expect(card.children).toHaveLength(2)
+  })
+
+  it('reserves space for the icon block to prevent layout shift', () => {
+    const { container } = render(<KpiCardSkeleton />)
+    // The icon-block placeholder should be a 10x10 rounded-xl skeleton
+    expect(container.querySelector('.h-10.w-10.rounded-xl')).toBeTruthy()
+  })
+})
+
+describe('AnalyticsStripSkeleton', () => {
+  it('renders four tile placeholders', () => {
+    const { container } = render(<AnalyticsStripSkeleton />)
+    const strip = container.firstChild as HTMLElement
+    expect(strip.children).toHaveLength(4)
   })
 })
 
