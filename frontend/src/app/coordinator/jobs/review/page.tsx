@@ -1,9 +1,10 @@
 import { Suspense } from 'react'
 import { JobReviewClient } from './JobReviewClient'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 
 export default function CoordinatorJobReviewPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-zinc-500">Loading job review...</div>}>
+    <Suspense fallback={<CoordinatorContentSkeleton title="Loading job review…" />}>
       <JobReviewClient />
     </Suspense>
   )

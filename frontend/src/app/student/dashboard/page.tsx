@@ -22,6 +22,7 @@ import {
 } from '@/components/student/Premium'
 
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { KpiCardSkeleton, Skeleton } from '@/components/ui/ContentSkeleton'
 import { UsersService, InternshipsService, NotificationsService } from '@/lib/api/openapi-client'
 import type {
   StudentUserResponse,
@@ -168,8 +169,21 @@ export default function StudentDashboardPage() {
       </div>
 
       {loading && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Loading dashboard...
+        <div className="space-y-6" aria-busy="true" aria-live="polite">
+          <span className="sr-only">Loading dashboard…</span>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <KpiCardSkeleton key={i} />
+            ))}
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <Skeleton className="h-5 w-48 bg-slate-200" />
+            <div className="mt-5 space-y-3">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 rounded-xl bg-slate-50" />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

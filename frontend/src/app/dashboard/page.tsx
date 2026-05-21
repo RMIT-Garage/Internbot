@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getDefaultRedirectPath } from '@/features/auth/utils/redirect'
+import { ContentSkeleton } from '@/components/ui/ContentSkeleton'
 
 // Legacy `/dashboard` URL kept alive for old bookmarks. Static export has no
 // server-side redirect, so we bounce on the client once auth state resolves.
@@ -26,5 +27,5 @@ export default function DashboardRedirectPage() {
     }
   }, [user, profile, loading, needsVerification, router])
 
-  return null
+  return <ContentSkeleton title="Redirecting to your dashboard…" />
 }
