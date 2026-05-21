@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function StudentIndexPage() {
+export default function CoordinatorIndexPage() {
   redirect('/student/dashboard')
 }

@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
 
 import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
 
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import {
   OpportunitiesService,
   InternshipsService,
@@ -28,23 +28,15 @@ const CONFLICT_MESSAGES: Record<string, string> = {
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
 }
 
-const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
-  duplicate_application: 'You have already applied to this opportunity.',
-  student_has_no_selected_semester:
-    'Select a semester before applying. Go back and choose one first.',
-  opportunity_not_published: 'This opportunity is no longer accepting applications.',
-  opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
-}
-
-function opportunityStatusToBadge(status: string): CoordinatorStatus {
-  const map: Record<string, CoordinatorStatus> = {
-    published: 'active',
-    draft: 'pending',
-    pending_verification: 'on_track',
+function opportunityStatusToBadge(status: string): StudentStatus {
+  const map: Record<string, StudentStatus> = {
+    applied: 'applied',
+    offer_pending_review: 'offer_pending_review',
+    offer_changes_requested: 'offer_changes_requested',
+    offer_approved: 'offer_approved',
     rejected: 'rejected',
-    archived: 'archived',
   }
-  return map[status] ?? 'pending'
+  return map[status] ?? 'applied'
 }
 
 export default function StudentOpportunitiesPage() {
@@ -64,7 +56,6 @@ export default function StudentOpportunitiesPage() {
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [applyingId, setApplyingId] = useState<string | null>(null)
 
   // Load semesters + pre-select the user's current semester
   useEffect(() => {
@@ -108,25 +99,6 @@ export default function StudentOpportunitiesPage() {
     }
     loadData()
   }, [semesterId])
-
-  const applyToOpportunity = async (opportunity: OpportunityResponse) => {
-    if (applyingId) return
-    try {
-      setApplyingId(opportunity.id)
-      await InternshipsService.createInternship({ opportunityId: opportunity.id })
-      const refreshed = await InternshipsService.listInternships()
-      setInternships(refreshed.items)
-      toast.success(`Applied to ${opportunity.jobTitle}`)
-    } catch (err: unknown) {
-      const reason = getApiErrorReason(err)
-      toast.error(
-        (reason && APPLY_CONFLICT_MESSAGES[reason]) ??
-          getApiErrorMessage(err, 'Failed to apply to this opportunity')
-      )
-    } finally {
-      setApplyingId(null)
-    }
-  }
 
   const confirmSemester = async () => {
     if (!selectedSemester) {
@@ -267,7 +239,7 @@ export default function StudentOpportunitiesPage() {
           value={activeCount}
           detail="Published opportunities"
           icon={BriefcaseBusiness}
-          tone="green"
+          tone="red"
           progress={
             opportunities.length > 0 ? Math.round((activeCount / opportunities.length) * 100) : 0
           }
@@ -277,7 +249,7 @@ export default function StudentOpportunitiesPage() {
           value={appliedCount}
           detail="Submitted applications"
           icon={BarChart3}
-          tone="blue"
+          tone="charcoal"
           progress={
             activeCount > 0 ? Math.min(Math.round((appliedCount / activeCount) * 100), 100) : 0
           }
@@ -287,7 +259,7 @@ export default function StudentOpportunitiesPage() {
           value={opportunities.length}
           detail="Opportunities this semester"
           icon={Sparkles}
-          tone="purple"
+          tone="neutral"
           progress={100}
         />
       </div>
@@ -357,14 +329,12 @@ export default function StudentOpportunitiesPage() {
                     Applied
                   </span>
                 ) : opportunity.status === 'published' ? (
-                  <button
-                    type="button"
-                    onClick={() => applyToOpportunity(opportunity)}
-                    disabled={applyingId !== null}
-                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-400"
+                  <Link
+                    href={`/student/jobs/${opportunity.id}`}
+                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700"
                   >
-                    {applyingId === opportunity.id ? 'Applying...' : 'Apply'}
-                  </button>
+                    Apply
+                  </Link>
                 ) : (
                   <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-400">
                     Not available

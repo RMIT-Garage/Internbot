@@ -5,20 +5,29 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { formatDate } from '@/lib/utils'
 
-const INTERNSHIP_STATUS_TO_BADGE: Record<InternshipListItemResponse['status'], CoordinatorStatus> =
-  {
-    applied: 'pending',
-    offer_pending_review: 'on_track',
-    offer_changes_requested: 'changes_requested',
-    offer_approved: 'approved',
-    rejected: 'rejected',
-  }
+function internshipStatusToBadge(status: InternshipListItemResponse['status']): StudentStatus {
+  switch (status) {
+    case 'applied':
+      return 'applied'
 
-function internshipStatusToBadge(status: InternshipListItemResponse['status']): CoordinatorStatus {
-  return INTERNSHIP_STATUS_TO_BADGE[status]
+    case 'offer_pending_review':
+      return 'offer_pending_review'
+
+    case 'offer_changes_requested':
+      return 'offer_changes_requested'
+
+    case 'offer_approved':
+      return 'offer_approved'
+
+    case 'rejected':
+      return 'rejected'
+
+    default:
+      return 'applied'
+  }
 }
 
 export function JobsList() {
@@ -114,7 +123,7 @@ export function JobsList() {
               </td>
               <td className="px-4 py-3 text-right">
                 <Link
-                  href={`/student/jobs/${internship.id}`}
+                  href={`/student/jobs/view?id=${internship.id}`}
                   className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                 >
                   View
