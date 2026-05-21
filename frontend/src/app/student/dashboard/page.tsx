@@ -22,7 +22,7 @@ import {
 } from '@/components/student/Premium'
 
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
-import { KpiCardSkeleton, Skeleton } from '@/components/ui/ContentSkeleton'
+import { AnalyticsStripSkeleton, KpiCardSkeleton, Skeleton } from '@/components/ui/ContentSkeleton'
 import { UsersService, InternshipsService, NotificationsService } from '@/lib/api/openapi-client'
 import type {
   StudentUserResponse,
@@ -171,17 +171,80 @@ export default function StudentDashboardPage() {
       {loading && (
         <div className="space-y-6" aria-busy="true" aria-live="polite">
           <span className="sr-only">Loading dashboard…</span>
+
+          {/* KPI ROW — mirrors the loaded 5-col grid */}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {[0, 1, 2, 3, 4].map((i) => (
               <KpiCardSkeleton key={i} />
             ))}
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <Skeleton className="h-5 w-48 bg-slate-200" />
-            <div className="mt-5 space-y-3">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 rounded-xl bg-slate-50" />
-              ))}
+
+          {/* ANALYTICS STRIP — same 4 tiles the real component renders */}
+          <AnalyticsStripSkeleton />
+
+          {/* MAIN GRID — left "My Applications" card + right column */}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+            <div className="space-y-6">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-40 bg-slate-200" />
+                    <Skeleton className="h-3 w-56" />
+                  </div>
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-center gap-4 px-5 py-3">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/5 bg-slate-200" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </div>
+                      <Skeleton className="h-6 w-20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {/* Workflow step card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <Skeleton className="h-3 w-24 bg-red-100" />
+                <Skeleton className="mt-3 h-6 w-40 bg-slate-200" />
+                <Skeleton className="mt-3 h-3 w-full max-w-xs" />
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-16 rounded-xl bg-slate-50" />
+                  ))}
+                </div>
+              </div>
+
+              {/* Notifications card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-32 bg-slate-200" />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+                <div className="mt-4 space-y-3">
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-14 rounded-xl bg-slate-50" />
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent activity card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <Skeleton className="h-5 w-36 bg-slate-200" />
+                <div className="mt-4 space-y-3">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-6 w-20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
