@@ -21,14 +21,11 @@ const PROGRAMS = [
 
 const schema = z.object({
   programName: z.string().min(1, 'Program name is required'),
-
   programLevel: z.enum(['undergraduate', 'postgraduate']),
 
-  gpa: z.coerce.number().min(0, 'Min 0.0').max(4, 'Max 4.0'),
-
-  unitsAttempted: z.coerce.number().min(0),
-
-  creditUnitsEarned: z.coerce.number().min(0),
+  gpa: z.preprocess((v) => parseFloat(String(v)), z.number().min(0, 'Min 0.0').max(4, 'Max 4.0')),
+  unitsAttempted: z.preprocess((v) => parseInt(String(v), 10), z.number().min(0)),
+  creditUnitsEarned: z.preprocess((v) => parseInt(String(v), 10), z.number().min(0)),
 
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
 })
