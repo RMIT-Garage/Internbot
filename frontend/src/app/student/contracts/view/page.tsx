@@ -1,5 +1,10 @@
+import { Suspense } from 'react'
 import StudentContractDetailPage from './_client'
 
 export default function Page() {
-  return <StudentContractDetailPage />
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <StudentContractDetailPage />
+    </Suspense>
+  )
 }
