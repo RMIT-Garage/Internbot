@@ -15,7 +15,7 @@ const statusStyles = {
 
   rejected:
     'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
-} as const
+}
 
 const statusLabels = {
   applied: 'Applied',

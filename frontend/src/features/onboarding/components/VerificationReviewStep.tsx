@@ -60,7 +60,7 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
         },
       })
       toast.success('Profile completed successfully!')
-      router.push('/dashboard')
+      router.push('/student/dashboard')
     } catch {
       toast.error('Submission failed. Please try again.')
     }
@@ -73,7 +73,7 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
       <div className="mx-auto max-w-5xl p-8 lg:p-12">
         {/* Stepper */}
         <div className="relative mb-16 flex items-center justify-center">
-          <div className="absolute left-0 top-5 -z-10 h-px w-full bg-gray-100" />
+          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
 
           <div className="flex w-full max-w-2xl justify-between">
             {STEPS.map((step) => {
@@ -174,7 +174,7 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
           <div className="mt-4 overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-50 text-[10px] font-bold uppercase text-gray-400">
+                <tr className="border-b border-gray-50 text-[10px] font-bold text-gray-400 uppercase">
                   <th className="pb-3 text-left">Metric</th>
                   <th className="pb-3 text-right">Value</th>
                 </tr>
@@ -255,12 +255,12 @@ function ReviewCard({
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
       <div className="mb-6 flex items-center justify-between">
-        <span className="rounded bg-gray-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+        <span className="rounded bg-gray-100 px-2 py-1 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
           {title}
         </span>
         <button
           onClick={onEdit}
-          className="flex items-center gap-1 text-[10px] font-black uppercase text-red-600 hover:underline"
+          className="flex items-center gap-1 text-[10px] font-black text-red-600 uppercase hover:underline"
         >
           <PencilLine size={12} /> Edit
         </button>
@@ -282,8 +282,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function DetailBlock({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-gray-400">{label}</p>
-      <p className="text-xs font-bold leading-tight">{value}</p>
+      <p className="mb-1 text-[9px] font-bold tracking-widest text-gray-400 uppercase">{label}</p>
+      <p className="text-xs leading-tight font-bold">{value}</p>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { StudentTopbar } from '../student/StudentTopbar'
 import { StudentSidebar } from '../student/StudentSidebar'
+import { StudentTopbar } from '../student/StudentTopbar'
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (

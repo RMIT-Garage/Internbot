@@ -3,8 +3,6 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, BrainCircuit, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type StudentTone = 'red' | 'charcoal' | 'neutral'
-
 export function CoordinatorPageHeader({
   eyebrow,
   title,
@@ -68,7 +66,7 @@ export function KPIStatCard({
   value: string | number
   detail: string
   icon: LucideIcon
-  tone?: StudentTone
+  tone?: 'red' | 'charcoal' | 'neutral'
   progress?: number
 }) {
   const tones = {
@@ -145,7 +143,7 @@ export function AnalyticsStrip({
     label: string
     value: string | number
     detail: string
-    tone?: StudentTone
+    tone?: 'red' | 'charcoal' | 'neutral'
   }>
 }) {
   const toneClasses = {
@@ -209,7 +207,7 @@ export function TimelineFeed({
     title: string
     description?: string
     time: string
-    tone?: StudentTone
+    tone?: 'red' | 'charcoal' | 'neutral'
   }>
 }) {
   return (

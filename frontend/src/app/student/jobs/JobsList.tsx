@@ -123,7 +123,7 @@ export function JobsList() {
               </td>
               <td className="px-4 py-3 text-right">
                 <Link
-                  href={`/student/jobs/${internship.id}`}
+                  href={`/student/jobs/view?id=${internship.id}`}
                   className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                 >
                   View
