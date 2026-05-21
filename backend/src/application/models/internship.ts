@@ -1,4 +1,4 @@
-import type { InternshipListCursor } from '../../domain/repositories/internship-repository'
+import type { InternshipRepository } from '../../domain/repositories/internship-repository'
 import type { InternshipActivity } from '../../domain/value-objects/internship-activity'
 import type { InternshipReadModel } from '../read-models/internship'
 
@@ -10,7 +10,7 @@ export interface InternshipListResult {
 }
 
 export interface InternshipListResultWithCursor extends InternshipListResult {
-  cursor: InternshipListCursor | null
+  cursor: InternshipRepository | null
 }
 
 export interface InternshipActivityResult {

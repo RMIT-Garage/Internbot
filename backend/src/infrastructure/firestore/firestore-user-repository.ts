@@ -367,18 +367,6 @@ export class FirestoreUserRepository implements UserRepository {
     )
   }
 
-  async listCoordinators(): Promise<readonly User[]> {
-    return translateFirestoreErrors(
-      async () => {
-        const snap = await this.txn.get(
-          adminDb.collection(COLLECTION).where('role', '==', 'coordinator')
-        )
-        return snap.docs.map((doc) => parseUser(doc.id, doc.data()))
-      },
-      { op: 'users.listCoordinators', resource: 'User' }
-    )
-  }
-
   /**
    * Insert path. Writes two docs atomically inside the txn:
    *   1. `users/{id}` — full aggregate including denormalised identity.

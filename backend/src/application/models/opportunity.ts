@@ -1,13 +1,10 @@
 import type { Opportunity } from '../../domain/entities/opportunity'
-import type {
-  OpportunityAttachment,
-  OpportunityListCursor,
-} from '../../domain/repositories/opportunity-repository'
+import type { OpportunityRepository } from '../../domain/repositories/opportunity-repository'
 
 export interface OpportunityReadModel {
   opportunity: Opportunity
   applicationCount: number
-  attachments: readonly OpportunityAttachment[]
+  attachments: readonly OpportunityRepository[]
 }
 
 export type OpportunityResult = OpportunityReadModel
@@ -18,5 +15,5 @@ export interface OpportunityListResult {
 }
 
 export interface OpportunityListResultWithCursor extends OpportunityListResult {
-  cursor: OpportunityListCursor | null
+  cursor: OpportunityRepository | null
 }

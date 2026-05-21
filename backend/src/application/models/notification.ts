@@ -1,5 +1,5 @@
 import type { Notification } from '../../domain/entities/notification'
-import type { NotificationListCursor } from '../../domain/repositories/notification-repository'
+import type { NotificationRepository } from '../../domain/repositories/notification-repository'
 
 export interface NotificationListResult {
   readonly items: readonly Notification[]
@@ -8,7 +8,7 @@ export interface NotificationListResult {
 }
 
 export interface NotificationListResultWithCursor extends NotificationListResult {
-  readonly cursor: NotificationListCursor | null
+  readonly cursor: NotificationRepository | null
 }
 
 export interface NotificationResult {
