@@ -12,7 +12,6 @@ import {
   Users,
 } from 'lucide-react'
 import {
-  AIInsightCard,
   AnalyticsStrip,
   CoordinatorPageHeader,
   KPIStatCard,
@@ -256,13 +255,6 @@ export default function CoordinatorDashboardPage() {
               {`Using isolated fallback data: ${dashboardResource.error}`}
             </div>
           )}
-          <AIInsightCard
-            title="AI Insights"
-            confidence={92}
-            href="/coordinator/ai-advisor"
-            insight="Contract reviews are trending 18% faster this week, but six submissions have institutional risk markers. Prioritise insurance clauses, remote supervision cadence, and weekly hour limits."
-          />
-
           <SurfaceCard className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>

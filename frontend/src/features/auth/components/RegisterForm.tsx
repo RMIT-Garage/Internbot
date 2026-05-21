@@ -36,7 +36,7 @@ export function RegisterForm() {
       <div className="space-y-1.5">
         <label
           htmlFor="institutional-email"
-          className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+          className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
         >
           Institutional Email
         </label>
@@ -48,17 +48,17 @@ export function RegisterForm() {
             placeholder="s1234567@student.rmit.edu.au"
             aria-invalid={errors.email ? 'true' : 'false'}
             aria-describedby="institutional-email-hint"
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 py-2.5 pl-3 pr-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2"
+            className="block w-full rounded-md border border-zinc-300 bg-zinc-50 py-2.5 pr-9 pl-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('email')}
           />
           <Mail
             aria-hidden="true"
-            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400"
           />
         </div>
-        <p id="institutional-email-hint" className="text-xs italic text-zinc-500">
+        <p id="institutional-email-hint" className="text-xs text-zinc-500 italic">
           {errors.email ? (
-            <span className="not-italic text-red-600">{errors.email.message}</span>
+            <span className="text-red-600 not-italic">{errors.email.message}</span>
           ) : (
             <>Must be a valid {STUDENT_EMAIL_DOMAIN} address.</>
           )}
@@ -69,7 +69,7 @@ export function RegisterForm() {
         <div className="space-y-1.5">
           <label
             htmlFor="register-password"
-            className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
           >
             Password
           </label>
@@ -79,7 +79,7 @@ export function RegisterForm() {
             autoComplete="new-password"
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2"
+            className="block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('password')}
           />
           {errors.password && <p className="text-xs text-red-600">{errors.password.message}</p>}
@@ -88,7 +88,7 @@ export function RegisterForm() {
         <div className="space-y-1.5">
           <label
             htmlFor="register-confirm"
-            className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+            className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
           >
             Confirm
           </label>
@@ -98,7 +98,7 @@ export function RegisterForm() {
             autoComplete="new-password"
             placeholder="••••••••"
             aria-invalid={errors.confirmPassword ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:outline-none focus:ring-2"
+            className="block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('confirmPassword')}
           />
           {errors.confirmPassword && (
@@ -110,7 +110,7 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="bg-brand-500 hover:bg-brand-600 focus-visible:outline-brand-500 w-full rounded-md px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-md bg-red-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? 'Creating account…' : 'Create Account'}
       </button>

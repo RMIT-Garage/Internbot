@@ -8,19 +8,17 @@ import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
 import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import { formatDate } from '@/lib/utils'
 
-function internshipStatusToBadge(status: InternshipListItemResponse['status']): CoordinatorStatus {
-  switch (status) {
-    case 'applied':
-      return 'pending'
-    case 'offer_pending_review':
-      return 'on_track'
-    case 'offer_changes_requested':
-      return 'changes_requested'
-    case 'offer_approved':
-      return 'approved'
-    case 'rejected':
-      return 'rejected'
+const INTERNSHIP_STATUS_TO_BADGE: Record<InternshipListItemResponse['status'], CoordinatorStatus> =
+  {
+    applied: 'pending',
+    offer_pending_review: 'on_track',
+    offer_changes_requested: 'changes_requested',
+    offer_approved: 'approved',
+    rejected: 'rejected',
   }
+
+function internshipStatusToBadge(status: InternshipListItemResponse['status']): CoordinatorStatus {
+  return INTERNSHIP_STATUS_TO_BADGE[status]
 }
 
 export function JobsList() {

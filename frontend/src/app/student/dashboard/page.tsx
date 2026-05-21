@@ -30,7 +30,7 @@ import type {
 } from '@/lib/api/openapi-client'
 
 const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['dark', 'light', 'red', 'dark', 'red'] as const
+const kpiTones = ['charcoal', 'neutral', 'red', 'charcoal', 'red'] as const
 
 export default function StudentDashboardPage() {
   const [user, setUser] = useState<StudentUserResponse | null>(null)
@@ -212,7 +212,7 @@ export default function StudentDashboardPage() {
                 label: 'Approved offers',
                 value: String(approved),
                 detail: 'Confirmed placements',
-                tone: 'dark',
+                tone: 'charcoal',
               },
               {
                 label: 'Unread notifications',
@@ -224,7 +224,7 @@ export default function StudentDashboardPage() {
                 label: 'Workflow step',
                 value: workflowStep.replace(/_/g, ' '),
                 detail: 'Current stage',
-                tone: 'light',
+                tone: 'neutral',
               },
             ]}
           />

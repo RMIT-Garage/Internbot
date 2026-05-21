@@ -1,10 +1,33 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { StudentSidebar } from '@/components/student/StudentSidebar'
 import { StudentTopbar } from '@/components/student/StudentTopbar'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useAuth } from '@/hooks/useAuth'
+import { isCoordinatorRole } from '@/lib/coordinator/auth'
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
+  const { ready } = useRequireAuth()
+  const { profile } = useAuth()
+  const router = useRouter()
+
+  // Coordinators landing on /student/* get routed back to their own dashboard.
+  useEffect(() => {
+    if (profile && isCoordinatorRole(profile.role)) {
+      router.replace('/coordinator/dashboard')
+    }
+  }, [profile, router])
+
+  if (!ready || (profile && isCoordinatorRole(profile.role))) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       {/* SIDEBAR */}

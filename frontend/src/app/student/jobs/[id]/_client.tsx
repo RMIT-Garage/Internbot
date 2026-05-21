@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, Building2, Clock3, FileText, ShieldCheck, User } from 'lucide-react'
-import { AIInsightCard, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipResponse } from '@/lib/api/openapi-client'
@@ -23,21 +23,6 @@ function internshipStatusToBadge(status: InternshipResponse['status']): Coordina
       return 'on_track'
     default:
       return 'pending'
-  }
-}
-
-function statusInsight(status: InternshipResponse['status']): string {
-  switch (status) {
-    case 'offer_approved':
-      return 'Your application has been approved by the coordinator.'
-    case 'offer_pending_review':
-      return 'Your offer is currently under coordinator review.'
-    case 'offer_changes_requested':
-      return 'The coordinator has requested changes to your submission.'
-    case 'rejected':
-      return 'Your application was not approved. Check the feedback below.'
-    default:
-      return 'Your application has been submitted. Upload your offer letter when ready.'
   }
 }
 
@@ -158,20 +143,6 @@ export default function StudentJobDetailPage() {
               </SurfaceCard>
             )}
           </div>
-
-          <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-            <AIInsightCard
-              title="Application Status"
-              confidence={
-                internship.status === 'offer_approved'
-                  ? 100
-                  : internship.status === 'offer_pending_review'
-                    ? 60
-                    : 30
-              }
-              insight={statusInsight(internship.status)}
-            />
-          </aside>
         </div>
       )}
     </div>

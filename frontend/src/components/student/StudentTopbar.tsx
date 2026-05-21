@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import {
   Bell,
-  BrainCircuit,
   BriefcaseBusiness,
   CalendarDays,
   Clock,
@@ -127,14 +126,6 @@ const NAV_PAGES: SearchResult[] = [
     subtitle: 'Browse available internships',
     href: '/student/opportunities',
     Icon: GraduationCap,
-  },
-  {
-    id: 'ai-advisor',
-    category: 'Pages',
-    title: 'AI Advisor',
-    subtitle: 'Get AI-powered guidance',
-    href: '/student/ai-advisor',
-    Icon: BrainCircuit,
   },
   {
     id: 'notifications',

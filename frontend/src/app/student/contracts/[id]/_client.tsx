@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, Calendar, FileText, Paperclip } from 'lucide-react'
-import { AIInsightCard, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipResponse } from '@/lib/api/openapi-client'
@@ -23,21 +23,6 @@ function internshipStatusToBadge(status: InternshipResponse['status']): Coordina
       return 'on_track'
     default:
       return 'pending'
-  }
-}
-
-function statusInsight(status: InternshipResponse['status']): string {
-  switch (status) {
-    case 'offer_approved':
-      return 'Your offer has been approved by your coordinator. Your placement is confirmed.'
-    case 'offer_pending_review':
-      return 'Your submitted offer documents are under coordinator review.'
-    case 'offer_changes_requested':
-      return 'The coordinator has requested changes to your submitted offer. Review the feedback and resubmit.'
-    case 'rejected':
-      return 'Your application was not approved. Review the coordinator feedback below.'
-    default:
-      return 'Submit your offer letter to begin the coordinator review process.'
   }
 }
 
@@ -179,24 +164,6 @@ export default function StudentContractDetailPage() {
               </SurfaceCard>
             )}
           </div>
-
-          <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-            <AIInsightCard
-              title="Contract Status"
-              confidence={
-                internship.status === 'offer_approved'
-                  ? 100
-                  : internship.status === 'offer_pending_review'
-                    ? 60
-                    : internship.status === 'offer_changes_requested'
-                      ? 30
-                      : internship.status === 'rejected'
-                        ? 0
-                        : 20
-              }
-              insight={statusInsight(internship.status)}
-            />
-          </aside>
         </div>
       )}
     </div>

@@ -152,7 +152,7 @@ export function ContractsList() {
             label: 'Offer pending',
             value: reviewCount,
             detail: 'Under coordinator review',
-            tone: 'dark',
+            tone: 'charcoal',
           },
           {
             label: 'Approved',

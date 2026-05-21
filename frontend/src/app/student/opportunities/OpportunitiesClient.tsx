@@ -1,16 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
 
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/student/Premium'
+import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
 
 import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import {
@@ -31,6 +26,14 @@ const CONFLICT_MESSAGES: Record<string, string> = {
     'Your profile is incomplete. Please fill in your student profile before enrolling.',
   semester_not_active: 'That semester is no longer active.',
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
+}
+
+const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
+  duplicate_application: 'You have already applied to this opportunity.',
+  student_has_no_selected_semester:
+    'Select a semester before applying. Go back and choose one first.',
+  opportunity_not_published: 'This opportunity is no longer accepting applications.',
+  opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
 }
 
 function opportunityStatusToBadge(status: string): CoordinatorStatus {
@@ -61,6 +64,7 @@ export default function StudentOpportunitiesPage() {
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [applyingId, setApplyingId] = useState<string | null>(null)
 
   // Load semesters + pre-select the user's current semester
   useEffect(() => {
@@ -104,6 +108,25 @@ export default function StudentOpportunitiesPage() {
     }
     loadData()
   }, [semesterId])
+
+  const applyToOpportunity = async (opportunity: OpportunityResponse) => {
+    if (applyingId) return
+    try {
+      setApplyingId(opportunity.id)
+      await InternshipsService.createInternship({ opportunityId: opportunity.id })
+      const refreshed = await InternshipsService.listInternships()
+      setInternships(refreshed.items)
+      toast.success(`Applied to ${opportunity.jobTitle}`)
+    } catch (err: unknown) {
+      const reason = getApiErrorReason(err)
+      toast.error(
+        (reason && APPLY_CONFLICT_MESSAGES[reason]) ??
+          getApiErrorMessage(err, 'Failed to apply to this opportunity')
+      )
+    } finally {
+      setApplyingId(null)
+    }
+  }
 
   const confirmSemester = async () => {
     if (!selectedSemester) {
@@ -269,12 +292,6 @@ export default function StudentOpportunitiesPage() {
         />
       </div>
 
-      <AIInsightCard
-        title="Opportunity Insights"
-        confidence={84}
-        insight="Browse published opportunities and apply early to improve your acceptance chances."
-      />
-
       {loading && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
           Loading opportunities...
@@ -340,12 +357,14 @@ export default function StudentOpportunitiesPage() {
                     Applied
                   </span>
                 ) : opportunity.status === 'published' ? (
-                  <Link
-                    href={`/student/jobs/${opportunity.id}`}
-                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700"
+                  <button
+                    type="button"
+                    onClick={() => applyToOpportunity(opportunity)}
+                    disabled={applyingId !== null}
+                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-400"
                   >
-                    Apply
-                  </Link>
+                    {applyingId === opportunity.id ? 'Applying...' : 'Apply'}
+                  </button>
                 ) : (
                   <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-400">
                     Not available
