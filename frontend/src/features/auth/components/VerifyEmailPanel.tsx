@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { resendVerificationEmail } from '@/lib/firebase/auth'
 import { auth } from '@/lib/firebase/client'
 import { getAuthErrorMessage } from '@/lib/firebase/auth-errors'
+import { getDefaultRedirectPath } from '@/features/auth/utils/redirect'
 
 export function VerifyEmailPanel() {
   const router = useRouter()
@@ -24,7 +25,7 @@ export function VerifyEmailPanel() {
       return
     }
     if (profile) {
-      router.replace('/dashboard')
+      router.replace(getDefaultRedirectPath(profile.role))
     }
   }, [user, profile, loading, router])
 
@@ -80,8 +81,8 @@ export function VerifyEmailPanel() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-10">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 sm:p-10">
-        <div className="bg-brand-50 mx-auto flex size-12 items-center justify-center rounded-full">
-          <Mail className="text-brand-600 size-6" aria-hidden="true" />
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-50">
+          <Mail className="size-6 text-red-600" aria-hidden="true" />
         </div>
         <h1 className="mt-6 text-center text-2xl font-bold tracking-tight text-zinc-900">
           Verify your email
@@ -97,7 +98,7 @@ export function VerifyEmailPanel() {
             type="button"
             onClick={onRecheck}
             disabled={checking}
-            className="bg-brand-500 hover:bg-brand-600 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RotateCcw aria-hidden="true" className="size-4" />
             {checking ? 'Checking…' : "I've verified my email"}
@@ -118,7 +119,7 @@ export function VerifyEmailPanel() {
           <button
             type="button"
             onClick={onUseDifferentAccount}
-            className="text-brand-600 font-medium hover:underline"
+            className="font-medium text-red-600 hover:underline"
           >
             Sign out
           </button>

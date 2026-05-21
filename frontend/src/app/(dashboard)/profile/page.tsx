@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useUserProfile } from '@/features/profile/hooks/useUserProfile'
 import { ProfileView } from '@/features/profile/components/ProfileView'
-import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import type { StudentUser } from '@/features/profile/types'
 
 export default function ProfilePage() {
@@ -13,8 +12,8 @@ export default function ProfilePage() {
 
   if (!ready || loading) {
     return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <LoadingSpinner size="md" />
+      <div className="flex h-full flex-1 items-center justify-center text-sm text-slate-500">
+        Loading profile…
       </div>
     )
   }

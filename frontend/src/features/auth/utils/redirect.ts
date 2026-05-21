@@ -1,6 +1,6 @@
 import { isCoordinatorLoginPath, isCoordinatorRole } from '@/lib/coordinator/auth'
 
-const STUDENT_DEFAULT_REDIRECT = '/dashboard'
+const STUDENT_DEFAULT_REDIRECT = '/student/dashboard'
 const COORDINATOR_DEFAULT_REDIRECT = '/coordinator/dashboard'
 
 export function getDefaultRedirectPath(role: string | undefined): string {

@@ -39,8 +39,8 @@ export function ForgotPasswordForm() {
   if (submittedEmail) {
     return (
       <div className="space-y-6 text-center">
-        <div className="bg-brand-50 mx-auto flex size-12 items-center justify-center rounded-full">
-          <Mail className="text-brand-600 size-6" aria-hidden="true" />
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-50">
+          <Mail className="size-6 text-red-600" aria-hidden="true" />
         </div>
         <div className="space-y-2">
           <h2 className="text-xl font-bold tracking-tight text-zinc-900">Check your inbox</h2>
@@ -51,7 +51,7 @@ export function ForgotPasswordForm() {
         </div>
         <Link
           href="/login"
-          className="text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 text-sm font-medium"
+          className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700"
         >
           <ArrowLeft aria-hidden="true" className="size-4" /> Back to sign in
         </Link>
@@ -64,14 +64,14 @@ export function ForgotPasswordForm() {
       <div className="space-y-1.5">
         <label
           htmlFor="reset-email"
-          className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+          className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase"
         >
           Email
         </label>
         <div className="relative">
           <Mail
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
           />
           <input
             id="reset-email"
@@ -79,7 +79,7 @@ export function ForgotPasswordForm() {
             autoComplete="email"
             placeholder="you@example.com"
             aria-invalid={errors.email ? 'true' : 'false'}
-            className="focus:border-brand-500 focus:ring-brand-500/20 block w-full rounded-md border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2"
+            className="block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('email')}
           />
         </div>
@@ -89,14 +89,14 @@ export function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="bg-brand-500 hover:bg-brand-600 focus-visible:outline-brand-500 inline-flex w-full items-center justify-center rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center rounded-md bg-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? 'Sending…' : 'Send reset link'}
       </button>
 
       <Link
         href="/login"
-        className="text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 text-sm font-medium"
+        className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700"
       >
         <ArrowLeft aria-hidden="true" className="size-4" /> Back to sign in
       </Link>

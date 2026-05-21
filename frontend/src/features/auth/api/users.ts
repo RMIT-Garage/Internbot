@@ -1,5 +1,6 @@
-import { apiFetch, ApiError } from '@/lib/api/client'
-import type { UserResponse } from '@/types/api'
+import { UsersService } from '@/lib/api/openapi-client'
+import { ApiError } from '@/api/core/ApiError'
+import type { UserResponse } from '@/lib/api/openapi-client'
 
 export type CurrentUserResult =
   | { kind: 'ok'; user: UserResponse }
@@ -16,7 +17,7 @@ export type CurrentUserResult =
  */
 export async function fetchCurrentUser(): Promise<CurrentUserResult> {
   try {
-    const user = await apiFetch<UserResponse>('/api/v1/users/me')
+    const user = await UsersService.getMyProfile()
     return { kind: 'ok', user }
   } catch (error) {
     if (error instanceof ApiError) {

@@ -5,12 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
 
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/student/Premium'
+import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
 
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import {
@@ -268,12 +263,6 @@ export default function StudentOpportunitiesPage() {
           progress={100}
         />
       </div>
-
-      <AIInsightCard
-        title="Opportunity Insights"
-        confidence={84}
-        insight="Browse published opportunities and apply early to improve your acceptance chances."
-      />
 
       {loading && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
