@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, Calendar, FileText, Paperclip } from 'lucide-react'
@@ -50,8 +50,8 @@ function statusInsight(status: InternshipResponse['status']): string {
 
 export default function StudentContractDetailPage() {
   const { user } = useAuth()
-  const params = useParams()
-  const id = Array.isArray(params.id) ? (params.id[0] ?? '') : (params.id ?? '')
+  const searchParams = useSearchParams()
+  const id = searchParams.get('id') ?? ''
 
   const [internship, setInternship] = useState<InternshipResponse | null>(null)
   const [loading, setLoading] = useState(true)
