@@ -52,12 +52,6 @@ export function StudentSidebar() {
             <Link
               key={href}
               href={href}
-              onClick={(e) => {
-                if (active) {
-                  e.preventDefault()
-                  window.location.reload()
-                }
-              }}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
                 active
