@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
 
@@ -28,6 +27,13 @@ const CONFLICT_MESSAGES: Record<string, string> = {
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
 }
 
+const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
+  duplicate_application: 'You have already applied to this opportunity.',
+  student_has_no_selected_semester: 'Pick a semester before applying. Use "Change Semester" above.',
+  opportunity_not_published: 'This opportunity is no longer accepting applications.',
+  opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
+}
+
 function opportunityStatusToBadge(status: string): StudentStatus {
   const map: Record<string, StudentStatus> = {
     applied: 'applied',
@@ -43,6 +49,9 @@ export default function StudentOpportunitiesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const semesterId = searchParams.get('semesterId') ?? undefined
+  // `?change=1` lets the "Change Semester" button bypass the auto-redirect
+  // below and stay on the selection screen.
+  const wantsChange = searchParams.get('change') === '1'
 
   // Semester selection state
   const [semesters, setSemesters] = useState<SemesterResponse[]>([])
@@ -57,7 +66,13 @@ export default function StudentOpportunitiesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load semesters + pre-select the user's current semester
+  // Apply-flow state
+  const [applyingId, setApplyingId] = useState<string | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
+
+  // Load semesters + pre-select the user's current semester. If they already
+  // have a saved selection and didn't explicitly ask to change it, jump
+  // straight to the opportunities view.
   useEffect(() => {
     const loadSemesters = async () => {
       try {
@@ -68,7 +83,11 @@ export default function StudentOpportunitiesPage() {
         ])
         setSemesters(semesterRes.items)
         if (user.role === 'student') {
-          setSelectedSemester(user.studentProfile?.semesterId ?? null)
+          const savedSemesterId = user.studentProfile?.semesterId ?? null
+          setSelectedSemester(savedSemesterId)
+          if (savedSemesterId && !semesterId && !wantsChange) {
+            router.replace(`/student/opportunities?semesterId=${savedSemesterId}`)
+          }
         }
       } catch {
         // Non-fatal — semester selection will still work
@@ -77,7 +96,7 @@ export default function StudentOpportunitiesPage() {
       }
     }
     loadSemesters()
-  }, [])
+  }, [router, semesterId, wantsChange])
 
   // Load opportunities once a semesterId is known from the URL
   useEffect(() => {
@@ -99,6 +118,25 @@ export default function StudentOpportunitiesPage() {
     }
     loadData()
   }, [semesterId])
+
+  const applyToOpportunity = async (opportunityId: string) => {
+    setApplyError(null)
+    setApplyingId(opportunityId)
+    try {
+      await InternshipsService.createInternship({ opportunityId })
+      // Refetch so the card flips to "Applied" and the KPI count updates.
+      const refreshed = await InternshipsService.listInternships()
+      setInternships(refreshed.items)
+    } catch (err: unknown) {
+      const reason = getApiErrorReason(err)
+      setApplyError(
+        (reason && APPLY_CONFLICT_MESSAGES[reason]) ??
+          getApiErrorMessage(err, 'Failed to submit application')
+      )
+    } finally {
+      setApplyingId(null)
+    }
+  }
 
   const confirmSemester = async () => {
     if (!selectedSemester) {
@@ -225,7 +263,7 @@ export default function StudentOpportunitiesPage() {
         />
         <button
           type="button"
-          onClick={() => router.push('/student/opportunities')}
+          onClick={() => router.push('/student/opportunities?change=1')}
           className="shrink-0 rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
         >
           Change Semester
@@ -273,6 +311,12 @@ export default function StudentOpportunitiesPage() {
       {error && !loading && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
+        </div>
+      )}
+
+      {applyError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {applyError}
         </div>
       )}
 
@@ -329,12 +373,14 @@ export default function StudentOpportunitiesPage() {
                     Applied
                   </span>
                 ) : opportunity.status === 'published' ? (
-                  <Link
-                    href={`/student/jobs/${opportunity.id}`}
-                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700"
+                  <button
+                    type="button"
+                    onClick={() => applyToOpportunity(opportunity.id)}
+                    disabled={applyingId !== null}
+                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Apply
-                  </Link>
+                    {applyingId === opportunity.id ? 'Applying…' : 'Apply'}
+                  </button>
                 ) : (
                   <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-400">
                     Not available
