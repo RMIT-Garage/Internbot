@@ -128,7 +128,7 @@ export function ContractsList() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+      <div className="rounded-2xl border border-black/20 bg-white px-4 py-3 text-sm text-black/60">
         Loading applications...
       </div>
     )
@@ -136,7 +136,7 @@ export function ContractsList() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {error}
       </div>
     )
@@ -146,18 +146,18 @@ export function ContractsList() {
     <>
       <AnalyticsStrip
         items={[
-          { label: 'Applied', value: pendingCount, detail: 'Awaiting response', tone: 'blue' },
+          { label: 'Applied', value: pendingCount, detail: 'Awaiting response', tone: 'charcoal' },
           {
             label: 'Offer pending',
             value: reviewCount,
             detail: 'Under coordinator review',
-            tone: 'purple',
+            tone: 'dark',
           },
           {
             label: 'Approved',
             value: approvedCount,
             detail: 'Confirmed placements',
-            tone: 'green',
+            tone: 'red',
           },
           {
             label: 'Flagged',
@@ -179,13 +179,13 @@ export function ContractsList() {
       />
 
       {paged.rows.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+        <div className="rounded-2xl border border-black/20 bg-white px-4 py-8 text-center text-sm text-black/50">
           No applications found.
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border bg-white">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+            <thead className="bg-black/5 text-xs font-semibold text-black/60">
               <tr>
                 <th className="p-3 text-left">Employer</th>
                 <th className="p-3 text-left">Role</th>
@@ -209,12 +209,12 @@ export function ContractsList() {
             <tbody>
               {paged.rows.map((i) => (
                 <tr key={i.id} className="border-t">
-                  <td className="p-3 font-medium text-slate-950">{i.opportunityEmployerName}</td>
-                  <td className="p-3 text-slate-700">{i.opportunityJobTitle}</td>
-                  <td className="p-3 text-slate-500 capitalize">
+                  <td className="p-3 font-medium text-black">{i.opportunityEmployerName}</td>
+                  <td className="p-3 text-black">{i.opportunityJobTitle}</td>
+                  <td className="p-3 text-black/60 capitalize">
                     {i.opportunityType.replace('_', ' ')}
                   </td>
-                  <td className="p-3 text-slate-500">{formatDate(i.createdAt)}</td>
+                  <td className="p-3 text-black/60">{formatDate(i.createdAt)}</td>
                   <td className="p-3">
                     <StatusBadge status={internshipStatusToBadge(i.status)} />
                   </td>

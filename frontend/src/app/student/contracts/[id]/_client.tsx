@@ -82,7 +82,7 @@ export default function StudentContractDetailPage() {
         }
         actions={
           <Link
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-bold text-black hover:bg-black/5"
             href="/student/contracts"
           >
             Back to contracts
@@ -102,9 +102,9 @@ export default function StudentContractDetailPage() {
             <SurfaceCard className="p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-950">Offer Documents</h2>
+                  <h2 className="text-xl font-bold text-black">Offer Documents</h2>
                   {internship.lastSubmittedAt && (
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-black/60">
                       Last submitted {formatDate(internship.lastSubmittedAt)}
                     </p>
                   )}
@@ -113,26 +113,26 @@ export default function StudentContractDetailPage() {
               </div>
 
               {internship.attachments.length === 0 ? (
-                <div className="mt-6 flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                  <FileText className="h-10 w-10 text-slate-400" />
-                  <p className="mt-3 text-sm text-slate-500">No offer documents uploaded yet.</p>
+                <div className="mt-6 flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-black/20 bg-black/5 p-6 text-center">
+                  <FileText className="h-10 w-10 text-black/30" />
+                  <p className="mt-3 text-sm text-black/50">No offer documents uploaded yet.</p>
                 </div>
               ) : (
                 <div className="mt-4 space-y-2">
                   {internship.attachments.map((att) => (
                     <div
                       key={att.id}
-                      className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                      className="flex items-center gap-3 rounded-2xl border border-black/20 bg-black/5 px-4 py-3"
                     >
-                      <Paperclip className="h-4 w-4 shrink-0 text-slate-400" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-950">
+                      <Paperclip className="h-4 w-4 shrink-0 text-black/30" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-black">
                         {att.fileName ?? att.id}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                           att.uploadStatus === 'finalized'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-700'
+                            ? 'bg-black/10 text-black'
+                            : 'bg-red-50 text-red-700'
                         }`}
                       >
                         {att.uploadStatus === 'finalized' ? 'Uploaded' : 'Uploading'}
@@ -144,7 +144,7 @@ export default function StudentContractDetailPage() {
             </SurfaceCard>
 
             <SurfaceCard className="p-6">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-black">
                 <Calendar className="h-5 w-5 text-red-700" />
                 Placement Details
               </h2>
@@ -157,11 +157,11 @@ export default function StudentContractDetailPage() {
                     ['Type', internship.opportunityType.replace('_', ' ')],
                   ] as const
                 ).map(([label, value]) => (
-                  <div key={label} className="rounded-2xl bg-slate-50 p-4">
-                    <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+                  <div key={label} className="rounded-2xl bg-black/5 p-4">
+                    <p className="text-xs font-bold tracking-wide text-black/60 uppercase">
                       {label}
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950 capitalize">{value}</p>
+                    <p className="mt-1 text-sm font-semibold text-black capitalize">{value}</p>
                   </div>
                 ))}
               </div>
@@ -169,11 +169,11 @@ export default function StudentContractDetailPage() {
 
             {internship.coordinatorComment && (
               <SurfaceCard className="p-6">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
-                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                <h2 className="flex items-center gap-2 text-lg font-bold text-black">
+                  <AlertTriangle className="h-5 w-5 text-red-700" />
                   Coordinator Feedback
                 </h2>
-                <p className="mt-3 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                <p className="mt-3 rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-900">
                   {internship.coordinatorComment}
                 </p>
               </SurfaceCard>
