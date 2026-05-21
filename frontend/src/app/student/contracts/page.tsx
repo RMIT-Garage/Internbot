@@ -12,11 +12,11 @@ function CoordinatorPageHeader({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{eyebrow}</p>
+      <p className="text-xs font-bold tracking-wide text-red-700 uppercase">{eyebrow}</p>
 
-      <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
+      <h1 className="text-2xl font-bold text-black">{title}</h1>
 
-      <p className="text-sm text-slate-600">{description}</p>
+      <p className="text-sm text-black/60">{description}</p>
     </div>
   )
 }
@@ -30,7 +30,7 @@ export default function CoordinatorContractsPage() {
         description="Review placement agreements with AI compliance checks, risk indicators, and coordinator audit context."
       />
 
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading contracts...</div>}>
+      <Suspense fallback={<div className="text-sm text-black/50">Loading contracts...</div>}>
         <ContractsList />
       </Suspense>
     </div>
