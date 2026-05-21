@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { CoordinatorPageHeader } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { ContractsList } from './ContractsList'
 
 export default function CoordinatorContractsPage() {
@@ -10,7 +11,7 @@ export default function CoordinatorContractsPage() {
         title="Contract Approvals"
         description="Review placement agreements with AI compliance checks, risk indicators, and coordinator audit context."
       />
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading contracts...</div>}>
+      <Suspense fallback={<CoordinatorContentSkeleton title="Loading contracts…" />}>
         <ContractsList />
       </Suspense>
     </div>

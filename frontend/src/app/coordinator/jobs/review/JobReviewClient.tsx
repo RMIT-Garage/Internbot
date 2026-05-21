@@ -13,6 +13,7 @@ import {
   User,
 } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import {
   ReviewDecisionPanel,
   type ReviewDecision,
@@ -82,7 +83,7 @@ export function JobReviewClient() {
   }
 
   if (loading) {
-    return <ReviewNotice title="Loading job review" message="Fetching the selected opportunity." />
+    return <CoordinatorContentSkeleton title="Loading job review…" />
   }
 
   if (!job) {

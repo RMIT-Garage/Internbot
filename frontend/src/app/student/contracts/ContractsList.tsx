@@ -9,6 +9,7 @@ import { FilterBar } from '@/components/student/FilterBar'
 import { Pagination } from '@/components/student/Pagination'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { AnalyticsStrip } from '@/components/student/Premium'
+import { KpiCardSkeleton, TableRowsSkeleton } from '@/components/ui/ContentSkeleton'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage } from '@/lib/api/errors'
@@ -129,8 +130,28 @@ export function ContractsList() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-black/20 bg-white px-4 py-3 text-sm text-black/60">
-        Loading applications...
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading applications…</span>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <KpiCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="overflow-hidden rounded-2xl border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-black/5 text-xs font-semibold text-black/60">
+              <tr>
+                <th className="p-3 text-left">Employer</th>
+                <th className="p-3 text-left">Role</th>
+                <th className="p-3 text-left">Type</th>
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left" aria-label="Actions" />
+              </tr>
+            </thead>
+            <TableRowsSkeleton columns={6} />
+          </table>
+        </div>
       </div>
     )
   }

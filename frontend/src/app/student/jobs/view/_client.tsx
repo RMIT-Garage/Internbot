@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, Building2, Clock3, FileText, ShieldCheck, User } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipResponse } from '@/lib/api/openapi-client'
@@ -85,6 +86,36 @@ export default function StudentJobDetailPage() {
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
+        </div>
+      )}
+
+      {loading && (
+        <div
+          className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_320px]"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <p className="sr-only">Loading application details…</p>
+          <div className="space-y-6">
+            <SurfaceCard className="p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-44 bg-slate-200" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-20 rounded-2xl bg-slate-50" />
+                ))}
+              </div>
+            </SurfaceCard>
+            <SurfaceCard className="p-6">
+              <Skeleton className="h-5 w-40 bg-slate-200" />
+              <Skeleton className="mt-3 h-4 w-2/3" />
+            </SurfaceCard>
+          </div>
         </div>
       )}
 

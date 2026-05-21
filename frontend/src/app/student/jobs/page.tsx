@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { CoordinatorPageHeader } from '@/components/student/Premium'
 import { JobsList } from './JobsList'
+import { ListRowsSkeleton } from '@/components/ui/ContentSkeleton'
 
 export default function StudentApplicationsPage() {
   return (
@@ -10,7 +11,7 @@ export default function StudentApplicationsPage() {
         title="My Applications"
         description="Track the status of your internship applications."
       />
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading jobs...</div>}>
+      <Suspense fallback={<ListRowsSkeleton label="Loading applications…" />}>
         <JobsList />
       </Suspense>
     </div>

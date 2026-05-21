@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Download, UserPlus } from 'lucide-react'
 import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
 import { CoordinatorPageHeader } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StudentsList } from './StudentsList'
 
 export default function CoordinatorStudentsPage() {
@@ -27,7 +28,7 @@ export default function CoordinatorStudentsPage() {
           </>
         }
       />
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading students...</div>}>
+      <Suspense fallback={<CoordinatorContentSkeleton title="Loading students…" />}>
         <StudentsList />
       </Suspense>
     </div>

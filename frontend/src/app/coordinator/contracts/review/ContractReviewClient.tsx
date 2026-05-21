@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AlertTriangle, FileText, History, MessageSquareText, ShieldCheck } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import {
   ReviewDecisionPanel,
   type ReviewDecision,
@@ -74,9 +75,7 @@ export function ContractReviewClient() {
   }
 
   if (loading) {
-    return (
-      <ReviewNotice title="Loading contract review" message="Fetching the selected internship." />
-    )
+    return <CoordinatorContentSkeleton title="Loading contract review…" />
   }
 
   if (!contract) {
