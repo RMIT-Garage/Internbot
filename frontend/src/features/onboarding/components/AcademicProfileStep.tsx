@@ -21,13 +21,15 @@ const PROGRAMS = [
 
 const schema = z.object({
   programName: z.string().min(1, 'Program name is required'),
+
   programLevel: z.enum(['undergraduate', 'postgraduate']),
-  gpa: z.coerce
-    .number({ invalid_type_error: 'GPA must be a number' })
-    .min(0, 'Min 0.0')
-    .max(4, 'Max 4.0'),
-  unitsAttempted: z.coerce.number({ invalid_type_error: 'Must be a number' }).min(0),
-  creditUnitsEarned: z.coerce.number({ invalid_type_error: 'Must be a number' }).min(0),
+
+  gpa: z.coerce.number().min(0, 'Min 0.0').max(4, 'Max 4.0'),
+
+  unitsAttempted: z.coerce.number().min(0),
+
+  creditUnitsEarned: z.coerce.number().min(0),
+
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
 })
 
@@ -110,7 +112,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
       <div className="mx-auto max-w-5xl px-8 py-12">
         {/* Stepper */}
         <div className="relative mb-16 flex items-center justify-center">
-          <div className="absolute left-0 top-5 -z-10 h-px w-full bg-gray-100" />
+          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
           <div className="flex w-full max-w-2xl justify-between">
             {STEPS.map((step) => {
               const isActive = step.key === 'academic'
@@ -156,13 +158,13 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
                 {/* Program name */}
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     Program Name
                   </label>
                   <div className="relative">
                     <select
                       {...register('programName')}
-                      className="w-full appearance-none rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 font-medium text-slate-700 outline-none transition-all focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full appearance-none rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 font-medium text-slate-700 transition-all outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
                     >
                       {PROGRAMS.map((p) => (
                         <option key={p} value={p}>
@@ -172,7 +174,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                     </select>
                     <ChevronDown
                       size={20}
-                      className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute top-1/2 right-5 -translate-y-1/2 text-slate-400"
                     />
                   </div>
                   {errors.programName && (
@@ -183,7 +185,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                 {/* Level + GPA */}
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                       Program Level
                     </label>
                     <div className="flex rounded-xl border border-gray-100 bg-slate-50 p-1">
@@ -212,7 +214,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                     </div>
                   </div>
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                       Current GPA (0.0 – 4.0)
                     </label>
                     <input
@@ -222,7 +224,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       min="0"
                       max="4"
                       placeholder="3.8"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
                     />
                     {errors.gpa && (
                       <p className="mt-1 text-xs text-red-500">{errors.gpa.message}</p>
@@ -232,7 +234,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
 
                 {/* Study Load */}
                 <div>
-                  <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                     Study Load
                   </label>
                   <div className="flex rounded-xl border border-gray-100 bg-slate-50 p-1">
@@ -260,7 +262,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                 {/* Units */}
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                       Units Attempted
                     </label>
                     <input
@@ -268,14 +270,14 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       type="number"
                       min="0"
                       placeholder="24"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
                     />
                     {errors.unitsAttempted && (
                       <p className="mt-1 text-xs text-red-500">{errors.unitsAttempted.message}</p>
                     )}
                   </div>
                   <div>
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                       Credit Units Earned
                     </label>
                     <input
@@ -283,7 +285,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       type="number"
                       min="0"
                       placeholder="18"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
                     />
                     {errors.creditUnitsEarned && (
                       <p className="mt-1 text-xs text-red-500">
