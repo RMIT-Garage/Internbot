@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, BrainCircuit, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function CoordinatorPageHeader({
@@ -20,7 +19,7 @@ export function CoordinatorPageHeader({
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           {eyebrow && (
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-700">{eyebrow}</p>
+            <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">{eyebrow}</p>
           )}
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
             {title}
@@ -99,43 +98,6 @@ export function KPIStatCard({
   )
 }
 
-export function AIInsightCard({
-  title,
-  insight,
-  confidence,
-  href,
-}: {
-  title: string
-  insight: string
-  confidence?: number
-  href?: string
-}) {
-  const content = (
-    <SurfaceCard className="relative overflow-hidden border-red-100 bg-gradient-to-br from-white via-white to-red-50 p-5 shadow-slate-200/70">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-red-700" />
-      <div className="flex items-start gap-4">
-        <div className="rounded-2xl bg-slate-950 p-3 text-white shadow-sm">
-          <BrainCircuit className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-bold text-slate-950">{title}</h2>
-            {typeof confidence === 'number' && (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
-                {confidence}% confidence
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{insight}</p>
-        </div>
-        {href && <ArrowRight className="mt-1 h-4 w-4 text-red-700" />}
-      </div>
-    </SurfaceCard>
-  )
-
-  return href ? <Link href={href}>{content}</Link> : content
-}
-
 export function AnalyticsStrip({
   items,
 }: {
@@ -156,7 +118,7 @@ export function AnalyticsStrip({
     <SurfaceCard className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => (
         <div key={item.label} className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{item.label}</p>
+          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{item.label}</p>
           <p
             className={cn(
               'mt-3 inline-flex rounded-xl px-3 py-1 text-2xl font-bold',
@@ -168,34 +130,6 @@ export function AnalyticsStrip({
           <p className="mt-3 text-sm text-slate-500">{item.detail}</p>
         </div>
       ))}
-    </SurfaceCard>
-  )
-}
-
-export function AICommandCard({
-  title,
-  description,
-  metric,
-}: {
-  title: string
-  description: string
-  metric: string
-}) {
-  return (
-    <SurfaceCard className="group relative overflow-hidden border-red-200 bg-slate-950 p-5 text-white shadow-slate-950/20 transition hover:-translate-y-0.5 hover:shadow-xl">
-      <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-red-700/30 blur-3xl transition group-hover:bg-red-600/30" />
-      <div className="relative">
-        <div className="flex items-center justify-between gap-3">
-          <div className="rounded-2xl bg-white/10 p-3 text-white ring-1 ring-white/15">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
-            {metric}
-          </span>
-        </div>
-        <h3 className="mt-5 text-lg font-bold">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
-      </div>
     </SurfaceCard>
   )
 }

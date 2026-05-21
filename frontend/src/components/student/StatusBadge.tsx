@@ -1,45 +1,34 @@
 import { cn } from '@/lib/utils'
 
 const statusStyles = {
-  pending:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
-  approved:
-    'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
-  changes_requested:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
-  flagged:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
+  applied:
+    'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200',
+
+  offer_pending_review:
+    'border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900/60 dark:bg-yellow-950/40 dark:text-yellow-200',
+
+  offer_approved:
+    'border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-200',
+
+  offer_changes_requested:
+    'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-200',
+
   rejected:
-    'border-red-300 bg-white text-red-800 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-200',
-  on_track:
-    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
-  needs_attention:
     'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
-  inactive:
-    'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
-  active:
-    'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
-  archived:
-    'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
 }
 
 const statusLabels = {
-  pending: 'Pending',
-  approved: 'Approved',
-  changes_requested: 'Changes requested',
-  flagged: 'Flagged',
-  on_track: 'On track',
-  needs_attention: 'Needs attention',
-  inactive: 'Inactive',
-  active: 'Active',
-  archived: 'Archived',
+  applied: 'Applied',
+  offer_pending_review: 'In review',
+  offer_approved: 'Approved',
+  offer_changes_requested: 'Action required',
   rejected: 'Rejected',
-}
+} as const
 
-export type CoordinatorStatus = keyof typeof statusStyles
+export type StudentStatus = keyof typeof statusStyles
 
 interface StatusBadgeProps {
-  status: CoordinatorStatus
+  status: StudentStatus
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {

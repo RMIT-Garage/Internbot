@@ -26,7 +26,7 @@ export function useRequireCoordinatorAuth({ disabled = false } = {}): { ready: b
     }
 
     if (profile && !isCoordinatorRole(profile.role)) {
-      router.replace('/dashboard')
+      router.replace('/student/dashboard')
     }
   }, [user, profile, loading, needsVerification, router, pathname, disabled])
 

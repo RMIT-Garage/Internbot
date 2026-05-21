@@ -11,7 +11,7 @@ import {
 import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { FilterBar } from '@/components/coordinator/FilterBar'
 import { Pagination } from '@/components/coordinator/Pagination'
-import { AIInsightCard, AnalyticsStrip } from '@/components/coordinator/Premium'
+import { AnalyticsStrip } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import {
   courses,
@@ -167,11 +167,6 @@ export function JobsList() {
 
   return (
     <>
-      <AIInsightCard
-        title={`Placement Review AI Insights (${source === 'api' ? 'API-backed' : 'fallback data'})`}
-        confidence={91}
-        insight="Remote supervision and unclear learning outcomes are the most common concerns in the current job approval queue."
-      />
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
           {`Using isolated fallback data: ${error}`}

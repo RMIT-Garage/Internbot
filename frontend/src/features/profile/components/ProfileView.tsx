@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ShieldCheck, AlertCircle, ExternalLink, Settings, Wand2 } from 'lucide-react'
+import { ShieldCheck, AlertCircle, ExternalLink, Settings } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload } from '../types'
 import { ProfileEditForm } from './ProfileEditForm'
 
@@ -135,12 +135,12 @@ export function ProfileView({ user, onSave, saving }: Props) {
         </div>
 
         {/* Edit / discard buttons */}
-        <button
+        {/* <button
           onClick={() => setEditing(true)}
           className="w-full rounded-lg bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700"
         >
           EDIT PROFILE
-        </button>
+        </button> */}
       </div>
 
       {/* Edit form modal */}

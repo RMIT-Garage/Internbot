@@ -1,18 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
 
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/student/Premium'
+import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import {
   OpportunitiesService,
   InternshipsService,
@@ -33,21 +28,31 @@ const CONFLICT_MESSAGES: Record<string, string> = {
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
 }
 
-function opportunityStatusToBadge(status: string): CoordinatorStatus {
-  const map: Record<string, CoordinatorStatus> = {
-    published: 'active',
-    draft: 'pending',
-    pending_verification: 'on_track',
+const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
+  duplicate_application: 'You have already applied to this opportunity.',
+  student_has_no_selected_semester: 'Pick a semester before applying. Use "Change Semester" above.',
+  opportunity_not_published: 'This opportunity is no longer accepting applications.',
+  opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
+}
+
+function opportunityStatusToBadge(status: string): StudentStatus {
+  const map: Record<string, StudentStatus> = {
+    applied: 'applied',
+    offer_pending_review: 'offer_pending_review',
+    offer_changes_requested: 'offer_changes_requested',
+    offer_approved: 'offer_approved',
     rejected: 'rejected',
-    archived: 'archived',
   }
-  return map[status] ?? 'pending'
+  return map[status] ?? 'applied'
 }
 
 export default function StudentOpportunitiesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const semesterId = searchParams.get('semesterId') ?? undefined
+  // `?change=1` lets the "Change Semester" button bypass the auto-redirect
+  // below and stay on the selection screen.
+  const wantsChange = searchParams.get('change') === '1'
 
   // Semester selection state
   const [semesters, setSemesters] = useState<SemesterResponse[]>([])
@@ -62,7 +67,13 @@ export default function StudentOpportunitiesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load semesters + pre-select the user's current semester
+  // Apply-flow state
+  const [applyingId, setApplyingId] = useState<string | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
+
+  // Load semesters + pre-select the user's current semester. If they already
+  // have a saved selection and didn't explicitly ask to change it, jump
+  // straight to the opportunities view.
   useEffect(() => {
     const loadSemesters = async () => {
       try {
@@ -73,7 +84,11 @@ export default function StudentOpportunitiesPage() {
         ])
         setSemesters(semesterRes.items)
         if (user.role === 'student') {
-          setSelectedSemester(user.studentProfile?.semesterId ?? null)
+          const savedSemesterId = user.studentProfile?.semesterId ?? null
+          setSelectedSemester(savedSemesterId)
+          if (savedSemesterId && !semesterId && !wantsChange) {
+            router.replace(`/student/opportunities?semesterId=${savedSemesterId}`)
+          }
         }
       } catch {
         // Non-fatal — semester selection will still work
@@ -82,7 +97,7 @@ export default function StudentOpportunitiesPage() {
       }
     }
     loadSemesters()
-  }, [])
+  }, [router, semesterId, wantsChange])
 
   // Load opportunities once a semesterId is known from the URL
   useEffect(() => {
@@ -104,6 +119,25 @@ export default function StudentOpportunitiesPage() {
     }
     loadData()
   }, [semesterId])
+
+  const applyToOpportunity = async (opportunityId: string) => {
+    setApplyError(null)
+    setApplyingId(opportunityId)
+    try {
+      await InternshipsService.createInternship({ opportunityId })
+      // Refetch so the card flips to "Applied" and the KPI count updates.
+      const refreshed = await InternshipsService.listInternships()
+      setInternships(refreshed.items)
+    } catch (err: unknown) {
+      const reason = getApiErrorReason(err)
+      setApplyError(
+        (reason && APPLY_CONFLICT_MESSAGES[reason]) ??
+          getApiErrorMessage(err, 'Failed to submit application')
+      )
+    } finally {
+      setApplyingId(null)
+    }
+  }
 
   const confirmSemester = async () => {
     if (!selectedSemester) {
@@ -148,8 +182,23 @@ export default function StudentOpportunitiesPage() {
         )}
 
         {loadingSemesters ? (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            Loading semesters...
+          <div
+            className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">Loading semesters…</span>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex justify-between">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-6 w-6" />
+                </div>
+                <Skeleton className="mt-4 h-6 w-32 bg-slate-200" />
+                <Skeleton className="mt-2 h-3 w-24" />
+                <Skeleton className="mt-3 h-3 w-40" />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -230,7 +279,7 @@ export default function StudentOpportunitiesPage() {
         />
         <button
           type="button"
-          onClick={() => router.push('/student/opportunities')}
+          onClick={() => router.push('/student/opportunities?change=1')}
           className="shrink-0 rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
         >
           Change Semester
@@ -244,7 +293,7 @@ export default function StudentOpportunitiesPage() {
           value={activeCount}
           detail="Published opportunities"
           icon={BriefcaseBusiness}
-          tone="green"
+          tone="red"
           progress={
             opportunities.length > 0 ? Math.round((activeCount / opportunities.length) * 100) : 0
           }
@@ -254,7 +303,7 @@ export default function StudentOpportunitiesPage() {
           value={appliedCount}
           detail="Submitted applications"
           icon={BarChart3}
-          tone="blue"
+          tone="charcoal"
           progress={
             activeCount > 0 ? Math.min(Math.round((appliedCount / activeCount) * 100), 100) : 0
           }
@@ -264,26 +313,20 @@ export default function StudentOpportunitiesPage() {
           value={opportunities.length}
           detail="Opportunities this semester"
           icon={Sparkles}
-          tone="purple"
+          tone="neutral"
           progress={100}
         />
       </div>
 
-      <AIInsightCard
-        title="Opportunity Insights"
-        confidence={84}
-        insight="Browse published opportunities and apply early to improve your acceptance chances."
-      />
-
-      {loading && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Loading opportunities...
-        </div>
-      )}
-
       {error && !loading && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
+        </div>
+      )}
+
+      {applyError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {applyError}
         </div>
       )}
 
@@ -294,67 +337,90 @@ export default function StudentOpportunitiesPage() {
       )}
 
       {/* OPPORTUNITY GRID */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {opportunities.map((opportunity) => {
-          const alreadyApplied = appliedOpportunityIds.has(opportunity.id)
-
-          return (
-            <SurfaceCard
-              key={opportunity.id}
-              className="flex flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="truncate font-bold text-slate-950">{opportunity.jobTitle}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{opportunity.employerName}</p>
+      <div className="grid gap-4 lg:grid-cols-3" aria-busy={loading} aria-live="polite">
+        {loading && opportunities.length === 0
+          ? [0, 1, 2, 3, 4, 5].map((i) => (
+              <SurfaceCard key={`skeleton-${i}`} className="flex flex-col p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-5 w-3/4 bg-slate-200" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                  <Skeleton className="h-6 w-16" />
                 </div>
-                <StatusBadge status={opportunityStatusToBadge(opportunity.status)} />
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-2xl font-bold text-slate-950">
-                    {opportunity.applicationCount}
-                  </p>
-                  <p className="text-xs text-slate-500">Applications</p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Skeleton className="h-16 rounded-xl bg-slate-50" />
+                  <Skeleton className="h-16 rounded-xl bg-slate-50" />
                 </div>
-
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-sm font-bold text-slate-950 capitalize">
-                    {opportunity.type.replace('_', ' ')}
-                  </p>
-                  <p className="text-xs text-slate-500">Type</p>
+                <Skeleton className="mt-3 h-3 w-24" />
+                <div className="mt-auto pt-4">
+                  <Skeleton className="h-9 rounded-xl" />
                 </div>
-              </div>
+                <span className="sr-only">Loading opportunity…</span>
+              </SurfaceCard>
+            ))
+          : opportunities.map((opportunity) => {
+              const alreadyApplied = appliedOpportunityIds.has(opportunity.id)
 
-              {opportunity.workMode && (
-                <p className="mt-3 text-xs text-slate-400 capitalize">
-                  {opportunity.workMode}
-                  {opportunity.location ? ` · ${opportunity.location}` : ''}
-                </p>
-              )}
+              return (
+                <SurfaceCard
+                  key={opportunity.id}
+                  className="flex flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate font-bold text-slate-950">{opportunity.jobTitle}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{opportunity.employerName}</p>
+                    </div>
+                    <StatusBadge status={opportunityStatusToBadge(opportunity.status)} />
+                  </div>
 
-              <div className="mt-auto pt-4">
-                {alreadyApplied ? (
-                  <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-500">
-                    Applied
-                  </span>
-                ) : opportunity.status === 'published' ? (
-                  <Link
-                    href={`/student/jobs/${opportunity.id}`}
-                    className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700"
-                  >
-                    Apply
-                  </Link>
-                ) : (
-                  <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-400">
-                    Not available
-                  </span>
-                )}
-              </div>
-            </SurfaceCard>
-          )
-        })}
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-2xl font-bold text-slate-950">
+                        {opportunity.applicationCount}
+                      </p>
+                      <p className="text-xs text-slate-500">Applications</p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-sm font-bold text-slate-950 capitalize">
+                        {opportunity.type.replace('_', ' ')}
+                      </p>
+                      <p className="text-xs text-slate-500">Type</p>
+                    </div>
+                  </div>
+
+                  {opportunity.workMode && (
+                    <p className="mt-3 text-xs text-slate-400 capitalize">
+                      {opportunity.workMode}
+                      {opportunity.location ? ` · ${opportunity.location}` : ''}
+                    </p>
+                  )}
+
+                  <div className="mt-auto pt-4">
+                    {alreadyApplied ? (
+                      <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-500">
+                        Applied
+                      </span>
+                    ) : opportunity.status === 'published' ? (
+                      <button
+                        type="button"
+                        onClick={() => applyToOpportunity(opportunity.id)}
+                        disabled={applyingId !== null}
+                        className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {applyingId === opportunity.id ? 'Applying…' : 'Apply'}
+                      </button>
+                    ) : (
+                      <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-400">
+                        Not available
+                      </span>
+                    )}
+                  </div>
+                </SurfaceCard>
+              )
+            })}
       </div>
     </div>
   )

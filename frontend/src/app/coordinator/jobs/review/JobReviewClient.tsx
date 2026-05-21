@@ -12,12 +12,8 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  SurfaceCard,
-  TimelineFeed,
-} from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import {
   ReviewDecisionPanel,
   type ReviewDecision,
@@ -87,7 +83,7 @@ export function JobReviewClient() {
   }
 
   if (loading) {
-    return <ReviewNotice title="Loading job review" message="Fetching the selected opportunity." />
+    return <CoordinatorContentSkeleton title="Loading job review…" />
   }
 
   if (!job) {
@@ -190,12 +186,6 @@ export function JobReviewClient() {
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <AIInsightCard
-            title="AI Insights"
-            confidence={job.aiConfidence ?? 88}
-            insight={job.aiAdvisory}
-          />
-
           <SurfaceCard className="p-6">
             <h2 className="text-lg font-bold text-slate-950">Risk Analysis</h2>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">

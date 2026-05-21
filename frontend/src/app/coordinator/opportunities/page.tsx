@@ -4,12 +4,7 @@ import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { BarChart3, BriefcaseBusiness, Plus, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
 import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { opportunities } from '@/lib/coordinator/mockData'
@@ -322,12 +317,6 @@ export default function CoordinatorOpportunitiesPage() {
           progress={42}
         />
       </div>
-
-      <AIInsightCard
-        title={`Opportunity AI Suggestions (${source === 'api' ? 'API-backed' : 'fallback data'})`}
-        confidence={84}
-        insight="Cyber security postings are drawing strong engagement. Consider publishing one additional remote-friendly analytics role for Semester 2 demand."
-      />
 
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">

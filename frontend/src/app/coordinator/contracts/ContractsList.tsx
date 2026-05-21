@@ -11,7 +11,7 @@ import {
 import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { FilterBar } from '@/components/coordinator/FilterBar'
 import { Pagination } from '@/components/coordinator/Pagination'
-import { AIInsightCard, AnalyticsStrip } from '@/components/coordinator/Premium'
+import { AnalyticsStrip } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import {
   contractApprovals,
@@ -170,11 +170,6 @@ export function ContractsList() {
 
   return (
     <>
-      <AIInsightCard
-        title={`Contract AI Triage (${source === 'api' ? 'API-backed' : 'fallback data'})`}
-        confidence={89}
-        insight="High-risk contracts are mostly missing insurance clauses or date alignment. Prioritise flagged rows before standard pending approvals."
-      />
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
           {`Using isolated fallback data: ${error}`}

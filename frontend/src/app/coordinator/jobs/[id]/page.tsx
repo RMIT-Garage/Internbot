@@ -9,12 +9,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  SurfaceCard,
-  TimelineFeed,
-} from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/coordinator/Premium'
 import { ReviewDecisionPanel } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { getSelfSourcedJob, recentActivity, selfSourcedJobs } from '@/lib/coordinator/mockData'
@@ -75,7 +70,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
                 return (
                   <div key={label as string} className="rounded-2xl bg-slate-50 p-4">
                     <DetailIcon className="h-4 w-4 text-red-700" />
-                    <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
                       {label as string}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-slate-950">{value as string}</p>
@@ -101,16 +96,10 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <AIInsightCard
-            title="AI Insights"
-            confidence={job.aiConfidence ?? 88}
-            insight={job.aiAdvisory}
-          />
-
           <SurfaceCard className="p-6">
             <h2 className="text-lg font-bold text-slate-950">Risk Analysis</h2>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Risk level</p>
+              <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Risk level</p>
               <p className="mt-1 text-2xl font-bold text-slate-950">{job.riskLevel ?? 'Low'}</p>
             </div>
             <div className="mt-4 space-y-2">

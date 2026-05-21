@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth } from '@/lib/firebase/client'
 import { apiFetch } from '@/lib/api/client'
 import type { PlatformUser, UpdateProfilePayload } from '../types'
 
@@ -22,9 +24,6 @@ export function useUserProfile(): UseUserProfileResult {
   const fetchUser = useCallback(async () => {
     try {
       setError(null)
-      // const firebaseAuth = getFirebaseAuth()
-      // console.log('currentUser:', firebaseAuth.currentUser)
-      // console.log('token:', await firebaseAuth.currentUser?.getIdToken())
       const data = await apiFetch<PlatformUser>('/api/v1/users/me')
       setUser(data)
     } catch (err) {
@@ -35,7 +34,15 @@ export function useUserProfile(): UseUserProfileResult {
   }, [])
 
   useEffect(() => {
-    fetchUser()
+    // Wait for Firebase to restore the session before fetching
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        fetchUser()
+      } else {
+        setLoading(false)
+      }
+    })
+    return () => unsubscribe()
   }, [fetchUser])
 
   const updateProfile = useCallback(async (payload: UpdateProfilePayload) => {

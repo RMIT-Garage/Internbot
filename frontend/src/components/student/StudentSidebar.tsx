@@ -22,7 +22,7 @@ const navItems = [
   },
   { href: '/student/contracts', label: 'Contracts', icon: FileCheck2 },
   { href: '/student/opportunities', label: 'Opportunities', icon: GraduationCap },
-  { href: '/student/ai-advisor', label: 'AI Advisor', icon: BrainCircuit },
+  { href: '/student/advisor', label: 'Advisor', icon: BrainCircuit },
   { href: '/student/notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -54,12 +54,6 @@ export function StudentSidebar() {
             <Link
               key={href}
               href={href}
-              onClick={(e) => {
-                if (active) {
-                  e.preventDefault()
-                  window.location.reload()
-                }
-              }}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
                 active

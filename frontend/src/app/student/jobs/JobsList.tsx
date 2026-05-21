@@ -5,21 +5,29 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { TableRowsSkeleton } from '@/components/ui/ContentSkeleton'
 import { formatDate } from '@/lib/utils'
 
-function internshipStatusToBadge(status: InternshipListItemResponse['status']): CoordinatorStatus {
+function internshipStatusToBadge(status: InternshipListItemResponse['status']): StudentStatus {
   switch (status) {
     case 'applied':
-      return 'pending'
+      return 'applied'
+
     case 'offer_pending_review':
-      return 'on_track'
+      return 'offer_pending_review'
+
     case 'offer_changes_requested':
-      return 'changes_requested'
+      return 'offer_changes_requested'
+
     case 'offer_approved':
-      return 'approved'
+      return 'offer_approved'
+
     case 'rejected':
       return 'rejected'
+
+    default:
+      return 'applied'
   }
 }
 
@@ -60,8 +68,25 @@ export function JobsList() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-        Loading your applications...
+      <div
+        className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <span className="sr-only">Loading your applications…</span>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
+              <th className="px-4 py-3">Role</th>
+              <th className="px-4 py-3">Employer</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Submitted</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3" aria-label="Actions" />
+            </tr>
+          </thead>
+          <TableRowsSkeleton columns={6} />
+        </table>
       </div>
     )
   }
@@ -116,7 +141,7 @@ export function JobsList() {
               </td>
               <td className="px-4 py-3 text-right">
                 <Link
-                  href={`/student/jobs/${internship.id}`}
+                  href={`/student/jobs/view?id=${internship.id}`}
                   className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                 >
                   View

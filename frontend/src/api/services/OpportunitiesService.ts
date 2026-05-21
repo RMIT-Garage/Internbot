@@ -2,8 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { CreateOpportunityAttachmentUploadIntentRequest } from '../models/CreateOpportunityAttachmentUploadIntentRequest'
 import type { CreateOpportunityRequest } from '../models/CreateOpportunityRequest'
 import type { OpportunityAttachmentDownloadResponse } from '../models/OpportunityAttachmentDownloadResponse'
+import type { OpportunityAttachmentUploadIntentResponse } from '../models/OpportunityAttachmentUploadIntentResponse'
 import type { OpportunityListResponse } from '../models/OpportunityListResponse'
 import type { OpportunityResponse } from '../models/OpportunityResponse'
 import type { PatchOpportunityRequest } from '../models/PatchOpportunityRequest'
@@ -124,6 +126,33 @@ export class OpportunitiesService {
         404: `No opportunity exists with the supplied id.`,
         412: `Stale \`If-Match\`.`,
         422: `Empty body or domain validation failure.`,
+      },
+    })
+  }
+  /**
+   * Reserve an opportunity attachment upload slot
+   * Coordinator-only. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the coordinator uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.
+   * @param id Platform opportunity id.
+   * @param requestBody
+   * @returns OpportunityAttachmentUploadIntentResponse Upload intent created. Use `uploadUrl` to PUT the file bytes.
+   * @throws ApiError
+   */
+  public static createOpportunityAttachmentUploadIntent(
+    id: string,
+    requestBody: CreateOpportunityAttachmentUploadIntentRequest
+  ): CancelablePromise<OpportunityAttachmentUploadIntentResponse> {
+    return __request(OpenAPI, {
+      method: 'POST',
+      url: '/api/v1/opportunities/{id}/attachments/upload-intents',
+      path: {
+        id: id,
+      },
+      body: requestBody,
+      mediaType: 'application/json',
+      errors: {
+        403: `Caller is not a coordinator.`,
+        404: `No opportunity exists with the supplied id.`,
+        422: `Missing or invalid \`fileName\` / \`contentType\`.`,
       },
     })
   }

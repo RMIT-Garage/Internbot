@@ -7,23 +7,24 @@ import { ArrowUpDown } from 'lucide-react'
 
 import { FilterBar } from '@/components/student/FilterBar'
 import { Pagination } from '@/components/student/Pagination'
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { AnalyticsStrip } from '@/components/student/Premium'
+import { KpiCardSkeleton, TableRowsSkeleton } from '@/components/ui/ContentSkeleton'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipListItemResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage } from '@/lib/api/errors'
 
 type SortDirection = 'asc' | 'desc'
 
-function internshipStatusToBadge(status: InternshipListItemResponse.status): CoordinatorStatus {
-  const map: Record<string, CoordinatorStatus> = {
-    applied: 'pending',
-    offer_pending_review: 'on_track',
-    offer_changes_requested: 'changes_requested',
-    offer_approved: 'approved',
+function internshipStatusToBadge(status: InternshipListItemResponse.status): StudentStatus {
+  const map: Record<string, StudentStatus> = {
+    applied: 'applied',
+    offer_pending_review: 'offer_pending_review',
+    offer_changes_requested: 'offer_changes_requested',
+    offer_approved: 'offer_approved',
     rejected: 'rejected',
   }
-  return map[status] ?? 'pending'
+  return map[status] ?? 'applied'
 }
 
 function matchesParam(value: string, param?: string) {
@@ -129,15 +130,35 @@ export function ContractsList() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-        Loading applications...
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading applications…</span>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <KpiCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="overflow-hidden rounded-2xl border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-black/5 text-xs font-semibold text-black/60">
+              <tr>
+                <th className="p-3 text-left">Employer</th>
+                <th className="p-3 text-left">Role</th>
+                <th className="p-3 text-left">Type</th>
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left" aria-label="Actions" />
+              </tr>
+            </thead>
+            <TableRowsSkeleton columns={6} />
+          </table>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {error}
       </div>
     )
@@ -152,7 +173,7 @@ export function ContractsList() {
             label: 'Offer pending',
             value: reviewCount,
             detail: 'Under coordinator review',
-            tone: 'charcoal',
+            tone: 'neutral',
           },
           {
             label: 'Approved',
@@ -180,13 +201,13 @@ export function ContractsList() {
       />
 
       {paged.rows.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+        <div className="rounded-2xl border border-black/20 bg-white px-4 py-8 text-center text-sm text-black/50">
           No applications found.
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border bg-white">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+            <thead className="bg-black/5 text-xs font-semibold text-black/60">
               <tr>
                 <th className="p-3 text-left">Employer</th>
                 <th className="p-3 text-left">Role</th>
@@ -210,18 +231,18 @@ export function ContractsList() {
             <tbody>
               {paged.rows.map((i) => (
                 <tr key={i.id} className="border-t">
-                  <td className="p-3 font-medium text-slate-950">{i.opportunityEmployerName}</td>
-                  <td className="p-3 text-slate-700">{i.opportunityJobTitle}</td>
-                  <td className="p-3 text-slate-500 capitalize">
+                  <td className="p-3 font-medium text-black">{i.opportunityEmployerName}</td>
+                  <td className="p-3 text-black">{i.opportunityJobTitle}</td>
+                  <td className="p-3 text-black/60 capitalize">
                     {i.opportunityType.replace('_', ' ')}
                   </td>
-                  <td className="p-3 text-slate-500">{formatDate(i.createdAt)}</td>
+                  <td className="p-3 text-black/60">{formatDate(i.createdAt)}</td>
                   <td className="p-3">
                     <StatusBadge status={internshipStatusToBadge(i.status)} />
                   </td>
                   <td className="p-3">
                     <Link
-                      href={`/student/contracts/${i.id}`}
+                      href={`/student/contracts/view?id=${i.id}`}
                       className="text-red-700 underline hover:text-red-800"
                     >
                       View

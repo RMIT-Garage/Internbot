@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { CoordinatorPageHeader } from '@/components/coordinator/Premium'
+import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { JobsList } from './JobsList'
 
 export default function CoordinatorJobsPage() {
@@ -10,7 +11,7 @@ export default function CoordinatorJobsPage() {
         title="Placement Reviews"
         description="Triage student-submitted placements with AI insights, workplace risk signals, and review actions."
       />
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading jobs...</div>}>
+      <Suspense fallback={<CoordinatorContentSkeleton title="Loading placements…" />}>
         <JobsList />
       </Suspense>
     </div>

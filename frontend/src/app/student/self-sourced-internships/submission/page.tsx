@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 
 import { OpportunitiesService, UsersService } from '@/lib/api/openapi-client'
 import type { OpportunityResponse, StudentUserResponse } from '@/lib/api/openapi-client'
+import { DetailHeroSkeleton } from '@/components/ui/ContentSkeleton'
 
 function SubmissionContent() {
   const params = useSearchParams()
@@ -35,7 +36,13 @@ function SubmissionContent() {
   }, [id])
 
   if (loading) {
-    return <div className="p-10 text-gray-500">Loading submission details...</div>
+    return (
+      <main className="flex-1 overflow-y-auto bg-gray-50 p-10">
+        <div className="mx-auto max-w-7xl">
+          <DetailHeroSkeleton label="Loading submission details…" />
+        </div>
+      </main>
+    )
   }
 
   const studentLabel = student
@@ -302,7 +309,15 @@ function SubmissionContent() {
 
 export default function SubmissionSuccessPage() {
   return (
-    <Suspense fallback={<div className="p-10 text-gray-500">Loading submission details...</div>}>
+    <Suspense
+      fallback={
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-10">
+          <div className="mx-auto max-w-7xl">
+            <DetailHeroSkeleton label="Loading submission details…" />
+          </div>
+        </main>
+      }
+    >
       <SubmissionContent />
     </Suspense>
   )

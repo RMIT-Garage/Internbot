@@ -8,43 +8,8 @@ import { toast } from 'sonner'
 import { NotificationsService } from '@/lib/api/openapi-client'
 import type { NotificationResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage } from '@/lib/api/errors'
-
-function CoordinatorPageHeader({
-  eyebrow,
-  title,
-  description,
-  actions,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-  actions?: React.ReactNode
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{eyebrow}</p>
-          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
-          <p className="text-sm text-slate-600">{description}</p>
-        </div>
-        {actions}
-      </div>
-    </div>
-  )
-}
-
-function SurfaceCard({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div className={`rounded-2xl border border-slate-200 bg-white ${className}`}>{children}</div>
-  )
-}
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 
 function notifHref(notif: NotificationResponse): string {
   if (notif.relatedInternshipId) return `/student/contracts/${notif.relatedInternshipId}`
@@ -119,8 +84,29 @@ export default function StudentNotificationsPage() {
       />
 
       {loading && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Loading notifications...
+        <div aria-busy="true" aria-live="polite">
+          <span className="sr-only">Loading notifications…</span>
+          <SurfaceCard className="overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-3">
+              <Skeleton className="h-4 w-40" />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-4 px-5 py-4">
+                  <Skeleton className="h-5 w-5 shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Skeleton className="h-4 w-2/5 bg-slate-200" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3 w-3/4" />
+                    <Skeleton className="h-3 w-1/4" />
+                  </div>
+                  <Skeleton className="h-9 w-20" />
+                </div>
+              ))}
+            </div>
+          </SurfaceCard>
         </div>
       )}
 
