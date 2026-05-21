@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -34,6 +35,7 @@ const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
 const kpiTones = ['red', 'charcoal', 'neutral', 'red', 'red'] as const
 
 export default function StudentDashboardPage() {
+  const { profile, loading: authLoading } = useAuth()
   const [user, setUser] = useState<StudentUserResponse | null>(null)
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
   const [notifications, setNotifications] = useState<NotificationResponse[]>([])
@@ -42,6 +44,8 @@ export default function StudentDashboardPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (authLoading || !profile) return
+
     const loadData = async () => {
       try {
         setLoading(true)
@@ -65,7 +69,7 @@ export default function StudentDashboardPage() {
     }
 
     loadData()
-  }, [])
+  }, [authLoading, profile])
 
   const total = internships.length
   const applied = internships.filter((i) => i.status === 'applied').length
