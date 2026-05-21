@@ -200,15 +200,15 @@ export default function CoordinatorDebugApiPage() {
             </div>
             <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-500 uppercase">Status</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Status</p>
                 <p className="mt-1 font-bold text-slate-950">{result.status ?? 'n/a'}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-500 uppercase">Item count</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Item count</p>
                 <p className="mt-1 font-bold text-slate-950">{result.itemCount ?? 'not a list'}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-500 uppercase">Fallback</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Fallback</p>
                 <p className="mt-1 font-bold text-slate-950">never used on this debug route</p>
               </div>
             </div>

@@ -47,7 +47,7 @@ export function OnboardingSidebar({ currentStep }: Props) {
         {/* Heading */}
         <div className="mb-12">
           <h1 className="mb-1 text-2xl font-semibold">Profile Setup</h1>
-          <p className="text-[10px] font-medium uppercase tracking-widest text-gray-400">
+          <p className="text-[10px] font-medium tracking-widest text-gray-400 uppercase">
             Onboarding Progress
           </p>
         </div>

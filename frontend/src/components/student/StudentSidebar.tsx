@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   Bell,
   BriefcaseBusiness,
+  BrainCircuit,
   FileCheck2,
   GraduationCap,
   LayoutDashboard,
@@ -21,6 +22,7 @@ const navItems = [
   },
   { href: '/student/contracts', label: 'Contracts', icon: FileCheck2 },
   { href: '/student/opportunities', label: 'Opportunities', icon: GraduationCap },
+  { href: '/student/advisor', label: 'Advisor', icon: BrainCircuit },
   { href: '/student/notifications', label: 'Notifications', icon: Bell },
 ]
 

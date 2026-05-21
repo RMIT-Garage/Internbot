@@ -73,7 +73,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
       <div className="max-w-7xl p-12 lg:p-16">
         {/* Stepper */}
         <div className="relative mb-16 flex items-center justify-center">
-          <div className="absolute left-0 top-5 -z-10 h-px w-full bg-gray-100" />
+          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
 
           <div className="flex w-full max-w-2xl justify-between">
             {STEPS.map((step) => {
@@ -111,7 +111,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
         <div className="mx-auto max-w-3xl space-y-10">
           {/* Title */}
           <div>
-            <span className="mb-5 inline-block rounded bg-gray-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">
+            <span className="mb-5 inline-block rounded bg-gray-100 px-3 py-1.5 text-[11px] font-bold tracking-wide text-gray-500 uppercase">
               Stage 01 — Identity
             </span>
             <h2 className="mb-3 text-4xl font-semibold">Personal Details</h2>
@@ -126,19 +126,19 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
               {/* Student name — locked */}
               <div>
-                <label className="mb-2 block text-[10px] font-medium uppercase text-gray-500">
+                <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
                   Student Name
                 </label>
                 <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
-                  <span className="text-lg font-medium uppercase tracking-wide text-gray-900">
+                  <span className="text-lg font-medium tracking-wide text-gray-900 uppercase">
                     {displayName ?? '—'}
                   </span>
-                  <div className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-2.5 py-1.5 text-[10px] font-medium uppercase text-gray-400">
+                  <div className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-2.5 py-1.5 text-[10px] font-medium text-gray-400 uppercase">
                     <Lock size={14} className="text-gray-400" />
                     RMIT Core
                   </div>
                 </div>
-                <p className="mt-2.5 text-[11px] italic text-gray-500">
+                <p className="mt-2.5 text-[11px] text-gray-500 italic">
                   Contact Student Connect if your legal name has changed.
                 </p>
               </div>
@@ -146,7 +146,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
               {/* Student number + email — locked */}
               <div className="grid grid-cols-1 gap-x-8 gap-y-8 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-[10px] font-medium uppercase text-gray-500">
+                  <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
                     Student Number
                   </label>
                   <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
@@ -155,7 +155,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                   </div>
                 </div>
                 <div>
-                  <label className="mb-2 block text-[10px] font-medium uppercase text-gray-500">
+                  <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
                     RMIT Email
                   </label>
                   <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
@@ -169,7 +169,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
               <div>
                 <label
                   htmlFor="phone"
-                  className="mb-2 block text-[10px] font-medium uppercase text-gray-500"
+                  className="mb-2 block text-[10px] font-medium text-gray-500 uppercase"
                 >
                   Phone Number
                 </label>
@@ -178,7 +178,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                   type="tel"
                   {...register('phone')}
                   placeholder="+61 400 000 000"
-                  className="w-full rounded-lg border border-gray-100 bg-gray-100/50 px-5 py-4 text-lg text-gray-600 outline-none transition-colors placeholder:text-gray-400 focus:border-red-600/20 focus:bg-white focus:ring-2 focus:ring-red-600/20"
+                  className="w-full rounded-lg border border-gray-100 bg-gray-100/50 px-5 py-4 text-lg text-gray-600 transition-colors outline-none placeholder:text-gray-400 focus:border-red-600/20 focus:bg-white focus:ring-2 focus:ring-red-600/20"
                 />
                 {errors.phone && (
                   <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>

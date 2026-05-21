@@ -142,7 +142,7 @@ export function StudentsList() {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
+              <thead className="sticky top-0 bg-slate-50 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th scope="col" className="px-4 py-3">
                     Name

@@ -36,7 +36,7 @@ export function CoordinatorTopbar() {
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4" />
-          <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600" />
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-600" />
         </Link>
         <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 md:flex">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
