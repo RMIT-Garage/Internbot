@@ -1,28 +1,35 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, Calendar, FileText, Paperclip } from 'lucide-react'
 import { AIInsightCard, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipResponse } from '@/lib/api/openapi-client'
 import { formatDate } from '@/lib/utils'
 
-function internshipStatusToBadge(status: InternshipResponse['status']): CoordinatorStatus {
+function internshipStatusToBadge(status: InternshipResponse['status']): StudentStatus {
   switch (status) {
-    case 'offer_approved':
-      return 'approved'
+    case 'applied':
+      return 'applied'
+
+    case 'offer_pending_review':
+      return 'offer_pending_review'
+
     case 'offer_changes_requested':
-      return 'changes_requested'
+      return 'offer_changes_requested'
+
+    case 'offer_approved':
+      return 'offer_approved'
+
     case 'rejected':
       return 'rejected'
-    case 'offer_pending_review':
-      return 'on_track'
+
     default:
-      return 'pending'
+      return 'applied'
   }
 }
 
@@ -43,8 +50,8 @@ function statusInsight(status: InternshipResponse['status']): string {
 
 export default function StudentContractDetailPage() {
   const { user } = useAuth()
-  const params = useParams()
-  const id = Array.isArray(params.id) ? (params.id[0] ?? '') : (params.id ?? '')
+  const searchParams = useSearchParams()
+  const id = searchParams.get('id') ?? ''
 
   const [internship, setInternship] = useState<InternshipResponse | null>(null)
   const [loading, setLoading] = useState(true)
