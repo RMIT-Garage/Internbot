@@ -25,7 +25,7 @@ const allNavItems = [
     icon: BriefcaseBusiness,
     requiresProfile: true,
   },
-  { href: '/student/contracts', label: 'Contracts', icon: FileCheck2, requiresProfile: true },
+  { href: '/student/contracts', label: 'Applications', icon: FileCheck2, requiresProfile: true },
   {
     href: '/student/opportunities',
     label: 'Opportunities',
