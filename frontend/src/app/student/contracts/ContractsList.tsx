@@ -242,7 +242,7 @@ export function ContractsList() {
                   </td>
                   <td className="p-3">
                     <Link
-                      href={`/student/contracts/view?id=${i.id}`}
+                      href={`/student/applications/view?id=${i.id}`}
                       className="text-red-700 underline hover:text-red-800"
                     >
                       View
