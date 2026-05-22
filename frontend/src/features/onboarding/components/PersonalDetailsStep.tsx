@@ -32,6 +32,11 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
   const router = useRouter()
   const { studentProfile, displayName, email } = user
 
+  const missingFields = [
+    !displayName && 'Student name missing from RMIT records',
+    !studentProfile.phone && 'Phone number not provided',
+  ].filter((field): field is string => Boolean(field))
+
   const {
     register,
     handleSubmit,
@@ -44,10 +49,16 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
   })
 
   const onSubmit = async (values: FormValues) => {
+    if (!displayName) {
+      toast.error('Your student name is missing. Please contact support before continuing.')
+      return
+    }
+
     try {
       await onSave({
         studentProfile: { phone: values.phone },
       })
+
       toast.success('Progress saved!')
       router.push('/onboarding/academic')
     } catch {
@@ -119,6 +130,30 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
               Please verify and complete your identity information. These details will be used for
               your official academic record and graduation certificates.
             </p>
+            {/* Missing Fields Warning */}
+            {missingFields.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <div className="flex items-start gap-3">
+                  <Bell className="mt-0.5 h-5 w-5 text-amber-600" />
+
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold text-amber-900">
+                      Some required profile fields are incomplete
+                    </h3>
+
+                    <p className="mt-1 text-sm text-amber-700">
+                      Please review the following information before continuing with onboarding.
+                    </p>
+
+                    <ul className="mt-3 space-y-1 text-sm text-amber-800">
+                      {missingFields.map((field) => (
+                        <li key={field}>• {field}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Form card */}
@@ -130,8 +165,12 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                   Student Name
                 </label>
                 <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
-                  <span className="text-lg font-medium tracking-wide text-gray-900 uppercase">
-                    {displayName ?? '—'}
+                  <span
+                    className={`text-lg font-medium tracking-wide uppercase ${
+                      !displayName ? 'text-red-500' : 'text-gray-900'
+                    }`}
+                  >
+                    {displayName ?? 'Missing Name'}
                   </span>
                   <div className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-2.5 py-1.5 text-[10px] font-medium text-gray-400 uppercase">
                     <Lock size={14} className="text-gray-400" />
@@ -178,7 +217,11 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                   type="tel"
                   {...register('phone')}
                   placeholder="+61 400 000 000"
-                  className="w-full rounded-lg border border-gray-100 bg-gray-100/50 px-5 py-4 text-lg text-gray-600 transition-colors outline-none placeholder:text-gray-400 focus:border-red-600/20 focus:bg-white focus:ring-2 focus:ring-red-600/20"
+                  className={`w-full rounded-lg border px-5 py-4 text-lg transition-colors outline-none placeholder:text-gray-400 focus:bg-white focus:ring-2 ${
+                    errors.phone
+                      ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-100 bg-gray-100/50 text-gray-600 focus:border-red-600/20 focus:ring-red-600/20'
+                  } `}
                 />
                 {errors.phone && (
                   <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>
@@ -199,8 +242,8 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="flex items-center gap-2 rounded-xl bg-red-600 px-10 py-3.5 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={saving || !displayName}
+                  className="flex items-center gap-2 rounded-xl bg-red-600 px-10 py-3.5 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
                 >
                   {saving ? 'Saving…' : 'Next Step'}
                   <ArrowRight size={20} />

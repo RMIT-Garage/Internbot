@@ -61,6 +61,8 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       programName: ai?.programName ?? PROGRAMS[0],
       programLevel: ai?.programLevel ?? 'undergraduate',
@@ -100,6 +102,28 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     setProgramLevel(level)
     setValue('programLevel', level)
   }
+
+  const watchedGpa = watch('gpa')
+  const watchedUnitsAttempted = watch('unitsAttempted')
+  const watchedCreditUnitsEarned = watch('creditUnitsEarned')
+
+  const isFormIncomplete =
+    watchedGpa === undefined ||
+    watchedGpa === null ||
+    String(watchedGpa) === '' ||
+    watchedUnitsAttempted === undefined ||
+    watchedUnitsAttempted === null ||
+    String(watchedUnitsAttempted) === '' ||
+    watchedCreditUnitsEarned === undefined ||
+    watchedCreditUnitsEarned === null ||
+    String(watchedCreditUnitsEarned) === ''
+
+  const validationWarnings = [
+    errors.programName?.message,
+    errors.gpa?.message,
+    errors.unitsAttempted?.message,
+    errors.creditUnitsEarned?.message,
+  ].filter(Boolean)
 
   return (
     <main className="flex-1 bg-white">
@@ -152,6 +176,26 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
             </div>
 
             <div className="rounded-2xl border border-gray-100 bg-white p-10 shadow-sm">
+              {/* Validation Warning Banner */}
+              {validationWarnings.length > 0 && (
+                <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+
+                    <div>
+                      <h3 className="text-sm font-bold text-red-800">
+                        Please fix the following fields
+                      </h3>
+
+                      <ul className="mt-2 space-y-1 text-sm text-red-700">
+                        {validationWarnings.map((warning) => (
+                          <li key={warning}>• {warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
                 {/* Program name */}
                 <div>
@@ -161,7 +205,11 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                   <div className="relative">
                     <select
                       {...register('programName')}
-                      className="w-full appearance-none rounded-xl border border-gray-200 bg-slate-50 px-5 py-4 font-medium text-slate-700 transition-all outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
+                      className={`w-full appearance-none rounded-xl border px-5 py-4 font-medium transition-all outline-none focus:ring-2 ${
+                        errors.programName
+                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
+                          : 'border-gray-200 bg-slate-50 text-slate-700 focus:border-red-500 focus:ring-red-500/10'
+                      } `}
                     >
                       {PROGRAMS.map((p) => (
                         <option key={p} value={p}>
@@ -221,8 +269,13 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       min="0"
                       max="4"
                       placeholder="3.8"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className={`w-full rounded-xl border px-5 py-3 text-lg font-medium transition outline-none focus:ring-2 ${
+                        errors.gpa
+                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
+                          : 'border-gray-100 bg-slate-100/50 text-slate-600 focus:border-red-400 focus:ring-red-500/10'
+                      } `}
                     />
+
                     {errors.gpa && (
                       <p className="mt-1 text-xs text-red-500">{errors.gpa.message}</p>
                     )}
@@ -267,7 +320,11 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       type="number"
                       min="0"
                       placeholder="24"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className={`w-full rounded-xl border px-5 py-3 text-lg font-medium transition outline-none focus:ring-2 ${
+                        errors.unitsAttempted
+                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
+                          : 'border-gray-100 bg-slate-100/50 text-slate-600 focus:border-red-400 focus:ring-red-500/10'
+                      } `}
                     />
                     {errors.unitsAttempted && (
                       <p className="mt-1 text-xs text-red-500">{errors.unitsAttempted.message}</p>
@@ -282,7 +339,11 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       type="number"
                       min="0"
                       placeholder="18"
-                      className="w-full rounded-xl border border-gray-100 bg-slate-100/50 px-5 py-3 text-lg font-medium text-slate-600 transition outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
+                      className={`w-full rounded-xl border px-5 py-3 text-lg font-medium transition outline-none focus:ring-2 ${
+                        errors.creditUnitsEarned
+                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
+                          : 'border-gray-100 bg-slate-100/50 text-slate-600 focus:border-red-400 focus:ring-red-500/10'
+                      } `}
                     />
                     {errors.creditUnitsEarned && (
                       <p className="mt-1 text-xs text-red-500">
@@ -302,7 +363,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                   </button>
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || isFormIncomplete}
                     className="flex items-center gap-2 rounded-xl bg-red-700 px-10 py-4 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving ? 'Saving…' : 'Continue to Credits'}

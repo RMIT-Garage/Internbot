@@ -41,6 +41,15 @@ export function CourseCreditsStep({ user }: Props) {
     pcp: false,
   })
 
+  const incompleteRequirements = [
+    !checks.sef && 'SEF30012 must be completed',
+    !checks.apt && 'APT40005 must be completed',
+    !checks.pcp && 'PCP20019 must be completed',
+    earnedCP < totalCP && `You still need ${remaining} more credit points`,
+  ].filter((item): item is string => Boolean(item))
+
+  const allRequirementsMet = incompleteRequirements.length === 0
+
   const toggleCheck = (key: keyof typeof checks) => {
     setChecks((prev) => ({
       ...prev,
@@ -108,6 +117,32 @@ export function CourseCreditsStep({ user }: Props) {
               </p>
             </div>
 
+            {/* Validation Warning Banner */}
+            {!allRequirementsMet && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+
+                  <div>
+                    <h3 className="text-sm font-bold text-red-800">
+                      Prerequisites still incomplete
+                    </h3>
+
+                    <p className="mt-1 text-sm text-red-700">
+                      Complete all required courses and credit requirements before continuing to the
+                      final onboarding stage.
+                    </p>
+
+                    <ul className="mt-3 space-y-1 text-sm text-red-700">
+                      {incompleteRequirements.map((req) => (
+                        <li key={req}>• {req}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Requirement cards */}
             <div className="grid grid-cols-2 gap-4">
               <RequirementCard
@@ -128,7 +163,7 @@ export function CourseCreditsStep({ user }: Props) {
               <RequirementCard
                 icon={TerminalSquare}
                 label="APT40005"
-                title="Advanced Programming Techniques"
+                title="Programming Studio 2"
                 completed={checks.apt}
                 onToggle={() => toggleCheck('apt')}
               />
@@ -136,7 +171,7 @@ export function CourseCreditsStep({ user }: Props) {
               <RequirementCard
                 icon={Scale}
                 label="PCP20019"
-                title="Professional Computing Practice"
+                title="Algorithms and Analysis"
                 completed={checks.pcp}
                 onToggle={() => toggleCheck('pcp')}
               />
@@ -153,7 +188,8 @@ export function CourseCreditsStep({ user }: Props) {
               </button>
               <button
                 onClick={() => router.push('/onboarding/review')}
-                className="rounded-lg bg-red-700 px-10 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-800"
+                disabled={!allRequirementsMet}
+                className="rounded-lg bg-red-700 px-10 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
               >
                 Confirm & Continue
               </button>
@@ -232,7 +268,11 @@ function RequirementCard({
   onToggle,
 }: RequirementCardProps) {
   return (
-    <div className="relative rounded-xl border border-gray-100 bg-white p-6">
+    <div
+      className={`relative rounded-xl border p-6 transition ${
+        completed ? 'border-green-200 bg-white' : 'border-red-200 bg-red-50/40'
+      }`}
+    >
       <button
         type="button"
         onClick={onToggle}
