@@ -18,7 +18,7 @@ import { resolve } from 'path'
  */
 
 const emulatorEnv = {
-  FIRESTORE_EMULATOR_HOST: 'localhost:8080',
+  FIRESTORE_EMULATOR_HOST: 'localhost:8090',
   FIREBASE_AUTH_EMULATOR_HOST: 'localhost:9099',
   FIREBASE_STORAGE_EMULATOR_HOST: 'localhost:9199',
   FIREBASE_PROJECT_ID: 'demo-internbot',
