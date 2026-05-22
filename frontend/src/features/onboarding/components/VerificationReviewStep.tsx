@@ -27,6 +27,13 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
   const { displayName, email, studentProfile } = user
   const ai = studentProfile.academicInfo
 
+  const missingFields = [
+    !displayName ? 'Display name' : null,
+    !studentProfile.phone ? 'Phone number' : null,
+    !studentProfile.semesterId ? 'Semester selection' : null,
+    !studentProfile.academicInfo ? 'Academic information' : null,
+  ].filter((field): field is string => Boolean(field))
+
   const handleFinalSubmit = async () => {
     if (!isConfirmed) {
       toast.error('Please confirm the data integrity checkbox.')
@@ -119,6 +126,33 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
             </p>
           </div>
         </div>
+
+        {missingFields.length > 0 && (
+          <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            <div className="flex items-start gap-3">
+              <Bell className="mt-0.5 h-5 w-5 text-amber-600" />
+
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-amber-900">
+                  Your profile is still incomplete
+                </h3>
+
+                <p className="mt-1 text-sm text-amber-700">
+                  Complete the following fields before finishing onboarding:
+                </p>
+
+                <ul className="mt-3 space-y-1 text-sm text-amber-800">
+                  {missingFields.map((field) => (
+                    <li key={field} className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      {field}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Data cards */}
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -229,10 +263,14 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
             </button>
             <button
               onClick={handleFinalSubmit}
-              disabled={saving || !isConfirmed}
+              disabled={saving || !isConfirmed || missingFields.length > 0}
               className="flex-1 rounded-xl bg-[#B91C1C] px-10 py-3 text-xs font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60 md:flex-none"
             >
-              {saving ? 'Submitting…' : 'Complete Profile'}
+              {saving
+                ? 'Submitting…'
+                : missingFields.length > 0
+                  ? 'Complete Missing Fields'
+                  : 'Complete Profile'}
             </button>
           </div>
         </div>
