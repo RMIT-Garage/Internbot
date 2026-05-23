@@ -2891,7 +2891,7 @@
       "post": {
         "operationId": "submitInternshipOffer",
         "summary": "Submit an internship offer for coordinator review",
-        "description": "Student-owner only. Requires at least one offer attachment and transitions applied/changes_requested to offer_pending_review.",
+        "description": "Student-owner only. Requires at least one finalized offer attachment and transitions applied/changes_requested to offer_pending_review. Offer dates are optional and may be supplied later by the coordinator.",
         "tags": ["Internships"],
         "security": [
           {
@@ -2984,7 +2984,7 @@
             }
           },
           "422": {
-            "description": "Missing offer details or offer attachment.",
+            "description": "No finalized offer attachment present.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4311,9 +4311,8 @@
             ]
           }
         },
-        "required": ["offerDate", "startDate"],
         "additionalProperties": false,
-        "description": "Body for POST /api/v1/internships/:id/offer-submissions."
+        "description": "Body for POST /api/v1/internships/:id/offer-submissions. All fields are optional — submission only requires at least one finalized offer attachment. Dates may be supplied later by the coordinator."
       },
       "AddInternshipCommentRequest": {
         "type": "object",

@@ -270,7 +270,7 @@ export const submitInternshipOfferOperation: ZodOpenApiOperationObject = {
   operationId: 'submitInternshipOffer',
   summary: 'Submit an internship offer for coordinator review',
   description:
-    'Student-owner only. Requires at least one offer attachment and transitions applied/changes_requested to offer_pending_review.',
+    'Student-owner only. Requires at least one finalized offer attachment and transitions applied/changes_requested to offer_pending_review. Offer dates are optional and may be supplied later by the coordinator.',
   tags: ['Internships'],
   security: [{ bearerAuth: [] }],
   requestParams: { path: internshipIdPathParams, header: ifMatchHeaderSchema },
@@ -300,7 +300,7 @@ export const submitInternshipOfferOperation: ZodOpenApiOperationObject = {
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     '422': {
-      description: 'Missing offer details or offer attachment.',
+      description: 'No finalized offer attachment present.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

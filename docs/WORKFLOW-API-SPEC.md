@@ -962,7 +962,7 @@ Notes:
 
 #### `POST /api/v1/internships/{id}/offer-submissions`
 
-Purpose: Submit the job offer for coordinator review after uploading the offer document. Creates an offer-submission record that transitions the internship from `applied` (or `offer_changes_requested`) to `offer_pending_review` and populates offer fields. The submission is reified as an activity entry in `internships/{id}/activity` with `type: submit_offer`, so the plural-noun sub-resource has real backing data.
+Purpose: Submit the job offer for coordinator review after uploading the offer document. Creates an offer-submission record that transitions the internship from `applied` (or `offer_changes_requested`) to `offer_pending_review`. The only hard requirement is at least one `finalized` offer attachment; offer dates are optional and may be supplied later (e.g. by the coordinator at the offer stage). The submission is reified as an activity entry in `internships/{id}/activity` with `type: submit_offer`, so the plural-noun sub-resource has real backing data.
 
 Auth: Student owner
 
@@ -970,11 +970,13 @@ Concurrency: supported (optional `If-Match` header)
 
 Request body:
 
-| Field     | Type   | Required | Notes                            |
-| --------- | ------ | -------- | -------------------------------- |
-| offerDate | string | Yes      | ISO 8601 date (UTC)              |
-| startDate | string | Yes      | Internship start date (ISO 8601) |
-| endDate   | string | No       | Internship end date (ISO 8601)   |
+| Field     | Type   | Required | Notes                                                                                  |
+| --------- | ------ | -------- | -------------------------------------------------------------------------------------- |
+| offerDate | string | No       | ISO 8601 date (UTC). When omitted, any previously-set value is preserved.              |
+| startDate | string | No       | Internship start date (ISO 8601). When omitted, any previously-set value is preserved. |
+| endDate   | string | No       | Internship end date (ISO 8601). Must not be before `startDate` when both are present.  |
+
+A submission with an empty body `{}` is valid as long as a finalized attachment exists.
 
 Success response (`201 Created`): the full updated internship resource (same shape as `GET /internships/{id}`). Response includes a `Location` header pointing to `/api/v1/internships/{id}`.
 
@@ -985,8 +987,8 @@ Failure cases:
 - `404` internship does not exist
 - `409` internship is not in `applied` or `offer_changes_requested` state
 - `412` client sent `If-Match` and it does not match the internship's current `ETag` (only possible when the client opts in to concurrency checks)
-- `422` at least one offer attachment in `finalized` state is required in the `attachments` subcollection (rows still `uploading` do not count)
-- `422` missing or invalid offer details (`offerDate`, `startDate`)
+- `422` no offer attachment in `finalized` state in the `attachments` subcollection (rows still `uploading` do not count)
+- `422` `endDate` is before `startDate` (`invalid_internship_dates`)
 
 Side effects:
 
@@ -2554,8 +2556,8 @@ sequenceDiagram
     CS->>B: onObjectFinalized trigger
     B->>FS: Write attachment to internships/{id}/attachments subcollection
 
-    S->>F: Submit offer details
-    F->>B: POST /api/v1/internships/{id}/offer-submissions { offerDate, startDate, endDate }
+    S->>F: Submit for review
+    F->>B: POST /api/v1/internships/{id}/offer-submissions { } (dates optional)
     B->>FS: Validate at least one offer attachment exists
     B->>FS: Update status to offer_pending_review
     B->>FS: Write activity: submit_offer
@@ -2585,7 +2587,7 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> applied: Student applies to a published opportunity
 
-    applied --> offer_pending_review: Submit offer (upload document + offer details)
+    applied --> offer_pending_review: Submit offer (upload document)
 
     offer_pending_review --> offer_approved: Coordinator approves offer
     offer_pending_review --> offer_changes_requested: Coordinator requests changes

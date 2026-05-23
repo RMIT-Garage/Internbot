@@ -93,6 +93,43 @@ describe('Internship', () => {
     expect(latestActivity(entity).type).toBe('submit_offer')
   })
 
+  it('submitOffer succeeds with no dates as long as an attachment exists', () => {
+    const entity = internship()
+
+    entity.submitOffer(
+      { offerDate: undefined, startDate: undefined, endDate: undefined },
+      'act_submit',
+      LATER,
+      true
+    )
+
+    expect(entity.status).toBe('offer_pending_review')
+    expect(entity.offerDate).toBeUndefined()
+    expect(entity.startDate).toBeUndefined()
+    expect(latestActivity(entity).type).toBe('submit_offer')
+  })
+
+  it('submitOffer preserves previously-set dates when resubmitting without dates', () => {
+    const entity = internship('offer_changes_requested')
+
+    entity.updateOfferDetails(
+      { offerDate: LATER, startDate: new Date('2026-05-01T00:00:00Z'), endDate: undefined },
+      'act_edit',
+      LATER
+    )
+
+    entity.submitOffer(
+      { offerDate: undefined, startDate: undefined, endDate: undefined },
+      'act_submit',
+      LATER,
+      true
+    )
+
+    expect(entity.status).toBe('offer_pending_review')
+    expect(entity.offerDate).toEqual(LATER)
+    expect(entity.startDate).toEqual(new Date('2026-05-01T00:00:00Z'))
+  })
+
   it('submitOffer rejects non-submittable states', () => {
     expect(() =>
       internship('offer_pending_review').submitOffer(
