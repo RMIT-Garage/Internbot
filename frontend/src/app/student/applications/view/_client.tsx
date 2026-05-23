@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, FileText, Paperclip, UploadCloud, X } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
-import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
+import { StatusBadge } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
 import type { InternshipResponse } from '@/lib/api/openapi-client'
 import { apiFetch } from '@/lib/api/client'
@@ -130,21 +130,6 @@ function WorkflowTracker({
   )
 }
 
-function statusToBadge(status: InternshipResponse['status']): CoordinatorStatus {
-  switch (status) {
-    case 'offer_approved':
-      return 'approved'
-    case 'offer_changes_requested':
-      return 'changes_requested'
-    case 'rejected':
-      return 'rejected'
-    case 'offer_pending_review':
-      return 'on_track'
-    default:
-      return 'pending'
-  }
-}
-
 export default function ApplicationDetailClient() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
@@ -162,11 +147,11 @@ export default function ApplicationDetailClient() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Offer submission state
-  const [offerDate, setOfferDate] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // Attachment view/download state
+  const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user || !id) return
@@ -263,15 +248,11 @@ export default function ApplicationDetailClient() {
   }
 
   const handleSubmitToCoordinator = async () => {
-    if (!id || !offerDate || !startDate) return
+    if (!id) return
     setSubmitError(null)
     try {
       setSubmitting(true)
-      const updated = await InternshipsService.submitInternshipOffer(id, {
-        offerDate,
-        startDate,
-        endDate: endDate || null,
-      })
+      const updated = await InternshipsService.submitInternshipOffer(id, {})
       setInternship(updated)
     } catch (err: unknown) {
       const anyErr = err as { body?: { error?: { message?: string } }; message?: string }
@@ -283,12 +264,25 @@ export default function ApplicationDetailClient() {
     }
   }
 
+  const handleViewAttachment = async (attachmentId: string) => {
+    if (!id) return
+    setOpeningAttachmentId(attachmentId)
+    try {
+      const { downloadUrl } = await InternshipsService.getInternshipAttachment(id, attachmentId)
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+    } catch {
+      setUploadError('Could not open the document. Please try again.')
+    } finally {
+      setOpeningAttachmentId(null)
+    }
+  }
+
   const hasFinalized = internship?.attachments.some((a) => a.uploadStatus === 'finalized') ?? false
 
   const canAct =
     internship !== null && ['applied', 'offer_changes_requested'].includes(internship.status)
 
-  const canSubmitToCoordinator = canAct && hasFinalized && offerDate !== '' && startDate !== ''
+  const canSubmitToCoordinator = canAct && hasFinalized
 
   if (!id) {
     return (
@@ -337,7 +331,7 @@ export default function ApplicationDetailClient() {
                     </p>
                   )}
                 </div>
-                <StatusBadge status={statusToBadge(internship.status)} />
+                <StatusBadge status={internship.status} />
               </div>
 
               {internship.attachments.length === 0 ? (
@@ -347,37 +341,50 @@ export default function ApplicationDetailClient() {
                 </div>
               ) : (
                 <div className="mt-4 space-y-2">
-                  {internship.attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="flex items-center gap-3 rounded-2xl border border-black/20 bg-black/5 px-4 py-3"
-                    >
-                      <Paperclip className="h-4 w-4 shrink-0 text-black/30" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-black">
-                        {att.fileName ?? att.id}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          att.uploadStatus === 'finalized'
-                            ? 'bg-black/10 text-black'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}
+                  {internship.attachments.map((att) => {
+                    const isFinalized = att.uploadStatus === 'finalized'
+                    return (
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-3 rounded-2xl border border-black/20 bg-black/5 px-4 py-3"
                       >
-                        {att.uploadStatus === 'finalized' ? 'Uploaded' : 'Processing...'}
-                      </span>
-                      {canAct && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAttachment(att.id)}
-                          disabled={deletingAttachmentId === att.id}
-                          aria-label={`Remove ${att.fileName ?? att.id}`}
-                          className="shrink-0 text-black/30 transition hover:text-red-600 disabled:opacity-40"
+                        <Paperclip className="h-4 w-4 shrink-0 text-black/30" />
+                        {isFinalized ? (
+                          <button
+                            type="button"
+                            onClick={() => handleViewAttachment(att.id)}
+                            disabled={openingAttachmentId === att.id}
+                            title="View or download document"
+                            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-black underline-offset-2 transition hover:text-red-700 hover:underline disabled:opacity-50"
+                          >
+                            {openingAttachmentId === att.id ? 'Opening…' : (att.fileName ?? att.id)}
+                          </button>
+                        ) : (
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-black">
+                            {att.fileName ?? att.id}
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            isFinalized ? 'bg-black/10 text-black' : 'bg-amber-50 text-amber-700'
+                          }`}
                         >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                          {isFinalized ? 'Uploaded' : 'Processing...'}
+                        </span>
+                        {canAct && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttachment(att.id)}
+                            disabled={deletingAttachmentId === att.id}
+                            aria-label={`Remove ${att.fileName ?? att.id}`}
+                            className="shrink-0 text-black/30 transition hover:text-red-600 disabled:opacity-40"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
@@ -443,53 +450,15 @@ export default function ApplicationDetailClient() {
               )}
             </SurfaceCard>
 
-            {/* Offer Details + Submit to Coordinator */}
+            {/* Submit to Coordinator */}
             {canAct && (
               <SurfaceCard className="p-6">
-                <h2 className="text-xl font-bold text-black">Offer Details</h2>
+                <h2 className="text-xl font-bold text-black">Submit for Review</h2>
                 <p className="mt-1 text-sm text-black/50">
-                  Fill in your offer details and submit to your coordinator for review. You must
-                  have at least one uploaded document.
+                  {hasFinalized
+                    ? 'Your offer document is ready. Submit it to your coordinator for review.'
+                    : 'Upload at least one offer document above before submitting for review.'}
                 </p>
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-black/60" htmlFor="offerDate">
-                      Offer date <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      id="offerDate"
-                      type="date"
-                      value={offerDate}
-                      onChange={(e) => setOfferDate(e.target.value)}
-                      className="rounded-xl border border-black/20 bg-white px-3 py-2 text-sm text-black focus:ring-2 focus:ring-red-500 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-black/60" htmlFor="startDate">
-                      Start date <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      id="startDate"
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="rounded-xl border border-black/20 bg-white px-3 py-2 text-sm text-black focus:ring-2 focus:ring-red-500 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-black/60" htmlFor="endDate">
-                      End date
-                    </label>
-                    <input
-                      id="endDate"
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="rounded-xl border border-black/20 bg-white px-3 py-2 text-sm text-black focus:ring-2 focus:ring-red-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
 
                 {submitError && <p className="mt-3 text-sm text-red-600">{submitError}</p>}
 

@@ -215,7 +215,7 @@ export class InternshipsService {
   }
   /**
    * Submit an internship offer for coordinator review
-   * Student-owner only. Requires at least one offer attachment and transitions applied/changes_requested to offer_pending_review.
+   * Student-owner only. Requires at least one finalized offer attachment and transitions applied/changes_requested to offer_pending_review. Offer dates are optional and may be supplied later by the coordinator.
    * @param id Platform internship id.
    * @param requestBody
    * @param ifMatch Opt-in optimistic concurrency — the current ETag from a prior GET.
@@ -242,7 +242,7 @@ export class InternshipsService {
         403: `Caller is not the student owner.`,
         409: `Internship is not in an offer-submittable state.`,
         412: `Stale \`If-Match\`.`,
-        422: `Missing offer details or offer attachment.`,
+        422: `No finalized offer attachment present.`,
       },
     })
   }

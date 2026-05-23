@@ -36,14 +36,15 @@ export type PatchInternshipRequest = z.infer<typeof patchInternshipRequestSchema
 
 export const submitInternshipOfferRequestSchema = z
   .object({
-    offerDate: isoDateTime,
-    startDate: isoDateTime,
+    offerDate: isoDateTime.optional(),
+    startDate: isoDateTime.optional(),
     endDate: isoDateTime.nullable().optional(),
   })
   .strict()
   .meta({
     id: 'SubmitInternshipOfferRequest',
-    description: 'Body for POST /api/v1/internships/:id/offer-submissions.',
+    description:
+      'Body for POST /api/v1/internships/:id/offer-submissions. All fields are optional — submission only requires at least one finalized offer attachment. Dates may be supplied later by the coordinator.',
   })
 
 export type SubmitInternshipOfferRequest = z.infer<typeof submitInternshipOfferRequestSchema>
