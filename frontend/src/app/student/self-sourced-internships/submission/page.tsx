@@ -156,90 +156,27 @@ function SubmissionContent() {
 
           {/* NEXT STEPS */}
           <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
-            <div className="mb-10 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black text-white">
-                →
-              </div>
+            <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+              Review Process
+            </p>
+            <h2 className="mb-8 text-xl font-bold text-black">What happens next?</h2>
 
-              <div>
-                <h2 className="text-2xl font-bold text-black">Next Steps</h2>
-                <p className="text-sm text-gray-500">Track your internship approval process.</p>
-              </div>
-            </div>
-
-            <div>
-              {/* STEP 1 — done */}
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow">
-                    ✓
+            <div className="border-t border-gray-100 pt-6">
+              {[
+                'Your submission is sent to a coordinator for verification.',
+                'Once approved, the opportunity becomes available in your semester.',
+                'You can then apply and upload your offer letter.',
+              ].map((text, i) => (
+                <div key={i} className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-300 bg-red-50 text-xs font-bold text-red-600">
+                      {i + 1}
+                    </div>
+                    {i < 2 && <div className="mt-1 h-10 w-[1px] bg-gray-200" />}
                   </div>
-                  <div className="mt-2 h-12 w-[2px] bg-red-200" />
+                  <p className="pt-0.5 pb-6 text-sm leading-relaxed text-gray-500">{text}</p>
                 </div>
-                <div className="pb-8">
-                  <div className="flex items-center gap-3">
-                    <h4 className="font-bold text-black">Submission Received</h4>
-                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-red-700 uppercase">
-                      Completed
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-gray-500">
-                    Your employer and role details have been submitted successfully.
-                  </p>
-                </div>
-              </div>
-
-              {/* STEP 2 — in progress */}
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white">
-                    <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-black" />
-                  </div>
-                  <div className="mt-2 h-12 w-[2px] bg-gray-200" />
-                </div>
-                <div className="pb-8">
-                  <div className="flex items-center gap-3">
-                    <h4 className="font-bold text-black">Coordinator Verification</h4>
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-black uppercase">
-                      In Progress
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                    A coordinator will review your submission and verify the opportunity.
-                  </p>
-                </div>
-              </div>
-
-              {/* STEP 3 — pending */}
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="h-7 w-7 shrink-0 rounded-full bg-gray-200" />
-                  <div className="mt-2 h-12 w-[2px] bg-gray-200" />
-                </div>
-                <div className="pb-8">
-                  <div className="flex items-center gap-3">
-                    <h4 className="font-bold text-gray-400">Apply to Opportunity</h4>
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-gray-500 uppercase">
-                      Pending
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-gray-400">
-                    Once published, the opportunity will appear under Opportunities and you can
-                    apply.
-                  </p>
-                </div>
-              </div>
-
-              {/* STEP 4 — pending (no line after last step) */}
-              <div className="flex gap-5">
-                <div className="h-7 w-7 shrink-0 rounded-full bg-gray-200" />
-                <div>
-                  <h4 className="font-bold text-gray-400">Offer Review</h4>
-                  <p className="mt-2 text-sm text-gray-400">
-                    Upload your offer letter for coordinator approval after applying.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </section>
         </div>
