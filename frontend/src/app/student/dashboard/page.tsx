@@ -388,7 +388,7 @@ export default function StudentDashboardPage() {
         description="Track internships, opportunities, and submissions in your student portal."
         actions={
           <>
-            <PillButton href="/student/contracts" variant="secondary">
+            <PillButton href="/student/applications" variant="secondary">
               View applications
             </PillButton>
             <PillButton href="/student/opportunities">Browse opportunities</PillButton>
@@ -400,7 +400,7 @@ export default function StudentDashboardPage() {
       <div className="grid gap-4 md:grid-cols-3">
         {[
           { title: 'Browse internships', href: '/student/opportunities', icon: BriefcaseBusiness },
-          { title: 'My applications', href: '/student/contracts', icon: FileCheck2 },
+          { title: 'My applications', href: '/student/applications', icon: FileCheck2 },
           { title: 'Profile setup', href: '/student/semesters', icon: Users },
         ].map(({ title, href, icon: Icon }) => (
           <Link
@@ -473,7 +473,7 @@ export default function StudentDashboardPage() {
                 <p className="text-sm text-slate-500">Your recent internship applications.</p>
               </div>
               <Link
-                href="/student/contracts"
+                href="/student/applications"
                 className="text-sm font-bold text-red-700 hover:text-red-800"
               >
                 View all

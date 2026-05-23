@@ -12,7 +12,7 @@ import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 
 function notifHref(notif: NotificationResponse): string {
-  if (notif.relatedInternshipId) return `/student/contracts/${notif.relatedInternshipId}`
+  if (notif.relatedInternshipId) return `/student/applications/view?id=${notif.relatedInternshipId}`
   if (notif.relatedOpportunityId) return `/student/opportunities`
   if (notif.relatedTicketId) return `/student/tickets/${notif.relatedTicketId}`
   return '#'
