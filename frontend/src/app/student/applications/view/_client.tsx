@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, FileText, Paperclip, UploadCloud, X } from 'lucide-react'
-import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
+import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/student/Premium'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { InternshipsService } from '@/lib/api/openapi-client'
@@ -13,7 +13,9 @@ import type {
   InternshipResponse,
   CreateInternshipAttachmentUploadIntentRequest,
 } from '@/lib/api/openapi-client'
-import { formatDate } from '@/lib/utils'
+import { apiFetch } from '@/lib/api/client'
+import type { InternshipActivityResponse } from '@/api/models/InternshipActivityResponse'
+import { formatDate, formatDatetime } from '@/lib/utils'
 
 const ACCEPTED_TYPES: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -125,6 +127,39 @@ function WorkflowTracker({
   )
 }
 
+function toTimelineItem(a: InternshipActivityResponse): {
+  title: string
+  description?: string
+  time: string
+  tone: 'red' | 'charcoal' | 'neutral'
+} {
+  const isCoord = a.authorRole === 'coordinator'
+  const labels: Record<string, string> = {
+    apply: 'Applied to opportunity',
+    submit_offer: 'Offer submitted for review',
+    comment: isCoord ? 'Coordinator commented' : 'You commented',
+    approve_offer: 'Offer approved by coordinator',
+    request_changes: 'Changes requested by coordinator',
+    reject: 'Offer rejected by coordinator',
+    edit: 'Offer details updated',
+  }
+  const tones: Record<string, 'red' | 'charcoal' | 'neutral'> = {
+    apply: 'neutral',
+    submit_offer: 'charcoal',
+    comment: 'neutral',
+    approve_offer: 'charcoal',
+    request_changes: 'red',
+    reject: 'red',
+    edit: 'neutral',
+  }
+  return {
+    title: labels[a.type] ?? a.type,
+    description: a.text ?? undefined,
+    time: formatDatetime(a.createdAt),
+    tone: tones[a.type] ?? 'neutral',
+  }
+}
+
 export default function ApplicationDetailClient() {
   const { user, loading: authLoading } = useAuth()
   const searchParams = useSearchParams()
@@ -141,6 +176,10 @@ export default function ApplicationDetailClient() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Activity timeline state
+  const [activity, setActivity] = useState<InternshipActivityResponse[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
 
   // Offer submission state
   const [offerDate, setOfferDate] = useState('')
@@ -200,6 +239,28 @@ export default function ApplicationDetailClient() {
       clearTimeout(timer)
     }
   }, [user, id, internship, uploading])
+
+  useEffect(() => {
+    if (authLoading || !user || !id) return
+    let active = true
+    const run = async () => {
+      try {
+        setActivityLoading(true)
+        const data = await apiFetch<{ items: InternshipActivityResponse[] }>(
+          `/api/v1/internships/${id}/activity`
+        )
+        if (active) setActivity(data.items)
+      } catch {
+        // activity is supplementary — fail silently
+      } finally {
+        if (active) setActivityLoading(false)
+      }
+    }
+    run()
+    return () => {
+      active = false
+    }
+  }, [authLoading, user, id])
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!id) return
@@ -582,6 +643,31 @@ export default function ApplicationDetailClient() {
                 </p>
               </SurfaceCard>
             )}
+
+            {/* Activity Timeline */}
+            <SurfaceCard className="p-6">
+              <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+                Timeline
+              </p>
+              <h2 className="mb-5 text-xl font-bold text-black">Activity</h2>
+              {activityLoading ? (
+                <div className="space-y-4">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex gap-3">
+                      <Skeleton className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
+                      <div className="flex-1 space-y-1">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : activity.length === 0 ? (
+                <p className="text-sm text-black/40">No activity recorded yet.</p>
+              ) : (
+                <TimelineFeed items={activity.map(toTimelineItem)} />
+              )}
+            </SurfaceCard>
           </div>
 
           {/* Right column — workflow tracker */}

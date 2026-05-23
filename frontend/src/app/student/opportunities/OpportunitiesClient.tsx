@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
 
+import { useAuth } from '@/hooks/useAuth'
 import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 
@@ -47,6 +48,7 @@ function internshipStatusToBadge(status: InternshipListItemResponse.status): Stu
 }
 
 export default function StudentOpportunitiesPage() {
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const semesterId = searchParams.get('semesterId') ?? undefined
@@ -75,16 +77,17 @@ export default function StudentOpportunitiesPage() {
   // have a saved selection and didn't explicitly ask to change it, jump
   // straight to the opportunities view.
   useEffect(() => {
+    if (authLoading || !user) return
     const loadSemesters = async () => {
       try {
         setLoadingSemesters(true)
-        const [semesterRes, user] = await Promise.all([
+        const [semesterRes, profile] = await Promise.all([
           SemestersService.listSemesters(['active']),
           UsersService.getMyProfile(),
         ])
         setSemesters(semesterRes.items)
-        if (user.role === 'student') {
-          const savedSemesterId = user.studentProfile?.semesterId ?? null
+        if (profile.role === 'student') {
+          const savedSemesterId = profile.studentProfile?.semesterId ?? null
           setSelectedSemester(savedSemesterId)
           if (savedSemesterId && !semesterId && !wantsChange) {
             router.replace(`/student/opportunities?semesterId=${savedSemesterId}`)
@@ -97,14 +100,17 @@ export default function StudentOpportunitiesPage() {
       }
     }
     loadSemesters()
-  }, [router, semesterId, wantsChange])
+  }, [authLoading, user, router, semesterId, wantsChange])
 
   // Load opportunities once a semesterId is known from the URL
   useEffect(() => {
-    if (!semesterId) return
+    if (authLoading || !user || !semesterId) return
     const loadData = async () => {
       try {
         setLoading(true)
+        // Reset so skeleton shows when switching semesters
+        setOpportunities([])
+        setInternships([])
         const [oppRes, intRes] = await Promise.all([
           OpportunitiesService.listOpportunities(semesterId),
           InternshipsService.listInternships(),
@@ -118,7 +124,7 @@ export default function StudentOpportunitiesPage() {
       }
     }
     loadData()
-  }, [semesterId])
+  }, [authLoading, user, semesterId])
 
   const applyToOpportunity = async (opportunityId: string) => {
     setApplyError(null)
@@ -179,6 +185,12 @@ export default function StudentOpportunitiesPage() {
 
         {semesterError && (
           <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{semesterError}</div>
+        )}
+
+        {!loadingSemesters && semesters.length === 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+            No active semesters available. Please check back later or contact your coordinator.
+          </div>
         )}
 
         {loadingSemesters ? (
@@ -325,8 +337,15 @@ export default function StudentOpportunitiesPage() {
       )}
 
       {applyError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {applyError}
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <span>{applyError}</span>
+          <button
+            type="button"
+            onClick={() => setApplyError(null)}
+            className="shrink-0 font-semibold underline hover:no-underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
