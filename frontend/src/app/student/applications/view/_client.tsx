@@ -68,7 +68,7 @@ function getWorkflowSteps(
       status:
         status === 'offer_pending_review'
           ? 'in_progress'
-          : status === 'offer_approved'
+          : status === 'offer_approved' || status === 'rejected'
             ? 'completed'
             : 'pending',
     },

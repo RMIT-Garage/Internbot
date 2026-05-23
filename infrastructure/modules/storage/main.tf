@@ -18,6 +18,16 @@ resource "google_storage_bucket" "default" {
     enabled = false
   }
 
+  # Required for browser-side direct uploads via V4 signed PUT URLs.
+  # Without this, browsers block the cross-origin PUT to storage.googleapis.com
+  # regardless of the signed URL's own auth credentials.
+  cors {
+    origin          = ["*"]
+    method          = ["GET", "PUT", "HEAD", "DELETE"]
+    response_header = ["Content-Type", "Cache-Control"]
+    max_age_seconds = 3600
+  }
+
   lifecycle {
     prevent_destroy = true
   }
