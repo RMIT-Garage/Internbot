@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { AlertTriangle, ArrowRight, Check, FileText, Paperclip, UploadCloud, X } from 'lucide-react'
+import { AlertTriangle, FileText, Paperclip, UploadCloud, X } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { StatusBadge, type CoordinatorStatus } from '@/components/student/StatusBadge'
 import { InternshipsService } from '@/lib/api/openapi-client'
@@ -80,44 +80,11 @@ function getWorkflowSteps(
   ]
 }
 
-function StepIcon({ status }: { status: StepStatus }) {
-  if (status === 'completed') {
-    return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-600">
-        <Check className="h-4 w-4 text-white" strokeWidth={3} />
-      </div>
-    )
-  }
-  if (status === 'in_progress') {
-    return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white">
-        <div className="h-3 w-3 rounded-full bg-black" />
-      </div>
-    )
-  }
-  if (status === 'changes_requested') {
-    return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-amber-500 bg-amber-50">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
-      </div>
-    )
-  }
-  return <div className="h-9 w-9 shrink-0 rounded-full bg-black/10" />
-}
-
-function StepBadge({ status }: { status: StepStatus }) {
-  const map: Record<StepStatus, { label: string; className: string }> = {
-    completed: { label: 'COMPLETED', className: 'bg-red-100 text-red-700' },
-    in_progress: { label: 'IN PROGRESS', className: 'bg-black/10 text-black' },
-    pending: { label: 'PENDING', className: 'bg-black/10 text-black/50' },
-    changes_requested: { label: 'CHANGES REQUESTED', className: 'bg-amber-100 text-amber-700' },
-  }
-  const { label, className } = map[status]
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${className}`}>
-      {label}
-    </span>
-  )
+const stepCircleClass: Record<StepStatus, string> = {
+  completed: 'bg-red-600 text-white border-red-600',
+  in_progress: 'border border-red-300 bg-red-50 text-red-600',
+  changes_requested: 'border border-amber-400 bg-amber-50 text-amber-600',
+  pending: 'border border-gray-200 bg-white text-gray-400',
 }
 
 function WorkflowTracker({
@@ -130,43 +97,31 @@ function WorkflowTracker({
   const steps = getWorkflowSteps(status, hasFinalized)
   return (
     <SurfaceCard className="p-5">
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black">
-          <ArrowRight className="h-4 w-4 text-white" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-black">Next Steps</h2>
-          <p className="text-xs text-black/50">Track your internship approval process.</p>
-        </div>
-      </div>
+      <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+        Review Process
+      </p>
+      <h2 className="mb-5 text-base font-bold text-black">What happens next?</h2>
 
-      <div className="mt-5 space-y-0">
+      <div className="border-t border-gray-100 pt-5">
         {steps.map((step, i) => (
           <div key={step.title} className="flex gap-3">
             <div className="flex flex-col items-center">
-              <StepIcon status={step.status} />
-              {i < steps.length - 1 && (
-                <div className="my-1 w-px flex-1 bg-black/10" style={{ minHeight: '24px' }} />
-              )}
-            </div>
-            <div className="pb-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`text-sm font-bold ${
-                    step.status === 'pending' ? 'text-black/40' : 'text-black'
-                  }`}
-                >
-                  {step.title}
-                </span>
-                <StepBadge status={step.status} />
+              <div
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${stepCircleClass[step.status]}`}
+              >
+                {i + 1}
               </div>
+              {i < steps.length - 1 && <div className="mt-1 h-8 w-px bg-gray-200" />}
+            </div>
+            <div className="pt-0.5 pb-5">
               <p
-                className={`mt-0.5 text-xs leading-5 ${
-                  step.status === 'pending' ? 'text-black/30' : 'text-black/50'
+                className={`text-sm leading-none font-semibold ${
+                  step.status === 'pending' ? 'text-gray-400' : 'text-black'
                 }`}
               >
-                {step.description}
+                {step.title}
               </p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">{step.description}</p>
             </div>
           </div>
         ))}
