@@ -35,7 +35,7 @@ const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
   opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
 }
 
-function opportunityStatusToBadge(status: string): StudentStatus {
+function internshipStatusToBadge(status: InternshipListItemResponse.status): StudentStatus {
   const map: Record<string, StudentStatus> = {
     applied: 'applied',
     offer_pending_review: 'offer_pending_review',
@@ -361,6 +361,7 @@ export default function StudentOpportunitiesPage() {
             ))
           : opportunities.map((opportunity) => {
               const alreadyApplied = appliedOpportunityIds.has(opportunity.id)
+              const myInternship = internships.find((i) => i.opportunityId === opportunity.id)
 
               return (
                 <SurfaceCard
@@ -372,7 +373,9 @@ export default function StudentOpportunitiesPage() {
                       <h2 className="truncate font-bold text-slate-950">{opportunity.jobTitle}</h2>
                       <p className="mt-1 text-sm text-slate-500">{opportunity.employerName}</p>
                     </div>
-                    <StatusBadge status={opportunityStatusToBadge(opportunity.status)} />
+                    {myInternship && (
+                      <StatusBadge status={internshipStatusToBadge(myInternship.status)} />
+                    )}
                   </div>
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
