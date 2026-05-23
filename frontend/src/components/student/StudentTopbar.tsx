@@ -10,7 +10,6 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
-  Plus,
   Search,
   User,
   X,
@@ -538,14 +537,6 @@ export function StudentTopbar() {
 
       {/* ACTIONS */}
       <div className="flex items-center gap-2">
-        <Link
-          href="/student/courses"
-          className="hidden h-9 items-center gap-2 rounded-xl bg-red-700 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-800 sm:inline-flex"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Browse
-        </Link>
-
         <Link
           href="/student/notifications"
           className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50"
