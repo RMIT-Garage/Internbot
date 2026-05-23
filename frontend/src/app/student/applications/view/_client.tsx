@@ -145,6 +145,8 @@ export default function ApplicationDetailClient() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Guards background polls so they stop setting state after unmount.
+  const mountedRef = useRef(true)
 
   // Offer submission state
   const [submitting, setSubmitting] = useState(false)
@@ -172,6 +174,13 @@ export default function ApplicationDetailClient() {
       active = false
     }
   }, [user, id])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!id) return
@@ -205,6 +214,28 @@ export default function ApplicationDetailClient() {
     setSelectedFile(file)
   }
 
+  // Refresh the internship in the background until the OBJECT_FINALIZE worker
+  // flips the just-uploaded attachment to "finalized". The window is generous:
+  // on cold starts the Eventarc finalize can take well beyond the old 30s blocking
+  // budget, which used to leave the row stuck on "Processing…" until a manual refresh.
+  const pollAttachmentFinalized = async (attachmentId: string) => {
+    const deadline = Date.now() + 120_000
+    while (mountedRef.current && id && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000))
+      if (!mountedRef.current || !id) return
+      let updated: InternshipResponse
+      try {
+        updated = await InternshipsService.getInternship(id)
+      } catch {
+        continue
+      }
+      if (!mountedRef.current) return
+      setInternship(updated)
+      const att = updated.attachments.find((a) => a.id === attachmentId)
+      if (att?.uploadStatus === 'finalized') return
+    }
+  }
+
   const handleUpload = async () => {
     if (!selectedFile || !id) return
     setUploadError(null)
@@ -223,17 +254,15 @@ export default function ApplicationDetailClient() {
       })
       if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
 
-      // Poll until the OBJECT_FINALIZE event flips the attachment to finalized (max 30s)
-      const deadline = Date.now() + 30_000
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 1500))
-        const updated = await InternshipsService.getInternship(id)
-        setInternship(updated)
-        const att = updated.attachments.find((a) => a.id === intent.attachmentId)
-        if (att?.uploadStatus === 'finalized') break
-      }
-
+      // The upload-intent already pre-wrote the attachment row as "uploading", so
+      // one immediate refresh surfaces it right away (shown as "Processing…").
+      const refreshed = await InternshipsService.getInternship(id)
+      setInternship(refreshed)
       setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+
+      // Keep watching in the background so the row flips to "Uploaded" on its own.
+      void pollAttachmentFinalized(intent.attachmentId)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : ''
       setUploadError(
@@ -241,9 +270,9 @@ export default function ApplicationDetailClient() {
           ? 'Could not reach the server. Check your connection and try again.'
           : msg || 'Upload failed. Please try again.'
       )
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } finally {
       setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
