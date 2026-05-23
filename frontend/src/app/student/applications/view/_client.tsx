@@ -6,10 +6,13 @@ import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { AlertTriangle, FileText, Paperclip, UploadCloud, X } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
-import { StatusBadge } from '@/components/student/StatusBadge'
+import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { InternshipsService } from '@/lib/api/openapi-client'
-import type { InternshipResponse } from '@/lib/api/openapi-client'
-import { apiFetch } from '@/lib/api/client'
+import type {
+  InternshipResponse,
+  CreateInternshipAttachmentUploadIntentRequest,
+} from '@/lib/api/openapi-client'
 import { formatDate } from '@/lib/utils'
 
 const ACCEPTED_TYPES: Record<string, string> = {
@@ -20,14 +23,6 @@ const ACCEPTED_TYPES: Record<string, string> = {
   'image/jpeg': 'jpeg',
 }
 const MAX_BYTES = 25 * 1024 * 1024
-
-interface UploadIntentResponse {
-  attachmentId: string
-  filePath: string
-  uploadUrl: string
-  uploadExpiresAt: string
-  contentType: string
-}
 
 type StepStatus = 'completed' | 'in_progress' | 'pending' | 'changes_requested'
 
@@ -131,13 +126,14 @@ function WorkflowTracker({
 }
 
 export default function ApplicationDetailClient() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const searchParams = useSearchParams()
   const id = searchParams.get('id') ?? ''
 
   const [internship, setInternship] = useState<InternshipResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   // Upload state
   const [uploading, setUploading] = useState(false)
@@ -156,7 +152,7 @@ export default function ApplicationDetailClient() {
   const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user || !id) return
+    if (authLoading || !user || !id) return
     let active = true
     const run = async () => {
       try {
@@ -173,7 +169,7 @@ export default function ApplicationDetailClient() {
     return () => {
       active = false
     }
-  }, [user, id])
+  }, [authLoading, user, id, retryCount])
 
   useEffect(() => {
     mountedRef.current = true
@@ -242,15 +238,19 @@ export default function ApplicationDetailClient() {
     try {
       setUploading(true)
 
-      const intent = await apiFetch<UploadIntentResponse>(
-        `/api/v1/internships/${id}/attachments/upload-intents`,
-        { method: 'POST', body: { fileName: selectedFile.name, contentType: selectedFile.type } }
-      )
+      const file = selectedFile
+      const intent = await InternshipsService.createInternshipAttachmentUploadIntent(id, {
+        fileName: file.name,
+        contentType: file.type as CreateInternshipAttachmentUploadIntentRequest.contentType,
+      })
 
+      // Real GCS V4 signed URLs use PUT; the local Storage emulator returns a
+      // multipart POST URL instead (it doesn't support signed-URL PUT).
+      const uploadMethod = intent.uploadUrl.startsWith('http://') ? 'POST' : 'PUT'
       const putRes = await fetch(intent.uploadUrl, {
-        method: 'PUT',
-        headers: { 'content-type': selectedFile.type },
-        body: selectedFile,
+        method: uploadMethod,
+        headers: { 'content-type': file.type },
+        body: file,
       })
       if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
 
@@ -340,8 +340,40 @@ export default function ApplicationDetailClient() {
       />
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => { setError(null); setRetryCount((c) => c + 1) }}
+            className="shrink-0 font-semibold underline hover:no-underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-6">
+            <SurfaceCard className="p-6">
+              <Skeleton className="h-6 w-40" />
+              <div className="mt-6 space-y-3">
+                <Skeleton className="h-14 rounded-2xl" />
+                <Skeleton className="h-14 rounded-2xl" />
+              </div>
+            </SurfaceCard>
+            <SurfaceCard className="p-6">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="mt-4 h-10 rounded-2xl" />
+            </SurfaceCard>
+          </div>
+          <SurfaceCard className="p-5">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-3 h-5 w-40" />
+            <div className="mt-5 space-y-4 border-t border-gray-100 pt-5">
+              {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 rounded-xl" />)}
+            </div>
+          </SurfaceCard>
         </div>
       )}
 
@@ -360,7 +392,7 @@ export default function ApplicationDetailClient() {
                     </p>
                   )}
                 </div>
-                <StatusBadge status={internship.status} />
+                <StatusBadge status={internship.status as StudentStatus} />
               </div>
 
               {internship.attachments.length === 0 ? (
