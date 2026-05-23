@@ -104,11 +104,11 @@ const NAV_PAGES: SearchResult[] = [
     Icon: BriefcaseBusiness,
   },
   {
-    id: 'contracts',
+    id: 'applications',
     category: 'Pages',
-    title: 'Contracts',
-    subtitle: 'Your internship contracts',
-    href: '/student/contracts',
+    title: 'Applications',
+    subtitle: 'Your internship applications',
+    href: '/student/applications',
     Icon: FileCheck2,
   },
   {
