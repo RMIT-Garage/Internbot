@@ -167,17 +167,16 @@ function SubmissionContent() {
               </div>
             </div>
 
-            <div className="space-y-10">
+            <div>
               {/* STEP 1 — done */}
-              <div className="relative flex gap-5">
-                <div className="relative flex flex-col items-center">
-                  <div className="z-10 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow">
+              <div className="flex gap-5">
+                <div className="flex flex-col items-center">
+                  <div className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow">
                     ✓
                   </div>
-                  <div className="mt-2 w-[2px] flex-1 bg-red-200" />
+                  <div className="mt-2 h-12 w-[2px] bg-red-200" />
                 </div>
-
-                <div className="pb-2">
+                <div className="pb-8">
                   <div className="flex items-center gap-3">
                     <h4 className="font-bold text-black">Submission Received</h4>
                     <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-red-700 uppercase">
@@ -191,15 +190,14 @@ function SubmissionContent() {
               </div>
 
               {/* STEP 2 — in progress */}
-              <div className="relative flex gap-5">
-                <div className="relative flex flex-col items-center">
-                  <div className="z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-black bg-white">
+              <div className="flex gap-5">
+                <div className="flex flex-col items-center">
+                  <div className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white">
                     <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-black" />
                   </div>
-                  <div className="mt-2 w-[2px] flex-1 bg-gray-200" />
+                  <div className="mt-2 h-12 w-[2px] bg-gray-200" />
                 </div>
-
-                <div className="pb-2">
+                <div className="pb-8">
                   <div className="flex items-center gap-3">
                     <h4 className="font-bold text-black">Coordinator Verification</h4>
                     <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-black uppercase">
@@ -213,13 +211,12 @@ function SubmissionContent() {
               </div>
 
               {/* STEP 3 — pending */}
-              <div className="relative flex gap-5">
-                <div className="relative flex flex-col items-center">
-                  <div className="h-7 w-7 rounded-full bg-gray-200" />
-                  <div className="mt-2 w-[2px] flex-1 bg-gray-200" />
+              <div className="flex gap-5">
+                <div className="flex flex-col items-center">
+                  <div className="h-7 w-7 shrink-0 rounded-full bg-gray-200" />
+                  <div className="mt-2 h-12 w-[2px] bg-gray-200" />
                 </div>
-
-                <div className="pb-2">
+                <div className="pb-8">
                   <div className="flex items-center gap-3">
                     <h4 className="font-bold text-gray-400">Apply to Opportunity</h4>
                     <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-gray-500 uppercase">
@@ -233,10 +230,9 @@ function SubmissionContent() {
                 </div>
               </div>
 
-              {/* STEP 4 — pending */}
-              <div className="relative flex gap-5">
+              {/* STEP 4 — pending (no line after last step) */}
+              <div className="flex gap-5">
                 <div className="h-7 w-7 shrink-0 rounded-full bg-gray-200" />
-
                 <div>
                   <h4 className="font-bold text-gray-400">Offer Review</h4>
                   <p className="mt-2 text-sm text-gray-400">
