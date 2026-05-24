@@ -296,44 +296,43 @@ export function ContractsList() {
       ) : (
         <SurfaceCard className="overflow-hidden p-0">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_120px_100px_140px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          <div className="grid grid-cols-[1fr_130px_90px_150px_24px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             <span>Opportunity</span>
-            <span className="hidden sm:block">Type</span>
-            <span className="hidden md:block">Applied</span>
+            <span>Type</span>
+            <span>Applied</span>
             <span>Status</span>
+            <span />
           </div>
 
           {paged.rows.map((i, idx) => (
             <Link
               key={i.id}
               href={`/student/applications/view?id=${i.id}`}
-              className={`grid grid-cols-[1fr_120px_100px_140px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+              className={`grid grid-cols-[1fr_130px_90px_150px_24px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
             >
               {/* Opportunity info */}
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900">
-                    {i.opportunityJobTitle}
-                  </p>
-                  <p className="truncate text-xs text-gray-500">{i.opportunityEmployerName}</p>
-                </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-900">
+                  {i.opportunityJobTitle}
+                </p>
+                <p className="truncate text-xs text-gray-500">{i.opportunityEmployerName}</p>
               </div>
 
               {/* Type */}
-              <span className="hidden shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-500 sm:inline-flex">
+              <span className="inline-flex shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-500">
                 {opportunityTypeLabel(i.opportunityType)}
               </span>
 
               {/* Date */}
-              <span className="hidden shrink-0 text-xs text-gray-400 md:block">
-                {formatDate(i.createdAt)}
-              </span>
+              <span className="shrink-0 text-xs text-gray-400">{formatDate(i.createdAt)}</span>
 
-              {/* Status + arrow */}
-              <div className="flex shrink-0 items-center gap-2">
+              {/* Status */}
+              <div>
                 <StatusBadge status={internshipStatusToBadge(i.status)} />
-                <ArrowRight className="h-3.5 w-3.5 text-gray-300" />
               </div>
+
+              {/* Arrow */}
+              <ArrowRight className="h-3.5 w-3.5 text-gray-300" />
             </Link>
           ))}
         </SurfaceCard>

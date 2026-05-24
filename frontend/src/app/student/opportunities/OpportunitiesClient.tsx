@@ -76,8 +76,8 @@ function OpportunityRow({
   const isApplying = applyingId === opportunity.id
 
   return (
-    <div className="grid grid-cols-[1fr_80px_160px] items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
-      {/* Main info */}
+    <div className="grid grid-cols-[1fr_64px_140px_100px] items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
+      {/* Opportunity info */}
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-gray-900">{opportunity.jobTitle}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -94,41 +94,40 @@ function OpportunityRow({
         </div>
       </div>
 
-      {/* Applications count */}
-      <span className="hidden items-center gap-1 text-xs text-gray-400 md:flex">
+      {/* Applicants count */}
+      <span className="flex items-center gap-1 text-xs text-gray-400">
         <Users className="h-3.5 w-3.5" />
         {opportunity.applicationCount}
       </span>
 
-      {/* Status badge if applied, else placeholder for grid alignment */}
-      {/* Status + CTA */}
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          {myInternship && <StatusBadge status={internshipStatusToBadge(myInternship.status)} />}
-        </div>
-        <div className="shrink-0">
-          {alreadyApplied && myInternship ? (
-            <Link
-              href={`/student/applications/view?id=${myInternship.id}`}
-              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
-            >
-              View <ArrowRight className="h-3 w-3" />
-            </Link>
-          ) : opportunity.status === 'published' ? (
-            <button
-              type="button"
-              onClick={() => onApply(opportunity.id)}
-              disabled={applyingId !== null}
-              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
-            >
-              {isApplying ? 'Applying…' : 'Apply'}
-            </button>
-          ) : (
-            <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
-              Closed
-            </span>
-          )}
-        </div>
+      {/* Status */}
+      <div>
+        {myInternship && <StatusBadge status={internshipStatusToBadge(myInternship.status)} />}
+      </div>
+
+      {/* Action */}
+      <div className="flex justify-end">
+        {alreadyApplied && myInternship ? (
+          <Link
+            href={`/student/applications/view?id=${myInternship.id}`}
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+          >
+            View <ArrowRight className="h-3 w-3" />
+          </Link>
+        ) : opportunity.status === 'published' ? (
+          <button
+            type="button"
+            onClick={() => onApply(opportunity.id)}
+            disabled={applyingId !== null}
+            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+          >
+            {isApplying ? 'Applying…' : 'Apply'}
+          </button>
+        ) : (
+          <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
+            Closed
+          </span>
+        )}
       </div>
     </div>
   )
@@ -518,10 +517,11 @@ export default function StudentOpportunitiesPage() {
           </p>
           <SurfaceCard className="overflow-hidden p-0">
             {/* List header */}
-            <div className="grid grid-cols-[1fr_80px_160px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <div className="grid grid-cols-[1fr_64px_140px_100px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
-              <span className="hidden md:block">Applicants</span>
-              <span>Action</span>
+              <span>Applicants</span>
+              <span>Status</span>
+              <span className="text-right">Action</span>
             </div>
             {preApproved.map((o, idx) => (
               <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
@@ -548,10 +548,11 @@ export default function StudentOpportunitiesPage() {
             Opportunities sourced by students and verified by a coordinator.
           </p>
           <SurfaceCard className="overflow-hidden p-0">
-            <div className="grid grid-cols-[1fr_80px_160px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <div className="grid grid-cols-[1fr_64px_140px_100px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
-              <span className="hidden md:block">Applicants</span>
-              <span>Action</span>
+              <span>Applicants</span>
+              <span>Status</span>
+              <span className="text-right">Action</span>
             </div>
             {selfSourced.map((o, idx) => (
               <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
