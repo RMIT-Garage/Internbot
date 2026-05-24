@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowUpDown } from 'lucide-react'
 import {
@@ -8,7 +9,7 @@ import {
   type ApprovalColumn,
   TableDetailLink,
 } from '@/components/coordinator/ApprovalTable'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { FilterBar } from '@/components/coordinator/FilterBar'
 import { Pagination } from '@/components/coordinator/Pagination'
 import { AnalyticsStrip } from '@/components/coordinator/Premium'
@@ -20,7 +21,7 @@ import {
   type ContractApproval,
 } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
 import {
   compareByDate,
@@ -28,15 +29,18 @@ import {
   paginate,
   type SortDirection,
 } from '@/lib/coordinator/listUtils'
+import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 
 const statusOptions = [
   { label: 'All statuses', value: 'all' },
-  { label: 'Pending', value: 'pending' },
+  { label: 'Awaiting contract review', value: 'awaiting_contract_review' },
+  { label: 'Awaiting documents', value: 'awaiting_documents' },
+  { label: 'Awaiting approval', value: 'awaiting_approval' },
   { label: 'Flagged', value: 'flagged' },
   { label: 'Approved', value: 'approved' },
   { label: 'Rejected', value: 'rejected' },
-  { label: 'Changes requested', value: 'changes_requested' },
 ]
 
 function pageHref(searchParams: URLSearchParams, page: number) {
@@ -57,7 +61,18 @@ function sortHref(searchParams: URLSearchParams, sort: string) {
   return `?${params.toString()}`
 }
 
+function contractStudentLabel(contract: ContractApproval, studentLabels: Record<string, string>) {
+  const resolvedLabel = contract.studentUserId ? studentLabels[contract.studentUserId] : undefined
+  if (resolvedLabel && resolvedLabel !== STUDENT_PROFILE_PENDING) return resolvedLabel
+
+  return formatStudentDisplay({
+    studentId: contract.studentId,
+    name: contract.studentName,
+  })
+}
+
 export function ContractsList() {
+  const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const status = params.get('status') ?? undefined
@@ -67,6 +82,7 @@ export function ContractsList() {
   const sort = params.get('sort') ?? 'date'
   const direction = (params.get('direction') === 'asc' ? 'asc' : 'desc') satisfies SortDirection
   const page = Number(params.get('page') ?? '1')
+  const currentContractsHref = `/coordinator/contracts${params.toString() ? `?${params.toString()}` : ''}`
   const {
     data: contracts,
     loading,
@@ -91,6 +107,35 @@ export function ContractsList() {
     { emptyData: [] }
   )
 
+  useEffect(() => {
+    const missingIds = Array.from(
+      new Set(
+        contracts
+          .map((contract) => contract.studentUserId)
+          .filter((id): id is string => Boolean(id && !studentLabels[id]))
+      )
+    )
+    if (missingIds.length === 0) return
+
+    let active = true
+    Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          return [id, formatStudentDisplay(await getUser(id))] as const
+        } catch {
+          return [id, STUDENT_PROFILE_PENDING] as const
+        }
+      })
+    ).then((entries) => {
+      if (!active) return
+      setStudentLabels((current) => ({ ...current, ...Object.fromEntries(entries) }))
+    })
+
+    return () => {
+      active = false
+    }
+  }, [contracts, studentLabels])
+
   if (loading) {
     return <CoordinatorContentSkeleton title="Loading review queue..." />
   }
@@ -101,8 +146,9 @@ export function ContractsList() {
     .filter((contract) => matchesParam(contract.course, course))
     .filter((contract) => {
       if (!search) return true
+      const studentLabel = contractStudentLabel(contract, studentLabels)
       return (
-        contract.studentName.toLowerCase().includes(search) ||
+        studentLabel.toLowerCase().includes(search) ||
         contract.placementHost.toLowerCase().includes(search) ||
         contract.documentName.toLowerCase().includes(search)
       )
@@ -118,7 +164,11 @@ export function ContractsList() {
 
   const paged = paginate(filteredContracts, page, 3)
   const columns: ApprovalColumn<ContractApproval>[] = [
-    { key: 'student', header: 'Student Name', render: (contract) => contract.studentName },
+    {
+      key: 'student',
+      header: 'Student',
+      render: (contract) => contractStudentLabel(contract, studentLabels),
+    },
     { key: 'course', header: 'Course', render: (contract) => contract.course },
     { key: 'semester', header: 'Semester', render: (contract) => contract.semester },
     {
@@ -162,7 +212,11 @@ export function ContractsList() {
       header: 'View Details',
       render: (contract) => (
         <TableDetailLink
-          href={`/coordinator/contracts/review?id=${encodeURIComponent(contract.id)}`}
+          href={withReviewReturn(
+            `/coordinator/contracts/review?id=${encodeURIComponent(contract.id)}`,
+            currentContractsHref,
+            { context: PLACEMENT_PROCESSING_CONTEXT }
+          )}
         />
       ),
     },
@@ -172,20 +226,24 @@ export function ContractsList() {
     <>
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {`Using isolated fallback data: ${error}`}
+          Showing saved contract records while live records are unavailable.
         </div>
       )}
       {!loading && !error && source === 'api' && contracts.length === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Backend connected, but no records exist yet.
+          No contract review records exist yet.
         </div>
       )}
       <AnalyticsStrip
         items={[
           {
-            label: 'Pending',
-            value: filteredContracts.filter((contract) => contract.status === 'pending').length,
-            detail: 'Awaiting review',
+            label: 'Awaiting Contract Review',
+            value: filteredContracts.filter((contract) =>
+              ['awaiting_contract_review', 'awaiting_documents', 'awaiting_approval'].includes(
+                contract.status
+              )
+            ).length,
+            detail: 'Ready for coordinator processing',
             tone: 'charcoal',
           },
           {

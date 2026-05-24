@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, Plus, Sparkles } from 'lucide-react'
+import { CalendarDays, ClipboardCheck, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { semesterInventory } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
@@ -161,10 +161,10 @@ export default function CoordinatorSemestersPage() {
           progress={81}
         />
         <KPIStatCard
-          title="AI recommendations"
+          title="Workload signals"
           value="7"
-          detail="Setup and workload signals"
-          icon={Sparkles}
+          detail="Setup and review indicators"
+          icon={ClipboardCheck}
           tone="red"
           progress={46}
         />

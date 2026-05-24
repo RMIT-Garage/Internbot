@@ -2,185 +2,318 @@
 
 import Link from 'next/link'
 import {
-  AlertTriangle,
+  Bell,
   BriefcaseBusiness,
-  CheckCircle2,
+  CalendarDays,
+  ClipboardCheck,
   Clock3,
   FileCheck2,
-  Send,
-  TrendingUp,
   Users,
 } from 'lucide-react'
 import {
-  AnalyticsStrip,
   CoordinatorPageHeader,
   KPIStatCard,
   PillButton,
   SurfaceCard,
-  TimelineFeed,
 } from '@/components/coordinator/Premium'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
-import { dashboardKpis } from '@/lib/coordinator/mockData'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
+import { StatusBadge, type CoordinatorStatus } from '@/components/coordinator/StatusBadge'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import {
+  getUser,
   listInternships,
   listMyActivity,
   listNotifications,
   listOpportunities,
+  listSemesters,
 } from '@/lib/coordinator/api'
+import { mapActivity } from '@/lib/coordinator/apiMappers'
 import {
-  buildPendingApprovals,
-  mapActivity,
-  mapInternshipToContractApproval,
-  mapNotification,
-  mapOpportunityToSelfSourcedJob,
-} from '@/lib/coordinator/apiMappers'
+  OPPORTUNITY_SELF_SOURCED_TAB,
+  PLACEMENT_PROCESSING_CONTEXT,
+  SELF_SOURCED_REVIEW_CONTEXT,
+  withReviewReturn,
+} from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
+import type {
+  InternshipListItemResponse,
+  NotificationResponse,
+  OpportunityResponse,
+  SemesterResponse,
+} from '@/types/api'
 
-const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['charcoal', 'neutral', 'red', 'charcoal', 'red'] as const
+interface AttentionItem {
+  id: string
+  title: string
+  meta: string
+  status: CoordinatorStatus
+  date: string
+  href: string
+  action: string
+  context: string
+}
+
+interface PipelineStage {
+  label: string
+  count: number
+  href: string
+}
+
+interface DashboardData {
+  metrics: Array<{
+    title: string
+    value: number
+    detail: string
+    icon: typeof ClipboardCheck
+    tone: 'red' | 'charcoal' | 'neutral'
+  }>
+  attention: AttentionItem[]
+  pipeline: PipelineStage[]
+  recent: Array<{
+    title: string
+    description: string
+    time: string
+    tone?: 'red' | 'charcoal' | 'neutral'
+  }>
+  semesters: SemesterResponse[]
+  warnings: string[]
+}
+
+const emptyDashboard: DashboardData = {
+  metrics: [
+    {
+      title: 'Awaiting Placement Approval',
+      value: 0,
+      detail: 'Self-sourced suitability reviews',
+      icon: ClipboardCheck,
+      tone: 'neutral',
+    },
+    {
+      title: 'Contract Review',
+      value: 0,
+      detail: 'Post-offer checks',
+      icon: FileCheck2,
+      tone: 'neutral',
+    },
+    {
+      title: 'Active Opportunities',
+      value: 0,
+      detail: 'Published roles',
+      icon: BriefcaseBusiness,
+      tone: 'neutral',
+    },
+    {
+      title: 'Students in Progress',
+      value: 0,
+      detail: 'Active workflows',
+      icon: Users,
+      tone: 'neutral',
+    },
+    { title: 'Notifications', value: 0, detail: 'Unread notices', icon: Bell, tone: 'neutral' },
+  ],
+  attention: [],
+  pipeline: [
+    { label: 'Documents Submitted', count: 0, href: '/coordinator/jobs?stage=documents' },
+    { label: 'Contract Review', count: 0, href: '/coordinator/jobs?stage=verification' },
+    { label: 'Final Approval', count: 0, href: '/coordinator/jobs?stage=review' },
+    { label: 'Approved', count: 0, href: '/coordinator/jobs?stage=approved' },
+    { label: 'Rejected', count: 0, href: '/coordinator/jobs?stage=rejected' },
+    { label: 'Changes Requested', count: 0, href: '/coordinator/jobs?status=awaiting_documents' },
+  ],
+  recent: [],
+  semesters: [],
+  warnings: [],
+}
 
 export default function CoordinatorDashboardPage() {
   const dashboardResource = useCoordinatorApiResource(
     async () => {
-      if (process.env.NODE_ENV === 'development') {
-        console.debug(
-          '[coordinator/dashboard] backend filters: limit only; dashboard summaries are derived client-side'
-        )
-      }
-      const [internshipsResult, opportunitiesResult, notificationsResult, activityResult] =
-        await Promise.allSettled([
-          listInternships({ limit: 100 }),
-          listOpportunities({ limit: 100 }),
-          listNotifications({ limit: 20 }),
-          listMyActivity({ limit: 6 }),
-        ])
+      const [
+        internshipsResult,
+        opportunitiesResult,
+        notificationsResult,
+        activityResult,
+        semestersResult,
+      ] = await Promise.allSettled([
+        listInternships({ limit: 100 }),
+        listOpportunities({ limit: 100 }),
+        listNotifications({ limit: 20 }),
+        listMyActivity({ limit: 6 }),
+        listSemesters({ limit: 10 }),
+      ])
+
       const internships =
         internshipsResult.status === 'fulfilled'
-          ? internshipsResult.value
-          : { items: [], nextPageToken: null }
+          ? internshipsResult.value.items
+          : ([] as InternshipListItemResponse[])
       const opportunities =
         opportunitiesResult.status === 'fulfilled'
-          ? opportunitiesResult.value
-          : { items: [], nextPageToken: null }
+          ? opportunitiesResult.value.items
+          : ([] as OpportunityResponse[])
       const notifications =
         notificationsResult.status === 'fulfilled'
           ? notificationsResult.value
-          : { items: [], nextPageToken: null, unreadCount: 0 }
-      const activity =
-        activityResult.status === 'fulfilled'
-          ? activityResult.value
-          : { items: [], nextPageToken: null }
-      const contracts = internships.items.map(mapInternshipToContractApproval)
-      const jobs = opportunities.items
-        .filter((item) => item.type === 'custom')
-        .map(mapOpportunityToSelfSourcedJob)
-      const approvals = buildPendingApprovals(jobs, contracts)
-      const failedRequests = [
-        internshipsResult.status === 'rejected'
-          ? 'Internship records are currently unavailable.'
-          : null,
-        opportunitiesResult.status === 'rejected'
-          ? 'Opportunity records are currently unavailable.'
-          : null,
-        notificationsResult.status === 'rejected'
-          ? 'Workflow notifications are currently unavailable.'
-          : null,
-        activityResult.status === 'rejected' ? 'Recent activity is currently unavailable.' : null,
-      ].filter((item): item is string => Boolean(item))
-      const pendingContracts = contracts.filter((item) => item.status === 'pending').length
-      const pendingJobs = jobs.filter((item) => item.status === 'pending').length
-      const needsAttention = contracts.filter(
-        (item) => item.status === 'changes_requested' || item.status === 'rejected'
-      ).length
+          : { items: [] as NotificationResponse[], nextPageToken: null, unreadCount: 0 }
+      const activity = activityResult.status === 'fulfilled' ? activityResult.value.items : []
+      const semesters = semestersResult.status === 'fulfilled' ? semestersResult.value.items : []
+      const internshipMap = new Map(internships.map((item) => [item.id, item]))
+      const opportunityMap = new Map(opportunities.map((item) => [item.id, item]))
 
+      const customOpportunities = opportunities.filter((item) => item.type === 'custom')
+      const pendingReviews = customOpportunities.filter(
+        (item) => item.status === 'pending_verification'
+      )
+      const contractVerifications = internships.filter(
+        (item) => item.status === 'offer_pending_review'
+      )
+      const activeOpportunities = opportunities.filter((item) => item.status === 'published')
+      const studentsInProgress = new Set(
+        internships
+          .filter((item) => item.status !== 'offer_approved' && item.status !== 'rejected')
+          .map((item) => item.userId)
+      ).size
+      const notificationsUnread = notifications.unreadCount
+      const changesRequested = internships.filter(
+        (item) => item.status === 'offer_changes_requested'
+      )
+      const rejectedInternships = internships.filter((item) => item.status === 'rejected')
+      const studentLabelEntries = await Promise.all(
+        Array.from(
+          new Set(
+            [
+              ...pendingReviews.map((item) => item.submittedByUserId),
+              ...contractVerifications.map((item) => item.userId),
+              ...activity.map((item) =>
+                item.internshipId ? internshipMap.get(item.internshipId)?.userId : null
+              ),
+              ...activity.map((item) =>
+                item.opportunityId
+                  ? opportunityMap.get(item.opportunityId)?.submittedByUserId
+                  : null
+              ),
+            ].filter((id): id is string => Boolean(id))
+          )
+        ).map(async (id) => {
+          try {
+            return [id, formatStudentDisplay(await getUser(id))] as const
+          } catch {
+            return [id, STUDENT_PROFILE_PENDING] as const
+          }
+        })
+      )
+      const studentLabels = Object.fromEntries(studentLabelEntries)
       return {
-        approvals,
-        recent: activity.items.map(mapActivity),
-        approvalEmptyMessage:
-          jobs.length + contracts.length === 0
-            ? 'Backend connected, but no records exist yet.'
-            : 'No placement reviews are pending coordinator action.',
-        alerts: [
-          `${pendingContracts} internship offers pending review.`,
-          `${pendingJobs} placement reviews pending verification.`,
-          `${notifications.unreadCount} unread workflow notifications.`,
-          ...failedRequests,
-        ],
-        kpis: [
+        metrics: [
           {
-            title: 'Total students',
-            value: new Set(internships.items.map((item) => item.userId)).size,
-            detail: 'Students with internship records',
-            progress: 72,
+            title: 'Awaiting Placement Approval',
+            value: pendingReviews.length,
+            detail: 'Self-sourced suitability reviews',
+            icon: ClipboardCheck,
+            tone: pendingReviews.length > 0 ? 'red' : 'neutral',
           },
           {
-            title: 'Looking',
-            value: internships.items.filter((item) => item.status === 'applied').length,
-            detail: 'Applied or sourcing',
-            progress: 42,
+            title: 'Contract Review',
+            value: contractVerifications.length,
+            detail: 'Post-offer checks',
+            icon: FileCheck2,
+            tone: contractVerifications.length > 0 ? 'red' : 'neutral',
           },
           {
-            title: 'Applied',
-            value: internships.items.length,
-            detail: 'Internship workflow records',
-            progress: 64,
+            title: 'Active Opportunities',
+            value: activeOpportunities.length,
+            detail: 'Published roles',
+            icon: BriefcaseBusiness,
+            tone: 'charcoal',
           },
           {
-            title: 'Accepted',
-            value: internships.items.filter((item) => item.status === 'offer_approved').length,
-            detail: 'Approved offers',
-            progress: 36,
+            title: 'Students in Progress',
+            value: studentsInProgress,
+            detail: 'Active workflows',
+            icon: Users,
+            tone: 'charcoal',
           },
           {
-            title: 'Needs attention',
-            value: needsAttention,
-            detail: 'Rejected or changes requested',
-            progress: 18,
+            title: 'Notifications',
+            value: notificationsUnread,
+            detail: 'Unread notices',
+            icon: Bell,
+            tone: notificationsUnread > 0 ? 'red' : 'neutral',
           },
         ],
-        notifications: notifications.items.map(mapNotification),
-      }
+        attention: buildAttentionQueue(
+          pendingReviews,
+          contractVerifications,
+          notifications.items,
+          studentLabels
+        ),
+        pipeline: [
+          {
+            label: 'Documents Submitted',
+            count: changesRequested.length,
+            href: '/coordinator/jobs?stage=documents',
+          },
+          {
+            label: 'Contract Review',
+            count: contractVerifications.length,
+            href: '/coordinator/jobs?stage=verification',
+          },
+          {
+            label: 'Final Approval',
+            count: 0,
+            href: '/coordinator/jobs?stage=review',
+          },
+          {
+            label: 'Approved',
+            count: internships.filter((item) => item.status === 'offer_approved').length,
+            href: '/coordinator/jobs?stage=approved',
+          },
+          {
+            label: 'Rejected',
+            count: rejectedInternships.length,
+            href: '/coordinator/jobs?stage=rejected',
+          },
+          {
+            label: 'Changes Requested',
+            count: changesRequested.length,
+            href: '/coordinator/jobs?status=awaiting_documents',
+          },
+        ],
+        recent: activity.map((item) =>
+          mapActivity(item, {
+            internships: internshipMap,
+            opportunities: opportunityMap,
+            studentLabels,
+          })
+        ),
+        semesters,
+        warnings: [
+          internshipsResult.status === 'rejected'
+            ? 'Internship records are currently unavailable.'
+            : null,
+          opportunitiesResult.status === 'rejected'
+            ? 'Opportunity records are currently unavailable.'
+            : null,
+          notificationsResult.status === 'rejected'
+            ? 'Workflow notifications are currently unavailable.'
+            : null,
+          activityResult.status === 'rejected' ? 'Recent activity is currently unavailable.' : null,
+          semestersResult.status === 'rejected'
+            ? 'Semester records are currently unavailable.'
+            : null,
+        ].filter((item): item is string => Boolean(item)),
+      } satisfies DashboardData
     },
-    {
-      approvals: [],
-      recent: [],
-      approvalEmptyMessage: 'Dashboard data is unavailable.',
-      alerts: ['Backend integration unavailable.'],
-      kpis: dashboardKpis,
-      notifications: [],
-    },
+    emptyDashboard,
     'dashboard',
-    {
-      emptyData: {
-        approvals: [],
-        recent: [],
-        approvalEmptyMessage: 'Dashboard data is unavailable.',
-        alerts: ['Workflow API returned an error. See console for response details.'],
-        kpis: dashboardKpis.map((item) => ({ ...item, value: 0, progress: 0 })),
-        notifications: [],
-      },
-    }
+    { emptyData: emptyDashboard }
   )
   const dashboard = dashboardResource.data
 
   if (dashboardResource.loading) {
     return (
       <div className="space-y-6">
-        <CoordinatorPageHeader
-          eyebrow="Coordinator Hub"
-          title="Work Integrated Learning Cohort"
-          description="Semester 1 2026 review operations, approval queues, AI-assisted risk triage, and student workflow tracking."
-          actions={
-            <>
-              <PillButton href="/coordinator/contracts?status=pending" variant="secondary">
-                Review contracts
-              </PillButton>
-              <PillButton href="/coordinator/opportunities">Create opportunity</PillButton>
-            </>
-          }
-        />
+        <DashboardHeader />
         <CoordinatorContentSkeleton title="Loading coordinator dashboard..." />
       </div>
     )
@@ -188,191 +321,309 @@ export default function CoordinatorDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <CoordinatorPageHeader
-        eyebrow="Coordinator Hub"
-        title="Work Integrated Learning Cohort"
-        description="Semester 1 2026 review operations, approval queues, AI-assisted risk triage, and student workflow tracking."
-        actions={
-          <>
-            <PillButton href="/coordinator/contracts?status=pending" variant="secondary">
-              Review contracts
-            </PillButton>
-            <PillButton href="/coordinator/opportunities">Create opportunity</PillButton>
-          </>
-        }
-      />
+      <DashboardHeader />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {dashboard.kpis.map((metric, index) => {
-          const Icon = kpiIcons[index] ?? TrendingUp
-          return (
-            <KPIStatCard
-              key={metric.title}
-              title={metric.title}
-              value={metric.value}
-              detail={metric.detail}
-              progress={metric.progress}
-              icon={Icon}
-              tone={kpiTones[index] ?? 'red'}
-            />
-          )
-        })}
-      </div>
+      {(dashboardResource.error || dashboard.warnings.length > 0) && (
+        <SurfaceCard className="p-4">
+          <div className="space-y-2 text-sm text-slate-600">
+            {dashboardResource.error && (
+              <p>{`Dashboard data unavailable: ${dashboardResource.error}`}</p>
+            )}
+            {dashboard.warnings.map((warning) => (
+              <p key={warning}>{warning}</p>
+            ))}
+          </div>
+        </SurfaceCard>
+      )}
 
-      <AnalyticsStrip
-        items={[
-          {
-            label: 'Queue velocity',
-            value: '+18%',
-            detail: 'Review throughput this week',
-            tone: 'charcoal',
-          },
-          {
-            label: 'AI risk cluster',
-            value: '6',
-            detail: 'Insurance and supervision flags',
-            tone: 'red',
-          },
-          {
-            label: 'Notifications sent',
-            value: '42',
-            detail: 'Automated student updates',
-            tone: 'neutral',
-          },
-          {
-            label: 'Advisor confidence',
-            value: '92%',
-            detail: 'Current workflow model',
-            tone: 'charcoal',
-          },
-        ]}
-      />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <div className="space-y-6">
-          {dashboardResource.error && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              {`Using isolated fallback data: ${dashboardResource.error}`}
-            </div>
-          )}
-          <SurfaceCard className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">Placement Reviews</h2>
-                <p className="text-sm text-slate-500">
-                  Priority submissions requiring coordinator action.
-                </p>
-              </div>
-              <Link
-                href="/coordinator/contracts"
-                className="text-sm font-bold text-red-700 hover:text-red-800"
-              >
-                View all
-              </Link>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {dashboard.approvals.length === 0 && (
-                <div className="px-5 py-10 text-center text-sm text-slate-500">
-                  {dashboard.approvalEmptyMessage}
-                </div>
-              )}
-              {dashboard.approvals.map((item) => (
-                <div
-                  key={`${item.type}-${item.id}`}
-                  className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-slate-950">{item.studentName}</p>
-                      <StatusBadge status="pending" />
-                    </div>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {item.type} submitted {formatDate(item.date)}
-                    </p>
-                  </div>
-                  <Link
-                    href={item.href}
-                    className="text-sm font-bold text-red-700 hover:text-red-800"
-                  >
-                    Open review
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </SurfaceCard>
-        </div>
-
-        <div className="space-y-6">
-          <SurfaceCard className="p-5">
-            <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
-              Current Phase
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-slate-950">Review and approvals</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Students are submitting placements and contracts. Coordinator focus is on evidence
-              quality, compliance, and notification turnaround.
-            </p>
-            <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-              {['Week 8', '72%', '9 days'].map((item, index) => (
-                <div key={item} className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-lg font-bold text-slate-950">{item}</p>
-                  <p className="text-xs text-slate-500">
-                    {index === 0 ? 'Semester' : index === 1 ? 'Complete' : 'Window'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-5">
-            <h2 className="text-lg font-bold text-slate-950">Action Required</h2>
-            <div className="mt-4 space-y-3">
-              {dashboard.alerts.map((alert) => (
-                <div
-                  key={alert}
-                  className="flex gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-800"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {alert}
-                </div>
-              ))}
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-5">
-            <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
-            <div className="mt-4">
-              <TimelineFeed items={dashboard.recent} />
-            </div>
-          </SurfaceCard>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          {
-            title: 'Pending contracts',
-            href: '/coordinator/contracts?status=pending',
-            icon: FileCheck2,
-          },
-          {
-            title: 'Placement reviews',
-            href: '/coordinator/jobs?status=pending',
-            icon: BriefcaseBusiness,
-          },
-          { title: 'Student directory', href: '/coordinator/students', icon: Users },
-        ].map(({ title, href, icon: Icon }) => (
-          <Link
-            key={title}
-            href={href}
-            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <Icon className="h-5 w-5 text-red-700" />
-            <p className="mt-4 font-bold text-slate-950">{title}</p>
-            <p className="mt-1 text-sm text-slate-500">Open workflow</p>
-          </Link>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {dashboard.metrics.map((metric) => (
+          <KPIStatCard
+            key={metric.title}
+            title={metric.title}
+            value={metric.value}
+            detail={metric.detail}
+            icon={metric.icon}
+            tone={metric.tone}
+          />
         ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
+        <div className="space-y-6">
+          <NeedsAttentionQueue items={dashboard.attention} />
+          <PipelineSnapshot stages={dashboard.pipeline} />
+        </div>
+
+        <div className="space-y-6">
+          <SemesterSnapshot semesters={dashboard.semesters} />
+          <RecentActivity items={dashboard.recent} />
+        </div>
       </div>
     </div>
   )
+}
+
+function DashboardHeader() {
+  return (
+    <CoordinatorPageHeader
+      eyebrow="Placement Operations"
+      title="Coordinator Dashboard"
+      description="Placement operations, approvals, and semester workflow overview."
+      actions={<PillButton href="/coordinator/contracts">Verify contracts</PillButton>}
+    />
+  )
+}
+
+function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
+  return (
+    <SurfaceCard className="overflow-hidden">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-950">Needs Attention</h2>
+          <p className="text-sm text-slate-500">Coordinator actions waiting in the workflow.</p>
+        </div>
+        <Clock3 className="h-5 w-5 text-red-700" />
+      </div>
+      <div className="divide-y divide-slate-100">
+        {items.length === 0 && (
+          <div className="px-5 py-10 text-center text-sm text-slate-500">
+            No coordinator actions waiting.
+          </div>
+        )}
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          >
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-slate-950">{item.title}</p>
+                <StatusBadge status={item.status} />
+              </div>
+              <p className="mt-1 text-sm text-slate-500">{item.meta}</p>
+              <p className="mt-1 text-sm font-medium text-slate-700">{item.context}</p>
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                {daysWaitingLabel(item.date)}
+              </p>
+            </div>
+            <Link
+              href={item.href}
+              className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-sm font-bold text-white hover:bg-black"
+            >
+              {item.action}
+            </Link>
+          </div>
+        ))}
+      </div>
+    </SurfaceCard>
+  )
+}
+
+function PipelineSnapshot({ stages }: { stages: PipelineStage[] }) {
+  return (
+    <SurfaceCard className="p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-950">Placement Processing</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Post-offer document, contract, and final approval distribution.
+          </p>
+        </div>
+        <BriefcaseBusiness className="h-5 w-5 text-red-700" />
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {stages.map((stage) => (
+          <Link
+            key={stage.label}
+            href={stage.href}
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-red-200 hover:bg-white"
+          >
+            <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+              {stage.label}
+            </p>
+            <p className="mt-3 text-3xl font-bold text-slate-950">{stage.count}</p>
+          </Link>
+        ))}
+      </div>
+    </SurfaceCard>
+  )
+}
+
+function RecentActivity({
+  items,
+}: {
+  items: Array<{
+    title: string
+    description: string
+    time: string
+    tone?: 'red' | 'charcoal' | 'neutral'
+  }>
+}) {
+  return (
+    <SurfaceCard className="p-5">
+      <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
+      <div className="mt-4">
+        {items.length > 0 ? (
+          <div className="space-y-3">
+            {items.map((item, index) => (
+              <div
+                key={`${item.title}-${item.time}-${index}`}
+                className="rounded-xl bg-slate-50 p-4"
+              >
+                <p className="text-sm font-bold text-slate-950">{item.title}</p>
+                <p className="mt-1 text-sm leading-5 text-slate-600">{item.description}</p>
+                <p className="mt-2 text-xs font-semibold text-slate-400">{item.time}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+            No recent activity yet.
+          </p>
+        )}
+      </div>
+    </SurfaceCard>
+  )
+}
+
+function SemesterSnapshot({ semesters }: { semesters: SemesterResponse[] }) {
+  const visibleSemesters = semesters.slice(0, 3)
+
+  return (
+    <SurfaceCard className="p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-950">Semester Snapshot</h2>
+          <p className="mt-1 text-sm text-slate-500">Active and recent intake windows.</p>
+        </div>
+        <CalendarDays className="h-5 w-5 text-red-700" />
+      </div>
+      <div className="mt-4 space-y-3">
+        {visibleSemesters.length === 0 && (
+          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+            No semester records available.
+          </p>
+        )}
+        {visibleSemesters.map((semester) => (
+          <div key={semester.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-bold text-slate-950">{semester.displayName}</p>
+              <StatusBadge status={semester.status === 'draft' ? 'pending' : semester.status} />
+            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              {semester.enrolmentOpenAt && semester.enrolmentCloseAt
+                ? `${formatDate(semester.enrolmentOpenAt)} to ${formatDate(semester.enrolmentCloseAt)}`
+                : 'Enrollment window unavailable'}
+            </p>
+          </div>
+        ))}
+      </div>
+    </SurfaceCard>
+  )
+}
+
+function buildAttentionQueue(
+  pendingReviews: OpportunityResponse[],
+  contractVerifications: InternshipListItemResponse[],
+  notifications: NotificationResponse[],
+  studentLabels: Record<string, string>
+): AttentionItem[] {
+  return [
+    ...pendingReviews.map((item) => ({
+      id: `opportunity-${item.id}`,
+      title: item.jobTitle,
+      meta: `${studentLabelForId(item.submittedByUserId, studentLabels)} - ${item.employerName}`,
+      status: 'awaiting_placement_approval' as CoordinatorStatus,
+      date: item.updatedAt ?? item.createdAt,
+      href: withReviewReturn(
+        `/coordinator/jobs/review?id=${encodeURIComponent(item.id)}`,
+        '/coordinator/dashboard',
+        { tab: OPPORTUNITY_SELF_SOURCED_TAB, context: SELF_SOURCED_REVIEW_CONTEXT }
+      ),
+      action: 'Review',
+      context: 'Self-sourced placement awaiting coordinator approval.',
+    })),
+    ...contractVerifications.map((item) => ({
+      id: `contract-${item.id}`,
+      title: item.opportunityJobTitle,
+      meta: `${studentLabelForId(item.userId, studentLabels)} - ${item.opportunityEmployerName}`,
+      status: 'awaiting_contract_review' as CoordinatorStatus,
+      date: item.lastSubmittedAt ?? item.createdAt,
+      href: withReviewReturn(
+        `/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`,
+        '/coordinator/dashboard',
+        { context: PLACEMENT_PROCESSING_CONTEXT }
+      ),
+      action: 'Review',
+      context: 'Contract documents uploaded and waiting review.',
+    })),
+    ...notifications
+      .filter((item) => !item.readAt)
+      .map((item) => ({
+        id: `notification-${item.id}`,
+        title: item.title,
+        meta: item.body,
+        status: notificationLooksEscalated(item)
+          ? 'flagged'
+          : item.relatedOpportunityId
+            ? ('awaiting_placement_approval' as CoordinatorStatus)
+            : ('awaiting_contract_review' as CoordinatorStatus),
+        date: item.createdAt,
+        href: notificationHref(item),
+        action: 'Open',
+        context: item.relatedOpportunityId
+          ? 'Self-sourced placement update from Internship Opportunities.'
+          : item.relatedInternshipId
+            ? 'Placement processing update requiring review.'
+            : 'Workflow notification requiring attention.',
+      })),
+  ]
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
+    .slice(0, 8)
+}
+
+function studentLabelForId(id: string | null | undefined, labels: Record<string, string>) {
+  if (!id) return STUDENT_PROFILE_PENDING
+  return labels[id] ?? STUDENT_PROFILE_PENDING
+}
+
+function notificationLooksEscalated(notification: NotificationResponse) {
+  const text = `${notification.type} ${notification.title} ${notification.body}`.toLowerCase()
+  return [
+    'flagged',
+    'escalated',
+    'compliance',
+    'rejected',
+    'invalid',
+    'missing critical',
+    'suspicious',
+  ].some((needle) => text.includes(needle))
+}
+
+function notificationHref(notification: NotificationResponse) {
+  if (notification.relatedInternshipId) {
+    return withReviewReturn(
+      `/coordinator/contracts/review?id=${encodeURIComponent(notification.relatedInternshipId)}`,
+      '/coordinator/dashboard',
+      { context: PLACEMENT_PROCESSING_CONTEXT }
+    )
+  }
+  if (notification.relatedOpportunityId) {
+    return withReviewReturn(
+      `/coordinator/jobs/review?id=${encodeURIComponent(notification.relatedOpportunityId)}`,
+      '/coordinator/dashboard',
+      { tab: OPPORTUNITY_SELF_SOURCED_TAB, context: SELF_SOURCED_REVIEW_CONTEXT }
+    )
+  }
+  return '/coordinator/notifications'
+}
+
+function daysWaitingLabel(date: string) {
+  const ageMs = Date.now() - Date.parse(date)
+  if (!Number.isFinite(ageMs) || ageMs < 0) return `Submitted ${formatDate(date)}`
+  const days = Math.floor(ageMs / 86_400_000)
+  if (days === 0) return 'Submitted today'
+  if (days === 1) return 'Waiting 1 day'
+  return `Waiting ${days} days`
 }

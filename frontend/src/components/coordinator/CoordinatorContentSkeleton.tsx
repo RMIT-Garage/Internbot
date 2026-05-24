@@ -1,6 +1,10 @@
 import { KpiCardSkeleton, Skeleton } from '@/components/ui/ContentSkeleton'
 
-export function CoordinatorContentSkeleton({ title }: { title: string }) {
+interface CoordinatorContentSkeletonProps {
+  title?: string
+}
+
+export function CoordinatorContentSkeleton({ title }: CoordinatorContentSkeletonProps) {
   return (
     <div className="space-y-6" aria-busy="true" aria-live="polite">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -25,3 +29,5 @@ export function CoordinatorContentSkeleton({ title }: { title: string }) {
     </div>
   )
 }
+
+export default CoordinatorContentSkeleton

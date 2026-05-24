@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { ContractReviewClient } from './ContractReviewClient'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 
 export default function CoordinatorContractReviewPage() {
   return (

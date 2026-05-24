@@ -2,17 +2,19 @@ import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface CoordinatorPageHeaderProps {
+  eyebrow?: string
+  title: string
+  description?: string
+  actions?: React.ReactNode
+}
+
 export function CoordinatorPageHeader({
   eyebrow,
   title,
   description,
   actions,
-}: {
-  eyebrow?: string
-  title: string
-  description?: string
-  actions?: React.ReactNode
-}) {
+}: CoordinatorPageHeaderProps) {
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
       <div className="pointer-events-none absolute top-0 right-0 h-28 w-72 rounded-bl-full bg-gradient-to-l from-red-50 via-slate-50 to-transparent" />
@@ -34,13 +36,12 @@ export function CoordinatorPageHeader({
   )
 }
 
-export function SurfaceCard({
-  children,
-  className,
-}: {
+interface SurfaceCardProps {
   children: React.ReactNode
   className?: string
-}) {
+}
+
+export function SurfaceCard({ children, className }: SurfaceCardProps) {
   return (
     <section
       className={cn(
@@ -53,6 +54,15 @@ export function SurfaceCard({
   )
 }
 
+interface KPIStatCardProps {
+  title: string
+  value: string | number
+  detail: string
+  icon: LucideIcon
+  tone?: 'red' | 'charcoal' | 'neutral'
+  progress?: number
+}
+
 export function KPIStatCard({
   title,
   value,
@@ -60,14 +70,7 @@ export function KPIStatCard({
   icon: Icon,
   tone = 'red',
   progress,
-}: {
-  title: string
-  value: string | number
-  detail: string
-  icon: LucideIcon
-  tone?: 'red' | 'charcoal' | 'neutral'
-  progress?: number
-}) {
+}: KPIStatCardProps) {
   const tones = {
     red: 'bg-red-50 text-red-700 ring-red-100',
     charcoal: 'bg-slate-950 text-white ring-slate-900',

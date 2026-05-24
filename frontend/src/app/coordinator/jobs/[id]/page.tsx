@@ -13,6 +13,7 @@ import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/c
 import { ReviewDecisionPanel } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { getSelfSourcedJob, recentActivity, selfSourcedJobs } from '@/lib/coordinator/mockData'
+import { formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 
 interface JobReviewPageProps {
@@ -28,13 +29,14 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
   const job = getSelfSourcedJob(id)
 
   if (!job) notFound()
+  const studentDisplay = formatStudentDisplay({ studentId: job.studentId, name: job.studentName })
 
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Placement Review"
         title={job.jobTitle}
-        description={`${job.studentName} submitted ${job.company} for institutional approval.`}
+        description={`${studentDisplay} submitted ${job.company} for self-sourced placement approval.`}
         actions={
           <Link
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
@@ -50,16 +52,16 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           <SurfaceCard className="p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-slate-950">Internship Information</h2>
+                <h2 className="text-xl font-bold text-slate-950">Placement Case Details</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Submitted {formatDate(job.submissionDate)}
+                  Placement confirmed {formatDate(job.submissionDate)}
                 </p>
               </div>
               <StatusBadge status={job.status} />
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {[
-                [User, 'Student', `${job.studentName} (${job.studentId})`],
+                [User, 'Student', studentDisplay],
                 [FileText, 'Course', job.course],
                 [Clock3, 'Semester', job.semester],
                 [Building2, 'Employer', job.company],
@@ -81,7 +83,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           </SurfaceCard>
 
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Submitted Role Description</h2>
+            <h2 className="text-lg font-bold text-slate-950">Submitted Placement Details</h2>
             <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
               {job.description}
             </p>
@@ -97,7 +99,12 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Risk Analysis</h2>
+            <h2 className="text-lg font-bold text-slate-950">Placement Suitability</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{job.aiAdvisory}</p>
+          </SurfaceCard>
+
+          <SurfaceCard className="p-6">
+            <h2 className="text-lg font-bold text-slate-950">Compliance Review</h2>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
               <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Risk level</p>
               <p className="mt-1 text-2xl font-bold text-slate-950">{job.riskLevel ?? 'Low'}</p>
@@ -118,13 +125,13 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           <SurfaceCard className="p-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
               <MessageSquareText className="h-5 w-5 text-red-700" />
-              Reviewer Notes
+              Review Decision
             </h2>
             <ReviewDecisionPanel
               id={job.id}
               kind="job"
               defaultNotes={job.notes.join('\n')}
-              canReview={job.status === 'pending'}
+              canReview={job.status === 'awaiting_placement_approval'}
               reviewedStatus={job.status}
               backHref="/coordinator/jobs"
             />

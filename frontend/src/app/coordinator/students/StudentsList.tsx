@@ -1,11 +1,10 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { FilterBar } from '@/components/coordinator/FilterBar'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { Pagination } from '@/components/coordinator/Pagination'
-import { SurfaceCard } from '@/components/coordinator/Premium'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import {
   coordinatorStudents,
   courses,
@@ -14,8 +13,9 @@ import {
 } from '@/lib/coordinator/mockData'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships } from '@/lib/coordinator/api'
 import { deriveStudentsFromInternships } from '@/lib/coordinator/apiMappers'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 
 const statusOptions = [
   { label: 'All statuses', value: 'all' },
@@ -32,6 +32,7 @@ function pageHref(searchParams: URLSearchParams, page: number) {
 }
 
 export function StudentsList() {
+  const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -62,6 +63,37 @@ export function StudentsList() {
     { emptyData: [] }
   )
 
+  useEffect(() => {
+    const missingIds = Array.from(
+      new Set(
+        students
+          .map((student) => student.id)
+          .filter((id): id is string =>
+            Boolean(id && !id.startsWith('record:') && !studentLabels[id])
+          )
+      )
+    )
+    if (missingIds.length === 0) return
+
+    let active = true
+    Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          return [id, formatStudentDisplay(await getUser(id))] as const
+        } catch {
+          return [id, STUDENT_PROFILE_PENDING] as const
+        }
+      })
+    ).then((entries) => {
+      if (!active) return
+      setStudentLabels((current) => ({ ...current, ...Object.fromEntries(entries) }))
+    })
+
+    return () => {
+      active = false
+    }
+  }, [students, studentLabels])
+
   if (loading) {
     return <CoordinatorContentSkeleton title="Loading students..." />
   }
@@ -78,7 +110,8 @@ export function StudentsList() {
 
       return (
         student.name.toLowerCase().includes(normalizedSearch) ||
-        student.studentId.toLowerCase().includes(normalizedSearch)
+        student.studentId.toLowerCase().includes(normalizedSearch) ||
+        studentDisplayLabel(student, studentLabels).toLowerCase().includes(normalizedSearch)
       )
     })
 
@@ -94,179 +127,144 @@ export function StudentsList() {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="space-y-6">
-        {error && (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            {`Using isolated fallback data: ${error}`}
-          </div>
-        )}
+    <div className="space-y-6">
+      {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Directory source: {source === 'api' ? 'API-derived internship records' : 'fallback data'}
+          {`Using isolated fallback data: ${error}`}
         </div>
-        {!loading && !error && source === 'api' && stableStudents.length === 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            Backend connected, but no records exist yet.
-          </div>
-        )}
-        <FilterBar
-          search={{
-            name: 'search',
-            label: 'Search',
-            placeholder: 'Name or student ID',
-            value: searchValue,
-          }}
-          selects={[
-            {
-              name: 'semester',
-              label: 'Semester',
-              value: semester,
-              options: [
-                { label: 'All semesters', value: 'all' },
-                ...semesters.map((item) => ({ label: item, value: item })),
-              ],
-            },
-            { name: 'status', label: 'Status', value: status, options: statusOptions },
-            {
-              name: 'course',
-              label: 'Course',
-              value: course,
-              options: [
-                { label: 'All courses', value: 'all' },
-                ...courses.map((item) => ({ label: item, value: item })),
-              ],
-            },
-          ]}
-        />
+      )}
+      {!loading && !error && source === 'api' && stableStudents.length === 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          Backend connected, but no records exist yet.
+        </div>
+      )}
+      <FilterBar
+        search={{
+          name: 'search',
+          label: 'Search',
+          placeholder: 'Name or student ID',
+          value: searchValue,
+        }}
+        selects={[
+          {
+            name: 'semester',
+            label: 'Semester',
+            value: semester,
+            options: [
+              { label: 'All semesters', value: 'all' },
+              ...semesters.map((item) => ({ label: item, value: item })),
+            ],
+          },
+          { name: 'status', label: 'Status', value: status, options: statusOptions },
+          {
+            name: 'course',
+            label: 'Course',
+            value: course,
+            options: [
+              { label: 'All courses', value: 'all' },
+              ...courses.map((item) => ({ label: item, value: item })),
+            ],
+          },
+        ]}
+      />
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th scope="col" className="px-4 py-3">
-                    Name
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Student ID
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Course
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Semester
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Overall Status
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paged.rows.map((student) => {
-                  const href = studentHref(student)
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <colgroup>
+              <col className="w-[32%]" />
+              <col className="w-[26%]" />
+              <col className="w-[14%]" />
+              <col className="w-[16%]" />
+              <col className="w-[12%]" />
+            </colgroup>
+            <thead className="sticky top-0 bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
+              <tr>
+                <th scope="col" className="px-4 py-3">
+                  Student
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Program/Course
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Internships
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Semester
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {paged.rows.map((student) => {
+                const href = studentHref(student)
+                const studentDisplay = studentDisplayLabel(student, studentLabels)
 
-                  return (
-                    <tr
-                      key={student.rowId}
-                      role="link"
-                      tabIndex={0}
-                      onClick={() => router.push(href)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          router.push(href)
-                        }
-                      }}
-                      className="cursor-pointer transition hover:bg-slate-50/80 focus:bg-slate-50 focus:ring-2 focus:ring-red-700 focus:outline-none focus:ring-inset"
-                    >
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div>
-                          <p className="font-bold text-slate-950">{student.name}</p>
+                return (
+                  <tr
+                    key={student.rowId}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(href)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        router.push(href)
+                      }
+                    }}
+                    className="cursor-pointer transition hover:bg-slate-50/80 focus:bg-slate-50 focus:ring-2 focus:ring-red-700 focus:outline-none focus:ring-inset"
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="font-bold text-slate-950">{studentDisplay}</p>
+                        {isRealStudentValue(student.email) && (
                           <p className="mt-1 text-xs text-slate-500">{student.email}</p>
-                          {student.recordId && (
-                            <p className="mt-1 text-xs font-semibold text-slate-700">
-                              Record {student.recordId}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 font-medium whitespace-nowrap text-slate-700">
-                        {student.studentId}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-slate-600">
-                        {student.course}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-slate-600">
-                        {student.semester}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <StatusBadge status={student.overallStatus} />
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm font-bold text-red-700">View profile</span>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {paged.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-zinc-500">
-                      No students match these filters.
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="font-semibold text-slate-800">{student.course}</p>
+                        {isRealStudentValue(student.year) && (
+                          <p className="mt-1 text-xs text-slate-500">{student.year}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <StudentMetaBadge
+                        label={`${student.internshipCount ?? 0} ${
+                          (student.internshipCount ?? 0) === 1 ? 'record' : 'records'
+                        }`}
+                      />
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-slate-600">
+                      {student.semester}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm font-bold text-red-700">View profile</span>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                )
+              })}
+              {paged.rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-zinc-500">
+                    No students match these filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-        <Pagination
-          page={paged.page}
-          totalPages={paged.totalPages}
-          getHref={(nextPage) => pageHref(params, nextPage)}
-        />
       </div>
 
-      <aside className="space-y-4">
-        <SurfaceCard className="p-5">
-          <h2 className="font-bold text-slate-950">Cohort Analytics</h2>
-          <div className="mt-4 space-y-4">
-            {[
-              [
-                'On track',
-                stableStudents.filter((student) => student.overallStatus === 'on_track').length,
-              ],
-              [
-                'Needs attention',
-                stableStudents.filter((student) => student.overallStatus === 'needs_attention')
-                  .length,
-              ],
-              [
-                'Approved',
-                stableStudents.filter((student) => student.overallStatus === 'approved').length,
-              ],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="flex items-center justify-between rounded-xl bg-slate-50 p-3"
-              >
-                <span className="text-sm font-medium text-slate-600">{label}</span>
-                <span className="text-lg font-bold text-slate-950">{value}</span>
-              </div>
-            ))}
-          </div>
-        </SurfaceCard>
-        <SurfaceCard className="p-5">
-          <h2 className="font-bold text-slate-950">Audit Freshness</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            84% of active students have a coordinator or system audit entry within the last seven
-            days.
-          </p>
-        </SurfaceCard>
-      </aside>
+      <Pagination
+        page={paged.page}
+        totalPages={paged.totalPages}
+        getHref={(nextPage) => pageHref(params, nextPage)}
+      />
     </div>
   )
 }
@@ -289,4 +287,21 @@ function ensureUniqueStudentRows(students: CoordinatorStudent[]): CoordinatorStu
       rowId: `${baseRowId}-fallback-${index}`,
     }
   })
+}
+
+function studentDisplayLabel(student: CoordinatorStudent, studentLabels: Record<string, string>) {
+  return studentLabels[student.id] ?? formatStudentDisplay(student)
+}
+
+function StudentMetaBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+      {label}
+    </span>
+  )
+}
+
+function isRealStudentValue(value?: string | null) {
+  const normalized = value?.trim().toLowerCase()
+  return Boolean(normalized && normalized !== 'not recorded')
 }

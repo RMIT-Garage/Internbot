@@ -2,27 +2,35 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, Bell, BriefcaseBusiness, FileText, History, ShieldAlert } from 'lucide-react'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import { ArrowLeft, BriefcaseBusiness, FileText, History } from 'lucide-react'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import {
   CoordinatorPageHeader,
   KPIStatCard,
   PillButton,
   SurfaceCard,
-  TimelineFeed,
 } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import type { CoordinatorStatus } from '@/components/coordinator/StatusBadge'
-import { listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships } from '@/lib/coordinator/api'
 import { coordinatorStudents, type StudentOverallStatus } from '@/lib/coordinator/mockData'
+import {
+  getInternshipStudentId,
+  getInternshipStudentKey,
+  hasBackendStudentId,
+  internshipSourceLabel,
+  internshipStageLabel,
+  internshipUpdatedAt,
+} from '@/lib/coordinator/apiMappers'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
+import { formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { InternshipListItemResponse } from '@/types/api'
 
 interface StudentProfile {
   id: string
   name: string
-  email: string
+  email?: string
   course: string
   semester: string
   status: StudentOverallStatus
@@ -41,8 +49,27 @@ export function StudentProfileClient() {
   const profileResource = useCoordinatorApiResource(
     async () => {
       if (!studentId) return null
-      const response = await listInternships({ userId: studentId, limit: 100 })
-      return buildProfile(studentId, response.items, recordId)
+      const canFilterByUserId = !studentId.startsWith('record:')
+      const response = await listInternships(
+        canFilterByUserId ? { userId: studentId, limit: 100 } : { limit: 100 }
+      )
+      const profileInternships = canFilterByUserId
+        ? response.items
+        : response.items.filter(
+            (item) =>
+              getInternshipStudentKey(item) === rowId ||
+              item.id === recordId ||
+              getInternshipStudentKey(item) === studentId
+          )
+      let studentDisplay: string | undefined
+      if (canFilterByUserId) {
+        try {
+          studentDisplay = formatStudentDisplay(await getUser(studentId))
+        } catch {
+          studentDisplay = undefined
+        }
+      }
+      return buildProfile(studentId, profileInternships, recordId, studentDisplay)
     },
     findFallbackProfile(studentId, rowId),
     `student-profile:${studentId}:${recordId}:${rowId}`,
@@ -69,33 +96,35 @@ export function StudentProfileClient() {
     return (
       <EmptyProfileState
         title="Student not found"
-        message={
-          profileResource.error
-            ? `API unavailable: ${profileResource.error}`
-            : 'Backend connected, but no records exist yet.'
-        }
+        message="No WIL records are currently available for this student."
         returnTo={returnTo}
       />
     )
   }
 
-  const pendingReviews = profile.internships.filter(
+  const contractReviews = profile.internships.filter(
     (item) => item.status === 'offer_pending_review'
   ).length
   const completedReviews = profile.internships.filter(
     (item) => item.status === 'offer_approved' || item.status === 'rejected'
   ).length
-  const activityItems = profile.internships.map((item) => ({
-    title: item.status.replace(/_/g, ' '),
-    description: `${item.opportunityJobTitle} at ${item.opportunityEmployerName}`,
-    time: formatDate(item.lastSubmittedAt ?? item.createdAt),
-    tone:
-      item.status === 'rejected' || item.status === 'offer_changes_requested'
-        ? ('red' as const)
-        : item.status === 'offer_approved'
-          ? ('charcoal' as const)
-          : ('neutral' as const),
-  }))
+  const activeInternships = profile.internships.filter(
+    (item) => item.status !== 'offer_approved' && item.status !== 'rejected'
+  ).length
+  const selfSourcedCount = profile.internships.filter(
+    (item) => internshipSourceLabel(item) === 'Self-Sourced'
+  ).length
+  const coordinatorPublishedCount = profile.internships.length - selfSourcedCount
+  const needsFollowUp = profile.internships.some(
+    (item) =>
+      item.status === 'offer_pending_review' ||
+      item.status === 'offer_changes_requested' ||
+      item.status === 'rejected'
+  )
+  const placementSummaries = buildPlacementStatusSummary(profile.internships)
+  const latestUpdate = profile.latestActivity
+    ? formatDate(profile.latestActivity)
+    : 'No updates yet'
 
   return (
     <div className="space-y-6">
@@ -113,26 +142,20 @@ export function StudentProfileClient() {
         }
       />
 
-      {profileResource.error && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {`Using isolated fallback data: ${profileResource.error}`}
-        </div>
-      )}
-
       <div className="grid gap-4 md:grid-cols-3">
         <KPIStatCard
           title="Internship records"
           value={profile.internships.length}
-          detail="Backend-connected records"
+          detail="WIL workflow records"
           icon={BriefcaseBusiness}
           tone="charcoal"
         />
         <KPIStatCard
-          title="Pending reviews"
-          value={pendingReviews}
+          title="Contract reviews"
+          value={contractReviews}
           detail="Coordinator action required"
           icon={FileText}
-          tone={pendingReviews > 0 ? 'red' : 'neutral'}
+          tone={contractReviews > 0 ? 'red' : 'neutral'}
         />
         <KPIStatCard
           title="Completed reviews"
@@ -151,116 +174,157 @@ export function StudentProfileClient() {
                 <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
                   Student Details
                 </p>
-                <h2 className="mt-2 text-xl font-bold text-slate-950">{profile.id}</h2>
+                <h2 className="mt-2 text-xl font-bold text-slate-950">{profile.name}</h2>
               </div>
               <StatusBadge status={profile.status} />
             </div>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
               {[
-                ['Student ID', profile.id],
+                ['Student ID', profile.name],
                 ['Email', profile.email],
                 ['Course/program', profile.course],
                 ['Semester', profile.semester],
                 ['Placement status', profile.placementStatus],
                 [
                   'Latest activity',
-                  profile.latestActivity
-                    ? formatDate(profile.latestActivity)
-                    : 'No activity recorded',
+                  profile.latestActivity ? formatDate(profile.latestActivity) : null,
                 ],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-slate-50 p-4">
-                  <dt className="text-xs font-bold tracking-wide text-slate-500 uppercase">
-                    {label}
-                  </dt>
-                  <dd className="mt-2 text-sm font-semibold text-slate-950">{value}</dd>
-                </div>
-              ))}
+              ]
+                .filter(([, value]) => isRealProfileValue(value))
+                .map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-4">
+                    <dt className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+                      {label}
+                    </dt>
+                    <dd className="mt-2 text-sm font-semibold text-slate-950">{value}</dd>
+                  </div>
+                ))}
             </dl>
           </SurfaceCard>
 
           <SurfaceCard className="overflow-hidden">
             <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-lg font-bold text-slate-950">Contract and Review History</h2>
+              <h2 className="text-lg font-bold text-slate-950">Internships and Applications</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Internship records returned by the backend for this student.
+                Current WIL records, source, status, and review path for this student.
               </p>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="overflow-x-auto">
               {profile.internships.length === 0 && (
                 <div className="px-5 py-10 text-center text-sm text-slate-500">
-                  Backend connected, but no records exist yet.
+                  No internships or applications recorded for this student.
                 </div>
               )}
-              {profile.internships.map((item) => (
-                <div
-                  key={item.id}
-                  className={
-                    item.id === recordId
-                      ? 'grid gap-3 bg-red-50 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'
-                      : 'grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'
-                  }
-                >
-                  <div>
-                    <p className="font-bold text-slate-950">{item.opportunityJobTitle}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {item.opportunityEmployerName} - {formatDate(item.createdAt)}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-600">
-                      {item.opportunityType.replace(/_/g, ' ')}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <StatusBadge status={statusToBadge(item.status)} />
-                    <Link
-                      href={`/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`}
-                      className="text-sm font-bold text-red-700 hover:text-red-800"
-                    >
-                      Open review
-                    </Link>
-                  </div>
-                </div>
-              ))}
+              {profile.internships.length > 0 && (
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
+                    <tr>
+                      {[
+                        'Role',
+                        'Employer',
+                        'Source',
+                        'Status',
+                        'Stage',
+                        'Semester',
+                        'Updated',
+                        'Action',
+                      ].map((header) => (
+                        <th key={header} scope="col" className="px-4 py-3">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {profile.internships.map((item) => (
+                      <tr key={item.id} className={item.id === recordId ? 'bg-red-50' : undefined}>
+                        <td className="px-4 py-4 font-bold text-slate-950">
+                          {item.opportunityJobTitle}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">{item.opportunityEmployerName}</td>
+                        <td className="px-4 py-4 text-slate-700">{internshipSourceLabel(item)}</td>
+                        <td className="px-4 py-4">
+                          <StatusBadge status={internshipStatusBadge(item)} />
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {internshipTableStageLabel(item)}
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">{profile.semester}</td>
+                        <td className="px-4 py-4 text-slate-700">
+                          {formatDate(internshipUpdatedAt(item))}
+                        </td>
+                        <td className="px-4 py-4">
+                          <Link
+                            href={`/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`}
+                            className="text-sm font-bold text-red-700 hover:text-red-800"
+                          >
+                            Open review
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </SurfaceCard>
         </div>
 
         <aside className="space-y-6">
           <SurfaceCard className="p-5">
-            <div className="flex items-center gap-3">
-              <ShieldAlert className="h-5 w-5 text-red-700" />
-              <h2 className="font-bold text-slate-950">AI and Risk Summary</h2>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Additional student profile data unavailable. Risk indicators are derived from current
-              internship review statuses only.
-            </p>
-            <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-800">
-              {pendingReviews > 0
-                ? 'Coordinator review is pending for this student.'
-                : 'No pending coordinator review detected.'}
-            </div>
+            <h2 className="font-bold text-slate-950">WIL Operations Summary</h2>
+            <dl className="mt-4 space-y-3">
+              {[
+                ['Active internships/applications', String(activeInternships)],
+                ['Current highest stage', profile.placementStatus],
+                [
+                  'Source mix',
+                  `${selfSourcedCount} self-sourced / ${coordinatorPublishedCount} coordinator published`,
+                ],
+                ['Latest submission/update', latestUpdate],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-slate-50 p-3">
+                  <dt className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+                    {label}
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-slate-950">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </SurfaceCard>
 
           <SurfaceCard className="p-5">
-            <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5 text-red-700" />
-              <h2 className="font-bold text-slate-950">Notifications</h2>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Additional student profile data unavailable. Student-specific notification filtering
-              is not exposed by the current frontend API helpers.
-            </p>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-5">
-            <h2 className="font-bold text-slate-950">Recent Activity</h2>
-            <div className="mt-4">
-              {activityItems.length > 0 ? (
-                <TimelineFeed items={activityItems} />
+            <h2 className="font-bold text-slate-950">Placement Status Summary</h2>
+            <div className="mt-4 space-y-2">
+              {placementSummaries.length > 0 ? (
+                placementSummaries.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"
+                  >
+                    <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
+                      {item.count}
+                    </span>
+                  </div>
+                ))
               ) : (
-                <p className="text-sm text-slate-500">No activity recorded for this student.</p>
+                <p className="text-sm text-slate-500">No active placement workflow yet.</p>
               )}
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className="p-5">
+            <h2 className="font-bold text-slate-950">Follow-up</h2>
+            <div
+              className={[
+                'mt-4 rounded-xl p-3 text-sm font-semibold',
+                needsFollowUp ? 'bg-amber-50 text-amber-900' : 'bg-emerald-50 text-emerald-900',
+              ].join(' ')}
+            >
+              {needsFollowUp
+                ? 'Coordinator follow-up is recommended for this student.'
+                : 'No immediate coordinator follow-up needed.'}
             </div>
           </SurfaceCard>
         </aside>
@@ -299,7 +363,8 @@ function EmptyProfileState({
 function buildProfile(
   studentId: string,
   internships: InternshipListItemResponse[],
-  selectedRecordId: string
+  selectedRecordId: string,
+  studentDisplay?: string
 ): StudentProfile | null {
   if (internships.length === 0) return null
   const sorted = [...internships].sort((a, b) => {
@@ -311,17 +376,17 @@ function buildProfile(
   })
   const latest = sorted[0]!
   const courses = new Set(sorted.map((item) => item.studentProgramCode).filter(Boolean))
+  const profileStudentId = hasBackendStudentId(latest) ? getInternshipStudentId(latest) : studentId
 
   return {
-    id: studentId,
-    name: studentId,
-    email: 'Additional student profile data unavailable.',
-    course:
-      courses.size > 1 ? 'Multiple programs' : (latest.studentProgramCode ?? 'Program pending'),
+    id: profileStudentId,
+    name: studentDisplay ?? formatStudentDisplay({ studentId: profileStudentId }),
+    email: undefined,
+    course: courses.size > 1 ? 'Multiple programs' : (latest.studentProgramCode ?? 'To confirm'),
     semester: 'Current semester',
     status: aggregateStudentStatus(sorted.map((item) => item.status)),
-    placementStatus: latest.status.replace(/_/g, ' '),
-    latestActivity: latest.lastSubmittedAt ?? latest.createdAt,
+    placementStatus: internshipTableStageLabel(latest),
+    latestActivity: internshipUpdatedAt(latest),
     internships: sorted,
   }
 }
@@ -334,28 +399,28 @@ function findFallbackProfile(studentId: string, rowId: string): StudentProfile |
 
   return {
     id: student.studentId,
-    name: student.name,
+    name: formatStudentDisplay(student),
     email: student.email,
     course: student.course,
     semester: student.semester,
     status: student.overallStatus,
-    placementStatus: student.placementStatus ?? 'Additional student profile data unavailable.',
+    placementStatus: student.placementStatus ?? '',
     latestActivity: student.lastAudit ?? null,
     internships: [],
   }
 }
 
+function isRealProfileValue(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase()
+  return Boolean(
+    normalized && normalized !== 'not recorded' && normalized !== 'no placement status recorded'
+  )
+}
+
 function aggregateStudentStatus(
   statuses: InternshipListItemResponse['status'][]
 ): StudentOverallStatus {
-  if (
-    statuses.some(
-      (status) =>
-        status === 'rejected' ||
-        status === 'offer_changes_requested' ||
-        status === 'offer_pending_review'
-    )
-  ) {
+  if (statuses.some((status) => status === 'rejected' || status === 'offer_changes_requested')) {
     return 'needs_attention'
   }
   if (statuses.some((status) => status === 'offer_approved')) return 'approved'
@@ -363,12 +428,35 @@ function aggregateStudentStatus(
   return 'on_track'
 }
 
-function statusToBadge(status: InternshipListItemResponse['status']): CoordinatorStatus {
-  if (status === 'offer_pending_review') return 'pending'
-  if (status === 'offer_approved') return 'approved'
-  if (status === 'offer_changes_requested') return 'changes_requested'
-  if (status === 'rejected') return 'rejected'
-  return 'flagged'
+function internshipStatusBadge(item: InternshipListItemResponse): CoordinatorStatus {
+  if (isPlacementApprovalStage(item)) return 'awaiting_placement_approval'
+  if (item.status === 'offer_pending_review') return 'awaiting_contract_review'
+  if (item.status === 'offer_approved') return 'approved'
+  if (item.status === 'offer_changes_requested') return 'awaiting_documents'
+  if (item.status === 'rejected') return 'rejected'
+  return 'awaiting_contract_details'
+}
+
+function internshipTableStageLabel(item: InternshipListItemResponse) {
+  if (isPlacementApprovalStage(item)) return 'Placement Approval'
+  if (item.status === 'applied') return 'Awaiting Contract Review'
+  return internshipStageLabel(item.status)
+}
+
+function isPlacementApprovalStage(item: InternshipListItemResponse) {
+  const status = String(item.status)
+  return status === 'pending' || status === 'awaiting_review' || status === 'awaiting_approval'
+}
+
+function buildPlacementStatusSummary(internships: InternshipListItemResponse[]) {
+  const counts = new Map<string, number>()
+
+  internships.forEach((item) => {
+    const label = internshipTableStageLabel(item)
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  })
+
+  return Array.from(counts.entries()).map(([label, count]) => ({ label, count }))
 }
 
 function normalizeReturnTo(value: string | null) {
