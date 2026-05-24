@@ -15,9 +15,9 @@ const schema = z.object({
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
   majors: z.string().optional(),
   minors: z.string().optional(),
-  gpa: z.coerce.number().min(0).max(4),
-  creditUnitsEarned: z.coerce.number().min(0),
-  unitsAttempted: z.coerce.number().min(0),
+  gpa: z.coerce.number().min(0.01, 'GPA is required').max(4),
+  creditUnitsEarned: z.coerce.number().min(1, 'Credit units earned is required'),
+  unitsAttempted: z.coerce.number().min(1, 'Units attempted is required'),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -86,6 +86,20 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
     }
   }
 
+  const { watch } = form
+
+  const watchedGpa = watch('gpa')
+  const watchedUnitsAttempted = watch('unitsAttempted')
+  const watchedCreditUnitsEarned = watch('creditUnitsEarned')
+
+  const isFormIncomplete =
+    !watchedGpa ||
+    watchedGpa <= 0 ||
+    !watchedUnitsAttempted ||
+    watchedUnitsAttempted <= 0 ||
+    !watchedCreditUnitsEarned ||
+    watchedCreditUnitsEarned <= 0
+
   return (
     // Backdrop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -107,6 +121,13 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 p-6">
+          {isFormIncomplete && (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-xs text-red-700">
+              GPA, credit units earned, and units attempted must all be greater than 0 to complete
+              your profile.
+            </div>
+          )}
+
           {/* Personal */}
           <fieldset>
             <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
@@ -200,7 +221,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || isFormIncomplete}
               className="flex-1 rounded-lg bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'SAVE CHANGES'}

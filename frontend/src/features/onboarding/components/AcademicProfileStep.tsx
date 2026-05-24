@@ -23,9 +23,18 @@ const schema = z.object({
   programName: z.string().min(1, 'Program name is required'),
   programLevel: z.enum(['undergraduate', 'postgraduate']),
 
-  gpa: z.preprocess((v) => parseFloat(String(v)), z.number().min(0, 'Min 0.0').max(4, 'Max 4.0')),
-  unitsAttempted: z.preprocess((v) => parseInt(String(v), 10), z.number().min(0)),
-  creditUnitsEarned: z.preprocess((v) => parseInt(String(v), 10), z.number().min(0)),
+  gpa: z.preprocess(
+    (v) => parseFloat(String(v)),
+    z.number().min(0.01, 'GPA must be greater than 0').max(4, 'Max 4.0')
+  ),
+  unitsAttempted: z.preprocess(
+    (v) => parseInt(String(v), 10),
+    z.number().min(1, 'Units attempted must be at least 1')
+  ),
+  creditUnitsEarned: z.preprocess(
+    (v) => parseInt(String(v), 10),
+    z.number().min(1, 'Credit units earned must be at least 1')
+  ),
 
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
 })
@@ -111,12 +120,15 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     watchedGpa === undefined ||
     watchedGpa === null ||
     String(watchedGpa) === '' ||
+    watchedGpa <= 0 ||
     watchedUnitsAttempted === undefined ||
     watchedUnitsAttempted === null ||
     String(watchedUnitsAttempted) === '' ||
+    watchedUnitsAttempted <= 0 ||
     watchedCreditUnitsEarned === undefined ||
     watchedCreditUnitsEarned === null ||
-    String(watchedCreditUnitsEarned) === ''
+    String(watchedCreditUnitsEarned) === '' ||
+    watchedCreditUnitsEarned <= 0
 
   const validationWarnings = [
     errors.programName?.message,
