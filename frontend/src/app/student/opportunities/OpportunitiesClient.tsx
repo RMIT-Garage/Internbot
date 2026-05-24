@@ -77,11 +77,6 @@ function OpportunityRow({
 
   return (
     <div className="flex items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
-      {/* Avatar */}
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-xs font-bold text-gray-500">
-        {opportunity.employerName.charAt(0).toUpperCase()}
-      </div>
-
       {/* Main info */}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{opportunity.jobTitle}</p>
