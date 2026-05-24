@@ -15,9 +15,20 @@ export interface AcademicInfoProps {
   readonly programStatus: ProgramStatus | undefined
   readonly majors: readonly string[] | undefined
   readonly minors: readonly string[] | undefined
+  /**
+   * Course codes the student attests they have completed (e.g. the internship
+   * prerequisites SEF30012 / APT40005 / PCP20019). Self-reported — same trust
+   * level as the credit/GPA fields, not a verified academic record.
+   */
+  readonly completedCourses: readonly string[] | undefined
   readonly notes: string | undefined
   readonly confirmedAt: Date | undefined
 }
+
+/** RMIT standard full-time annual load: 8 courses × 12 credit points. */
+const CREDIT_POINTS_PER_YEAR = 96
+/** Program length cap for the derived year level (4-year undergrad degree). */
+const MAX_YEAR_LEVEL = 4
 
 /**
  * AcademicInfo — value object embedded in StudentProfile.
@@ -113,8 +124,22 @@ export class AcademicInfo {
   get minors(): readonly string[] | undefined {
     return this.#props.minors
   }
+  get completedCourses(): readonly string[] | undefined {
+    return this.#props.completedCourses
+  }
   get notes(): string | undefined {
     return this.#props.notes
+  }
+
+  /**
+   * Derived current year level from credit points earned, on a standard
+   * 96-CP-per-year full-time load. Not persisted — recomputed on read so it
+   * can never drift from `creditUnitsEarned`. Clamped to [1, 4]; e.g. 0 CP → 1,
+   * 96 CP → 2, 180 CP → 2, ≥288 CP → 4.
+   */
+  get yearLevel(): number {
+    const level = Math.floor(this.#props.creditUnitsEarned / CREDIT_POINTS_PER_YEAR) + 1
+    return Math.min(MAX_YEAR_LEVEL, Math.max(1, level))
   }
   get confirmedAt(): Date | undefined {
     return this.#props.confirmedAt
@@ -148,6 +173,7 @@ export class AcademicInfo {
       this.#props.programStatus === other.#props.programStatus &&
       sameArray(this.#props.majors, other.#props.majors) &&
       sameArray(this.#props.minors, other.#props.minors) &&
+      sameArray(this.#props.completedCourses, other.#props.completedCourses) &&
       this.#props.notes === other.#props.notes &&
       timeEquals(this.#props.confirmedAt, other.#props.confirmedAt)
     )

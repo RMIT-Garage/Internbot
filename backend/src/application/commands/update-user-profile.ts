@@ -6,10 +6,12 @@ import { NotFoundError, MethodNotAllowedError, PreconditionFailedError } from '.
 import { AcademicInfo } from '../../domain/value-objects/academic-info'
 
 /**
- * PATCH /api/v1/users/:id command — updates the embedded `studentProfile`.
+ * PATCH /api/v1/users/:id command — updates the top-level `displayName`
+ * and/or the embedded `studentProfile`.
  *
  * Per WORKFLOW-API-SPEC.md §7.2:
  *   - Student-only. Coordinators → 405 with `Allow: GET`
+ *   - `displayName` is student-settable (registration captures no name)
  *   - studentNumber is immutable after first sync (same value = no-op; different = 400)
  *   - profileStatus is derived server-side (never trusted from client)
  *   - `academicInfo.confirmedAt` is set exactly once on the first write
@@ -30,6 +32,7 @@ export interface AcademicInfoPatch {
   programStatus?: 'active_in_program' | 'completed' | 'discontinued'
   majors?: readonly string[]
   minors?: readonly string[]
+  completedCourses?: readonly string[]
   notes?: string
 }
 
@@ -37,6 +40,7 @@ export interface UpdateUserProfileCommand {
   actor: RequestActor
   userId: string
   patch: {
+    displayName?: string
     studentNumber?: string
     programCode?: string
     phone?: string | null
@@ -79,6 +83,9 @@ export class UpdateUserProfileCommandHandler {
         throw new PreconditionFailedError('Resource version does not match')
       }
 
+      if (cmd.patch.displayName !== undefined) {
+        user.changeDisplayName(cmd.patch.displayName)
+      }
       if (cmd.patch.studentNumber !== undefined) {
         user.ensureStudentNumberMatches(cmd.patch.studentNumber)
       }
@@ -109,6 +116,7 @@ export class UpdateUserProfileCommandHandler {
               programStatus: a.programStatus,
               majors: a.majors,
               minors: a.minors,
+              completedCourses: a.completedCourses,
               notes: a.notes,
               confirmedAt: undefined,
             })

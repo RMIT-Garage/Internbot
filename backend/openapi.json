@@ -3845,13 +3845,19 @@
       "PatchUserRequest": {
         "type": "object",
         "properties": {
+          "displayName": {
+            "example": "Jane Doe",
+            "description": "The student-facing display name. Self-settable after sign-up (registration no longer captures a name). Trimmed; 1–100 chars.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
           "studentProfile": {
             "$ref": "#/components/schemas/StudentProfilePatch"
           }
         },
-        "required": ["studentProfile"],
         "additionalProperties": false,
-        "description": "Body for PATCH /api/v1/users/:id. Top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400."
+        "description": "Body for PATCH /api/v1/users/:id. `displayName` and `studentProfile` are both writable and optional (send either or both). Other top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400."
       },
       "StudentProfilePatch": {
         "type": "object",
@@ -3941,6 +3947,15 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "completedCourses": {
+            "example": ["SEF30012", "APT40005", "PCP20019"],
+            "description": "Self-attested completed course codes (e.g. internship prerequisites). Not verified against an academic record.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "notes": {
@@ -4628,6 +4643,21 @@
             "type": "string",
             "enum": ["full_time", "part_time", "unknown"]
           },
+          "completedCourses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["SEF30012", "APT40005", "PCP20019"],
+            "description": "Self-attested completed course codes. Always present (empty array when none recorded)."
+          },
+          "yearLevel": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "example": 2,
+            "description": "Derived current year level from creditUnitsEarned on a 96-CP/year load, clamped to [1, 4]. Not persisted."
+          },
           "notes": {
             "type": "string"
           },
@@ -4653,6 +4683,8 @@
           "creditUnitsEarned",
           "gpa",
           "currentStudyLoad",
+          "completedCourses",
+          "yearLevel",
           "confirmedAt"
         ],
         "additionalProperties": false,
