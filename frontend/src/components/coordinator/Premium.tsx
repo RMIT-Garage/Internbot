@@ -1,19 +1,20 @@
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, BrainCircuit, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+interface CoordinatorPageHeaderProps {
+  eyebrow?: string
+  title: string
+  description?: string
+  actions?: React.ReactNode
+}
 
 export function CoordinatorPageHeader({
   eyebrow,
   title,
   description,
   actions,
-}: {
-  eyebrow?: string
-  title: string
-  description?: string
-  actions?: React.ReactNode
-}) {
+}: CoordinatorPageHeaderProps) {
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
       <div className="pointer-events-none absolute top-0 right-0 h-28 w-72 rounded-bl-full bg-gradient-to-l from-red-50 via-slate-50 to-transparent" />
@@ -35,13 +36,12 @@ export function CoordinatorPageHeader({
   )
 }
 
-export function SurfaceCard({
-  children,
-  className,
-}: {
+interface SurfaceCardProps {
   children: React.ReactNode
   className?: string
-}) {
+}
+
+export function SurfaceCard({ children, className }: SurfaceCardProps) {
   return (
     <section
       className={cn(
@@ -54,6 +54,15 @@ export function SurfaceCard({
   )
 }
 
+interface KPIStatCardProps {
+  title: string
+  value: string | number
+  detail: string
+  icon: LucideIcon
+  tone?: 'red' | 'charcoal' | 'neutral'
+  progress?: number
+}
+
 export function KPIStatCard({
   title,
   value,
@@ -61,14 +70,7 @@ export function KPIStatCard({
   icon: Icon,
   tone = 'red',
   progress,
-}: {
-  title: string
-  value: string | number
-  detail: string
-  icon: LucideIcon
-  tone?: 'red' | 'charcoal' | 'neutral'
-  progress?: number
-}) {
+}: KPIStatCardProps) {
   const tones = {
     red: 'bg-red-50 text-red-700 ring-red-100',
     charcoal: 'bg-slate-950 text-white ring-slate-900',
@@ -97,43 +99,6 @@ export function KPIStatCard({
       )}
     </SurfaceCard>
   )
-}
-
-export function AIInsightCard({
-  title,
-  insight,
-  confidence,
-  href,
-}: {
-  title: string
-  insight: string
-  confidence?: number
-  href?: string
-}) {
-  const content = (
-    <SurfaceCard className="relative overflow-hidden border-red-100 bg-gradient-to-br from-white via-white to-red-50 p-5 shadow-slate-200/70">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-red-700" />
-      <div className="flex items-start gap-4">
-        <div className="rounded-2xl bg-slate-950 p-3 text-white shadow-sm">
-          <BrainCircuit className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-bold text-slate-950">{title}</h2>
-            {typeof confidence === 'number' && (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
-                {confidence}% confidence
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{insight}</p>
-        </div>
-        {href && <ArrowRight className="mt-1 h-4 w-4 text-red-700" />}
-      </div>
-    </SurfaceCard>
-  )
-
-  return href ? <Link href={href}>{content}</Link> : content
 }
 
 export function AnalyticsStrip({
@@ -168,34 +133,6 @@ export function AnalyticsStrip({
           <p className="mt-3 text-sm text-slate-500">{item.detail}</p>
         </div>
       ))}
-    </SurfaceCard>
-  )
-}
-
-export function AICommandCard({
-  title,
-  description,
-  metric,
-}: {
-  title: string
-  description: string
-  metric: string
-}) {
-  return (
-    <SurfaceCard className="group relative overflow-hidden border-red-200 bg-slate-950 p-5 text-white shadow-slate-950/20 transition hover:-translate-y-0.5 hover:shadow-xl">
-      <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-red-700/30 blur-3xl transition group-hover:bg-red-600/30" />
-      <div className="relative">
-        <div className="flex items-center justify-between gap-3">
-          <div className="rounded-2xl bg-white/10 p-3 text-white ring-1 ring-white/15">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
-            {metric}
-          </span>
-        </div>
-        <h3 className="mt-5 text-lg font-bold">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
-      </div>
     </SurfaceCard>
   )
 }

@@ -89,8 +89,8 @@ export function toSubmitInternshipOfferCommand(
     actor,
     internshipId,
     payload: {
-      offerDate: new Date(body.offerDate),
-      startDate: new Date(body.startDate),
+      offerDate: body.offerDate === undefined ? undefined : new Date(body.offerDate),
+      startDate: body.startDate === undefined ? undefined : new Date(body.startDate),
       endDate:
         body.endDate === null || body.endDate === undefined ? undefined : new Date(body.endDate),
     },

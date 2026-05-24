@@ -1,4 +1,15 @@
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'changes_requested' | 'flagged'
+export type ApprovalStatus =
+  | 'pending'
+  | 'awaiting_placement_approval'
+  | 'awaiting_contract_review'
+  | 'awaiting_contract_details'
+  | 'awaiting_review'
+  | 'awaiting_documents'
+  | 'awaiting_approval'
+  | 'approved'
+  | 'rejected'
+  | 'changes_requested'
+  | 'flagged'
 export type StudentOverallStatus = 'on_track' | 'needs_attention' | 'approved' | 'inactive'
 export type WorkflowTone = 'red' | 'charcoal' | 'neutral'
 
@@ -48,6 +59,7 @@ export interface ContractApproval {
   id: string
   studentName: string
   studentId: string
+  studentUserId?: string
   course: string
   semester: string
   submissionDate: string
@@ -91,7 +103,7 @@ export const coordinatorSummary: SummaryMetric[] = [
     total: 42,
     description: 'Submitted placement contracts',
     states: [
-      { label: 'Pending', count: 12, status: 'pending' },
+      { label: 'Awaiting Contract Review', count: 12, status: 'awaiting_contract_review' },
       { label: 'Approved', count: 24, status: 'approved' },
       { label: 'Changes', count: 6, status: 'changes_requested' },
     ],
@@ -101,7 +113,7 @@ export const coordinatorSummary: SummaryMetric[] = [
     total: 31,
     description: 'Student-submitted opportunities',
     states: [
-      { label: 'Pending', count: 9, status: 'pending' },
+      { label: 'Awaiting Placement Approval', count: 9, status: 'awaiting_placement_approval' },
       { label: 'Approved', count: 18, status: 'approved' },
       { label: 'Flagged', count: 4, status: 'flagged' },
     ],
@@ -124,35 +136,35 @@ export const pendingApprovals: PendingApproval[] = [
     studentName: 'Maya Singh',
     type: 'Placement Review',
     date: '2026-05-08',
-    href: '/coordinator/jobs/review?id=job-001',
+    href: '/coordinator/jobs/review?id=job-001&returnTo=/coordinator/opportunities&tab=self-sourced',
   },
   {
     id: 'contract-001',
     studentName: 'Noah Tran',
     type: 'Contract',
     date: '2026-05-07',
-    href: '/coordinator/contracts/review?id=contract-001',
+    href: '/coordinator/contracts/review?id=contract-001&returnTo=/coordinator/jobs',
   },
   {
     id: 'job-002',
     studentName: 'Ava Williams',
     type: 'Placement Review',
     date: '2026-05-06',
-    href: '/coordinator/jobs/review?id=job-002',
+    href: '/coordinator/jobs/review?id=job-002&returnTo=/coordinator/opportunities&tab=self-sourced',
   },
   {
     id: 'contract-002',
     studentName: 'Ethan Chen',
     type: 'Contract',
     date: '2026-05-05',
-    href: '/coordinator/contracts/review?id=contract-002',
+    href: '/coordinator/contracts/review?id=contract-002&returnTo=/coordinator/jobs',
   },
   {
     id: 'job-003',
     studentName: 'Olivia Brown',
     type: 'Placement Review',
     date: '2026-05-04',
-    href: '/coordinator/jobs/review?id=job-003',
+    href: '/coordinator/jobs/review?id=job-003&returnTo=/coordinator/opportunities&tab=self-sourced',
   },
 ]
 
@@ -166,7 +178,7 @@ export const selfSourcedJobs: SelfSourcedJob[] = [
     jobTitle: 'Junior Web Developer',
     company: 'Northbank Digital',
     submissionDate: '2026-05-08',
-    status: 'pending',
+    status: 'awaiting_placement_approval',
     location: 'Melbourne CBD',
     workPattern: '3 days per week, hybrid',
     supervisor: 'Eleanor Marsh, Engineering Lead',
@@ -212,7 +224,7 @@ export const selfSourcedJobs: SelfSourcedJob[] = [
     jobTitle: 'Software QA Intern',
     company: 'Harbour Labs',
     submissionDate: '2026-05-04',
-    status: 'pending',
+    status: 'awaiting_placement_approval',
     location: 'Docklands',
     workPattern: 'Full-time block placement',
     supervisor: 'Priya Menon, QA Practice Lead',
@@ -293,7 +305,7 @@ export const contractApprovals: ContractApproval[] = [
     course: 'Bachelor of Computer Science',
     semester: 'Semester 1 2026',
     submissionDate: '2026-05-07',
-    status: 'pending',
+    status: 'awaiting_contract_review',
     documentName: 'Noah Tran - Placement Agreement.pdf',
     placementHost: 'Circuit House',
     aiIssues: ['Host signature detected', 'Student signature detected', 'Start date needs review'],
@@ -323,7 +335,7 @@ export const contractApprovals: ContractApproval[] = [
     course: 'Master of Data Science',
     semester: 'Semester 2 2026',
     submissionDate: '2026-05-01',
-    status: 'pending',
+    status: 'awaiting_contract_review',
     documentName: 'Grace Martin Internship Contract.pdf',
     placementHost: 'Market Signal',
     aiIssues: ['All signatures detected', 'Weekly hours exceed usual threshold'],
@@ -374,7 +386,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     overallStatus: 'needs_attention',
     email: 'maya.singh@student.rmit.edu.au',
     year: 'Year 3',
-    placementStatus: 'Review required',
+    placementStatus: 'Awaiting Placement Approval',
     lastAudit: '2026-05-08',
   },
   {
@@ -387,7 +399,7 @@ export const coordinatorStudents: CoordinatorStudent[] = [
     overallStatus: 'on_track',
     email: 'noah.tran@student.rmit.edu.au',
     year: 'Year 3',
-    placementStatus: 'Contract pending',
+    placementStatus: 'Awaiting Contract Review',
     lastAudit: '2026-05-07',
   },
   {
@@ -572,7 +584,7 @@ export const opportunities = [
     descriptionText: 'Prepare dashboards and analytics datasets for civic service reporting.',
     workMode: 'remote' as const,
     location: 'Remote',
-    status: 'pending' as const,
+    status: 'awaiting_placement_approval' as const,
     sourceUrl: null,
     statusRaw: 'pending_verification' as const,
     applications: 7,
@@ -626,7 +638,7 @@ export const coordinatorNotifications = [
     title: 'Ethan Chen uploaded signed contract',
     body: 'Cyber Security Operations Placement • SecureStack • Contract verification stage',
     unread: true,
-    href: '/coordinator/contracts/review?id=contract-002',
+    href: '/coordinator/contracts/review?id=contract-002&returnTo=/coordinator/notifications',
     workflowStage: 'Contract verification stage',
     placementType: 'Self-sourced placement',
     updatedAt: 'May 9',
@@ -634,10 +646,10 @@ export const coordinatorNotifications = [
   {
     id: 'note-002',
     title: 'Maya Singh submitted placement verification',
-    body: 'Junior Web Developer • Northbank Digital • Awaiting coordinator review',
+    body: 'Junior Web Developer • Northbank Digital • Awaiting Placement Approval',
     unread: true,
     href: '/coordinator/jobs',
-    workflowStage: 'Awaiting coordinator review',
+    workflowStage: 'Awaiting Placement Approval',
     placementType: 'Self-sourced placement',
     updatedAt: 'May 8',
   },
@@ -646,47 +658,11 @@ export const coordinatorNotifications = [
     title: 'Liam Nguyen placement approved',
     body: 'Security Operations Intern • Redline Managed Services • Review completed',
     unread: false,
-    href: '/coordinator/jobs/review?id=job-004',
+    href: '/coordinator/jobs/review?id=job-004&returnTo=/coordinator/notifications&tab=self-sourced',
     workflowStage: 'Review completed',
     placementType: 'Self-sourced placement',
     updatedAt: 'May 7',
   },
-]
-
-export const aiAdvisorReports = [
-  {
-    id: 'ai-001',
-    title: 'Contract compliance batch',
-    description:
-      '6 agreements contain clauses or signature patterns that require coordinator review.',
-    confidence: 92,
-    type: 'Contracts',
-    severity: 'High',
-  },
-  {
-    id: 'ai-002',
-    title: 'Remote supervision suitability',
-    description:
-      'Remote-only job submissions need clearer meeting cadence and escalation protocols.',
-    confidence: 86,
-    type: 'Jobs',
-    severity: 'Medium',
-  },
-  {
-    id: 'ai-003',
-    title: 'Cohort readiness projection',
-    description: 'Semester 2 acceptance pace is tracking 11% behind the previous intake cycle.',
-    confidence: 81,
-    type: 'Students',
-    severity: 'Medium',
-  },
-]
-
-export const aiComplianceChecks = [
-  { label: 'Insurance wording', score: 74, trend: 'Needs review' },
-  { label: 'Host supervision', score: 88, trend: 'Stable' },
-  { label: 'Learning alignment', score: 91, trend: 'Strong' },
-  { label: 'Weekly hours', score: 79, trend: 'Watch' },
 ]
 
 export function getSelfSourcedJob(id: string) {

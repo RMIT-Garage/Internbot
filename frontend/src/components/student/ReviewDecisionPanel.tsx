@@ -34,7 +34,7 @@ export function ReviewDecisionPanel({
   defaultNotes,
   canReview = true,
   reviewedStatus = 'pending',
-  backHref = kind === 'contract' ? '/student/contracts' : '/student/jobs',
+  backHref = kind === 'contract' ? '/student/applications' : '/student/jobs',
   onSuccess,
   onAlreadyReviewed,
 }: ReviewDecisionPanelProps) {

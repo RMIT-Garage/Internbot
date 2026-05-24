@@ -13,6 +13,7 @@ import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/c
 import { ReviewDecisionPanel } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { getSelfSourcedJob, recentActivity, selfSourcedJobs } from '@/lib/coordinator/mockData'
+import { formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 
 interface JobReviewPageProps {
@@ -28,13 +29,14 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
   const job = getSelfSourcedJob(id)
 
   if (!job) notFound()
+  const studentDisplay = formatStudentDisplay({ studentId: job.studentId, name: job.studentName })
 
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Placement Verification"
+        eyebrow="Placement Review"
         title={job.jobTitle}
-        description={`${job.studentName} confirmed ${job.company} for institutional verification and approval.`}
+        description={`${studentDisplay} submitted ${job.company} for self-sourced placement approval.`}
         actions={
           <Link
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
@@ -50,7 +52,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           <SurfaceCard className="p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-slate-950">Placement Information</h2>
+                <h2 className="text-xl font-bold text-slate-950">Placement Case Details</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Placement confirmed {formatDate(job.submissionDate)}
                 </p>
@@ -59,7 +61,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {[
-                [User, 'Student', `${job.studentName} (${job.studentId})`],
+                [User, 'Student', studentDisplay],
                 [FileText, 'Course', job.course],
                 [Clock3, 'Semester', job.semester],
                 [Building2, 'Employer', job.company],
@@ -88,7 +90,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           </SurfaceCard>
 
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Verification Timeline</h2>
+            <h2 className="text-lg font-bold text-slate-950">Review Timeline</h2>
             <div className="mt-4">
               <TimelineFeed items={recentActivity.slice(0, 3)} />
             </div>
@@ -97,7 +99,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Verification Checklist</h2>
+            <h2 className="text-lg font-bold text-slate-950">Placement Suitability</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">{job.aiAdvisory}</p>
           </SurfaceCard>
 
@@ -129,7 +131,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
               id={job.id}
               kind="job"
               defaultNotes={job.notes.join('\n')}
-              canReview={job.status === 'pending'}
+              canReview={job.status === 'awaiting_placement_approval'}
               reviewedStatus={job.status}
               backHref="/coordinator/jobs"
             />

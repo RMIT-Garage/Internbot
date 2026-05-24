@@ -3,10 +3,12 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { AddInternshipCommentRequest } from '../models/AddInternshipCommentRequest'
+import type { CreateInternshipAttachmentUploadIntentRequest } from '../models/CreateInternshipAttachmentUploadIntentRequest'
 import type { CreateInternshipRequest } from '../models/CreateInternshipRequest'
 import type { DecideInternshipOfferRequest } from '../models/DecideInternshipOfferRequest'
 import type { InternshipActivityResponse } from '../models/InternshipActivityResponse'
 import type { InternshipAttachmentDownloadResponse } from '../models/InternshipAttachmentDownloadResponse'
+import type { InternshipAttachmentUploadIntentResponse } from '../models/InternshipAttachmentUploadIntentResponse'
 import type { InternshipListResponse } from '../models/InternshipListResponse'
 import type { InternshipResponse } from '../models/InternshipResponse'
 import type { PatchInternshipRequest } from '../models/PatchInternshipRequest'
@@ -133,6 +135,34 @@ export class InternshipsService {
     })
   }
   /**
+   * Reserve an internship attachment upload slot
+   * Student-owner only. Allowed only while the internship is `applied` or `offer_changes_requested`. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the client uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.
+   * @param id Platform internship id.
+   * @param requestBody
+   * @returns InternshipAttachmentUploadIntentResponse Upload intent created. Use `uploadUrl` to PUT the file bytes.
+   * @throws ApiError
+   */
+  public static createInternshipAttachmentUploadIntent(
+    id: string,
+    requestBody: CreateInternshipAttachmentUploadIntentRequest
+  ): CancelablePromise<InternshipAttachmentUploadIntentResponse> {
+    return __request(OpenAPI, {
+      method: 'POST',
+      url: '/api/v1/internships/{id}/attachments/upload-intents',
+      path: {
+        id: id,
+      },
+      body: requestBody,
+      mediaType: 'application/json',
+      errors: {
+        403: `Caller is not the owning student.`,
+        404: `No internship exists with the supplied id.`,
+        409: `Internship status does not permit attachment upload.`,
+        422: `Missing or invalid \`fileName\` / \`contentType\`.`,
+      },
+    })
+  }
+  /**
    * Return an internship attachment download resource
    * Returns attachment metadata with a fresh short-lived V4 signed Cloud Storage URL. Students can read only their own internship attachments; coordinators can read all.
    * @param id Platform internship id.
@@ -185,7 +215,7 @@ export class InternshipsService {
   }
   /**
    * Submit an internship offer for coordinator review
-   * Student-owner only. Requires at least one offer attachment and transitions applied/changes_requested to offer_pending_review.
+   * Student-owner only. Requires at least one finalized offer attachment and transitions applied/changes_requested to offer_pending_review. Offer dates are optional and may be supplied later by the coordinator.
    * @param id Platform internship id.
    * @param requestBody
    * @param ifMatch Opt-in optimistic concurrency — the current ETag from a prior GET.
@@ -212,7 +242,7 @@ export class InternshipsService {
         403: `Caller is not the student owner.`,
         409: `Internship is not in an offer-submittable state.`,
         412: `Stale \`If-Match\`.`,
-        422: `Missing offer details or offer attachment.`,
+        422: `No finalized offer attachment present.`,
       },
     })
   }

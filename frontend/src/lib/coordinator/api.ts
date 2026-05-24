@@ -12,6 +12,16 @@ import type {
   UserActivityFeedResponse,
 } from '@/types/api'
 
+export interface CoordinatorUserLookupResponse {
+  id: string
+  email?: string | null
+  displayName?: string | null
+  role?: string
+  studentProfile?: {
+    studentNumber?: string | null
+  } | null
+}
+
 type QueryValue = string | number | boolean | null | undefined
 type Query = Record<string, QueryValue>
 
@@ -97,6 +107,10 @@ export function getInternshipAttachment(id: string, attachmentId: string) {
   >(`/api/v1/internships/${id}/attachments/${attachmentId}`)
 }
 
+export function getUser(id: string) {
+  return apiFetch<CoordinatorUserLookupResponse>(`/api/v1/users/${id}`)
+}
+
 export function decideInternship(
   internship: Pick<InternshipResponse, 'id' | 'version'>,
   decision: 'approved' | 'rejected' | 'changes_requested',
@@ -158,6 +172,7 @@ export function updateOpportunity(
   body: {
     employerName?: string
     jobTitle?: string
+    semesterId?: string
     descriptionText?: string
     workMode?: 'onsite' | 'hybrid' | 'remote' | null
     location?: string | null

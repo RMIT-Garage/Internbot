@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Bell, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
 import { coordinatorNotifications } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'

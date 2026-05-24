@@ -15,12 +15,12 @@ import {
   KPIStatCard,
   PillButton,
   SurfaceCard,
-  TimelineFeed,
 } from '@/components/coordinator/Premium'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge, type CoordinatorStatus } from '@/components/coordinator/StatusBadge'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import {
+  getUser,
   listInternships,
   listMyActivity,
   listNotifications,
@@ -28,6 +28,8 @@ import {
   listSemesters,
 } from '@/lib/coordinator/api'
 import { mapActivity } from '@/lib/coordinator/apiMappers'
+import { OPPORTUNITY_SELF_SOURCED_TAB, withReviewReturn } from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type {
   InternshipListItemResponse,
@@ -44,6 +46,7 @@ interface AttentionItem {
   date: string
   href: string
   action: string
+  context: string
 }
 
 interface PipelineStage {
@@ -75,9 +78,9 @@ interface DashboardData {
 const emptyDashboard: DashboardData = {
   metrics: [
     {
-      title: 'Pending Reviews',
+      title: 'Awaiting Placement Approval',
       value: 0,
-      detail: 'Confirmed placements',
+      detail: 'Self-sourced suitability reviews',
       icon: ClipboardCheck,
       tone: 'neutral',
     },
@@ -106,12 +109,12 @@ const emptyDashboard: DashboardData = {
   ],
   attention: [],
   pipeline: [
-    { label: 'Placement Confirmed', count: 0, href: '/coordinator/jobs?stage=submitted' },
     { label: 'Documents Submitted', count: 0, href: '/coordinator/jobs?stage=documents' },
     { label: 'Contract Review', count: 0, href: '/coordinator/jobs?stage=verification' },
     { label: 'Final Approval', count: 0, href: '/coordinator/jobs?stage=review' },
     { label: 'Approved', count: 0, href: '/coordinator/jobs?stage=approved' },
-    { label: 'Rejected', count: 0, href: '/coordinator/contracts?status=rejected' },
+    { label: 'Rejected', count: 0, href: '/coordinator/jobs?stage=rejected' },
+    { label: 'Changes Requested', count: 0, href: '/coordinator/jobs?status=awaiting_documents' },
   ],
   recent: [],
   semesters: [],
@@ -149,6 +152,8 @@ export default function CoordinatorDashboardPage() {
           : { items: [] as NotificationResponse[], nextPageToken: null, unreadCount: 0 }
       const activity = activityResult.status === 'fulfilled' ? activityResult.value.items : []
       const semesters = semestersResult.status === 'fulfilled' ? semestersResult.value.items : []
+      const internshipMap = new Map(internships.map((item) => [item.id, item]))
+      const opportunityMap = new Map(opportunities.map((item) => [item.id, item]))
 
       const customOpportunities = opportunities.filter((item) => item.type === 'custom')
       const pendingReviews = customOpportunities.filter(
@@ -168,19 +173,37 @@ export default function CoordinatorDashboardPage() {
         (item) => item.status === 'offer_changes_requested'
       )
       const rejectedInternships = internships.filter((item) => item.status === 'rejected')
-      const approvedRecords =
-        internships.filter((item) => item.status === 'offer_approved').length +
-        activeOpportunities.length
-      const rejectedRecords =
-        rejectedInternships.length +
-        opportunities.filter((item) => item.status === 'rejected').length
-
+      const studentLabelEntries = await Promise.all(
+        Array.from(
+          new Set(
+            [
+              ...pendingReviews.map((item) => item.submittedByUserId),
+              ...contractVerifications.map((item) => item.userId),
+              ...activity.map((item) =>
+                item.internshipId ? internshipMap.get(item.internshipId)?.userId : null
+              ),
+              ...activity.map((item) =>
+                item.opportunityId
+                  ? opportunityMap.get(item.opportunityId)?.submittedByUserId
+                  : null
+              ),
+            ].filter((id): id is string => Boolean(id))
+          )
+        ).map(async (id) => {
+          try {
+            return [id, formatStudentDisplay(await getUser(id))] as const
+          } catch {
+            return [id, STUDENT_PROFILE_PENDING] as const
+          }
+        })
+      )
+      const studentLabels = Object.fromEntries(studentLabelEntries)
       return {
         metrics: [
           {
-            title: 'Pending Reviews',
+            title: 'Awaiting Placement Approval',
             value: pendingReviews.length,
-            detail: 'Confirmed placements',
+            detail: 'Self-sourced suitability reviews',
             icon: ClipboardCheck,
             tone: pendingReviews.length > 0 ? 'red' : 'neutral',
           },
@@ -213,13 +236,13 @@ export default function CoordinatorDashboardPage() {
             tone: notificationsUnread > 0 ? 'red' : 'neutral',
           },
         ],
-        attention: buildAttentionQueue(pendingReviews, contractVerifications, notifications.items),
+        attention: buildAttentionQueue(
+          pendingReviews,
+          contractVerifications,
+          notifications.items,
+          studentLabels
+        ),
         pipeline: [
-          {
-            label: 'Placement Confirmed',
-            count: pendingReviews.length,
-            href: '/coordinator/jobs?status=pending',
-          },
           {
             label: 'Documents Submitted',
             count: changesRequested.length,
@@ -232,21 +255,32 @@ export default function CoordinatorDashboardPage() {
           },
           {
             label: 'Final Approval',
-            count: pendingReviews.length,
+            count: 0,
             href: '/coordinator/jobs?stage=review',
           },
           {
             label: 'Approved',
-            count: approvedRecords,
+            count: internships.filter((item) => item.status === 'offer_approved').length,
             href: '/coordinator/jobs?stage=approved',
           },
           {
             label: 'Rejected',
-            count: rejectedRecords,
+            count: rejectedInternships.length,
             href: '/coordinator/jobs?stage=rejected',
           },
+          {
+            label: 'Changes Requested',
+            count: changesRequested.length,
+            href: '/coordinator/jobs?status=awaiting_documents',
+          },
         ],
-        recent: activity.map(mapActivity),
+        recent: activity.map((item) =>
+          mapActivity(item, {
+            internships: internshipMap,
+            opportunities: opportunityMap,
+            studentLabels,
+          })
+        ),
         semesters,
         warnings: [
           internshipsResult.status === 'rejected'
@@ -331,14 +365,7 @@ function DashboardHeader() {
       eyebrow="Placement Operations"
       title="Coordinator Dashboard"
       description="Placement operations, approvals, and semester workflow overview."
-      actions={
-        <>
-          <PillButton href="/coordinator/jobs" variant="secondary">
-            Open pipeline
-          </PillButton>
-          <PillButton href="/coordinator/contracts">Verify contracts</PillButton>
-        </>
-      }
+      actions={<PillButton href="/coordinator/contracts">Verify contracts</PillButton>}
     />
   )
 }
@@ -356,7 +383,7 @@ function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
       <div className="divide-y divide-slate-100">
         {items.length === 0 && (
           <div className="px-5 py-10 text-center text-sm text-slate-500">
-            No pending coordinator actions.
+            No coordinator actions waiting.
           </div>
         )}
         {items.map((item) => (
@@ -370,6 +397,7 @@ function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
                 <StatusBadge status={item.status} />
               </div>
               <p className="mt-1 text-sm text-slate-500">{item.meta}</p>
+              <p className="mt-1 text-sm font-medium text-slate-700">{item.context}</p>
               <p className="mt-1 text-xs font-medium text-slate-500">
                 {daysWaitingLabel(item.date)}
               </p>
@@ -432,7 +460,18 @@ function RecentActivity({
       <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
       <div className="mt-4">
         {items.length > 0 ? (
-          <TimelineFeed items={items} />
+          <div className="space-y-3">
+            {items.map((item, index) => (
+              <div
+                key={`${item.title}-${item.time}-${index}`}
+                className="rounded-xl bg-slate-50 p-4"
+              >
+                <p className="text-sm font-bold text-slate-950">{item.title}</p>
+                <p className="mt-1 text-sm leading-5 text-slate-600">{item.description}</p>
+                <p className="mt-2 text-xs font-semibold text-slate-400">{item.time}</p>
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
             No recent activity yet.
@@ -482,26 +521,36 @@ function SemesterSnapshot({ semesters }: { semesters: SemesterResponse[] }) {
 function buildAttentionQueue(
   pendingReviews: OpportunityResponse[],
   contractVerifications: InternshipListItemResponse[],
-  notifications: NotificationResponse[]
+  notifications: NotificationResponse[],
+  studentLabels: Record<string, string>
 ): AttentionItem[] {
   return [
     ...pendingReviews.map((item) => ({
       id: `opportunity-${item.id}`,
       title: item.jobTitle,
-      meta: `${item.submittedByUserId ?? 'Student'} - ${item.employerName}`,
-      status: 'pending' as CoordinatorStatus,
+      meta: `${studentLabelForId(item.submittedByUserId, studentLabels)} - ${item.employerName}`,
+      status: 'awaiting_placement_approval' as CoordinatorStatus,
       date: item.updatedAt ?? item.createdAt,
-      href: `/coordinator/jobs/review?id=${encodeURIComponent(item.id)}`,
-      action: 'Verify',
+      href: withReviewReturn(
+        `/coordinator/jobs/review?id=${encodeURIComponent(item.id)}`,
+        '/coordinator/dashboard',
+        { tab: OPPORTUNITY_SELF_SOURCED_TAB }
+      ),
+      action: 'Review',
+      context: 'Self-sourced placement awaiting coordinator approval.',
     })),
     ...contractVerifications.map((item) => ({
       id: `contract-${item.id}`,
       title: item.opportunityJobTitle,
-      meta: `${item.userId} - ${item.opportunityEmployerName}`,
-      status: 'pending' as CoordinatorStatus,
+      meta: `${studentLabelForId(item.userId, studentLabels)} - ${item.opportunityEmployerName}`,
+      status: 'awaiting_contract_review' as CoordinatorStatus,
       date: item.lastSubmittedAt ?? item.createdAt,
-      href: `/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`,
-      action: 'Verify',
+      href: withReviewReturn(
+        `/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`,
+        '/coordinator/dashboard'
+      ),
+      action: 'Review',
+      context: 'Contract documents uploaded and waiting review.',
     })),
     ...notifications
       .filter((item) => !item.readAt)
@@ -509,22 +558,56 @@ function buildAttentionQueue(
         id: `notification-${item.id}`,
         title: item.title,
         meta: item.body,
-        status: 'flagged' as CoordinatorStatus,
+        status: notificationLooksEscalated(item)
+          ? 'flagged'
+          : item.relatedOpportunityId
+            ? ('awaiting_placement_approval' as CoordinatorStatus)
+            : ('awaiting_contract_review' as CoordinatorStatus),
         date: item.createdAt,
         href: notificationHref(item),
         action: 'Open',
+        context: item.relatedOpportunityId
+          ? 'Self-sourced placement update from Internship Opportunities.'
+          : item.relatedInternshipId
+            ? 'Placement processing update requiring review.'
+            : 'Workflow notification requiring attention.',
       })),
   ]
     .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
     .slice(0, 8)
 }
 
+function studentLabelForId(id: string | null | undefined, labels: Record<string, string>) {
+  if (!id) return STUDENT_PROFILE_PENDING
+  return labels[id] ?? STUDENT_PROFILE_PENDING
+}
+
+function notificationLooksEscalated(notification: NotificationResponse) {
+  const text = `${notification.type} ${notification.title} ${notification.body}`.toLowerCase()
+  return [
+    'flagged',
+    'escalated',
+    'compliance',
+    'rejected',
+    'invalid',
+    'missing critical',
+    'suspicious',
+  ].some((needle) => text.includes(needle))
+}
+
 function notificationHref(notification: NotificationResponse) {
   if (notification.relatedInternshipId) {
-    return `/coordinator/contracts/review?id=${encodeURIComponent(notification.relatedInternshipId)}`
+    return withReviewReturn(
+      `/coordinator/contracts/review?id=${encodeURIComponent(notification.relatedInternshipId)}`,
+      '/coordinator/dashboard'
+    )
   }
   if (notification.relatedOpportunityId) {
-    return `/coordinator/jobs/review?id=${encodeURIComponent(notification.relatedOpportunityId)}`
+    return withReviewReturn(
+      `/coordinator/jobs/review?id=${encodeURIComponent(notification.relatedOpportunityId)}`,
+      '/coordinator/dashboard',
+      { tab: OPPORTUNITY_SELF_SOURCED_TAB }
+    )
   }
   return '/coordinator/notifications'
 }

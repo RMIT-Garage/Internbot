@@ -233,7 +233,7 @@ function isAlreadyReviewedError(error: unknown): boolean {
 
 function decisionMessage(decision: ReviewDecision, kind: ReviewDecisionPanelProps['kind']) {
   if (decision === 'approved' && kind === 'job') {
-    return 'Approved Opportunity. The student can now upload their offer letter and placement documents to begin placement processing.'
+    return 'Placement suitability approved. The student can now upload offer and contract documents to begin placement processing.'
   }
   if (decision === 'approved') return 'Approved. The review state has been updated.'
   if (decision === 'rejected') return 'Rejected. The review state has been updated.'

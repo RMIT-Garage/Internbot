@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import {
   Bell,
-  BrainCircuit,
   BriefcaseBusiness,
   CalendarDays,
   Clock,
@@ -11,7 +10,6 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
-  Plus,
   Search,
   User,
   X,
@@ -105,11 +103,11 @@ const NAV_PAGES: SearchResult[] = [
     Icon: BriefcaseBusiness,
   },
   {
-    id: 'contracts',
+    id: 'applications',
     category: 'Pages',
-    title: 'Contracts',
-    subtitle: 'Your internship contracts',
-    href: '/student/contracts',
+    title: 'Applications',
+    subtitle: 'Your internship applications',
+    href: '/student/applications',
     Icon: FileCheck2,
   },
   {
@@ -127,14 +125,6 @@ const NAV_PAGES: SearchResult[] = [
     subtitle: 'Browse available internships',
     href: '/student/opportunities',
     Icon: GraduationCap,
-  },
-  {
-    id: 'ai-advisor',
-    category: 'Pages',
-    title: 'AI Advisor',
-    subtitle: 'Get AI-powered guidance',
-    href: '/student/ai-advisor',
-    Icon: BrainCircuit,
   },
   {
     id: 'notifications',
@@ -548,14 +538,6 @@ export function StudentTopbar() {
       {/* ACTIONS */}
       <div className="flex items-center gap-2">
         <Link
-          href="/student/courses"
-          className="hidden h-9 items-center gap-2 rounded-xl bg-red-700 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-800 sm:inline-flex"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Browse
-        </Link>
-
-        <Link
           href="/student/notifications"
           className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50"
           aria-label="Notifications"
@@ -563,8 +545,10 @@ export function StudentTopbar() {
           <Bell className="h-4 w-4" />
           <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600" />
         </Link>
-
-        <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 md:flex">
+        <Link
+          href="/student/profile"
+          className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 transition hover:bg-slate-50 md:flex"
+        >
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
             <User className="h-3.5 w-3.5" />
           </div>
@@ -572,8 +556,7 @@ export function StudentTopbar() {
             <p className="truncate text-xs font-semibold text-slate-900">Student</p>
             <p className="truncate text-[11px] text-slate-500">{user?.email ?? 'Student portal'}</p>
           </div>
-        </div>
-
+        </Link>
         <button
           type="button"
           onClick={handleSignOut}

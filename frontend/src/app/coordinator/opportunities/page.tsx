@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   Archive,
@@ -15,17 +15,21 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { opportunities } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
+import { useAuth } from '@/hooks/useAuth'
 import {
   createOpportunity,
+  getUser,
   listOpportunities,
   listSemesters,
   transitionOpportunity,
   updateOpportunity,
 } from '@/lib/coordinator/api'
 import { formatDate } from '@/lib/utils'
+import { OPPORTUNITY_SELF_SOURCED_TAB, withReviewReturn } from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import type { OpportunityResponse, OpportunityStatus, SemesterResponse } from '@/types/api'
 
 type WorkMode = 'onsite' | 'hybrid' | 'remote'
@@ -110,7 +114,7 @@ function mapOpportunityRow(
     location: item.location,
     sourceUrl: item.sourceUrl,
     statusRaw: item.status,
-    applications: item.applicationCount,
+    applications: displayApplicationCount(item.type, item.applicationCount, item.submittedByUserId),
     createdByUserId: item.createdByUserId,
     submittedByUserId: item.submittedByUserId,
     verifiedByUserId: item.verifiedByUserId,
@@ -139,7 +143,7 @@ function mapMockOpportunityRow(
     location: item.location,
     sourceUrl: item.sourceUrl,
     statusRaw: item.statusRaw,
-    applications: item.applications,
+    applications: displayApplicationCount(item.type, item.applications, item.submittedByUserId),
     createdByUserId: item.createdByUserId,
     submittedByUserId: item.submittedByUserId,
     verifiedByUserId: item.verifiedByUserId,
@@ -151,6 +155,7 @@ function mapMockOpportunityRow(
 }
 
 export default function CoordinatorOpportunitiesPage() {
+  const { loading: authLoading } = useAuth()
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [transitioningId, setTransitioningId] = useState<string | null>(null)
@@ -158,16 +163,18 @@ export default function CoordinatorOpportunitiesPage() {
   const [publishingView, setPublishingView] = useState<PublishingView>('active')
   const [activeTab, setActiveTab] = useState<OpportunityTab>('published')
   const [filters, setFilters] = useState<OpportunityFilters>(initialFilters)
+  const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
   const [editForm, setEditForm] = useState({
     title: '',
     company: '',
+    semesterId: '',
     descriptionText: '',
     sourceUrl: '',
-    type: 'pre_approved' as OpportunityType,
+    type: 'custom' as OpportunityType,
   })
   const [createForm, setCreateForm] = useState({
     semesterId: '',
-    type: 'pre_approved' as OpportunityType,
+    type: 'custom' as OpportunityType,
     employerName: '',
     jobTitle: '',
     descriptionText: '',
@@ -183,7 +190,7 @@ export default function CoordinatorOpportunitiesPage() {
     },
     [] as SemesterResponse[],
     'opportunity-semesters',
-    { emptyData: [] }
+    { emptyData: [], enabled: !authLoading }
   )
 
   const semesterLabels = useMemo(() => {
@@ -237,11 +244,55 @@ export default function CoordinatorOpportunitiesPage() {
   const canCreate = isCreateFormValid(createForm) && semestersResource.data.length > 0 && !saving
   const hasFilters = !areFiltersDefault(filters)
 
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      setActiveTab(getOpportunityTabFromUrl())
+    }
+
+    syncTabFromUrl()
+    window.addEventListener('popstate', syncTabFromUrl)
+    return () => window.removeEventListener('popstate', syncTabFromUrl)
+  }, [])
+
+  useEffect(() => {
+    const missingIds = Array.from(
+      new Set(
+        opportunityRows
+          .map((row) => row.submittedByUserId)
+          .filter((id): id is string => Boolean(id && !studentLabels[id]))
+      )
+    )
+
+    if (missingIds.length === 0) return
+
+    let active = true
+    Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const user = await getUser(id)
+          return [id, formatStudentDisplay(user)] as const
+        } catch {
+          return [id, STUDENT_PROFILE_PENDING] as const
+        }
+      })
+    ).then((entries) => {
+      if (!active) return
+      setStudentLabels((current) => ({
+        ...current,
+        ...Object.fromEntries(entries),
+      }))
+    })
+
+    return () => {
+      active = false
+    }
+  }, [opportunityRows, studentLabels])
+
   if (loading) {
     return (
       <div className="space-y-6">
         <CoordinatorPageHeader
-          eyebrow="Phase 1: Internship Search"
+          eyebrow="Internship Search"
           title="Internship Opportunities"
           description="Manage internships before a student officially receives an offer."
         />
@@ -253,7 +304,7 @@ export default function CoordinatorOpportunitiesPage() {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Phase 1: Internship Search"
+        eyebrow="Internship Search"
         title="Internship Opportunities"
         description="Manage the student-facing opportunity board and review self-sourced position descriptions before placement processing begins."
         actions={
@@ -285,17 +336,17 @@ export default function CoordinatorOpportunitiesPage() {
         <KPIStatCard
           title="Published listings"
           value={activePostingCount}
-          detail="Student-facing internships and approved self-sourced roles"
+          detail="Student-facing internships and accepted self-sourced roles"
           icon={BriefcaseBusiness}
           tone="charcoal"
           progress={58}
         />
         <KPIStatCard
-          title="Awaiting review"
+          title="Awaiting Placement Approval"
           value={pendingReviewCount}
           detail="Self-sourced position descriptions needing suitability review"
           icon={ClipboardCheck}
-          tone="red"
+          tone="neutral"
           progress={42}
         />
         <KPIStatCard
@@ -310,14 +361,12 @@ export default function CoordinatorOpportunitiesPage() {
 
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {source === 'fallback'
-            ? `Using isolated fallback data: ${error}`
-            : `Opportunity API unavailable: ${error}`}
+          Opportunity records are temporarily unavailable. Showing saved records where available.
         </div>
       )}
       {!loading && !error && source === 'api' && opportunityRows.length === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Backend connected, but no opportunity records exist yet.
+          No opportunity records exist yet.
         </div>
       )}
 
@@ -335,7 +384,7 @@ export default function CoordinatorOpportunitiesPage() {
         activeTab={activeTab}
         publishedCount={publishedRows.length}
         selfSourcedCount={selfSourcedRows.length}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       />
 
       {activeTab === 'published' ? (
@@ -345,6 +394,8 @@ export default function CoordinatorOpportunitiesPage() {
           counts={publishingCounts}
           editingId={editingId}
           editForm={editForm}
+          semesters={semestersResource.data}
+          studentLabels={studentLabels}
           saving={saving}
           transitioningId={transitioningId}
           onViewChange={setPublishingView}
@@ -355,20 +406,34 @@ export default function CoordinatorOpportunitiesPage() {
           onTransition={handleTransitionOpportunity}
         />
       ) : (
-        <SelfSourcedReviewSection rows={selfSourcedRows} />
+        <SelfSourcedReviewSection rows={selfSourcedRows} studentLabels={studentLabels} />
       )}
     </div>
   )
 
   function startEdit(opportunity: OpportunityRow) {
+    if (!canEditPublishedOpportunity(opportunity)) return
     setEditingId(opportunity.id)
     setEditForm({
       title: opportunity.title,
       company: opportunity.company,
+      semesterId: opportunity.semesterId,
       descriptionText: opportunity.descriptionText,
       sourceUrl: opportunity.sourceUrl ?? '',
       type: opportunity.type,
     })
+  }
+
+  function handleTabChange(tab: OpportunityTab) {
+    setActiveTab(tab)
+    const params = new URLSearchParams(window.location.search)
+    if (tab === 'self_sourced') {
+      params.set('tab', OPPORTUNITY_SELF_SOURCED_TAB)
+    } else {
+      params.delete('tab')
+    }
+    const query = params.toString()
+    window.history.replaceState(null, '', query ? `?${query}` : window.location.pathname)
   }
 
   async function handleCreateOpportunity(event: FormEvent<HTMLFormElement>) {
@@ -390,14 +455,16 @@ export default function CoordinatorOpportunitiesPage() {
         location: createForm.location.trim(),
         ...(createForm.sourceUrl.trim() ? { sourceUrl: createForm.sourceUrl.trim() } : {}),
       })
-      setData([
-        mapOpportunityRow(created, semesterLabels, semesterCourseLabels),
-        ...opportunityRows,
-      ])
+      const publishedCreated =
+        isDraftStatus(created.status) && !created.submittedByUserId
+          ? await transitionOpportunity({ id: created.id }, 'published')
+          : created
+      const createdRow = mapOpportunityRow(publishedCreated, semesterLabels, semesterCourseLabels)
+      setData([createdRow, ...opportunityRows.filter((row) => row.id !== createdRow.id)])
       setShowCreate(false)
       setCreateForm({
         semesterId: '',
-        type: 'pre_approved',
+        type: 'custom',
         employerName: '',
         jobTitle: '',
         descriptionText: '',
@@ -405,7 +472,19 @@ export default function CoordinatorOpportunitiesPage() {
         location: '',
         sourceUrl: '',
       })
+      setActiveTab('published')
+      setPublishingView(isArchived(createdRow) ? 'all' : 'active')
+      setFilters(initialFilters)
       toast.success('Opportunity created.')
+      try {
+        const refreshed = await listOpportunities({ limit: 100, sort: '-createdAt' })
+        const refreshedRows = refreshed.items.map((item) =>
+          mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
+        )
+        setData(mergeOpportunityRows(createdRow, refreshedRows))
+      } catch {
+        setData([createdRow, ...opportunityRows.filter((row) => row.id !== createdRow.id)])
+      }
     } catch (err) {
       toast.error(formatOpportunityError(err, createForm.type))
     } finally {
@@ -415,8 +494,8 @@ export default function CoordinatorOpportunitiesPage() {
 
   async function handleUpdateOpportunity(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault()
-    if (!editForm.title.trim() || !editForm.company.trim()) {
-      toast.error('Job title and employer are required.')
+    if (!editForm.title.trim() || !editForm.company.trim() || !editForm.semesterId) {
+      toast.error('Job title, employer, and semester are required.')
       return
     }
     const sourceUrlError = getSourceUrlError(editForm.type, editForm.sourceUrl)
@@ -432,6 +511,7 @@ export default function CoordinatorOpportunitiesPage() {
         {
           jobTitle: editForm.title.trim(),
           employerName: editForm.company.trim(),
+          semesterId: editForm.semesterId,
           descriptionText: editForm.descriptionText.trim() || undefined,
           sourceUrl: editForm.sourceUrl.trim() || null,
         }
@@ -443,6 +523,16 @@ export default function CoordinatorOpportunitiesPage() {
       )
       setEditingId(null)
       toast.success('Opportunity updated.')
+      try {
+        const refreshed = await listOpportunities({ limit: 100, sort: '-createdAt' })
+        setData(
+          refreshed.items.map((item) =>
+            mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
+          )
+        )
+      } catch {
+        reload()
+      }
     } catch (err) {
       toast.error(formatOpportunityError(err, editForm.type))
       reload()
@@ -513,15 +603,17 @@ function CreateOpportunityPanel({
   return (
     <SurfaceCard className="p-5">
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-slate-950">Create opportunity</h2>
+        <h2 className="text-lg font-bold text-slate-950">
+          Create Coordinator Published opportunity
+        </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Coordinator-created opportunities start in the publishing workflow and can be made visible
-          to students once ready.
+          Coordinator-published listings go straight to the student opportunity board. Student
+          self-sourced submissions appear separately in Self-Sourced Reviews.
         </p>
       </div>
       {(semesterLoading || semesterError) && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          {semesterLoading ? 'Loading semesters...' : `Semester API unavailable: ${semesterError}`}
+          {semesterLoading ? 'Loading semesters...' : 'Semester list is temporarily unavailable.'}
         </div>
       )}
       {!semesterLoading && !semesterError && semesters.length === 0 && (
@@ -546,7 +638,7 @@ function CreateOpportunityPanel({
           </select>
         </label>
         <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
-          Type
+          Source
           <select
             value={createForm.type}
             onChange={(event) =>
@@ -554,8 +646,8 @@ function CreateOpportunityPanel({
             }
             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
           >
-            <option value="pre_approved">Pre-approved</option>
-            <option value="custom">Custom</option>
+            <option value="custom">Coordinator Published</option>
+            <option value="pre_approved">CareerHub</option>
           </select>
         </label>
         <TextInput
@@ -598,7 +690,11 @@ function CreateOpportunityPanel({
           />
         </label>
         <TextInput
-          label={createForm.type === 'pre_approved' ? 'CareerHub opportunity link' : 'Source URL'}
+          label={
+            createForm.type === 'pre_approved'
+              ? 'CareerHub opportunity link'
+              : 'Job listing or careers link'
+          }
           value={createForm.sourceUrl}
           onChange={(value) => onFormChange({ ...createForm, sourceUrl: value })}
           error={getSourceUrlError(createForm.type, createForm.sourceUrl)}
@@ -636,9 +732,9 @@ function OpportunityFiltersBar({
 }) {
   const statusOptions: Array<{ value: QuickStatusFilter; label: string }> = [
     { value: 'all', label: 'All states' },
-    { value: 'published', label: 'Published / Approved' },
+    { value: 'published', label: 'Published' },
     { value: 'draft', label: 'Draft' },
-    { value: 'pending_verification', label: 'Under review' },
+    { value: 'pending_verification', label: 'Awaiting Placement Approval' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'archived', label: 'Archived' },
   ]
@@ -741,6 +837,8 @@ function PublishedOpportunitySection({
   counts,
   editingId,
   editForm,
+  semesters,
+  studentLabels,
   saving,
   transitioningId,
   onViewChange,
@@ -757,10 +855,13 @@ function PublishedOpportunitySection({
   editForm: {
     title: string
     company: string
+    semesterId: string
     descriptionText: string
     sourceUrl: string
     type: OpportunityType
   }
+  semesters: SemesterResponse[]
+  studentLabels: Record<string, string>
   saving: boolean
   transitioningId: string | null
   onViewChange: (view: PublishingView) => void
@@ -768,6 +869,7 @@ function PublishedOpportunitySection({
   onEditChange: (form: {
     title: string
     company: string
+    semesterId: string
     descriptionText: string
     sourceUrl: string
     type: OpportunityType
@@ -821,8 +923,9 @@ function PublishedOpportunitySection({
         </div>
       </div>
       <SurfaceCard className="overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1fr_0.9fr_1fr_0.8fr_0.6fr_1.1fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-xl:hidden">
+        <div className="grid grid-cols-[1.25fr_0.95fr_0.95fr_0.85fr_0.9fr_0.85fr_0.55fr_1fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-xl:hidden">
           <span>Role</span>
+          <span>Student</span>
           <span>Employer</span>
           <span>Source type</span>
           <span>Semester</span>
@@ -836,85 +939,112 @@ function PublishedOpportunitySection({
           rows.map((row) => (
             <form
               key={row.id}
-              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 xl:grid-cols-[1.5fr_1fr_0.9fr_1fr_0.8fr_0.6fr_1.1fr] xl:items-center"
+              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 xl:grid-cols-[1.25fr_0.95fr_0.95fr_0.85fr_0.9fr_0.85fr_0.55fr_1fr] xl:items-center"
               onSubmit={(event) => onUpdate(event, row.id)}
             >
               {editingId === row.id ? (
-                <>
+                <div className="grid gap-3 xl:col-span-8 xl:grid-cols-[1.2fr_1fr_1fr_0.9fr_1.4fr_auto] xl:items-start">
                   <input
                     value={editForm.title}
                     onChange={(event) => onEditChange({ ...editForm, title: event.target.value })}
+                    placeholder="Role title"
                     className="h-9 rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-red-500"
                   />
                   <input
                     value={editForm.company}
                     onChange={(event) => onEditChange({ ...editForm, company: event.target.value })}
+                    placeholder="Employer"
                     className="h-9 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
                   />
-                </>
-              ) : (
-                <>
-                  <div>
-                    <p className="font-bold text-slate-950">{row.title}</p>
-                    <p className="mt-1 text-xs text-slate-500 xl:hidden">{row.company}</p>
-                    {row.type === 'custom' && row.statusRaw === 'published' && (
-                      <p className="mt-1 text-xs font-semibold text-slate-600">
-                        Approved - waiting for student to upload offer/contract documents
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium text-slate-700 max-xl:hidden">{row.company}</p>
-                </>
-              )}
-              <SourceTypeBadge row={row} />
-              <p className="text-sm text-slate-600">{row.semesterLabel}</p>
-              <StatePill status={row.statusRaw} type={row.type} />
-              <p className="text-sm font-bold text-slate-950">{row.applications}</p>
-              <div className="flex flex-wrap gap-2">
-                {editingId === row.id ? (
-                  <>
-                    <input
-                      value={editForm.sourceUrl}
-                      onChange={(event) =>
-                        onEditChange({ ...editForm, sourceUrl: event.target.value })
-                      }
-                      placeholder={
-                        editForm.type === 'pre_approved'
-                          ? 'CareerHub opportunity link'
-                          : 'Job listing URL'
-                      }
-                      className={[
-                        'h-8 min-w-48 rounded-lg border px-2.5 text-xs font-medium outline-none focus:border-red-500',
-                        getSourceUrlError(editForm.type, editForm.sourceUrl)
-                          ? 'border-red-300 bg-red-50/40'
-                          : 'border-slate-200',
-                      ].join(' ')}
-                    />
+                  <input
+                    value={editForm.sourceUrl}
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, sourceUrl: event.target.value })
+                    }
+                    placeholder="Job listing or careers link"
+                    className={[
+                      'h-9 rounded-xl border px-3 text-sm outline-none focus:border-red-500',
+                      getSourceUrlError(editForm.type, editForm.sourceUrl)
+                        ? 'border-red-300 bg-red-50/40'
+                        : 'border-slate-200',
+                    ].join(' ')}
+                  />
+                  <select
+                    value={editForm.semesterId}
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, semesterId: event.target.value })
+                    }
+                    className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-red-500"
+                  >
+                    {semesters.map((semester) => (
+                      <option key={semester.id} value={semester.id}>
+                        {semester.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea
+                    value={editForm.descriptionText}
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, descriptionText: event.target.value })
+                    }
+                    placeholder="Description"
+                    className="min-h-20 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-500"
+                  />
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="submit"
                       disabled={saving}
-                      className="inline-flex h-8 items-center rounded-lg bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
+                      className="inline-flex h-9 items-center rounded-lg bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
                     >
                       Save
                     </button>
                     <button
                       type="button"
                       onClick={onEditCancel}
-                      className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
                     >
                       Cancel
                     </button>
-                  </>
-                ) : (
-                  <>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="font-bold text-slate-950">{row.title}</p>
+                    <p className="mt-1 text-xs text-slate-500 xl:hidden">{row.company}</p>
+                    <p className="mt-1 text-xs text-slate-500 xl:hidden">
+                      Student: {studentOwnerLabel(row, studentLabels)}
+                    </p>
+                  </div>
+                </>
+              )}
+              {editingId !== row.id && (
+                <>
+                  <StudentOwnerCell row={row} studentLabels={studentLabels} />
+                  <p className="text-sm font-medium text-slate-700 max-xl:hidden">{row.company}</p>
+                  <SourceTypeBadge row={row} />
+                  <p className="text-sm text-slate-600">{row.semesterLabel}</p>
+                  <StatePill row={row} />
+                  <p className="text-sm font-bold text-slate-950">{row.applications}</p>
+                  <div className="flex flex-wrap gap-2">
                     <IconAction
-                      href={`/coordinator/jobs/review?id=${row.id}`}
+                      href={withReviewReturn(
+                        `/coordinator/jobs/review?id=${encodeURIComponent(row.id)}`,
+                        '/coordinator/opportunities',
+                        { tab: OPPORTUNITY_SELF_SOURCED_TAB }
+                      )}
                       label="View"
                       icon={Eye}
                     />
                     {!isArchived(row) && (
                       <>
-                        <IconButton label="Edit" icon={PenLine} onClick={() => onEditStart(row)} />
+                        {canEditPublishedOpportunity(row) && (
+                          <IconButton
+                            label="Edit"
+                            icon={PenLine}
+                            onClick={() => onEditStart(row)}
+                          />
+                        )}
                         <IconButton
                           label={transitioningId === row.id ? 'Archiving' : 'Archive'}
                           icon={Archive}
@@ -928,9 +1058,9 @@ function PublishedOpportunitySection({
                         This opportunity has been archived and is no longer active.
                       </span>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </form>
           ))
         )}
@@ -939,7 +1069,13 @@ function PublishedOpportunitySection({
   )
 }
 
-function SelfSourcedReviewSection({ rows }: { rows: OpportunityRow[] }) {
+function SelfSourcedReviewSection({
+  rows,
+  studentLabels,
+}: {
+  rows: OpportunityRow[]
+  studentLabels: Record<string, string>
+}) {
   return (
     <section className="space-y-3">
       <SectionHeader
@@ -947,10 +1083,11 @@ function SelfSourcedReviewSection({ rows }: { rows: OpportunityRow[] }) {
         description="Position descriptions submitted by students for internship suitability approval. Placement documents remain locked until approval."
       />
       <SurfaceCard className="overflow-hidden">
-        <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_1.2fr_0.6fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-2xl:hidden">
+        <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.7fr_0.9fr_1.2fr_0.6fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-2xl:hidden">
           <span>Role</span>
           <span>Student</span>
           <span>Employer</span>
+          <span>Applicants</span>
           <span>Submitted</span>
           <span>Status</span>
           <span>Action</span>
@@ -961,26 +1098,28 @@ function SelfSourcedReviewSection({ rows }: { rows: OpportunityRow[] }) {
           rows.map((row) => (
             <div
               key={row.id}
-              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 2xl:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_1.2fr_0.6fr] 2xl:items-center"
+              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 2xl:grid-cols-[1.2fr_0.9fr_0.9fr_0.7fr_0.9fr_1.2fr_0.6fr] 2xl:items-center"
             >
               <div>
                 <p className="font-bold text-slate-950">{row.title}</p>
                 <p className="mt-1 text-xs text-slate-500">{row.courseLabel}</p>
               </div>
               <p className="text-sm font-medium text-slate-700">
-                {row.submittedByUserId ?? 'Student not recorded'}
+                {studentOwnerLabel(row, studentLabels)}
               </p>
               <p className="text-sm text-slate-600">{row.company}</p>
+              <p className="text-sm font-bold text-slate-950">{row.applications}</p>
               <p className="text-sm text-slate-600">{formatDate(row.createdAt)}</p>
               <div className="space-y-1">
                 <IntakeTracker status={row.statusRaw} />
-                <StatePill status={row.statusRaw} type={row.type} />
-                {row.statusRaw === 'pending_verification' && (
-                  <p className="text-xs font-bold text-red-700">Action required</p>
-                )}
+                <StatePill row={row} />
               </div>
               <Link
-                href={`/coordinator/jobs/review?id=${row.id}`}
+                href={withReviewReturn(
+                  `/coordinator/jobs/review?id=${encodeURIComponent(row.id)}`,
+                  '/coordinator/opportunities',
+                  { tab: OPPORTUNITY_SELF_SOURCED_TAB }
+                )}
                 className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-black"
               >
                 Review
@@ -1048,11 +1187,11 @@ function OpportunityTabs({
 
 function IntakeTracker({ status }: { status: OpportunityStatus }) {
   const isRejected = status === 'rejected'
-  const steps = ['Submitted', 'Under Review', isRejected ? 'Rejected' : 'Approved']
+  const steps = ['Submitted', 'Placement Approval', isRejected ? 'Rejected' : 'Approved']
   const currentIndex =
     status === 'pending_verification' || status === 'draft'
       ? 1
-      : status === 'published' || status === 'rejected'
+      : isPublishedStatus(status) || status === 'rejected'
         ? 2
         : 1
 
@@ -1061,7 +1200,7 @@ function IntakeTracker({ status }: { status: OpportunityStatus }) {
       <div className="flex items-center gap-1.5">
         {steps.map((step, index) => {
           const isComplete =
-            index < currentIndex || (index === currentIndex && status === 'published')
+            index < currentIndex || (index === currentIndex && isPublishedStatus(status))
           const isCurrent = index === currentIndex
           return (
             <div key={step} className="flex flex-1 items-center gap-1.5">
@@ -1095,17 +1234,39 @@ function IntakeTracker({ status }: { status: OpportunityStatus }) {
 }
 
 function SourceTypeBadge({ row }: { row: OpportunityRow }) {
-  const label =
-    row.type === 'custom'
-      ? 'Self-Sourced Approved'
-      : row.sourceUrl?.includes('career')
-        ? 'CareerHub'
-        : 'Coordinator Published'
+  const label = isSelfSourcedOpportunity(row)
+    ? 'Self-Sourced'
+    : isCareerHubOpportunity(row)
+      ? 'CareerHub'
+      : 'Coordinator Published'
 
   return (
     <span className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
       {label}
     </span>
+  )
+}
+
+function StudentOwnerCell({
+  row,
+  studentLabels,
+}: {
+  row: OpportunityRow
+  studentLabels: Record<string, string>
+}) {
+  return (
+    <div className="text-sm">
+      <p
+        className={[
+          'font-semibold',
+          row.applications === 0 && !isSelfSourcedOpportunity(row)
+            ? 'text-slate-500'
+            : 'text-slate-800',
+        ].join(' ')}
+      >
+        {studentOwnerLabel(row, studentLabels)}
+      </p>
+    </div>
   )
 }
 
@@ -1122,19 +1283,35 @@ function EmptyState({ message }: { message: string }) {
   return <div className="px-4 py-8 text-sm text-slate-500">{message}</div>
 }
 
-function StatePill({ status, type }: { status: OpportunityStatus; type: OpportunityType }) {
+function getOpportunityTabFromUrl(): OpportunityTab {
+  if (typeof window === 'undefined') return 'published'
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return tab === OPPORTUNITY_SELF_SOURCED_TAB ? 'self_sourced' : 'published'
+}
+
+function StatePill({ row }: { row: OpportunityRow }) {
+  const { statusRaw: status, type } = row
+  const awaitingContractDetails = isAwaitingContractDetails(row)
   const label =
     status === 'pending_verification'
-      ? 'Under review'
-      : status === 'published' && type === 'custom'
-        ? 'Approved Opportunity'
-        : status.replace(/_/g, ' ')
+      ? 'Awaiting Placement Approval'
+      : awaitingContractDetails
+        ? 'Awaiting Contract Details'
+        : isPublishedStatus(status)
+          ? 'Published'
+          : status.replace(/_/g, ' ')
   const tone =
-    status === 'pending_verification' || status === 'rejected'
+    status === 'rejected'
       ? 'border-red-200 bg-red-50 text-red-800'
-      : status === 'published'
-        ? 'border-slate-300 bg-white text-slate-950'
-        : 'border-slate-200 bg-slate-50 text-slate-700'
+      : status === 'pending_verification'
+        ? 'border-amber-200 bg-amber-50 text-amber-800'
+        : awaitingContractDetails
+          ? 'border-slate-300 bg-slate-50 text-slate-800'
+          : isPublishedStatus(status)
+            ? type === 'custom'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-slate-300 bg-white text-slate-950'
+            : 'border-slate-200 bg-slate-50 text-slate-700'
 
   return (
     <span
@@ -1143,6 +1320,33 @@ function StatePill({ status, type }: { status: OpportunityStatus; type: Opportun
       {label}
     </span>
   )
+}
+
+function isAwaitingContractDetails(row: OpportunityRow) {
+  return (
+    isPublishedStatus(row.statusRaw) && (isSelfSourcedOpportunity(row) || hasStudentUptake(row))
+  )
+}
+
+function hasStudentUptake(row: OpportunityRow) {
+  return row.applications > 0
+}
+
+function displayApplicationCount(
+  type: OpportunityType,
+  applicationCount: number,
+  submittedByUserId: string | null
+) {
+  const typeValue = String(type).toLowerCase()
+  return (typeValue === 'custom' || typeValue === 'self_sourced') && submittedByUserId
+    ? 1
+    : applicationCount
+}
+
+function studentOwnerLabel(row: OpportunityRow, studentLabels: Record<string, string>) {
+  if (row.submittedByUserId) return studentLabels[row.submittedByUserId] ?? STUDENT_PROFILE_PENDING
+  if (row.applications > 0) return STUDENT_PROFILE_PENDING
+  return 'Not taken yet'
 }
 
 function SelectField({
@@ -1263,7 +1467,14 @@ function matchesFilters(row: OpportunityRow, filters: OpportunityFilters) {
     .toLowerCase()
 
   if (search && !haystack.includes(search)) return false
-  if (filters.quickStatus !== 'all' && row.statusRaw !== filters.quickStatus) return false
+  if (filters.quickStatus === 'published' && !isPublishedStatus(row.statusRaw)) return false
+  if (
+    filters.quickStatus !== 'all' &&
+    filters.quickStatus !== 'published' &&
+    row.statusRaw !== filters.quickStatus
+  ) {
+    return false
+  }
   if (filters.semesterId !== 'all' && row.semesterId !== filters.semesterId) return false
   if (course && !`${row.courseLabel} ${row.semesterLabel}`.toLowerCase().includes(course)) {
     return false
@@ -1276,24 +1487,53 @@ function matchesFilters(row: OpportunityRow, filters: OpportunityFilters) {
 function matchesPublishingView(row: OpportunityRow, view: PublishingView) {
   if (view === 'all') return true
   if (view === 'archived') return isArchived(row)
-  return !isArchived(row)
+  return isPublishedStatus(row.statusRaw) && !isArchived(row)
 }
 
 function isPublishedOpportunityRow(row: OpportunityRow, view: PublishingView) {
   const isApprovedOpportunity =
-    row.type === 'pre_approved' || (row.type === 'custom' && row.statusRaw === 'published')
+    row.type === 'pre_approved' ||
+    !isSelfSourcedOpportunity(row) ||
+    (isSelfSourcedOpportunity(row) && isPublishedStatus(row.statusRaw))
   if (!isApprovedOpportunity) return false
   return matchesPublishingView(row, view)
 }
 
 function isSelfSourcedReviewRow(row: OpportunityRow) {
-  if (row.type !== 'custom' && !row.submittedByUserId) return false
+  if (!isSelfSourcedOpportunity(row)) return false
   return row.statusRaw === 'pending_verification' || row.statusRaw === 'rejected'
+}
+
+function isSelfSourcedOpportunity(row: OpportunityRow) {
+  const type = String(row.type).toLowerCase()
+  return (type === 'custom' || type === 'self_sourced') && Boolean(row.submittedByUserId)
+}
+
+function isCareerHubOpportunity(row: OpportunityRow) {
+  const type = String(row.type).toLowerCase()
+  return type === 'pre_approved' || type === 'university'
+}
+
+function canEditPublishedOpportunity(row: OpportunityRow) {
+  return !isArchived(row) && !isSelfSourcedOpportunity(row) && !isCareerHubOpportunity(row)
 }
 
 function isArchived(row: OpportunityRow) {
   const status = String(row.statusRaw).toLowerCase()
   return status === 'archived' || status === 'unpublished_archived'
+}
+
+function isPublishedStatus(status: OpportunityStatus | string) {
+  const value = String(status).toLowerCase()
+  return value === 'published' || value === 'active'
+}
+
+function isDraftStatus(status: OpportunityStatus | string) {
+  return String(status).toLowerCase() === 'draft'
+}
+
+function mergeOpportunityRows(preferredRow: OpportunityRow, rows: OpportunityRow[]) {
+  return [preferredRow, ...rows.filter((row) => row.id !== preferredRow.id)]
 }
 
 function sortRows(rows: OpportunityRow[], sort: SortOption) {
@@ -1314,7 +1554,7 @@ function sortRows(rows: OpportunityRow[], sort: SortOption) {
 function actionPriority(row: OpportunityRow) {
   if (row.statusRaw === 'pending_verification') return 0
   if (row.statusRaw === 'draft') return 1
-  if (row.statusRaw === 'published') return 2
+  if (isPublishedStatus(row.statusRaw)) return 2
   return 3
 }
 
@@ -1326,7 +1566,10 @@ function filterChips(filters: OpportunityFilters) {
   const chips: Array<{ key: keyof OpportunityFilters; label: string }> = []
   if (filters.search) chips.push({ key: 'search', label: `Search: ${filters.search}` })
   if (filters.quickStatus !== 'all') {
-    chips.push({ key: 'quickStatus', label: `State: ${filters.quickStatus.replace(/_/g, ' ')}` })
+    chips.push({
+      key: 'quickStatus',
+      label: `State: ${opportunityStatusFilterLabel(filters.quickStatus)}`,
+    })
   }
   if (filters.semesterId !== 'all') chips.push({ key: 'semesterId', label: 'Semester selected' })
   if (filters.course) chips.push({ key: 'course', label: `Program/course: ${filters.course}` })
@@ -1334,6 +1577,12 @@ function filterChips(filters: OpportunityFilters) {
   if (filters.student) chips.push({ key: 'student', label: `Student: ${filters.student}` })
   if (filters.sort !== initialFilters.sort) chips.push({ key: 'sort', label: `Sort changed` })
   return chips
+}
+
+function opportunityStatusFilterLabel(status: QuickStatusFilter) {
+  if (status === 'pending_verification') return 'Awaiting Placement Approval'
+  if (status === 'published') return 'Published'
+  return status.replace(/_/g, ' ')
 }
 
 function areFiltersDefault(filters: OpportunityFilters) {
@@ -1355,9 +1604,7 @@ function isCreateFormValid(form: {
   if (!form.semesterId || !form.employerName.trim() || !form.jobTitle.trim()) return false
   if (!form.descriptionText.trim() || !form.location.trim()) return false
   if (form.type === 'pre_approved' && !isValidCareerHubUrl(form.sourceUrl)) return false
-  if (form.type === 'custom' && form.sourceUrl.trim() && !isValidJobListingUrl(form.sourceUrl)) {
-    return false
-  }
+  if (form.type === 'custom' && !isValidJobListingUrl(form.sourceUrl)) return false
   return true
 }
 
@@ -1395,7 +1642,7 @@ function getSourceUrlError(type: OpportunityType, value: string) {
     return 'Please enter a valid RMIT CareerHub opportunity link.'
   }
   if (type === 'custom' && !isValidJobListingUrl(trimmed)) {
-    return 'Please enter a valid job listing URL.'
+    return 'Please enter a valid job listing or careers link.'
   }
   return undefined
 }
@@ -1412,14 +1659,14 @@ function getCreateOpportunityValidationMessage(form: {
   if (form.type === 'pre_approved' && !isValidCareerHubUrl(form.sourceUrl)) {
     return 'Please enter a valid RMIT CareerHub opportunity link.'
   }
-  if (form.type === 'custom' && form.sourceUrl.trim() && !isValidJobListingUrl(form.sourceUrl)) {
-    return 'Please enter a valid job listing URL.'
+  if (form.type === 'custom' && !isValidJobListingUrl(form.sourceUrl)) {
+    return 'Please enter a valid job listing or careers link.'
   }
   return 'Select a semester and complete all required fields.'
 }
 
 function formatOpportunityError(error: unknown, type: OpportunityType) {
-  const message = error instanceof Error ? error.message : 'Opportunity API unavailable.'
+  const message = error instanceof Error ? error.message : 'Opportunity service unavailable.'
   const lower = message.toLowerCase()
   if (
     lower.includes('career hub') ||
@@ -1429,7 +1676,7 @@ function formatOpportunityError(error: unknown, type: OpportunityType) {
   ) {
     return type === 'pre_approved'
       ? 'Please enter a valid RMIT CareerHub opportunity link.'
-      : 'Please enter a valid job listing URL.'
+      : 'Please enter a valid job listing or careers link.'
   }
   return message
 }

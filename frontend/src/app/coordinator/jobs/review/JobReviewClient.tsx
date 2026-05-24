@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
@@ -23,21 +24,25 @@ import {
   type ReviewDecision,
 } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
-import { getOpportunity, getOpportunityAttachment } from '@/lib/coordinator/api'
+import { getOpportunity, getOpportunityAttachment, getUser } from '@/lib/coordinator/api'
 import { mapOpportunityToSelfSourcedJob } from '@/lib/coordinator/apiMappers'
 import { type ApprovalStatus, type SelfSourcedJob } from '@/lib/coordinator/mockData'
+import { getReviewBackHref } from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { OpportunityAttachmentResponse, OpportunityStatus } from '@/types/api'
 
 export function JobReviewClient() {
   const searchParams = useSearchParams()
   const id = searchParams.get('id')
+  const backHref = getReviewBackHref(searchParams, '/coordinator/opportunities?tab=self-sourced')
   const [job, setJob] = useState<SelfSourcedJob | null>(null)
   const [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState<string | null>(null)
   const [backendStatus, setBackendStatus] = useState<OpportunityStatus | null>(null)
   const [attachments, setAttachments] = useState<OpportunityAttachmentResponse[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [studentOwnerLabel, setStudentOwnerLabel] = useState(STUDENT_PROFILE_PENDING)
 
   useEffect(() => {
     let active = true
@@ -50,10 +55,18 @@ export function JobReviewClient() {
       setError(null)
     })
     getOpportunity(id)
-      .then((opportunity) => {
+      .then(async (opportunity) => {
         if (!active) return
         setBackendStatus(opportunity.status)
-        setJob(mapOpportunityToSelfSourcedJob(opportunity))
+        const mappedJob = mapOpportunityToSelfSourcedJob(opportunity)
+        const ownerLabel = await resolveStudentOwnerLabel(opportunity.submittedByUserId)
+        if (!active) return
+        setStudentOwnerLabel(ownerLabel)
+        setJob({
+          ...mappedJob,
+          studentName: ownerLabel,
+          studentId: ownerLabel,
+        })
         setAttachments(opportunity.attachments)
       })
       .catch((err: unknown) => {
@@ -61,8 +74,8 @@ export function JobReviewClient() {
         setJob(null)
         setError(
           err instanceof Error
-            ? `Unable to load this job from the workflow API: ${err.message}`
-            : 'Unable to load this job from the workflow API.'
+            ? `Unable to load this placement review: ${err.message}`
+            : 'Unable to load this placement review.'
         )
       })
       .finally(() => {
@@ -79,29 +92,35 @@ export function JobReviewClient() {
       <ReviewNotice
         title="Job review unavailable"
         message="No job was selected. Return to the queue and open a row from View Details."
+        backHref={backHref}
       />
     )
   }
 
   if (loading) {
-    return <ReviewNotice title="Loading job review" message="Fetching the selected opportunity." />
+    return <CoordinatorContentSkeleton title="Loading job review…" />
   }
 
   if (!job) {
     return (
       <ReviewNotice
         title="Job review unavailable"
-        message={error ?? 'The selected job was not found in the workflow API.'}
+        message={error ?? 'The selected placement review was not found.'}
+        backHref={backHref}
       />
     )
   }
 
   const refreshJob = async () => {
     const opportunity = await getOpportunity(job.id)
+    const ownerLabel = await resolveStudentOwnerLabel(opportunity.submittedByUserId)
     setBackendStatus(opportunity.status)
     setAttachments(opportunity.attachments)
+    setStudentOwnerLabel(ownerLabel)
     setJob((current) => ({
       ...mapOpportunityToSelfSourcedJob(opportunity),
+      studentName: ownerLabel,
+      studentId: ownerLabel,
       notes: current?.notes ?? mapOpportunityToSelfSourcedJob(opportunity).notes,
     }))
   }
@@ -118,14 +137,13 @@ export function JobReviewClient() {
     )
     setBackendStatus(decisionToJobBackendStatus(decision))
   }
-
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Placement Review"
         title={job.jobTitle}
-        description={`${job.studentName} submitted ${job.company} for institutional approval.`}
-        actions={<BackLink href="/coordinator/jobs">Back to queue</BackLink>}
+        description={`Submitted by: ${studentOwnerLabel}. Employer: ${job.company}.`}
+        actions={<BackLink href={backHref}>Back to queue</BackLink>}
       />
 
       <CaseHeader
@@ -153,7 +171,7 @@ export function JobReviewClient() {
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {[
-                [User, 'Student', `${job.studentName} (${job.studentId})`],
+                [User, 'Student', formatStudentLine(job.studentName, job.studentId)],
                 [FileText, 'Course', job.course],
                 [Clock3, 'Semester', job.semester],
                 [Building2, 'Employer', job.company],
@@ -221,7 +239,7 @@ export function JobReviewClient() {
               defaultNotes={job.notes.join('\n')}
               canReview={backendStatus === 'pending_verification'}
               reviewedStatus={job.status}
-              backHref="/coordinator/jobs"
+              backHref={backHref}
               onSuccess={handleDecisionSuccess}
               onAlreadyReviewed={refreshJob}
             />
@@ -313,6 +331,21 @@ function openAttachment(url: string, mode: 'view' | 'download') {
   link.remove()
 }
 
+async function resolveStudentOwnerLabel(userId: string | null) {
+  if (!userId) return STUDENT_PROFILE_PENDING
+  try {
+    const user = await getUser(userId)
+    return formatStudentDisplay(user)
+  } catch {
+    return STUDENT_PROFILE_PENDING
+  }
+}
+
+function formatStudentLine(student: string, studentId: string) {
+  if (!studentId || studentId === student || studentId === STUDENT_PROFILE_PENDING) return student
+  return `${student} (${studentId})`
+}
+
 function CaseHeader({
   title,
   student,
@@ -345,7 +378,7 @@ function CaseHeader({
           </div>
           <h2 className="mt-4 text-2xl font-bold text-slate-950">{title}</h2>
           <p className="mt-2 text-sm text-slate-600">
-            {student} ({studentId}) - {employer}
+            {formatStudentLine(student, studentId)} - {employer}
           </p>
           <WorkflowProgress status={status} />
         </div>
@@ -370,12 +403,12 @@ function CaseHeader({
 
 function WorkflowProgress({ status }: { status: ApprovalStatus }) {
   const steps = getWorkflowSteps(status)
-  const currentIndex = steps.findIndex((step) => step.current)
+  const completedCount = getCompletedStepCount(status)
 
   return (
     <div className="mt-6 grid grid-cols-[repeat(5,minmax(0,1fr))]">
       {steps.map((step, index) => {
-        const complete = index < currentIndex || status === 'approved'
+        const complete = index < completedCount
         const rejected = step.id === 'rejected' && step.current
         return (
           <div key={step.id} className="relative flex flex-col items-center gap-2 text-center">
@@ -383,7 +416,7 @@ function WorkflowProgress({ status }: { status: ApprovalStatus }) {
               <div
                 className={[
                   'absolute top-3 right-1/2 left-0 h-0.5',
-                  complete ? 'bg-slate-950' : 'bg-slate-200',
+                  index <= completedCount - 1 ? 'bg-slate-950' : 'bg-slate-200',
                 ].join(' ')}
               />
             )}
@@ -391,7 +424,7 @@ function WorkflowProgress({ status }: { status: ApprovalStatus }) {
               <div
                 className={[
                   'absolute top-3 right-0 left-1/2 h-0.5',
-                  complete ? 'bg-slate-950' : 'bg-slate-200',
+                  index < completedCount - 1 ? 'bg-slate-950' : 'bg-slate-200',
                 ].join(' ')}
               />
             )}
@@ -425,10 +458,24 @@ function WorkflowProgress({ status }: { status: ApprovalStatus }) {
 
 function getWorkflowSteps(status: ApprovalStatus) {
   const terminal = status === 'rejected' ? 'rejected' : 'approved'
-  let current: 'submitted' | 'documents' | 'review' | 'verification' | 'approved' | 'rejected' =
-    'review'
-  if (status === 'changes_requested') current = 'documents'
-  if (status === 'flagged') current = 'review'
+  let current:
+    | 'none'
+    | 'submitted'
+    | 'documents'
+    | 'review'
+    | 'verification'
+    | 'approved'
+    | 'rejected' = 'review'
+  if (status === 'changes_requested' || status === 'awaiting_documents') current = 'documents'
+  if (status === 'awaiting_contract_details') current = 'none'
+  if (status === 'awaiting_contract_review') current = 'verification'
+  if (
+    status === 'flagged' ||
+    status === 'awaiting_review' ||
+    status === 'awaiting_placement_approval' ||
+    status === 'awaiting_approval'
+  )
+    current = 'review'
   if (status === 'approved') current = 'approved'
   if (status === 'rejected') current = 'rejected'
   const currentStep = current as string
@@ -437,7 +484,7 @@ function getWorkflowSteps(status: ApprovalStatus) {
     { id: 'submitted', label: 'Placement Confirmed', current: currentStep === 'submitted' },
     { id: 'documents', label: 'Documents Submitted', current: currentStep === 'documents' },
     { id: 'verification', label: 'Contract Review', current: currentStep === 'verification' },
-    { id: 'review', label: 'Final Approval', current: currentStep === 'review' },
+    { id: 'review', label: 'Placement Approval', current: currentStep === 'review' },
     {
       id: terminal,
       label: terminal === 'approved' ? 'Approved' : 'Rejected',
@@ -457,19 +504,36 @@ function decisionToJobBackendStatus(decision: ReviewDecision): OpportunityStatus
 }
 
 function decisionToStatus(decision: ReviewDecision): ApprovalStatus {
-  if (decision === 'approved') return 'approved'
+  if (decision === 'approved') return 'awaiting_contract_details'
   if (decision === 'rejected') return 'rejected'
   return 'changes_requested'
 }
 
-function ReviewNotice({ title, message }: { title: string; message: string }) {
+function getCompletedStepCount(status: ApprovalStatus) {
+  if (status === 'awaiting_contract_details') return 1
+  if (status === 'changes_requested' || status === 'awaiting_documents') return 1
+  if (status === 'awaiting_contract_review') return 2
+  if (status === 'approved') return 5
+  if (status === 'rejected') return 0
+  return 0
+}
+
+function ReviewNotice({
+  title,
+  message,
+  backHref = '/coordinator/opportunities?tab=self-sourced',
+}: {
+  title: string
+  message: string
+  backHref?: string
+}) {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Placement Review"
         title={title}
         description={message}
-        actions={<BackLink href="/coordinator/jobs">Back to queue</BackLink>}
+        actions={<BackLink href={backHref}>Back to queue</BackLink>}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import {
   Bell,
   BriefcaseBusiness,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const navItems = [
+export const navItems = [
   { href: '/coordinator/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
     href: '/coordinator/opportunities',
@@ -34,6 +34,8 @@ const navItems = [
 
 export function CoordinatorSidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const activeContext = getActiveContext(pathname, searchParams)
 
   return (
     <aside className="hidden w-72 flex-col border-r border-slate-200 bg-white lg:flex">
@@ -50,7 +52,9 @@ export function CoordinatorSidebar() {
       </div>
       <nav className="flex-1 space-y-1.5 p-4">
         {navItems.map(({ href, label, icon: Icon, sections }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`)
+          const active =
+            activeContext === href ||
+            (!activeContext && (pathname === href || pathname.startsWith(`${href}/`)))
 
           return (
             <Link
@@ -78,4 +82,12 @@ export function CoordinatorSidebar() {
       </nav>
     </aside>
   )
+}
+
+function getActiveContext(pathname: string, searchParams: { get(name: string): string | null }) {
+  if (pathname === '/coordinator/jobs/review' && searchParams.get('tab') === 'self-sourced') {
+    return '/coordinator/opportunities'
+  }
+
+  return null
 }

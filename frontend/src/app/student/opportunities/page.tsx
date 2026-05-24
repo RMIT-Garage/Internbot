@@ -1,9 +1,10 @@
 import { Suspense } from 'react'
 import StudentOpportunitiesPage from './OpportunitiesClient'
+import { CardGridSkeleton } from '@/components/ui/ContentSkeleton'
 
 export default function StudentOpportunitiesRoute() {
   return (
-    <Suspense fallback={<div className="p-10 text-slate-500">Loading opportunities...</div>}>
+    <Suspense fallback={<CardGridSkeleton label="Loading opportunities…" />}>
       <StudentOpportunitiesPage />
     </Suspense>
   )

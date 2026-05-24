@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "generate:api": "openapi --input src/app/openapi.json --output src/api --client axios"
+    "generate:api": "openapi --input ../backend/openapi.json --output src/api --client fetch && prettier --write src/api"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

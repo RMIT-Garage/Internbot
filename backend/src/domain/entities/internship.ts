@@ -43,8 +43,8 @@ export interface InternshipOfferDetails {
 }
 
 export interface InternshipOfferSubmissionDetails {
-  readonly offerDate: Date
-  readonly startDate: Date
+  readonly offerDate: Date | undefined
+  readonly startDate: Date | undefined
   readonly endDate: Date | undefined
 }
 
@@ -228,9 +228,9 @@ export class Internship {
 
     const next = {
       ...this.#props,
-      offerDate: details.offerDate,
-      startDate: details.startDate,
-      endDate: details.endDate,
+      offerDate: details.offerDate ?? this.#props.offerDate,
+      startDate: details.startDate ?? this.#props.startDate,
+      endDate: details.endDate ?? this.#props.endDate,
       status: 'offer_pending_review' as const,
       lastSubmittedAt: now,
     }

@@ -7,6 +7,7 @@ import { Sparkles } from 'lucide-react'
 import { SemestersService, UsersService } from '@/lib/api/openapi-client'
 import type { SemesterResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -78,11 +79,39 @@ export default function StudentSemestersPage() {
   }
 
   if (loading) {
-    return <div className="p-10 text-slate-500">Loading semesters...</div>
+    return (
+      <main
+        className="min-h-screen bg-linear-to-b from-slate-50 to-white p-10"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <span className="sr-only">Loading semesters…</span>
+        <div className="mx-auto max-w-6xl space-y-8">
+          <div>
+            <Skeleton className="h-10 w-72 bg-slate-200" />
+            <Skeleton className="mt-3 h-4 w-96" />
+          </div>
+          <Skeleton className="h-14 w-full rounded-2xl bg-red-100" />
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex justify-between">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-6 w-6" />
+                </div>
+                <Skeleton className="mt-4 h-6 w-32 bg-slate-200" />
+                <Skeleton className="mt-2 h-3 w-24" />
+                <Skeleton className="mt-3 h-3 w-40" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    )
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-10">
+    <main className="min-h-screen bg-linear-to-b from-slate-50 to-white p-10">
       <div className="mx-auto grid max-w-6xl grid-cols-12 gap-10">
         {/* LEFT */}
         <div className="col-span-8 space-y-8">

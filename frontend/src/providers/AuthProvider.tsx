@@ -10,7 +10,7 @@ import {
 } from '@/lib/firebase/auth'
 import { fetchCurrentUser } from '@/features/auth/api/users'
 import type { AuthContextValue } from '@/types/auth'
-import type { UserResponse } from '@/types/api'
+import type { UserResponse } from '@/lib/api/openapi-client'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 

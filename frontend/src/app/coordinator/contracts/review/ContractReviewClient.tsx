@@ -14,26 +14,31 @@ import {
   Paperclip,
 } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import {
   ReviewDecisionPanel,
   type ReviewDecision,
 } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
-import { getInternship, getInternshipAttachment } from '@/lib/coordinator/api'
+import { getInternship, getInternshipAttachment, getUser } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
 import { type ApprovalStatus, type ContractApproval } from '@/lib/coordinator/mockData'
+import { getReviewBackHref } from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { InternshipAttachmentResponse, InternshipStatus } from '@/types/api'
 
 export function ContractReviewClient() {
   const searchParams = useSearchParams()
   const id = searchParams.get('id')
+  const backHref = getReviewBackHref(searchParams, '/coordinator/jobs')
   const [contract, setContract] = useState<ContractApproval | null>(null)
   const [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState<string | null>(null)
   const [backendStatus, setBackendStatus] = useState<InternshipStatus | null>(null)
   const [attachments, setAttachments] = useState<InternshipAttachmentResponse[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [studentLabel, setStudentLabel] = useState(STUDENT_PROFILE_PENDING)
 
   useEffect(() => {
     let active = true
@@ -46,19 +51,22 @@ export function ContractReviewClient() {
       setError(null)
     })
     getInternship(id)
-      .then((internship) => {
+      .then(async (internship) => {
+        if (!active) return
+        const resolvedStudentLabel = await resolveStudentLabel(internship.userId)
         if (!active) return
         setBackendStatus(internship.status)
         setContract(mapInternshipToContractApproval(internship))
         setAttachments(internship.attachments)
+        setStudentLabel(resolvedStudentLabel)
       })
       .catch((err: unknown) => {
         if (!active) return
         setContract(null)
         setError(
           err instanceof Error
-            ? `Unable to load this contract from the workflow API: ${err.message}`
-            : 'Unable to load this contract from the workflow API.'
+            ? `Unable to load this contract review: ${err.message}`
+            : 'Unable to load this contract review.'
         )
       })
       .finally(() => {
@@ -75,21 +83,21 @@ export function ContractReviewClient() {
       <ReviewNotice
         title="Contract review unavailable"
         message="No contract was selected. Return to the queue and open a row from View Details."
+        backHref={backHref}
       />
     )
   }
 
   if (loading) {
-    return (
-      <ReviewNotice title="Loading contract review" message="Fetching the selected internship." />
-    )
+    return <CoordinatorContentSkeleton title="Loading contract review…" />
   }
 
   if (!contract) {
     return (
       <ReviewNotice
         title="Contract review unavailable"
-        message={error ?? 'The selected contract was not found in the workflow API.'}
+        message={error ?? 'The selected contract review was not found.'}
+        backHref={backHref}
       />
     )
   }
@@ -97,8 +105,10 @@ export function ContractReviewClient() {
   const refreshContract = async () => {
     const internship = await getInternship(contract.id)
     const mapped = mapInternshipToContractApproval(internship)
+    const resolvedStudentLabel = await resolveStudentLabel(internship.userId)
     setBackendStatus(internship.status)
     setAttachments(internship.attachments)
+    setStudentLabel(resolvedStudentLabel)
     setContract((current) => ({
       ...mapped,
       notes: current?.notes ?? mapped.notes,
@@ -117,20 +127,27 @@ export function ContractReviewClient() {
     )
     setBackendStatus(decisionToContractBackendStatus(decision))
   }
+  const studentDisplay =
+    studentLabel !== STUDENT_PROFILE_PENDING
+      ? studentLabel
+      : formatStudentDisplay({
+          studentId: contract.studentId,
+          name: contract.studentName,
+        })
 
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Contract Review"
         title={contract.documentName}
-        description={`${contract.studentName} placement agreement with ${contract.placementHost}.`}
-        actions={<BackLink href="/coordinator/contracts">Back to queue</BackLink>}
+        description={`${studentDisplay} placement agreement with ${contract.placementHost}.`}
+        actions={<BackLink href={backHref}>Back to queue</BackLink>}
       />
 
       <CaseHeader
         title={contract.documentName}
-        student={contract.studentName}
-        studentId={contract.studentId}
+        student={studentDisplay}
+        studentId={studentDisplay}
         employer={contract.placementHost}
         status={contract.status}
         submittedAt={contract.submissionDate}
@@ -152,7 +169,7 @@ export function ContractReviewClient() {
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               {[
-                ['Student', `${contract.studentName} (${contract.studentId})`],
+                ['Student', studentDisplay],
                 ['Course', contract.course],
                 ['Semester', contract.semester],
                 ['Placement host', contract.placementHost],
@@ -210,7 +227,7 @@ export function ContractReviewClient() {
               defaultNotes={contract.notes.join('\n')}
               canReview={backendStatus === 'offer_pending_review'}
               reviewedStatus={contract.status}
-              backHref="/coordinator/contracts"
+              backHref={backHref}
               onSuccess={handleDecisionSuccess}
               onAlreadyReviewed={refreshContract}
             />
@@ -302,6 +319,20 @@ function openAttachment(url: string, mode: 'view' | 'download') {
   link.remove()
 }
 
+async function resolveStudentLabel(userId: string | null | undefined) {
+  if (!userId) return STUDENT_PROFILE_PENDING
+  try {
+    return formatStudentDisplay(await getUser(userId))
+  } catch {
+    return STUDENT_PROFILE_PENDING
+  }
+}
+
+function formatStudentLine(student: string, studentId: string) {
+  if (!studentId || studentId === student) return student
+  return `${student} (${studentId})`
+}
+
 function CaseHeader({
   title,
   student,
@@ -334,7 +365,7 @@ function CaseHeader({
           </div>
           <h2 className="mt-4 text-2xl font-bold text-slate-950">{title}</h2>
           <p className="mt-2 text-sm text-slate-600">
-            {student} ({studentId}) - {employer}
+            {formatStudentLine(student, studentId)} - {employer}
           </p>
           <WorkflowProgress status={status} />
         </div>
@@ -416,7 +447,10 @@ function getWorkflowSteps(status: ApprovalStatus) {
   const terminal = status === 'rejected' ? 'rejected' : 'approved'
   let current: 'submitted' | 'documents' | 'review' | 'verification' | 'approved' | 'rejected' =
     'verification'
-  if (status === 'changes_requested') current = 'documents'
+  if (status === 'changes_requested' || status === 'awaiting_documents') current = 'documents'
+  if (status === 'awaiting_review' || status === 'awaiting_contract_review')
+    current = 'verification'
+  if (status === 'awaiting_approval' || status === 'flagged') current = 'review'
   if (status === 'approved') current = 'approved'
   if (status === 'rejected') current = 'rejected'
   const currentStep = current as string
@@ -452,14 +486,22 @@ function decisionToStatus(decision: ReviewDecision): ApprovalStatus {
   return 'changes_requested'
 }
 
-function ReviewNotice({ title, message }: { title: string; message: string }) {
+function ReviewNotice({
+  title,
+  message,
+  backHref = '/coordinator/jobs',
+}: {
+  title: string
+  message: string
+  backHref?: string
+}) {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Contract Review"
         title={title}
         description={message}
-        actions={<BackLink href="/coordinator/contracts">Back to queue</BackLink>}
+        actions={<BackLink href={backHref}>Back to queue</BackLink>}
       />
     </div>
   )

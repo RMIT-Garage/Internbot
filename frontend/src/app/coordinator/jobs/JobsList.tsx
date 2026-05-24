@@ -1,18 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import {
-  CheckCircle2,
-  ClipboardCheck,
-  X,
-  FileText,
-  FileWarning,
-  ShieldCheck,
-  XCircle,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import { CheckCircle2, X } from 'lucide-react'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { Pagination } from '@/components/coordinator/Pagination'
 import { SurfaceCard } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
@@ -23,9 +15,11 @@ import {
   type SelfSourcedJob,
 } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
+import { withReviewReturn } from '@/lib/coordinator/reviewRouting'
+import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 
 type WorkflowStageId =
@@ -36,19 +30,10 @@ type WorkflowStageId =
   | 'approved'
   | 'rejected'
 
-interface WorkflowStage {
-  id: WorkflowStageId
-  label: string
-  shortLabel: string
-  icon: LucideIcon
-  items: PlacementCase[]
-  emptyMessage: string
-  href: string
-}
-
 type PlacementCase = SelfSourcedJob & {
   workflowKind: 'placement' | 'contract'
   reviewHref: string
+  studentUserId?: string
 }
 
 function contractApprovalToPlacementCase(contract: ContractApproval): PlacementCase {
@@ -73,16 +58,18 @@ function contractApprovalToPlacementCase(contract: ContractApproval): PlacementC
     riskLevel: contract.riskLevel,
     workflowKind: 'contract',
     reviewHref: `/coordinator/contracts/review?id=${encodeURIComponent(contract.id)}`,
+    studentUserId: contract.studentUserId,
   }
 }
 
 const statusOptions = [
   { label: 'All statuses', value: 'all' },
-  { label: 'Pending', value: 'pending' },
+  { label: 'Awaiting contract review', value: 'awaiting_contract_review' },
+  { label: 'Awaiting documents', value: 'awaiting_documents' },
+  { label: 'Awaiting approval', value: 'awaiting_approval' },
   { label: 'Flagged', value: 'flagged' },
   { label: 'Approved', value: 'approved' },
   { label: 'Rejected', value: 'rejected' },
-  { label: 'Changes requested', value: 'changes_requested' },
 ]
 
 const stageOptions = [
@@ -133,17 +120,6 @@ function pageHref(searchParams: URLSearchParams, page: number) {
   return `?${params.toString()}`
 }
 
-function filterHref(searchParams: URLSearchParams, name: string, value: string) {
-  const params = new URLSearchParams(searchParams)
-  params.delete('page')
-  if (value === 'all') {
-    params.delete(name)
-  } else {
-    params.set(name, value)
-  }
-  return `?${params.toString()}`
-}
-
 function removeFilterHref(searchParams: URLSearchParams, name: string) {
   const params = new URLSearchParams(searchParams)
   params.delete(name)
@@ -153,6 +129,7 @@ function removeFilterHref(searchParams: URLSearchParams, name: string) {
 }
 
 export function JobsList() {
+  const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const stage = params.get('stage') ?? undefined
@@ -168,6 +145,7 @@ export function JobsList() {
   const employerSearch = employer?.toLowerCase()
   const sort = params.get('sort') ?? 'action_required'
   const page = Number(params.get('page') ?? '1')
+  const currentJobsHref = `/coordinator/jobs${params.toString() ? `?${params.toString()}` : ''}`
   const {
     data: jobs,
     loading,
@@ -197,8 +175,37 @@ export function JobsList() {
     { emptyData: [] }
   )
 
+  useEffect(() => {
+    const missingIds = Array.from(
+      new Set(
+        jobs
+          .map((job) => job.studentUserId)
+          .filter((id): id is string => Boolean(id && !studentLabels[id]))
+      )
+    )
+    if (missingIds.length === 0) return
+
+    let active = true
+    Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          return [id, formatStudentDisplay(await getUser(id))] as const
+        } catch {
+          return [id, STUDENT_PROFILE_PENDING] as const
+        }
+      })
+    ).then((entries) => {
+      if (!active) return
+      setStudentLabels((current) => ({ ...current, ...Object.fromEntries(entries) }))
+    })
+
+    return () => {
+      active = false
+    }
+  }, [jobs, studentLabels])
+
   if (loading) {
-    return <CoordinatorContentSkeleton title="Loading review queue..." />
+    return <CoordinatorContentSkeleton />
   }
 
   const filteredJobs = jobs
@@ -215,16 +222,16 @@ export function JobsList() {
     })
     .filter((job) => {
       if (!search) return true
+      const studentLabel = placementStudentLabel(job, studentLabels)
       return (
-        job.studentName.toLowerCase().includes(search) ||
+        studentLabel.toLowerCase().includes(search) ||
         job.company.toLowerCase().includes(search) ||
         job.jobTitle.toLowerCase().includes(search)
       )
     })
-    .sort((a, b) => compareQueueItems(a, b, sort))
+    .sort((a, b) => compareQueueItems(a, b, sort, studentLabels))
 
   const paged = paginate(filteredJobs, page, 8)
-  const pipelineStages = buildPipelineStages(jobs)
   const activeFilters = getActiveFilters(params)
   const courseOptions = buildCourseFilterOptions(jobs)
 
@@ -232,26 +239,14 @@ export function JobsList() {
     <>
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {`Using isolated fallback data: ${error}`}
+          Showing saved placement records while live records are unavailable.
         </div>
       )}
       {!loading && !error && source === 'api' && jobs.length === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Backend connected, but no confirmed placement records exist yet.
+          No confirmed placement records exist yet.
         </div>
       )}
-      <SurfaceCard className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">Placement Processing Summary</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Post-offer placement document, contract, and final approval administration.
-            </p>
-          </div>
-        </div>
-        <StageSummary stages={pipelineStages} params={params} />
-      </SurfaceCard>
-
       <PipelineFilters
         search={searchValue}
         stage={stage}
@@ -270,6 +265,8 @@ export function JobsList() {
         rows={paged.rows}
         visibleCount={filteredJobs.length}
         totalCount={jobs.length}
+        returnTo={currentJobsHref}
+        studentLabels={studentLabels}
       />
       <Pagination
         page={paged.page}
@@ -277,37 +274,6 @@ export function JobsList() {
         getHref={(nextPage) => pageHref(params, nextPage)}
       />
     </>
-  )
-}
-
-function StageSummary({ stages, params }: { stages: WorkflowStage[]; params: URLSearchParams }) {
-  return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-      {stages.map((stage) => {
-        const Icon = stage.icon
-        const active = params.get('stage') === stage.id
-        return (
-          <Link
-            key={stage.id}
-            href={filterHref(params, 'stage', stage.id)}
-            className={[
-              'rounded-2xl border p-3 transition hover:border-red-200 hover:bg-white',
-              active ? 'border-red-200 bg-white shadow-sm' : 'border-slate-200 bg-slate-50',
-            ].join(' ')}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-800 ring-1 ring-slate-200">
-                <Icon className="h-4 w-4" />
-              </div>
-              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
-                {stage.items.length}
-              </span>
-            </div>
-            <p className="mt-3 text-sm font-bold text-slate-950">{stage.shortLabel}</p>
-          </Link>
-        )
-      })}
-    </div>
   )
 }
 
@@ -494,10 +460,14 @@ function PlacementQueue({
   rows,
   visibleCount,
   totalCount,
+  returnTo,
+  studentLabels,
 }: {
   rows: PlacementCase[]
   visibleCount: number
   totalCount: number
+  returnTo: string
+  studentLabels: Record<string, string>
 }) {
   return (
     <SurfaceCard className="overflow-hidden">
@@ -517,19 +487,32 @@ function PlacementQueue({
           </div>
         )}
         {rows.map((job) => (
-          <PlacementQueueRow key={job.id} job={job} />
+          <PlacementQueueRow
+            key={job.id}
+            job={job}
+            returnTo={returnTo}
+            studentLabels={studentLabels}
+          />
         ))}
       </div>
     </SurfaceCard>
   )
 }
 
-function PlacementQueueRow({ job }: { job: PlacementCase }) {
-  const reviewHref = job.reviewHref
+function PlacementQueueRow({
+  job,
+  returnTo,
+  studentLabels,
+}: {
+  job: PlacementCase
+  returnTo: string
+  studentLabels: Record<string, string>
+}) {
+  const reviewHref = withReviewReturn(job.reviewHref, returnTo)
   const waitingDays = getWaitingDays(job.submissionDate)
   const actionRequired = isActionRequired(job)
   const completed = job.status === 'approved' || job.status === 'rejected'
-  const workflowKind = 'workflowKind' in job ? job.workflowKind : 'placement'
+  const studentLabel = placementStudentLabel(job, studentLabels)
 
   return (
     <div
@@ -542,12 +525,8 @@ function PlacementQueueRow({ job }: { job: PlacementCase }) {
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate font-bold text-slate-950">{job.jobTitle}</p>
           <StatusBadge status={job.status} />
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-            {workflowKind === 'contract' ? 'Contract processing' : 'Placement processing'}
-          </span>
         </div>
-        <p className="mt-1 text-sm text-slate-500">{job.studentName}</p>
-        <p className="mt-1 text-xs font-medium text-slate-500">{job.company}</p>
+        <p className="mt-1 text-sm text-slate-500">{studentLabel}</p>
       </div>
 
       <div className="grid gap-2 text-sm">
@@ -563,14 +542,8 @@ function PlacementQueueRow({ job }: { job: PlacementCase }) {
 
       <div className="space-y-2">
         <ProcessingTracker job={job} />
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusPill label={approvalStatus(job)} emphasis={actionRequired} />
-          <span
-            className={[
-              'rounded-full px-2.5 py-1 text-xs font-bold',
-              actionRequired ? 'bg-red-50 text-red-800' : 'bg-slate-100 text-slate-700',
-            ].join(' ')}
-          >
+        <div className="text-xs font-semibold text-slate-500">
+          <span className={actionRequired ? 'text-red-800' : undefined}>
             {completed
               ? `${job.status === 'approved' ? 'Approved' : 'Rejected'} ${formatDate(job.submissionDate)}`
               : waitingDays === 0
@@ -588,6 +561,16 @@ function PlacementQueueRow({ job }: { job: PlacementCase }) {
       </Link>
     </div>
   )
+}
+
+function placementStudentLabel(job: PlacementCase, studentLabels: Record<string, string>) {
+  const resolvedLabel = job.studentUserId ? studentLabels[job.studentUserId] : undefined
+  if (resolvedLabel && resolvedLabel !== STUDENT_PROFILE_PENDING) return resolvedLabel
+
+  return formatStudentDisplay({
+    studentId: job.studentId,
+    name: job.studentName,
+  })
 }
 
 function ProcessingTracker({ job }: { job: SelfSourcedJob }) {
@@ -663,82 +646,22 @@ function ProcessingTracker({ job }: { job: SelfSourcedJob }) {
   )
 }
 
-function buildPipelineStages(jobs: PlacementCase[]): WorkflowStage[] {
-  const byPriority = (items: PlacementCase[]) =>
-    [...items].sort((a, b) => {
-      const actionDiff = Number(isActionRequired(b)) - Number(isActionRequired(a))
-      if (actionDiff !== 0) return actionDiff
-      return Date.parse(b.submissionDate) - Date.parse(a.submissionDate)
-    })
-
-  return [
-    {
-      id: 'submitted',
-      label: 'Placement Confirmed',
-      shortLabel: 'Placement Confirmed',
-      icon: FileText,
-      items: byPriority(jobs.filter((job) => getCurrentStageId(job) === 'submitted')),
-      emptyMessage: 'No confirmed placements are waiting to enter processing.',
-      href: '/coordinator/jobs?stage=submitted',
-    },
-    {
-      id: 'documents',
-      label: 'Documents Submitted',
-      shortLabel: 'Documents Submitted',
-      icon: FileWarning,
-      items: byPriority(jobs.filter((job) => getCurrentStageId(job) === 'documents')),
-      emptyMessage: 'No confirmed placements are waiting on student documents.',
-      href: '/coordinator/jobs?stage=documents',
-    },
-    {
-      id: 'verification',
-      label: 'Contract Review',
-      shortLabel: 'Contract Review',
-      icon: ShieldCheck,
-      items: byPriority(jobs.filter((job) => getCurrentStageId(job) === 'verification')),
-      emptyMessage: 'No placements currently awaiting contract review.',
-      href: '/coordinator/jobs?stage=verification',
-    },
-    {
-      id: 'review',
-      label: 'Final Approval',
-      shortLabel: 'Final Approval',
-      icon: ClipboardCheck,
-      items: byPriority(jobs.filter((job) => getCurrentStageId(job) === 'review')),
-      emptyMessage: 'No placements currently awaiting final approval.',
-      href: '/coordinator/jobs?stage=review',
-    },
-    {
-      id: 'approved',
-      label: 'Approved',
-      shortLabel: 'Approved',
-      icon: CheckCircle2,
-      items: byPriority(jobs.filter((job) => getCurrentStageId(job) === 'approved')),
-      emptyMessage: 'No approved placements in this view.',
-      href: '/coordinator/jobs?stage=approved',
-    },
-    {
-      id: 'rejected',
-      label: 'Rejected',
-      shortLabel: 'Rejected',
-      icon: XCircle,
-      items: byPriority(jobs.filter((job) => getCurrentStageId(job) === 'rejected')),
-      emptyMessage: 'All reviews completed without rejected placements.',
-      href: '/coordinator/jobs?stage=rejected',
-    },
-  ]
-}
-
 function getCurrentStageId(job: SelfSourcedJob): WorkflowStageId {
   if ('workflowKind' in job && job.workflowKind === 'contract') {
-    if (job.status === 'changes_requested') return 'documents'
+    if (job.status === 'changes_requested' || job.status === 'awaiting_documents')
+      return 'documents'
     if (job.status === 'approved') return 'approved'
     if (job.status === 'rejected') return 'rejected'
     return 'verification'
   }
-  if (job.status === 'changes_requested') return 'documents'
-  if (job.status === 'flagged') return 'review'
-  if (job.status === 'pending') return 'review'
+  if (job.status === 'changes_requested' || job.status === 'awaiting_documents') return 'documents'
+  if (
+    job.status === 'flagged' ||
+    job.status === 'awaiting_review' ||
+    job.status === 'awaiting_placement_approval'
+  )
+    return 'review'
+  if (job.status === 'pending' || job.status === 'awaiting_approval') return 'review'
   if (job.status === 'approved') return 'approved'
   if (job.status === 'rejected') return 'rejected'
   return 'submitted'
@@ -747,8 +670,16 @@ function getCurrentStageId(job: SelfSourcedJob): WorkflowStageId {
 function getProcessingStepIndex(job: SelfSourcedJob) {
   if (job.status === 'approved' || job.status === 'rejected') return 4
   if ('workflowKind' in job && job.workflowKind === 'contract') return 2
-  if (job.status === 'flagged' || job.status === 'pending') return 3
-  if (job.status === 'changes_requested') return 1
+  if (
+    job.status === 'flagged' ||
+    job.status === 'pending' ||
+    job.status === 'awaiting_review' ||
+    job.status === 'awaiting_placement_approval' ||
+    job.status === 'awaiting_approval'
+  ) {
+    return 3
+  }
+  if (job.status === 'changes_requested' || job.status === 'awaiting_documents') return 1
   return 0
 }
 
@@ -770,6 +701,11 @@ function isActionRequired(job: SelfSourcedJob) {
   if (isTerminal(job)) return false
   return (
     job.status === 'pending' ||
+    job.status === 'awaiting_review' ||
+    job.status === 'awaiting_placement_approval' ||
+    job.status === 'awaiting_contract_review' ||
+    job.status === 'awaiting_documents' ||
+    job.status === 'awaiting_approval' ||
     job.status === 'flagged' ||
     job.status === 'changes_requested' ||
     isOverdue(job)
@@ -807,7 +743,12 @@ function matchesWaitingFilter(job: SelfSourcedJob, waiting?: string) {
   return true
 }
 
-function compareQueueItems(a: SelfSourcedJob, b: SelfSourcedJob, sort: string) {
+function compareQueueItems(
+  a: PlacementCase,
+  b: PlacementCase,
+  sort: string,
+  studentLabels: Record<string, string>
+) {
   const newestFirst = dateValue(b.submissionDate) - dateValue(a.submissionDate)
   const oldestFirst = dateValue(a.submissionDate) - dateValue(b.submissionDate)
 
@@ -821,7 +762,11 @@ function compareQueueItems(a: SelfSourcedJob, b: SelfSourcedJob, sort: string) {
     case 'stage':
       return stageRank(a) - stageRank(b) || oldestFirst
     case 'student':
-      return a.studentName.localeCompare(b.studentName) || newestFirst
+      return (
+        placementStudentLabel(a, studentLabels).localeCompare(
+          placementStudentLabel(b, studentLabels)
+        ) || newestFirst
+      )
     case 'employer':
       return a.company.localeCompare(b.company) || newestFirst
     case 'action_required':
@@ -850,26 +795,6 @@ function stageRank(job: SelfSourcedJob) {
     rejected: 6,
   }
   return order[getCurrentStageId(job)]
-}
-
-function StatusPill({ label, emphasis = false }: { label: string; emphasis?: boolean }) {
-  return (
-    <span
-      className={[
-        'rounded-full px-2.5 py-1 text-xs font-bold',
-        emphasis ? 'bg-red-50 text-red-800' : 'bg-slate-100 text-slate-700',
-      ].join(' ')}
-    >
-      {label}
-    </span>
-  )
-}
-
-function approvalStatus(job: SelfSourcedJob) {
-  if (job.status === 'approved') return 'Approved'
-  if (job.status === 'rejected') return 'Rejected'
-  if (job.status === 'flagged') return 'Review flagged'
-  return 'Awaiting final approval'
 }
 
 function buildCourseFilterOptions(jobs: SelfSourcedJob[]) {

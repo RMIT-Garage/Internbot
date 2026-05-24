@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StudentProfileClient } from './StudentProfileClient'
 
 export default function CoordinatorStudentViewPage() {
