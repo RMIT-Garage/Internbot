@@ -264,6 +264,32 @@ export default function StudentOpportunitiesPage() {
 
   // ── Semester selection ─────────────────────────────────────────────────────
   if (!semesterId) {
+    // Show skeleton while loading — the useEffect redirects if a saved semester
+    // exists, so returning users never see the picker flash.
+    if (loadingSemesters) {
+      return (
+        <div className="space-y-4" aria-busy="true">
+          <div className="space-y-1">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <SurfaceCard key={i} className="p-6">
+                <div className="flex items-start justify-between">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                </div>
+                <Skeleton className="mt-5 h-6 w-36" />
+                <Skeleton className="mt-2 h-3 w-24" />
+              </SurfaceCard>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="space-y-8">
         <div>
@@ -282,21 +308,7 @@ export default function StudentOpportunitiesPage() {
           </div>
         )}
 
-        {loadingSemesters ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-busy="true">
-            {[0, 1, 2].map((i) => (
-              <SurfaceCard key={i} className="p-6">
-                <div className="flex items-start justify-between">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                </div>
-                <Skeleton className="mt-5 h-6 w-36" />
-                <Skeleton className="mt-2 h-3 w-24" />
-                <Skeleton className="mt-3 h-3 w-32" />
-              </SurfaceCard>
-            ))}
-          </div>
-        ) : semesters.length === 0 ? (
+        {semesters.length === 0 ? (
           <SurfaceCard className="flex flex-col items-center py-16 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
               <CalendarDays className="h-6 w-6 text-gray-400" />
