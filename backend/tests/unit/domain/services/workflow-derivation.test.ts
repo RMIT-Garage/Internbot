@@ -34,6 +34,7 @@ function completeProfile(semesterId?: string, semesterSelectedAt?: Date): Studen
       programStatus: undefined,
       majors: undefined,
       minors: undefined,
+      completedCourses: undefined,
       notes: undefined,
       confirmedAt: NOW,
     }),

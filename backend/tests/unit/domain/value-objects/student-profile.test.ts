@@ -13,6 +13,7 @@ function buildCompleteAcademic(): AcademicInfo {
     programStatus: undefined,
     majors: undefined,
     minors: undefined,
+    completedCourses: undefined,
     notes: undefined,
     confirmedAt: undefined,
   })
@@ -66,6 +67,7 @@ describe('StudentProfile', () => {
         programStatus: undefined,
         majors: undefined,
         minors: undefined,
+        completedCourses: undefined,
         notes: undefined,
         confirmedAt: undefined,
       })

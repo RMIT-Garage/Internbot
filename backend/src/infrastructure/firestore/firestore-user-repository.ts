@@ -40,6 +40,7 @@ const academicInfoStorageSchema = z.object({
   programStatus: z.enum(programStatusValues).optional(),
   majors: z.array(z.string()).optional(),
   minors: z.array(z.string()).optional(),
+  completedCourses: z.array(z.string()).optional(),
   unitsAttempted: z.number().nonnegative(),
   creditUnitsEarned: z.number().nonnegative(),
   gpa: z.number().min(0).max(4),
@@ -116,6 +117,7 @@ type AcademicInfoWrite = {
   programStatus?: ProgramStatus
   majors?: readonly string[]
   minors?: readonly string[]
+  completedCourses?: readonly string[]
   notes?: string
   confirmedAt?: Timestamp
 }
@@ -183,6 +185,7 @@ function mapAcademicInfo(
     programStatus: a.programStatus,
     majors: a.majors,
     minors: a.minors,
+    completedCourses: a.completedCourses,
     notes: a.notes,
     confirmedAt: tsToDate(a.confirmedAt),
   })
@@ -232,6 +235,7 @@ function academicInfoToStorage(a: AcademicInfo): AcademicInfoWrite {
   if (a.programStatus !== undefined) out.programStatus = a.programStatus
   if (a.majors !== undefined) out.majors = a.majors
   if (a.minors !== undefined) out.minors = a.minors
+  if (a.completedCourses !== undefined) out.completedCourses = a.completedCourses
   if (a.notes !== undefined) out.notes = a.notes
   if (a.confirmedAt !== undefined) out.confirmedAt = FsTimestamp.fromDate(a.confirmedAt)
   return out

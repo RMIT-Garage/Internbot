@@ -357,7 +357,10 @@ async function handlePatch(
     return
   }
 
-  if (Object.keys(parsed.data.studentProfile).length === 0) {
+  const hasDisplayName = parsed.data.displayName !== undefined
+  const hasProfileFields =
+    parsed.data.studentProfile !== undefined && Object.keys(parsed.data.studentProfile).length > 0
+  if (!hasDisplayName && !hasProfileFields) {
     next(
       new ApiError(422, 'Unprocessable Entity', 'Request body is empty', {
         reason: 'empty_body',

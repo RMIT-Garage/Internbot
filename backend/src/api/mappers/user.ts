@@ -54,19 +54,25 @@ export function toUpdateUserProfileCommand(
   ifMatch: string | undefined,
   body: PatchUserRequest
 ): UpdateUserProfileCommand {
-  const academicInfo = body.studentProfile.academicInfo
   const patch: UpdateUserProfileCommand['patch'] = {}
-  if (body.studentProfile.studentNumber !== undefined) {
-    patch.studentNumber = body.studentProfile.studentNumber
+  if (body.displayName !== undefined) {
+    patch.displayName = body.displayName
   }
-  if (body.studentProfile.programCode !== undefined) {
-    patch.programCode = body.studentProfile.programCode
-  }
-  if (body.studentProfile.phone !== undefined) {
-    patch.phone = body.studentProfile.phone
-  }
-  if (academicInfo !== undefined) {
-    patch.academicInfo = academicInfo === null ? null : (academicInfo as AcademicInfoPatch)
+  const studentProfile = body.studentProfile
+  if (studentProfile !== undefined) {
+    if (studentProfile.studentNumber !== undefined) {
+      patch.studentNumber = studentProfile.studentNumber
+    }
+    if (studentProfile.programCode !== undefined) {
+      patch.programCode = studentProfile.programCode
+    }
+    if (studentProfile.phone !== undefined) {
+      patch.phone = studentProfile.phone
+    }
+    const academicInfo = studentProfile.academicInfo
+    if (academicInfo !== undefined) {
+      patch.academicInfo = academicInfo === null ? null : (academicInfo as AcademicInfoPatch)
+    }
   }
 
   const expectedVersion = parseIfMatch(ifMatch)
@@ -161,6 +167,8 @@ function academicInfoToResponse(a: AcademicInfo): AcademicInfoResponse {
     creditUnitsEarned: a.creditUnitsEarned,
     gpa: a.gpa,
     currentStudyLoad: a.currentStudyLoad,
+    completedCourses: a.completedCourses ? [...a.completedCourses] : [],
+    yearLevel: a.yearLevel,
     confirmedAt: dateToIso(a.confirmedAt),
   }
   if (a.programStatus !== undefined) out.programStatus = a.programStatus

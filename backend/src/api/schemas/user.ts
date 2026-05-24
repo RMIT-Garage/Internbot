@@ -37,6 +37,14 @@ const academicInfoRequestSchema = z
       .array(z.string())
       .optional()
       .meta({ example: ['Data Science'] }),
+    completedCourses: z
+      .array(z.string().trim().min(1))
+      .optional()
+      .meta({
+        example: ['SEF30012', 'APT40005', 'PCP20019'],
+        description:
+          'Self-attested completed course codes (e.g. internship prerequisites). Not verified against an academic record.',
+      }),
     notes: z.string().optional(),
   })
   .strict()
@@ -60,13 +68,18 @@ export const studentProfilePatchSchema = z
 
 export const patchUserRequestSchema = z
   .object({
-    studentProfile: studentProfilePatchSchema,
+    displayName: z.string().trim().min(1).max(100).optional().meta({
+      example: 'Jane Doe',
+      description:
+        'The student-facing display name. Self-settable after sign-up (registration no longer captures a name). Trimmed; 1–100 chars.',
+    }),
+    studentProfile: studentProfilePatchSchema.optional(),
   })
   .strict()
   .meta({
     id: 'PatchUserRequest',
     description:
-      'Body for PATCH /api/v1/users/:id. Top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400.',
+      'Body for PATCH /api/v1/users/:id. `displayName` and `studentProfile` are both writable and optional (send either or both). Other top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400.',
   })
 
 export type PatchUserRequest = z.infer<typeof patchUserRequestSchema>
@@ -79,7 +92,6 @@ export type PatchUserRequest = z.infer<typeof patchUserRequestSchema>
 export const FORBIDDEN_TOP_LEVEL_FIELDS: ReadonlySet<string> = new Set([
   'id',
   'email',
-  'displayName',
   'role',
   'firebaseUid',
   'status',

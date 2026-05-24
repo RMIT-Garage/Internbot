@@ -9,6 +9,7 @@ function buildAcademicInfo(
     creditUnitsEarned: number
     gpa: number
     currentStudyLoad: 'full_time' | 'part_time' | 'unknown'
+    completedCourses: readonly string[] | undefined
     confirmedAt: Date | undefined
   }> = {}
 ): AcademicInfo {
@@ -22,6 +23,7 @@ function buildAcademicInfo(
     programStatus: undefined,
     majors: undefined,
     minors: undefined,
+    completedCourses: overrides.completedCourses,
     notes: undefined,
     confirmedAt: overrides.confirmedAt,
   })
@@ -46,9 +48,51 @@ describe('AcademicInfo', () => {
     })
   })
 
+  describe('yearLevel', () => {
+    it.each([
+      [0, 1],
+      [95, 1],
+      [96, 2],
+      [180, 2],
+      [191, 2],
+      [192, 3],
+      [288, 4],
+      [600, 4], // clamped to the 4-year program cap
+    ])('derives year %i CP → year %i', (creditUnitsEarned, expected) => {
+      expect(buildAcademicInfo({ creditUnitsEarned }).yearLevel).toBe(expected)
+    })
+
+    it('is not affected by majors/minors — only credit points', () => {
+      expect(buildAcademicInfo({ creditUnitsEarned: 96 }).yearLevel).toBe(2)
+    })
+  })
+
+  describe('completedCourses', () => {
+    it('round-trips the attested course codes', () => {
+      const ai = buildAcademicInfo({ completedCourses: ['SEF30012', 'APT40005'] })
+      expect(ai.completedCourses).toEqual(['SEF30012', 'APT40005'])
+    })
+
+    it('defaults to undefined when not provided', () => {
+      expect(buildAcademicInfo().completedCourses).toBeUndefined()
+    })
+  })
+
   describe('equals()', () => {
     it('returns true for structurally equal instances', () => {
       expect(buildAcademicInfo().equals(buildAcademicInfo())).toBe(true)
+    })
+
+    it('returns false when completedCourses differ', () => {
+      const a = buildAcademicInfo({ completedCourses: ['SEF30012'] })
+      const b = buildAcademicInfo({ completedCourses: ['APT40005'] })
+      expect(a.equals(b)).toBe(false)
+    })
+
+    it('returns true when completedCourses match by value', () => {
+      const a = buildAcademicInfo({ completedCourses: ['SEF30012', 'APT40005'] })
+      const b = buildAcademicInfo({ completedCourses: ['SEF30012', 'APT40005'] })
+      expect(a.equals(b)).toBe(true)
     })
 
     it('returns false when gpa differs', () => {
