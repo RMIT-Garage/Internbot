@@ -687,7 +687,7 @@ export default function StudentOpportunitiesPage() {
                             </p>
                             <p className="mt-1 text-xs leading-relaxed text-gray-500">
                               Your submission is being reviewed. Once a coordinator approves it,
-                              this opportunity will appear above and you'll be able to apply.
+                              this opportunity will appear above and you&apos;ll be able to apply.
                             </p>
                           </div>
                         </div>

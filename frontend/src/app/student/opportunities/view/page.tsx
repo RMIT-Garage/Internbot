@@ -278,7 +278,7 @@ function OpportunityDetailContent() {
                   {applying ? 'Submitting…' : 'Apply Now'}
                 </button>
                 <p className="text-center text-[11px] text-gray-400">
-                  You'll be redirected to your application after submitting.
+                  You&apos;ll be redirected to your application after submitting.
                 </p>
               </div>
             )}
