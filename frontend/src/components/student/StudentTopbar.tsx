@@ -148,7 +148,7 @@ const CATEGORY_ICONS: Record<Category, ComponentType<{ className?: string }>> = 
 
 export function StudentTopbar() {
   const router = useRouter()
-  const { user, signOut } = useAuth()
+  const { user, signOut, profile } = useAuth()
 
   const [query, setQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -553,7 +553,9 @@ export function StudentTopbar() {
             <User className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-900">Student</p>
+            <p className="truncate text-xs font-semibold text-slate-900">
+              {profile?.displayName?.split(' ')[0] ?? 'Student'}
+            </p>
             <p className="truncate text-[11px] text-slate-500">{user?.email ?? 'Student portal'}</p>
           </div>
         </Link>
