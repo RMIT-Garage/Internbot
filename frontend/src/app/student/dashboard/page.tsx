@@ -559,23 +559,6 @@ export default function StudentDashboardPage() {
               )}
             </div>
           </SurfaceCard>
-
-          {/* RECENT TIMELINE */}
-          <SurfaceCard className="p-5">
-            <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
-            <div className="mt-4 space-y-2">
-              {internships.length === 0 ? (
-                <div className="text-sm text-slate-500">No recent activity yet.</div>
-              ) : (
-                internships.slice(0, 3).map((i) => (
-                  <div key={i.id} className="flex items-center justify-between text-sm">
-                    <span className="truncate text-slate-700">{i.opportunityEmployerName}</span>
-                    <StatusBadge status={internshipStatusToBadge(i.status)} />
-                  </div>
-                ))
-              )}
-            </div>
-          </SurfaceCard>
         </div>
       </div>
     </div>
