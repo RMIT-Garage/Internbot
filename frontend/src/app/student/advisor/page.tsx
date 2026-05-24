@@ -1,7 +1,7 @@
 'use client'
 
-import { AIAdvisorPortal } from '@/features/advisor/components/AIAdvisorPortal'
+import { AdvisorPage } from '@/features/advisor/components/AdvisorPage'
 
-export default function AdvisorPage() {
-  return <AIAdvisorPortal />
+export default function AdvisorPageRoute() {
+  return <AdvisorPage />
 }
