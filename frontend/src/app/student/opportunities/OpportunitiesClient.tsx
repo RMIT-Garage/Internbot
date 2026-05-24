@@ -390,8 +390,8 @@ export default function StudentOpportunitiesPage() {
 
   // ── Opportunities list ─────────────────────────────────────────────────────
   const appliedOpportunityIds = new Set(internships.map((i) => i.opportunityId))
-  const preApproved = opportunities.filter((o) => o.type === OpportunityResponse.type.PRE_APPROVED)
-  const selfSourced = opportunities.filter((o) => o.type === OpportunityResponse.type.CUSTOM)
+  const preApproved = opportunities.filter((o) => o.type === 'pre_approved')
+  const selfSourced = opportunities.filter((o) => o.type === 'custom')
   const currentSemester = semesters.find((s) => s.id === semesterId)
   const appliedCount = internships.length
 
