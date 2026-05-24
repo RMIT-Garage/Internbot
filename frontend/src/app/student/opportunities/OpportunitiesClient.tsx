@@ -76,7 +76,7 @@ function OpportunityRow({
   const isApplying = applyingId === opportunity.id
 
   return (
-    <div className="grid grid-cols-[1fr_64px_140px_100px] items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
+    <div className="grid grid-cols-[1fr_56px_120px_88px] items-center gap-3 px-5 py-4 transition hover:bg-gray-50">
       {/* Opportunity info */}
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-gray-900">{opportunity.jobTitle}</p>
@@ -517,7 +517,7 @@ export default function StudentOpportunitiesPage() {
           </p>
           <SurfaceCard className="overflow-hidden p-0">
             {/* List header */}
-            <div className="grid grid-cols-[1fr_64px_140px_100px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <div className="grid grid-cols-[1fr_56px_120px_88px] items-center gap-3 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
               <span>Applicants</span>
               <span>Status</span>
@@ -548,7 +548,7 @@ export default function StudentOpportunitiesPage() {
             Opportunities sourced by students and verified by a coordinator.
           </p>
           <SurfaceCard className="overflow-hidden p-0">
-            <div className="grid grid-cols-[1fr_64px_140px_100px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <div className="grid grid-cols-[1fr_56px_120px_88px] items-center gap-3 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
               <span>Applicants</span>
               <span>Status</span>

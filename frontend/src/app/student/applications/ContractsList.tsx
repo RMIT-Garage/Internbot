@@ -296,9 +296,9 @@ export function ContractsList() {
       ) : (
         <SurfaceCard className="overflow-hidden p-0">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_130px_90px_150px_24px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          <div className="grid grid-cols-[1fr_120px_90px_140px_24px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             <span>Opportunity</span>
-            <span>Type</span>
+            <span className="text-center">Type</span>
             <span>Applied</span>
             <span>Status</span>
             <span />
@@ -308,7 +308,7 @@ export function ContractsList() {
             <Link
               key={i.id}
               href={`/student/applications/view?id=${i.id}`}
-              className={`grid grid-cols-[1fr_130px_90px_150px_24px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+              className={`grid grid-cols-[1fr_120px_90px_140px_24px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
             >
               {/* Opportunity info */}
               <div className="min-w-0">
@@ -319,9 +319,11 @@ export function ContractsList() {
               </div>
 
               {/* Type */}
-              <span className="inline-flex shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-                {opportunityTypeLabel(i.opportunityType)}
-              </span>
+              <div className="flex justify-center">
+                <span className="w-fit rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                  {opportunityTypeLabel(i.opportunityType)}
+                </span>
+              </div>
 
               {/* Date */}
               <span className="shrink-0 text-xs text-gray-400">{formatDate(i.createdAt)}</span>
