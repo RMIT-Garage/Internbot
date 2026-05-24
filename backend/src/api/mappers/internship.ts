@@ -5,6 +5,7 @@ import type { UpdateInternshipCommand } from '../../application/commands/update-
 import type { SubmitInternshipOfferCommand } from '../../application/commands/submit-internship-offer'
 import type { AddInternshipCommentCommand } from '../../application/commands/add-internship-comment'
 import type { DecideInternshipOfferCommand } from '../../application/commands/decide-internship-offer'
+import type { WithdrawInternshipCommand } from '../../application/commands/withdraw-internship'
 import type {
   InternshipListResultWithCursor,
   ListInternshipsQuery,
@@ -94,6 +95,19 @@ export function toSubmitInternshipOfferCommand(
       endDate:
         body.endDate === null || body.endDate === undefined ? undefined : new Date(body.endDate),
     },
+    ...(expectedVersion !== undefined ? { metadata: { expectedVersion } } : {}),
+  }
+}
+
+export function toWithdrawInternshipCommand(
+  actor: RequestActor,
+  internshipId: string,
+  ifMatch: string | undefined
+): WithdrawInternshipCommand {
+  const expectedVersion = parseIfMatch(ifMatch)
+  return {
+    actor,
+    internshipId,
     ...(expectedVersion !== undefined ? { metadata: { expectedVersion } } : {}),
   }
 }

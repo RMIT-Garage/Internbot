@@ -27,12 +27,14 @@ import {
   toDecideInternshipOfferCommand,
   toSubmitInternshipOfferCommand,
   toUpdateInternshipCommand,
+  toWithdrawInternshipCommand,
 } from '../mappers/internship'
 import { CreateInternshipCommandHandler } from '../../application/commands/create-internship'
 import { UpdateInternshipCommandHandler } from '../../application/commands/update-internship'
 import { SubmitInternshipOfferCommandHandler } from '../../application/commands/submit-internship-offer'
 import { AddInternshipCommentCommandHandler } from '../../application/commands/add-internship-comment'
 import { DecideInternshipOfferCommandHandler } from '../../application/commands/decide-internship-offer'
+import { WithdrawInternshipCommandHandler } from '../../application/commands/withdraw-internship'
 import { DeleteInternshipAttachmentCommandHandler } from '../../application/commands/delete-internship-attachment'
 import { CreateInternshipAttachmentUploadIntentCommandHandler } from '../../application/commands/create-internship-attachment-upload-intent'
 import { ConfirmInternshipAttachmentCommandHandler } from '../../application/commands/confirm-internship-attachment'
@@ -78,6 +80,11 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
   )
   const addComment = new AddInternshipCommentCommandHandler(deps.uow, deps.authz, deps.idGenerator)
   const decideOffer = new DecideInternshipOfferCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator
+  )
+  const withdrawInternship = new WithdrawInternshipCommandHandler(
     deps.uow,
     deps.authz,
     deps.idGenerator
@@ -347,6 +354,25 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
 
       const { id } = await decideOffer.handle(
         toDecideInternshipOfferCommand(actor, internshipId, req.header('If-Match'), parsed.data)
+      )
+      const result = await getInternship.handle({ actor, internshipId: id })
+
+      res.setHeader('Location', `/api/v1/internships/${id}`)
+      res.setHeader('ETag', etagFromInternship(result))
+      res.setHeader('Cache-Control', 'private, no-cache')
+      res.status(201).json(toInternshipResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.post('/:id/withdrawals', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const internshipId = paramId(req)
+
+      const { id } = await withdrawInternship.handle(
+        toWithdrawInternshipCommand(actor, internshipId, req.header('If-Match'))
       )
       const result = await getInternship.handle({ actor, internshipId: id })
 

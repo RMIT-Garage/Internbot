@@ -92,6 +92,15 @@ export class InternshipActivity {
     return InternshipActivity.create({ ...props, type: 'reject' })
   }
 
+  static withdraw(props: {
+    id: string
+    authorUserId: string
+    authorRole: Role
+    createdAt: Date
+  }): InternshipActivity {
+    return InternshipActivity.create({ ...props, type: 'withdraw', text: undefined })
+  }
+
   get id(): string {
     return this.#props.id
   }

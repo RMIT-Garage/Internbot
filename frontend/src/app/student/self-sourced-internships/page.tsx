@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { CheckCircle2, FileText, Link2, Briefcase, MapPin } from 'lucide-react'
 
+import { SurfaceCard } from '@/components/student/Premium'
 import { OpportunitiesService } from '@/lib/api/openapi-client'
 import { CreateOpportunityRequest } from '@/api/models/CreateOpportunityRequest'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
@@ -13,6 +15,8 @@ export default function Page() {
   const [employerName, setEmployerName] = useState('')
   const [jobTitle, setJobTitle] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
+  const [workMode, setWorkMode] = useState<'onsite' | 'hybrid' | 'remote' | ''>('')
+  const [location, setLocation] = useState('')
   const [descriptionText, setDescriptionText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,9 +38,24 @@ export default function Page() {
         jobTitle: jobTitle.trim(),
         descriptionText: descriptionText.trim(),
         sourceUrl: sourceUrl.trim() || undefined,
+        workMode: (workMode || undefined) as CreateOpportunityRequest.workMode | undefined,
+        location: location.trim() || undefined,
         type: CreateOpportunityRequest.type.CUSTOM,
       })
 
+      try {
+        const stored: string[] = JSON.parse(
+          localStorage.getItem('internbot:selfSourced:pending') ?? '[]'
+        )
+        if (!stored.includes(opportunity.id)) {
+          localStorage.setItem(
+            'internbot:selfSourced:pending',
+            JSON.stringify([...stored, opportunity.id])
+          )
+        }
+      } catch {
+        // localStorage unavailable — non-fatal
+      }
       router.push(`/student/self-sourced-internships/submission?id=${opportunity.id}`)
     } catch (err: unknown) {
       const reason = getApiErrorReason(err)
@@ -51,170 +70,184 @@ export default function Page() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-7xl flex-1 p-6">
-      {/* HEADER */}
-      <div className="mb-12 space-y-4">
-        <nav className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase">
-          <span className="text-slate-400">Internships</span>
-          <span className="text-slate-300">/</span>
-          <span className="text-rose-700">Self-Sourced Submission</span>
-        </nav>
-
-        <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">
-          Submit Self-Sourced Internship
-        </h2>
-
-        <p className="max-w-3xl leading-relaxed text-slate-500">
-          Provide employer and role details for coordinator verification. Your submission will be
-          reviewed before becoming available to apply to.
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Header */}
+      <div>
+        <p className="text-xs font-bold tracking-[0.18em] text-red-600 uppercase">
+          Self-Sourced Internship
+        </p>
+        <h1 className="mt-1 text-2xl font-bold text-gray-900">Submit an Internship</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Provide employer and role details for coordinator verification.
         </p>
       </div>
 
-      {/* GRID */}
-      <div className="grid grid-cols-12 gap-10">
-        {/* LEFT FORM */}
-        <div className="col-span-8 space-y-8">
-          {/* STEP 1 */}
-          <section className="relative rounded-3xl border border-slate-100 bg-white p-9 shadow-sm transition hover:shadow-md">
-            <div className="absolute top-6 right-6 rounded-full bg-rose-50 px-3 py-1 text-[10px] font-bold tracking-widest text-rose-600">
-              Step 01
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+        {/* Form */}
+        <div className="space-y-4">
+          {/* Company details */}
+          <SurfaceCard className="p-5">
+            <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Briefcase className="h-3.5 w-3.5 text-red-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Company Details</p>
+                <p className="text-xs text-gray-400">
+                  Basic information about the employer and role
+                </p>
+              </div>
             </div>
 
-            <h3 className="mb-1 text-sm font-bold text-slate-900">Company Details</h3>
-
-            <p className="mb-8 text-xs text-slate-400">
-              Basic information about the employer and role
-            </p>
-
-            <div className="space-y-7">
-              {/* Employer */}
+            <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                  Employer Name <span className="text-rose-500">*</span>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                  Employer Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   value={employerName}
                   onChange={(e) => setEmployerName(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm transition outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
                   placeholder="e.g. Atlassian, Canva"
                   required
                 />
               </div>
 
-              {/* Row */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Job Title <span className="text-rose-500">*</span>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                    Job Title <span className="text-red-500">*</span>
                   </label>
                   <input
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm transition outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
                     placeholder="Software Engineer Intern"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Job Link
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <Link2 className="h-3 w-3" /> Website
+                    </span>
                   </label>
                   <input
                     value={sourceUrl}
                     onChange={(e) => setSourceUrl(e.target.value)}
                     type="url"
-                    className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm transition outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-                    placeholder="https://company-job-page.com"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
+                    placeholder="https://company.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                    Work Mode
+                  </label>
+                  <div className="flex gap-2">
+                    {(['onsite', 'hybrid', 'remote'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setWorkMode(workMode === mode ? '' : mode)}
+                        className={`flex-1 rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition ${
+                          workMode === mode
+                            ? 'border-red-300 bg-red-50 text-red-700'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Location
+                    </span>
+                  </label>
+                  <input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
+                    placeholder="Melbourne, VIC"
                   />
                 </div>
               </div>
             </div>
-          </section>
+          </SurfaceCard>
 
-          {/* STEP 2 */}
-          <section className="relative rounded-3xl border border-slate-100 bg-white p-9 shadow-sm transition hover:shadow-md">
-            <div className="absolute top-6 right-6 rounded-full bg-rose-50 px-3 py-1 text-[10px] font-bold tracking-widest text-rose-600">
-              Step 02
+          {/* Position description */}
+          <SurfaceCard className="p-5">
+            <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <FileText className="h-3.5 w-3.5 text-red-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Position Description</p>
+                <p className="text-xs text-gray-400">
+                  Describe responsibilities, tools, and learning outcomes
+                </p>
+              </div>
             </div>
-
-            <h3 className="mb-1 text-sm font-bold text-slate-900">Position Description</h3>
-
-            <p className="mb-8 text-xs text-slate-400">
-              Describe responsibilities, tools, and learning outcomes
-            </p>
 
             <textarea
               value={descriptionText}
               onChange={(e) => setDescriptionText(e.target.value)}
               rows={6}
-              className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-4 text-sm transition outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-              placeholder="Detail your daily tasks, projects, technologies, and team structure..."
+              className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
+              placeholder="Detail your daily tasks, projects, technologies, and team structure…"
               required
             />
-          </section>
+          </SurfaceCard>
 
-          {/* ERROR */}
           {error && (
-            <div className="rounded-2xl bg-red-50 px-5 py-3 text-sm text-red-600">{error}</div>
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
           )}
 
-          {/* SUBMIT */}
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-2xl bg-rose-600 py-4 font-bold text-white shadow-md transition hover:bg-rose-700 active:scale-[0.98] disabled:opacity-50"
+            className="w-full rounded-xl bg-red-600 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
           >
-            {submitting ? 'Submitting...' : 'Submit for Coordinator Review'}
+            {submitting ? 'Submitting…' : 'Submit for Coordinator Review'}
           </button>
         </div>
 
-        {/* RIGHT SIDEBAR */}
-        <div className="col-span-4 space-y-6">
-          {/* INFO CARD */}
-          <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-7 pt-7 pb-6">
-              <p className="mb-1.5 text-[10px] font-bold tracking-widest text-rose-600 uppercase">
-                Review Process
-              </p>
-              <h4 className="text-base font-bold text-slate-900">What happens next?</h4>
-            </div>
+        {/* Sidebar */}
+        <div>
+          <SurfaceCard className="p-5">
+            <p className="text-xs font-bold tracking-[0.18em] text-red-600 uppercase">
+              Review Process
+            </p>
+            <h4 className="mt-1 text-sm font-bold text-gray-900">What happens next?</h4>
 
-            <ol className="px-7 py-5">
-              <li className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-rose-600">
-                    1
-                  </span>
-                  <div className="mt-2 h-10 w-px bg-slate-200" />
-                </div>
-                <p className="pt-0.5 pb-5 text-sm leading-relaxed text-slate-500">
-                  Your submission is sent to a coordinator for verification.
-                </p>
-              </li>
-              <li className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-rose-600">
-                    2
-                  </span>
-                  <div className="mt-2 h-10 w-px bg-slate-200" />
-                </div>
-                <p className="pt-0.5 pb-5 text-sm leading-relaxed text-slate-500">
-                  Once approved, the opportunity becomes available in your semester.
-                </p>
-              </li>
-              <li className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-bold text-rose-600">
-                    3
-                  </span>
-                </div>
-                <p className="pt-0.5 text-sm leading-relaxed text-slate-500">
-                  You can then apply and upload your offer letter.
-                </p>
-              </li>
+            <ol className="mt-4 space-y-0">
+              {[
+                'Your submission is sent to a coordinator for verification.',
+                'Once approved, the opportunity becomes available in your semester.',
+                'You can then apply and upload your offer letter.',
+              ].map((text, i) => (
+                <li key={i} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-[11px] font-bold text-red-600">
+                      {i + 1}
+                    </span>
+                    {i < 2 && <div className="my-1 h-6 w-px bg-gray-200" />}
+                  </div>
+                  <p className="pt-0.5 pb-4 text-xs leading-relaxed text-gray-500">{text}</p>
+                </li>
+              ))}
             </ol>
-          </div>
+          </SurfaceCard>
         </div>
       </div>
     </form>

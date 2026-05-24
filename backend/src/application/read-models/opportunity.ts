@@ -26,6 +26,8 @@ export interface OpportunityListFilter {
   readonly sortField: 'createdAt'
   readonly sortDirection: 'asc' | 'desc'
   readonly cursor: OpportunityListCursor | undefined
+  /** When set, results are unioned with all submissions by this user (any status). */
+  readonly submittedByUserId?: string
 }
 
 export interface OpportunityListPage {

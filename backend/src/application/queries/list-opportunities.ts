@@ -92,6 +92,7 @@ export class ListOpportunitiesQueryHandler {
       sortField: requested.sortField,
       sortDirection: requested.sortDirection,
       cursor: requested.cursor,
+      submittedByUserId: userId,
     }
   }
 }

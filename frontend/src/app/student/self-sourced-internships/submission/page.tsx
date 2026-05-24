@@ -3,10 +3,12 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { CheckCircle2 } from 'lucide-react'
 
+import { SurfaceCard } from '@/components/student/Premium'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { OpportunitiesService, UsersService } from '@/lib/api/openapi-client'
 import type { OpportunityResponse, StudentUserResponse } from '@/lib/api/openapi-client'
-import { DetailHeroSkeleton } from '@/components/ui/ContentSkeleton'
 
 function SubmissionContent() {
   const params = useSearchParams()
@@ -18,7 +20,6 @@ function SubmissionContent() {
 
   useEffect(() => {
     if (!id) return
-
     const load = async () => {
       try {
         const [opp, user] = await Promise.all([
@@ -31,24 +32,42 @@ function SubmissionContent() {
         setLoading(false)
       }
     }
-
     load()
   }, [id])
 
   if (loading) {
     return (
-      <main className="flex-1 overflow-y-auto bg-gray-50 p-10">
-        <div className="mx-auto max-w-7xl">
-          <DetailHeroSkeleton label="Loading submission details…" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-96" />
         </div>
-      </main>
+        <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+          <div className="space-y-4">
+            <SurfaceCard className="p-5">
+              <Skeleton className="h-4 w-32" />
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-5 w-40" />
+                  </div>
+                ))}
+              </div>
+            </SurfaceCard>
+          </div>
+          <SurfaceCard className="p-5">
+            <Skeleton className="h-4 w-24" />
+          </SurfaceCard>
+        </div>
+      </div>
     )
   }
 
   const studentLabel = student
     ? `${student.displayName ?? 'Student'} (${student.studentProfile.studentNumber})`
     : 'Your account'
-
   const employerName = opportunity?.employerName ?? '—'
   const jobTitle = opportunity?.jobTitle ?? '—'
   const dateFiled = opportunity
@@ -61,182 +80,137 @@ function SubmissionContent() {
   const shortId = opportunity ? opportunity.id.slice(0, 8).toUpperCase() : '—'
 
   return (
-    <main className="flex-1 overflow-y-auto bg-gray-50 p-10">
-      {/* HERO */}
-      <section className="mx-auto mb-10 max-w-7xl">
-        <div className="flex items-start gap-5">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-200">
-            ✓
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-[10px] font-bold tracking-[0.25em] uppercase">
-              <span className="text-gray-400">Internships</span>
-              <span className="text-gray-300">/</span>
-              <span className="text-red-700">Submission Complete</span>
-            </div>
-
-            <h1 className="text-5xl font-black tracking-tight text-black">Submission Successful</h1>
-
-            <p className="max-w-3xl text-[15px] leading-relaxed text-gray-500">
-              Your self-sourced internship submission for{' '}
-              <span className="font-semibold text-black">{studentLabel}</span> has been received and
-              is pending coordinator verification.
-            </p>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white">
+          <CheckCircle2 className="h-5 w-5" />
         </div>
-      </section>
+        <div>
+          <p className="text-xs font-bold tracking-[0.18em] text-red-600 uppercase">
+            Self-Sourced Internship
+          </p>
+          <h1 className="mt-0.5 text-2xl font-bold text-gray-900">Submission Successful</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Your submission for <span className="font-semibold text-gray-700">{studentLabel}</span>{' '}
+            is pending coordinator verification.
+          </p>
+        </div>
+      </div>
 
-      {/* MAIN GRID */}
-      <div className="mx-auto grid max-w-7xl grid-cols-12 items-start gap-10">
-        {/* LEFT COLUMN */}
-        <div className="col-span-7 space-y-8">
-          {/* SUBMISSION DETAILS */}
-          <section className="relative overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-            <div className="absolute inset-x-0 top-0 h-1 bg-red-600" />
-
-            <div className="p-8">
-              <div className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold tracking-[0.2em] text-red-700 uppercase">
-                Submission ID • {shortId}
+      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+        {/* Details */}
+        <div className="space-y-4">
+          <SurfaceCard className="overflow-hidden p-0">
+            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
+              <p className="text-xs font-semibold text-gray-500">Submission details</p>
+              <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-600">
+                ID: {shortId}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-5 p-5">
+              <div>
+                <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                  Employer
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{employerName}</p>
               </div>
-
-              <div className="mt-8 grid grid-cols-2 gap-y-10">
-                {/* employer */}
+              <div>
+                <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                  Role
+                </p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{jobTitle}</p>
+              </div>
+              {opportunity?.workMode && (
                 <div>
-                  <p className="mb-3 text-[10px] font-bold tracking-[0.18em] text-gray-400 uppercase">
-                    Employer
+                  <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                    Work Mode
                   </p>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black font-black text-white">
-                      {employerName.charAt(0).toUpperCase()}
-                    </div>
-
-                    <div>
-                      <h3 className="text-lg font-bold text-black">{employerName}</h3>
-                      <p className="text-xs text-gray-500">Self-Sourced</p>
-                    </div>
-                  </div>
+                  <span className="mt-1 inline-flex rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-600 capitalize">
+                    {opportunity.workMode}
+                  </span>
                 </div>
-
-                {/* role */}
+              )}
+              {opportunity?.location && (
                 <div>
-                  <p className="mb-3 text-[10px] font-bold tracking-[0.18em] text-gray-400 uppercase">
-                    Role
+                  <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                    Location
                   </p>
-
-                  <h3 className="text-lg font-bold text-black">{jobTitle}</h3>
-                  <p className="mt-1 text-xs text-gray-500">Custom Submission</p>
+                  <p className="mt-1 text-sm text-gray-700">{opportunity.location}</p>
                 </div>
-
-                {/* source */}
-                <div>
-                  <p className="mb-3 text-[10px] font-bold tracking-[0.18em] text-gray-400 uppercase">
-                    Source Type
-                  </p>
-
-                  <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-700">
-                    Self-Sourced
-                  </div>
-                </div>
-
-                {/* date */}
-                <div>
-                  <p className="mb-3 text-[10px] font-bold tracking-[0.18em] text-gray-400 uppercase">
-                    Date Filed
-                  </p>
-
-                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700">
-                    {dateFiled}
-                  </div>
-                </div>
+              )}
+              <div>
+                <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                  Type
+                </p>
+                <span className="mt-1 inline-flex rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  Self-sourced
+                </span>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                  Date filed
+                </p>
+                <p className="mt-1 text-sm text-gray-700">{dateFiled}</p>
               </div>
             </div>
-          </section>
+          </SurfaceCard>
 
-          {/* NEXT STEPS */}
-          <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
-            <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+          {/* Next steps */}
+          <SurfaceCard className="p-5">
+            <p className="text-xs font-bold tracking-[0.18em] text-red-600 uppercase">
               Review Process
             </p>
-            <h2 className="mb-8 text-xl font-bold text-black">What happens next?</h2>
-
-            <div className="border-t border-gray-100 pt-6">
+            <h4 className="mt-1 text-sm font-bold text-gray-900">What happens next?</h4>
+            <ol className="mt-4 space-y-0">
               {[
                 'Your submission is sent to a coordinator for verification.',
                 'Once approved, the opportunity becomes available in your semester.',
                 'You can then apply and upload your offer letter.',
               ].map((text, i) => (
-                <div key={i} className="flex gap-4">
+                <li key={i} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-300 bg-red-50 text-xs font-bold text-red-600">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-[11px] font-bold text-red-600">
                       {i + 1}
-                    </div>
-                    {i < 2 && <div className="mt-1 h-10 w-[1px] bg-gray-200" />}
+                    </span>
+                    {i < 2 && <div className="my-1 h-6 w-px bg-gray-200" />}
                   </div>
-                  <p className="pt-0.5 pb-6 text-sm leading-relaxed text-gray-500">{text}</p>
-                </div>
+                  <p className="pt-0.5 pb-4 text-xs leading-relaxed text-gray-500">{text}</p>
+                </li>
               ))}
-            </div>
-          </section>
+            </ol>
+          </SurfaceCard>
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div className="col-span-5 space-y-7">
-          {/* STATUS CARD */}
-          <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 p-7 shadow-sm">
-            <div className="absolute top-0 left-0 h-full w-1 bg-red-600" />
-
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black text-white shadow">
-                ✦
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
-                  Current Status
-                </p>
-                <h3 className="font-bold text-black">Pending Verification</h3>
-              </div>
-            </div>
-
-            <p className="text-sm leading-relaxed text-black/70">
-              Your submission is in the coordinator review queue. You will be notified when it is
-              approved or if changes are needed.
-            </p>
-          </section>
-
-          {/* ACTIONS */}
-          <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
-            <Link
-              href="/student/dashboard"
-              className="flex w-full items-center justify-center rounded-2xl bg-red-600 py-4 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 active:scale-[0.99]"
-            >
-              Return to Dashboard
-            </Link>
-
-            <Link
-              href="/student/self-sourced-internships"
-              className="mt-4 flex w-full items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 py-4 text-sm font-bold text-gray-700 transition hover:bg-gray-100"
-            >
-              Submit Another Internship
-            </Link>
-
-            <div className="mt-6 border-t border-gray-100 pt-6 text-center">
-              <p className="text-xs text-gray-400">
-                Need help?{' '}
-                <Link
-                  href="/student/notifications"
-                  className="font-semibold text-gray-600 hover:text-black"
-                >
-                  Check Notifications
-                </Link>
+        {/* Sidebar actions */}
+        <div className="space-y-4">
+          <SurfaceCard className="p-5">
+            <div className="mb-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <p className="text-xs font-bold tracking-wide text-gray-500 uppercase">Status</p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">Pending Verification</p>
+              <p className="mt-1 text-xs text-gray-400">
+                You will be notified when the coordinator reviews your submission.
               </p>
             </div>
-          </section>
+
+            <div className="space-y-2">
+              <Link
+                href="/student/dashboard"
+                className="flex w-full items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                Return to Dashboard
+              </Link>
+              <Link
+                href="/student/self-sourced-internships"
+                className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+              >
+                Submit Another
+              </Link>
+            </div>
+          </SurfaceCard>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
 
@@ -244,11 +218,10 @@ export default function SubmissionSuccessPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-10">
-          <div className="mx-auto max-w-7xl">
-            <DetailHeroSkeleton label="Loading submission details…" />
-          </div>
-        </main>
+        <div className="space-y-4">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-96" />
+        </div>
       }
     >
       <SubmissionContent />

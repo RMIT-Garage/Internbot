@@ -117,6 +117,18 @@ export class InternshipAttachmentRemoved implements DomainEvent {
   }
 }
 
+/** Student withdrew their application. Terminal state — rotates parent version. */
+export class InternshipWithdrawn implements DomainEvent {
+  readonly kind = 'internship_withdrawn' as const
+  readonly occurredAt: Date
+  readonly activity: InternshipActivity
+
+  constructor(activity: InternshipActivity) {
+    this.activity = activity
+    this.occurredAt = activity.createdAt
+  }
+}
+
 export type InternshipDomainEvent =
   | InternshipApplied
   | InternshipOfferEdited
@@ -126,3 +138,4 @@ export type InternshipDomainEvent =
   | InternshipAttachmentAdded
   | InternshipAttachmentFinalized
   | InternshipAttachmentRemoved
+  | InternshipWithdrawn

@@ -16,6 +16,7 @@ import {
   InternshipDecided,
   InternshipOfferEdited,
   InternshipOfferSubmitted,
+  InternshipWithdrawn,
 } from '../events/internship-events'
 
 export interface InternshipProps {
@@ -382,8 +383,34 @@ export class Internship {
     return true
   }
 
+  withdraw(activityId: string, now: Date): void {
+    const withdrawable: ReadonlySet<InternshipStatus> = new Set([
+      'applied',
+      'offer_pending_review',
+      'offer_changes_requested',
+    ])
+    if (!withdrawable.has(this.#props.status)) {
+      throw new ConflictError(
+        'Application cannot be withdrawn in its current state',
+        'invalid_state_transition'
+      )
+    }
+    this.#props = { ...this.#props, status: 'withdrawn' }
+    const activity = InternshipActivity.withdraw({
+      id: activityId,
+      authorUserId: this.#props.userId,
+      authorRole: 'student',
+      createdAt: now,
+    })
+    this.#pendingEvents.push(new InternshipWithdrawn(activity))
+  }
+
   #assertEditable(): void {
-    if (this.#props.status === 'offer_approved' || this.#props.status === 'rejected') {
+    if (
+      this.#props.status === 'offer_approved' ||
+      this.#props.status === 'rejected' ||
+      this.#props.status === 'withdrawn'
+    ) {
       throw new ConflictError('Internship is in a non-editable state', 'internship_not_editable')
     }
   }
@@ -408,6 +435,7 @@ function eventRotatesParent(event: InternshipDomainEvent): boolean {
     case 'internship_offer_submitted':
     case 'internship_decided':
     case 'internship_attachment_removed':
+    case 'internship_withdrawn':
       return true
     case 'internship_commented':
     case 'internship_attachment_added':
