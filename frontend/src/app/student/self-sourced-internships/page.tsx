@@ -54,12 +54,6 @@ export default function Page() {
     <form onSubmit={handleSubmit} className="mx-auto w-full max-w-7xl flex-1 p-6">
       {/* HEADER */}
       <div className="mb-12 space-y-4">
-        <nav className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase">
-          <span className="text-slate-400">Internships</span>
-          <span className="text-slate-300">/</span>
-          <span className="text-rose-700">Self-Sourced Submission</span>
-        </nav>
-
         <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">
           Submit Self-Sourced Internship
         </h2>

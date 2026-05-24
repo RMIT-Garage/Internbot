@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Bell,
-  BriefcaseBusiness,
   BrainCircuit,
   FileCheck2,
   GraduationCap,
@@ -19,12 +18,6 @@ import type { StudentUserResponse } from '@/lib/api/openapi-client'
 
 const allNavItems = [
   { href: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard, requiresProfile: false },
-  {
-    href: '/student/self-sourced-internships',
-    label: 'Self-Sourced Internships',
-    icon: BriefcaseBusiness,
-    requiresProfile: true,
-  },
   { href: '/student/applications', label: 'Applications', icon: FileCheck2, requiresProfile: true },
   {
     href: '/student/opportunities',

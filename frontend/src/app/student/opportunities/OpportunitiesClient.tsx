@@ -100,11 +100,15 @@ function OpportunityRow({
 
       {/* Status */}
       <div>
-        {myInternship && <StatusBadge status={internshipStatusToBadge(myInternship.status)} />}
+        {myInternship ? (
+          <StatusBadge status={internshipStatusToBadge(myInternship.status)} />
+        ) : (
+          <span className="text-xs text-gray-300">—</span>
+        )}
       </div>
 
       {/* Action */}
-      <div className="flex justify-end">
+      <div className="flex justify-center">
         {alreadyApplied && myInternship ? (
           <Link
             href={`/student/applications/view?id=${myInternship.id}`}
@@ -410,14 +414,23 @@ export default function StudentOpportunitiesPage() {
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => router.push('/student/opportunities?change=1')}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Change semester
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/student/self-sourced-internships"
+            className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+          >
+            <Star className="h-3.5 w-3.5" />
+            Submit Self-Sourced
+          </Link>
+          <button
+            type="button"
+            onClick={() => router.push('/student/opportunities?change=1')}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Change semester
+          </button>
+        </div>
       </div>
 
       {/* KPI strip */}
@@ -518,7 +531,7 @@ export default function StudentOpportunitiesPage() {
             <div className="grid grid-cols-[1fr_150px_110px] items-center gap-6 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
               <span>Status</span>
-              <span className="text-right">Action</span>
+              <span className="text-center">Action</span>
             </div>
             {preApproved.map((o, idx) => (
               <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
@@ -532,14 +545,23 @@ export default function StudentOpportunitiesPage() {
       {/* Self-sourced section */}
       {!loading && selfSourced.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50">
-              <Star className="h-3.5 w-3.5 text-red-500" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50">
+                <Star className="h-3.5 w-3.5 text-red-500" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-800">Self-sourced Opportunities</h2>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+                {selfSourced.length}
+              </span>
             </div>
-            <h2 className="text-sm font-bold text-gray-800">Self-sourced Opportunities</h2>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-              {selfSourced.length}
-            </span>
+            <Link
+              href="/student/self-sourced-internships"
+              className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+            >
+              <Star className="h-3 w-3" />
+              Submit new
+            </Link>
           </div>
           <p className="text-xs text-gray-400">
             Opportunities sourced by students and verified by a coordinator.
@@ -548,7 +570,7 @@ export default function StudentOpportunitiesPage() {
             <div className="grid grid-cols-[1fr_150px_110px] items-center gap-6 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
               <span>Status</span>
-              <span className="text-right">Action</span>
+              <span className="text-center">Action</span>
             </div>
             {selfSourced.map((o, idx) => (
               <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
