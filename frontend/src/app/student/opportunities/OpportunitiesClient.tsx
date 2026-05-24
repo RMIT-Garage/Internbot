@@ -11,7 +11,6 @@ import {
   ChevronRight,
   MapPin,
   RefreshCw,
-  Sparkles,
   Star,
   Users,
 } from 'lucide-react'
@@ -274,13 +273,6 @@ export default function StudentOpportunitiesPage() {
           <h1 className="mt-1 text-2xl font-bold text-gray-900">Select Your Semester</h1>
           <p className="mt-1 text-sm text-gray-500">
             Choose an active semester to browse available internship opportunities.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-          <Sparkles className="h-4 w-4 shrink-0 text-blue-500" />
-          <p className="text-sm text-blue-700">
-            Only <strong>active semesters</strong> are shown below.
           </p>
         </div>
 
