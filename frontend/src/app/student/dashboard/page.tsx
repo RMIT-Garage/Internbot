@@ -10,33 +10,24 @@ import {
   Clock3,
   FileCheck2,
   Send,
-  TrendingUp,
-  Users,
+  XCircle,
   UserCircle2,
   ChevronRight,
   Bell,
   BrainCircuit,
+  FileText,
 } from 'lucide-react'
 
-import {
-  AnalyticsStrip,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  PillButton,
-  SurfaceCard,
-} from '@/components/student/Premium'
+import { CoordinatorPageHeader, PillButton, SurfaceCard } from '@/components/student/Premium'
 
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
-import { AnalyticsStripSkeleton, KpiCardSkeleton, Skeleton } from '@/components/ui/ContentSkeleton'
+import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { UsersService, InternshipsService, NotificationsService } from '@/lib/api/openapi-client'
 import type {
   StudentUserResponse,
   InternshipListItemResponse,
   NotificationResponse,
 } from '@/lib/api/openapi-client'
-
-const kpiIcons = [Users, Clock3, Send, CheckCircle2, AlertTriangle] as const
-const kpiTones = ['red', 'charcoal', 'neutral', 'red', 'red'] as const
 
 // ── Profile-incomplete dashboard ─────────────────────────────────────────────
 
@@ -266,39 +257,6 @@ export default function StudentDashboardPage() {
     ['offer_changes_requested', 'rejected'].includes(i.status)
   ).length
 
-  const kpis = [
-    {
-      title: 'My applications',
-      value: total,
-      detail: 'Total internship records',
-      progress: total > 0 ? 100 : 0,
-    },
-    {
-      title: 'Applied',
-      value: applied,
-      detail: 'Waiting for response',
-      progress: total > 0 ? Math.round((applied / total) * 100) : 0,
-    },
-    {
-      title: 'Offer submitted',
-      value: pendingReview,
-      detail: 'Pending coordinator review',
-      progress: total > 0 ? Math.round((pendingReview / total) * 100) : 0,
-    },
-    {
-      title: 'Approved',
-      value: approved,
-      detail: 'Offers approved',
-      progress: total > 0 ? Math.round((approved / total) * 100) : 0,
-    },
-    {
-      title: 'Needs attention',
-      value: flagged,
-      detail: 'Changes requested or rejected',
-      progress: total > 0 ? Math.round((flagged / total) * 100) : 0,
-    },
-  ]
-
   const workflowStep = user?.currentWorkflowStep ?? 'profile'
 
   function internshipStatusToBadge(status: string): StudentStatus {
@@ -316,23 +274,27 @@ export default function StudentDashboardPage() {
     return (
       <div className="space-y-6" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading dashboard…</span>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <KpiCardSkeleton key={i} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="rounded-2xl border border-black/10 bg-white p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-xl" />
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-8" />
+                </div>
+              </div>
+            </div>
           ))}
         </div>
-        <AnalyticsStripSkeleton />
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-40 bg-slate-200" />
-                <Skeleton className="h-3 w-56" />
-              </div>
+              <Skeleton className="h-5 w-40 bg-slate-200" />
               <Skeleton className="h-4 w-16" />
             </div>
             <div className="divide-y divide-slate-100">
-              {[0, 1, 2, 3, 4].map((i) => (
+              {[0, 1, 2, 3].map((i) => (
                 <div key={i} className="flex items-center gap-4 px-5 py-3">
                   <div className="min-w-0 flex-1 space-y-2">
                     <Skeleton className="h-4 w-2/5 bg-slate-200" />
@@ -343,22 +305,15 @@ export default function StudentDashboardPage() {
               ))}
             </div>
           </div>
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <Skeleton className="h-3 w-24 bg-red-100" />
-              <Skeleton className="mt-3 h-6 w-40 bg-slate-200" />
-              <Skeleton className="mt-3 h-3 w-full max-w-xs" />
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-32 bg-slate-200" />
+              <Skeleton className="h-3 w-12" />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-5 w-32 bg-slate-200" />
-                <Skeleton className="h-3 w-12" />
-              </div>
-              <div className="mt-4 space-y-3">
-                {[0, 1, 2].map((i) => (
-                  <Skeleton key={i} className="h-14 rounded-xl bg-slate-50" />
-                ))}
-              </div>
+            <div className="mt-4 space-y-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-14 rounded-xl bg-slate-50" />
+              ))}
             </div>
           </div>
         </div>
@@ -384,182 +339,143 @@ export default function StudentDashboardPage() {
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Student Hub"
-        title="Work Integrated Learning Cohort"
-        description="Track internships, opportunities, and submissions in your student portal."
+        title="My Dashboard"
+        description="Track your internship applications and opportunities."
         actions={
           <>
             <PillButton href="/student/applications" variant="secondary">
-              View applications
+              My applications
             </PillButton>
             <PillButton href="/student/opportunities">Browse opportunities</PillButton>
           </>
         }
       />
 
-      {/* QUICK LINKS */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          { title: 'Browse internships', href: '/student/opportunities', icon: BriefcaseBusiness },
-          { title: 'My applications', href: '/student/applications', icon: FileCheck2 },
-          { title: 'Profile setup', href: '/student/semesters', icon: Users },
-        ].map(({ title, href, icon: Icon }) => (
-          <Link
-            key={title}
-            href={href}
-            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <Icon className="h-5 w-5 text-red-700" />
-            <p className="mt-4 font-bold text-slate-950">{title}</p>
-            <p className="mt-1 text-sm text-slate-500">Open</p>
-          </Link>
-        ))}
+      {/* KPI ROW */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <Clock3 className="h-4 w-4 text-gray-500" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium tracking-wide text-gray-400 uppercase">Applied</p>
+            <p className="text-xl leading-tight font-bold text-gray-900">{applied}</p>
+            <p className="text-[11px] text-gray-400">Awaiting response</p>
+          </div>
+        </SurfaceCard>
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50">
+            <FileText className="h-4 w-4 text-red-500" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium tracking-wide text-gray-400 uppercase">
+              Under review
+            </p>
+            <p className="text-xl leading-tight font-bold text-red-600">{pendingReview}</p>
+            <p className="text-[11px] text-gray-400">With coordinator</p>
+          </div>
+        </SurfaceCard>
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50">
+            <CheckCircle2 className="h-4 w-4 text-red-500" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium tracking-wide text-gray-400 uppercase">
+              Approved
+            </p>
+            <p className="text-xl leading-tight font-bold text-red-600">{approved}</p>
+            <p className="text-[11px] text-gray-400">Confirmed placements</p>
+          </div>
+        </SurfaceCard>
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <XCircle className="h-4 w-4 text-gray-500" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium tracking-wide text-gray-400 uppercase">
+              Needs action
+            </p>
+            <p className="text-xl leading-tight font-bold text-gray-900">{flagged}</p>
+            <p className="text-[11px] text-gray-400">Changes or rejected</p>
+          </div>
+        </SurfaceCard>
       </div>
-
-      {/* KPI CARDS */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {kpis.map((metric, index) => {
-          const Icon = kpiIcons[index] ?? TrendingUp
-          return (
-            <KPIStatCard
-              key={metric.title}
-              title={metric.title}
-              value={metric.value}
-              detail={metric.detail}
-              progress={metric.progress}
-              icon={Icon}
-              tone={kpiTones[index] ?? 'red'}
-            />
-          )
-        })}
-      </div>
-
-      {/* ANALYTICS STRIP */}
-      <AnalyticsStrip
-        items={[
-          {
-            label: 'Active applications',
-            value: String(applied + pendingReview),
-            detail: 'Applied or pending review',
-            tone: 'red',
-          },
-          {
-            label: 'Approved offers',
-            value: String(approved),
-            detail: 'Confirmed placements',
-            tone: 'charcoal',
-          },
-          {
-            label: 'Unread notifications',
-            value: String(unreadCount),
-            detail: 'Requires your attention',
-            tone: 'red',
-          },
-          {
-            label: 'Workflow step',
-            value: workflowStep.replace(/_/g, ' '),
-            detail: 'Current stage',
-            tone: 'neutral',
-          },
-        ]}
-      />
 
       {/* MAIN GRID */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <div className="space-y-6">
-          <SurfaceCard className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">My Applications</h2>
-                <p className="text-sm text-slate-500">Your recent internship applications.</p>
-              </div>
-              <Link
-                href="/student/applications"
-                className="text-sm font-bold text-red-700 hover:text-red-800"
-              >
-                View all
-              </Link>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        {/* Applications list */}
+        <SurfaceCard className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-950">My Applications</h2>
+              <p className="text-xs text-slate-500">{total} total internship records</p>
             </div>
-            <div className="divide-y divide-slate-100">
-              {internships.length === 0 ? (
-                <div className="p-5 text-sm text-slate-500">No applications yet.</div>
-              ) : (
-                internships.slice(0, 5).map((internship) => (
-                  <div key={internship.id} className="flex items-center gap-4 px-5 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-950">
-                        {internship.opportunityJobTitle}
-                      </p>
-                      <p className="text-sm text-slate-500">{internship.opportunityEmployerName}</p>
-                    </div>
-                    <StatusBadge status={internshipStatusToBadge(internship.status)} />
+            <Link
+              href="/student/applications"
+              className="text-sm font-bold text-red-700 hover:text-red-800"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {internships.length === 0 ? (
+              <div className="p-5 text-sm text-slate-500">No applications yet.</div>
+            ) : (
+              internships.slice(0, 6).map((internship) => (
+                <div key={internship.id} className="flex items-center gap-4 px-5 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-950">
+                      {internship.opportunityJobTitle}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {internship.opportunityEmployerName}
+                    </p>
                   </div>
-                ))
+                  <StatusBadge status={internshipStatusToBadge(internship.status)} />
+                </div>
+              ))
+            )}
+          </div>
+        </SurfaceCard>
+
+        {/* Notifications */}
+        <SurfaceCard className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-red-600" />
+              <h2 className="text-base font-bold text-slate-950">Notifications</h2>
+              {unreadCount > 0 && (
+                <span className="inline-flex h-5 items-center rounded-full bg-red-100 px-2 text-xs font-bold text-red-700">
+                  {unreadCount}
+                </span>
               )}
             </div>
-          </SurfaceCard>
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div className="space-y-6">
-          <SurfaceCard className="p-5">
-            <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
-              Workflow Step
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-slate-950 capitalize">
-              {workflowStep.replace(/_/g, ' ')}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Your profile is ready. Explore opportunities and apply.
-            </p>
-            <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-lg font-bold text-slate-950">{total}</p>
-                <p className="text-xs text-slate-500">Applications</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-lg font-bold text-slate-950">{approved}</p>
-                <p className="text-xs text-slate-500">Approved</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-sm font-bold text-slate-950">
-                  {user?.studentProfile?.semesterId ? 'Enrolled' : 'None'}
-                </p>
-                <p className="text-xs text-slate-500">Semester</p>
-              </div>
-            </div>
-          </SurfaceCard>
-
-          {/* NOTIFICATIONS */}
-          <SurfaceCard className="p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-950">Notifications</h2>
-              <Link
-                href="/student/notifications"
-                className="text-sm font-bold text-red-700 hover:text-red-800"
-              >
-                View all
-              </Link>
-            </div>
-            <div className="mt-4 space-y-3">
-              {notifications.length === 0 ? (
-                <p className="text-sm text-slate-500">No unread notifications.</p>
-              ) : (
-                notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className="flex gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-800"
-                  >
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div>
-                      <p className="font-semibold">{notif.title}</p>
-                      <p className="mt-0.5 text-xs text-red-700">{notif.body}</p>
-                    </div>
+            <Link
+              href="/student/notifications"
+              className="text-sm font-bold text-red-700 hover:text-red-800"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="mt-4 space-y-3">
+            {notifications.length === 0 ? (
+              <p className="text-sm text-slate-500">No unread notifications.</p>
+            ) : (
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className="flex gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-800"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">{notif.title}</p>
+                    <p className="mt-0.5 text-xs text-red-700">{notif.body}</p>
                   </div>
-                ))
-              )}
-            </div>
-          </SurfaceCard>
-        </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SurfaceCard>
       </div>
     </div>
   )
