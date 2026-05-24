@@ -39,13 +39,6 @@ const CONFLICT_MESSAGES: Record<string, string> = {
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
 }
 
-const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
-  duplicate_application: 'You have already applied to this opportunity.',
-  student_has_no_selected_semester: 'Pick a semester before applying. Use "Change Semester" above.',
-  opportunity_not_published: 'This opportunity is no longer accepting applications.',
-  opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
-}
-
 function internshipStatusToBadge(status: InternshipListItemResponse.status): StudentStatus {
   const map: Record<string, StudentStatus> = {
     applied: 'applied',
@@ -61,19 +54,9 @@ interface OpportunityRowProps {
   opportunity: OpportunityResponse
   myInternship: InternshipListItemResponse | undefined
   alreadyApplied: boolean
-  applyingId: string | null
-  onApply: (id: string) => void
 }
 
-function OpportunityRow({
-  opportunity,
-  myInternship,
-  alreadyApplied,
-  applyingId,
-  onApply,
-}: OpportunityRowProps) {
-  const isApplying = applyingId === opportunity.id
-
+function OpportunityRow({ opportunity, myInternship, alreadyApplied }: OpportunityRowProps) {
   return (
     <div className="grid grid-cols-[1fr_150px_110px] items-center gap-6 px-5 py-4 transition hover:bg-gray-50">
       {/* Opportunity info */}
@@ -116,14 +99,12 @@ function OpportunityRow({
             View <ArrowRight className="h-3 w-3" />
           </Link>
         ) : opportunity.status === 'published' ? (
-          <button
-            type="button"
-            onClick={() => onApply(opportunity.id)}
-            disabled={applyingId !== null}
-            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+          <Link
+            href={`/student/opportunities/view?id=${opportunity.id}`}
+            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700"
           >
-            {isApplying ? 'Applying…' : 'Apply'}
-          </button>
+            Apply
+          </Link>
         ) : (
           <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
             Closed
@@ -172,8 +153,8 @@ export default function StudentOpportunitiesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [applyingId, setApplyingId] = useState<string | null>(null)
-  const [applyError, setApplyError] = useState<string | null>(null)
+  const [pendingSubmissions, setPendingSubmissions] = useState<OpportunityResponse[]>([])
+  const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading || !user) return
@@ -223,23 +204,44 @@ export default function StudentOpportunitiesPage() {
     loadData()
   }, [authLoading, user, semesterId])
 
-  const applyToOpportunity = async (opportunityId: string) => {
-    setApplyError(null)
-    setApplyingId(opportunityId)
-    try {
-      await InternshipsService.createInternship({ opportunityId })
-      const refreshed = await InternshipsService.listInternships()
-      setInternships(refreshed.items)
-    } catch (err: unknown) {
-      const reason = getApiErrorReason(err)
-      setApplyError(
-        (reason && APPLY_CONFLICT_MESSAGES[reason]) ??
-          getApiErrorMessage(err, 'Failed to submit application')
+  useEffect(() => {
+    if (authLoading || !user || !semesterId) return
+    const loadPending = async () => {
+      // The backend now returns the student's own non-published custom submissions
+      // in listOpportunities. localStorage is a fallback for submissions made before
+      // this backend change, or in case of transient errors.
+      let ids: string[] = []
+      try {
+        ids = JSON.parse(localStorage.getItem('internbot:selfSourced:pending') ?? '[]')
+      } catch {
+        /* ignore */
+      }
+      if (ids.length === 0) return
+
+      const results = await Promise.allSettled(
+        ids.map((id) => OpportunitiesService.getOpportunity(id))
       )
-    } finally {
-      setApplyingId(null)
+      const still: string[] = []
+      const pending: OpportunityResponse[] = []
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          if (r.value.status !== 'published') {
+            still.push(ids[i]!)
+            pending.push(r.value)
+          }
+          // published → already in main list via backend; drop from localStorage
+        }
+        // 404 / 403 → drop silently
+      })
+      try {
+        localStorage.setItem('internbot:selfSourced:pending', JSON.stringify(still))
+      } catch {
+        /* ignore */
+      }
+      setPendingSubmissions(pending)
     }
-  }
+    loadPending()
+  }, [authLoading, user, semesterId])
 
   const confirmSemester = async () => {
     if (!selectedSemester) {
@@ -390,7 +392,20 @@ export default function StudentOpportunitiesPage() {
   // ── Opportunities list ─────────────────────────────────────────────────────
   const appliedOpportunityIds = new Set(internships.map((i) => i.opportunityId))
   const preApproved = opportunities.filter((o) => o.type === 'pre_approved')
-  const selfSourced = opportunities.filter((o) => o.type === 'custom')
+  const selfSourcedApproved = opportunities.filter(
+    (o) => o.type === 'custom' && o.status === 'published'
+  )
+  // Backend now returns the student's own non-published custom submissions directly.
+  // localStorage fallback fills any gap (older submissions or transient failures).
+  const selfSourcedApprovedIds = new Set(selfSourcedApproved.map((o) => o.id))
+  const backendPending = opportunities.filter(
+    (o) => o.type === 'custom' && o.status !== 'published'
+  )
+  const backendPendingIds = new Set(backendPending.map((o) => o.id))
+  const localFallback = pendingSubmissions.filter(
+    (o) => !backendPendingIds.has(o.id) && !selfSourcedApprovedIds.has(o.id)
+  )
+  const selfSourcedPending = [...backendPending, ...localFallback]
   const currentSemester = semesters.find((s) => s.id === semesterId)
   const appliedCount = internships.length
 
@@ -398,8 +413,6 @@ export default function StudentOpportunitiesPage() {
     opportunity: o,
     myInternship: internships.find((i) => i.opportunityId === o.id),
     alreadyApplied: appliedOpportunityIds.has(o.id),
-    applyingId,
-    onApply: applyToOpportunity,
   })
 
   return (
@@ -453,7 +466,7 @@ export default function StudentOpportunitiesPage() {
             <Star className="h-4 w-4 text-red-500" />
           </div>
           <div>
-            <p className="text-xl font-bold text-red-600">{selfSourced.length}</p>
+            <p className="text-xl font-bold text-red-600">{selfSourcedApproved.length}</p>
             <p className="text-xs text-gray-400">Self-sourced</p>
           </div>
         </SurfaceCard>
@@ -474,19 +487,6 @@ export default function StudentOpportunitiesPage() {
           {error}
         </div>
       )}
-      {applyError && (
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>{applyError}</span>
-          <button
-            type="button"
-            onClick={() => setApplyError(null)}
-            className="shrink-0 font-semibold underline hover:no-underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Loading */}
       {loading && opportunities.length === 0 && (
         <div className="space-y-8">
@@ -546,8 +546,8 @@ export default function StudentOpportunitiesPage() {
         </div>
       )}
 
-      {/* Self-sourced section */}
-      {!loading && selfSourced.length > 0 && (
+      {/* Self-sourced approved section */}
+      {!loading && selfSourcedApproved.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -556,7 +556,7 @@ export default function StudentOpportunitiesPage() {
               </div>
               <h2 className="text-sm font-bold text-gray-800">Self-sourced Opportunities</h2>
               <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                {selfSourced.length}
+                {selfSourcedApproved.length}
               </span>
             </div>
             <Link
@@ -576,11 +576,127 @@ export default function StudentOpportunitiesPage() {
               <span>Status</span>
               <span className="text-center">Action</span>
             </div>
-            {selfSourced.map((o, idx) => (
+            {selfSourcedApproved.map((o, idx) => (
               <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
                 <OpportunityRow {...rowProps(o)} />
               </div>
             ))}
+          </SurfaceCard>
+        </div>
+      )}
+
+      {/* Self-sourced pending section */}
+      {!loading && selfSourcedPending.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gray-100">
+                <Star className="h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-800">Pending Coordinator Review</h2>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+                {selfSourcedPending.length}
+              </span>
+            </div>
+            {selfSourcedApproved.length === 0 && (
+              <Link
+                href="/student/self-sourced-internships"
+                className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+              >
+                <Star className="h-3 w-3" />
+                Submit new
+              </Link>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">
+            These submissions are awaiting coordinator approval before you can apply.
+          </p>
+          <SurfaceCard className="overflow-hidden p-0">
+            <div className="grid grid-cols-[1fr_150px_32px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+              <span>Opportunity</span>
+              <span>Status</span>
+              <span />
+            </div>
+            {selfSourcedPending.map((o, idx) => {
+              const isExpanded = expandedPendingId === o.id
+              const statusLabel =
+                o.status === 'rejected'
+                  ? 'Rejected'
+                  : o.status === 'pending_verification'
+                    ? 'Pending review'
+                    : 'Under review'
+              const statusDot = o.status === 'rejected' ? 'bg-red-400' : 'bg-gray-400'
+              return (
+                <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedPendingId(isExpanded ? null : o.id)}
+                    className="grid w-full grid-cols-[1fr_150px_32px] items-center gap-4 px-5 py-4 text-left transition hover:bg-gray-50"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{o.jobTitle}</p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {o.employerName}
+                        {o.workMode && (
+                          <span className="ml-2 text-gray-300 capitalize">· {o.workMode}</span>
+                        )}
+                        {o.location && <span className="ml-1 text-gray-300">· {o.location}</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-500">
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} />
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <ChevronRight
+                      className={`h-4 w-4 shrink-0 text-gray-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
+                      {o.status === 'rejected' ? (
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-100">
+                            <Star className="h-4 w-4 text-red-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              Submission rejected
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                              A coordinator reviewed your submission and it was not approved. You
+                              can submit a new opportunity with updated details.
+                            </p>
+                            <Link
+                              href="/student/self-sourced-internships"
+                              className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                            >
+                              Submit another
+                            </Link>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+                            <RefreshCw className="h-4 w-4 text-gray-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              Awaiting coordinator approval
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                              Your submission is being reviewed. Once a coordinator approves it,
+                              this opportunity will appear above and you'll be able to apply.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </SurfaceCard>
         </div>
       )}

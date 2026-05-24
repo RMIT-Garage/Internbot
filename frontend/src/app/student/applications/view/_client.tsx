@@ -6,10 +6,14 @@ import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
+  ChevronDown,
   Circle,
   Clock,
   FileText,
+  MapPin,
+  Monitor,
   Paperclip,
   Pencil,
   UploadCloud,
@@ -18,9 +22,10 @@ import {
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
-import { InternshipsService } from '@/lib/api/openapi-client'
+import { InternshipsService, OpportunitiesService } from '@/lib/api/openapi-client'
 import type {
   InternshipResponse,
+  OpportunityResponse,
   CreateInternshipAttachmentUploadIntentRequest,
 } from '@/lib/api/openapi-client'
 import type { PatchInternshipRequest } from '@/api'
@@ -45,19 +50,21 @@ interface Stage {
 
 function getStages(status: InternshipResponse['status']): Stage[] {
   const isRejected = status === 'rejected'
+  const isWithdrawn = status === 'withdrawn'
+  const isTerminal = isRejected || isWithdrawn
   const pastApplied = status !== 'applied'
-  const pastSubmit = status === 'offer_pending_review' || status === 'offer_approved' || isRejected
+  const pastSubmit = status === 'offer_pending_review' || status === 'offer_approved' || isTerminal
   const isReviewing = status === 'offer_pending_review'
   const isApproved = status === 'offer_approved'
   const isChanges = status === 'offer_changes_requested'
 
   return [
-    { label: 'Applied', status: 'completed' },
+    { label: 'Applied', status: isWithdrawn ? 'rejected' : 'completed' },
     {
       label: 'Offer Submitted',
       status: isChanges
         ? 'changes_requested'
-        : isRejected
+        : isTerminal
           ? 'rejected'
           : pastSubmit
             ? 'completed'
@@ -67,7 +74,7 @@ function getStages(status: InternshipResponse['status']): Stage[] {
     },
     {
       label: 'Under Review',
-      status: isRejected
+      status: isTerminal
         ? 'rejected'
         : isApproved
           ? 'completed'
@@ -77,7 +84,7 @@ function getStages(status: InternshipResponse['status']): Stage[] {
     },
     {
       label: 'Confirmed',
-      status: isApproved ? 'completed' : isRejected ? 'rejected' : 'pending',
+      status: isApproved ? 'completed' : isTerminal ? 'rejected' : 'pending',
     },
   ]
 }
@@ -236,12 +243,102 @@ function ReviewerPanel({ internship }: { internship: InternshipResponse }) {
   )
 }
 
+const OPPORTUNITY_TYPE_LABELS: Record<string, string> = {
+  pre_approved: 'Pre-approved',
+  custom: 'Self-sourced',
+}
+
+function JobDetailsCard({
+  internship,
+  opportunity,
+}: {
+  internship: InternshipResponse
+  opportunity: OpportunityResponse | null
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const hasDescription = !!opportunity?.descriptionText
+
+  return (
+    <SurfaceCard className="overflow-hidden p-0">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 border-b border-gray-100 px-5 py-4 text-left transition hover:bg-gray-50"
+      >
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.18em] text-red-600 uppercase">
+            Opportunity
+          </p>
+          <h2 className="mt-0.5 text-sm font-bold text-black">{internship.opportunityJobTitle}</h2>
+          <p className="mt-0.5 text-xs text-gray-500">{internship.opportunityEmployerName}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs font-semibold text-gray-400">
+            {expanded ? 'Hide details' : 'View details'}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="space-y-4 px-5 py-4">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+              <Building2 className="h-3.5 w-3.5 text-gray-400" />
+              {internship.opportunityEmployerName}
+            </div>
+            {opportunity?.workMode && (
+              <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600 capitalize">
+                <Monitor className="h-3.5 w-3.5 text-gray-400" />
+                {opportunity.workMode}
+              </div>
+            )}
+            {opportunity?.location && (
+              <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+                <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                {opportunity.location}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+              <FileText className="h-3.5 w-3.5 text-gray-400" />
+              {OPPORTUNITY_TYPE_LABELS[internship.opportunityType] ?? internship.opportunityType}
+            </div>
+          </div>
+
+          {hasDescription && (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-600">
+              {opportunity!.descriptionText}
+            </p>
+          )}
+
+          {internship.opportunitySourceUrl && (
+            <p className="text-xs text-gray-400">
+              Source:{' '}
+              <a
+                href={internship.opportunitySourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-gray-600"
+              >
+                {internship.opportunitySourceUrl}
+              </a>
+            </p>
+          )}
+        </div>
+      )}
+    </SurfaceCard>
+  )
+}
+
 export default function ApplicationDetailClient() {
   const { user, loading: authLoading } = useAuth()
   const searchParams = useSearchParams()
   const id = searchParams.get('id') ?? ''
 
   const [internship, setInternship] = useState<InternshipResponse | null>(null)
+  const [opportunity, setOpportunity] = useState<OpportunityResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
@@ -270,6 +367,10 @@ export default function ApplicationDetailClient() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  const [withdrawConfirming, setWithdrawConfirming] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
+
   useEffect(() => {
     if (authLoading || !user || !id) return
     let active = true
@@ -290,6 +391,15 @@ export default function ApplicationDetailClient() {
         } else {
           if (active) setInternship(data)
         }
+
+        // Fetch opportunity details in parallel (non-fatal if it fails)
+        OpportunitiesService.getOpportunity(data.opportunityId)
+          .then((opp) => {
+            if (active) setOpportunity(opp)
+          })
+          .catch(() => {
+            /* non-fatal — basic details still available on internship */
+          })
       } catch (err: unknown) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load application')
       } finally {
@@ -484,6 +594,24 @@ export default function ApplicationDetailClient() {
     }
   }
 
+  const handleWithdraw = async () => {
+    if (!id) return
+    setWithdrawError(null)
+    setWithdrawing(true)
+    try {
+      const updated = await InternshipsService.withdrawInternship(id)
+      setInternship(updated)
+      setWithdrawConfirming(false)
+    } catch (err: unknown) {
+      const anyErr = err as { body?: { error?: { message?: string } }; message?: string }
+      setWithdrawError(
+        anyErr.body?.error?.message ?? anyErr.message ?? 'Failed to withdraw. Please try again.'
+      )
+    } finally {
+      setWithdrawing(false)
+    }
+  }
+
   const toIso = (d: string) => new Date(d).toISOString()
   const toDateInput = (iso: string | undefined | null) =>
     iso ? new Date(iso).toISOString().slice(0, 10) : ''
@@ -597,6 +725,10 @@ export default function ApplicationDetailClient() {
       )}
 
       {!loading && internship && <StageBar status={internship.status} />}
+
+      {!loading && internship && (
+        <JobDetailsCard internship={internship} opportunity={opportunity} />
+      )}
 
       {!loading && internship && (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -986,9 +1118,60 @@ export default function ApplicationDetailClient() {
             )}
           </div>
 
-          {/* Right column — reviewer panel */}
-          <aside className="xl:sticky xl:top-6 xl:self-start">
+          {/* Right column — reviewer panel + withdraw */}
+          <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
             <ReviewerPanel internship={internship} />
+
+            {['applied', 'offer_pending_review', 'offer_changes_requested'].includes(
+              internship.status
+            ) && (
+              <SurfaceCard className="p-4">
+                {!withdrawConfirming ? (
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawConfirming(true)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                  >
+                    Withdraw application
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-gray-700">
+                      Withdraw this application?
+                    </p>
+                    <p className="text-xs leading-relaxed text-gray-400">
+                      This cannot be undone. You will need to apply again if you change your mind.
+                    </p>
+                    {withdrawError && (
+                      <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        {withdrawError}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWithdrawConfirming(false)
+                          setWithdrawError(null)
+                        }}
+                        disabled={withdrawing}
+                        className="flex-1 rounded-xl border border-gray-200 bg-white py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleWithdraw}
+                        disabled={withdrawing}
+                        className="flex-1 rounded-xl bg-red-600 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {withdrawing ? 'Withdrawing…' : 'Confirm'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </SurfaceCard>
+            )}
           </aside>
         </div>
       )}

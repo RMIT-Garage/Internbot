@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, FileText, Link2, Briefcase } from 'lucide-react'
+import { CheckCircle2, FileText, Link2, Briefcase, MapPin } from 'lucide-react'
 
 import { SurfaceCard } from '@/components/student/Premium'
 import { OpportunitiesService } from '@/lib/api/openapi-client'
@@ -15,6 +15,8 @@ export default function Page() {
   const [employerName, setEmployerName] = useState('')
   const [jobTitle, setJobTitle] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
+  const [workMode, setWorkMode] = useState<'onsite' | 'hybrid' | 'remote' | ''>('')
+  const [location, setLocation] = useState('')
   const [descriptionText, setDescriptionText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,9 +38,24 @@ export default function Page() {
         jobTitle: jobTitle.trim(),
         descriptionText: descriptionText.trim(),
         sourceUrl: sourceUrl.trim() || undefined,
+        workMode: (workMode || undefined) as CreateOpportunityRequest.workMode | undefined,
+        location: location.trim() || undefined,
         type: CreateOpportunityRequest.type.CUSTOM,
       })
 
+      try {
+        const stored: string[] = JSON.parse(
+          localStorage.getItem('internbot:selfSourced:pending') ?? '[]'
+        )
+        if (!stored.includes(opportunity.id)) {
+          localStorage.setItem(
+            'internbot:selfSourced:pending',
+            JSON.stringify([...stored, opportunity.id])
+          )
+        }
+      } catch {
+        // localStorage unavailable — non-fatal
+      }
       router.push(`/student/self-sourced-internships/submission?id=${opportunity.id}`)
     } catch (err: unknown) {
       const reason = getApiErrorReason(err)
@@ -122,6 +139,44 @@ export default function Page() {
                     type="url"
                     className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
                     placeholder="https://company.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                    Work Mode
+                  </label>
+                  <div className="flex gap-2">
+                    {(['onsite', 'hybrid', 'remote'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setWorkMode(workMode === mode ? '' : mode)}
+                        className={`flex-1 rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition ${
+                          workMode === mode
+                            ? 'border-red-300 bg-red-50 text-red-700'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Location
+                    </span>
+                  </label>
+                  <input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 focus:outline-none"
+                    placeholder="Melbourne, VIC"
                   />
                 </div>
               </div>

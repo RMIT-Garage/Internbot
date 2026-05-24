@@ -62,15 +62,44 @@ export class FirestoreOpportunityQueryService implements OpportunityQueryService
           q = q.startAfter(filter.cursor.lastValue ?? null, filter.cursor.lastDocId)
         }
 
+        // When submittedByUserId is set we run a parallel query to also fetch the
+        // caller's own non-published custom submissions and union them in. These are
+        // typically a handful of docs so we fetch them without a cursor.
+        const ownSubmissionsPromise = filter.submittedByUserId
+          ? adminDb
+              .collection(OPPORTUNITY_COLLECTION)
+              .where('submittedByUserId', '==', filter.submittedByUserId)
+              .where('type', '==', 'custom')
+              .where('status', 'in', ['draft', 'pending_verification', 'rejected', 'archived'])
+              .get()
+          : Promise.resolve(null)
+
         q = q.limit(filter.limit + 1)
-        const result = await q.get()
+        const [result, ownSnap] = await Promise.all([q.get(), ownSubmissionsPromise])
+
         const hasMore = result.size > filter.limit
-        const docs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
-        const items = docs.map((doc) => parseOpportunity(doc.id, doc.data()))
+        const primaryDocs = hasMore ? result.docs.slice(0, filter.limit) : result.docs
+        const primaryItems = primaryDocs.map((doc) => parseOpportunity(doc.id, doc.data()))
+
+        let items = primaryItems
+        if (ownSnap && ownSnap.size > 0) {
+          const primaryIds = new Set(primaryItems.map((o) => o.id))
+          const ownItems = ownSnap.docs
+            .filter((doc) => !primaryIds.has(doc.id))
+            .map((doc) => parseOpportunity(doc.id, doc.data()))
+          // Merge and sort by createdAt descending (own submissions go to the end)
+          const merged = [...primaryItems, ...ownItems]
+          merged.sort((a, b) => {
+            const diff = b.createdAt.getTime() - a.createdAt.getTime()
+            if (diff !== 0) return diff
+            return b.id < a.id ? -1 : 1
+          })
+          items = merged
+        }
 
         let nextCursor: OpportunityListCursor | null = null
         if (hasMore) {
-          const last = docs[docs.length - 1]!
+          const last = primaryDocs[primaryDocs.length - 1]!
           const value = last.data()['createdAt']
           const lastValue = value && typeof value.toDate === 'function' ? value.toDate() : null
           nextCursor = {

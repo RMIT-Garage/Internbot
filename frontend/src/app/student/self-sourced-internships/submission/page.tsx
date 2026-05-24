@@ -121,6 +121,24 @@ function SubmissionContent() {
                 </p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">{jobTitle}</p>
               </div>
+              {opportunity?.workMode && (
+                <div>
+                  <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                    Work Mode
+                  </p>
+                  <span className="mt-1 inline-flex rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-600 capitalize">
+                    {opportunity.workMode}
+                  </span>
+                </div>
+              )}
+              {opportunity?.location && (
+                <div>
+                  <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+                    Location
+                  </p>
+                  <p className="mt-1 text-sm text-gray-700">{opportunity.location}</p>
+                </div>
+              )}
               <div>
                 <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
                   Type
