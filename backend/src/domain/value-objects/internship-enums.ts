@@ -4,6 +4,7 @@ export const internshipStatusValues = [
   'offer_changes_requested',
   'offer_approved',
   'rejected',
+  'withdrawn',
 ] as const
 export type InternshipStatus = (typeof internshipStatusValues)[number]
 
@@ -15,6 +16,7 @@ export const internshipActivityTypeValues = [
   'request_changes',
   'reject',
   'edit',
+  'withdraw',
 ] as const
 export type InternshipActivityType = (typeof internshipActivityTypeValues)[number]
 

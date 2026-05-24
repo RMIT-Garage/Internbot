@@ -10,6 +10,8 @@ const statusStyles = {
   offer_changes_requested: 'border-red-600 bg-red-600 text-white',
 
   rejected: 'border-red-200 bg-white text-red-600',
+
+  withdrawn: 'border-gray-200 bg-gray-50 text-gray-400',
 }
 
 const statusLabels = {
@@ -18,6 +20,7 @@ const statusLabels = {
   offer_approved: 'Approved',
   offer_changes_requested: 'Action required',
   rejected: 'Rejected',
+  withdrawn: 'Withdrawn',
 } as const
 
 export type StudentStatus = keyof typeof statusStyles
