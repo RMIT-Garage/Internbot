@@ -2308,7 +2308,8 @@
                   "offer_pending_review",
                   "offer_changes_requested",
                   "offer_approved",
-                  "rejected"
+                  "rejected",
+                  "withdrawn"
                 ]
               }
             }
@@ -4915,6 +4916,7 @@
               "request_changes",
               "reject",
               "edit",
+              "withdraw",
               "transition",
               "verification"
             ]
@@ -4948,6 +4950,7 @@
                   "offer_changes_requested",
                   "offer_approved",
                   "rejected",
+                  "withdrawn",
                   "draft",
                   "pending_verification",
                   "published",
@@ -4969,6 +4972,7 @@
                   "offer_changes_requested",
                   "offer_approved",
                   "rejected",
+                  "withdrawn",
                   "draft",
                   "pending_verification",
                   "published",
@@ -5514,7 +5518,8 @@
               "offer_pending_review",
               "offer_changes_requested",
               "offer_approved",
-              "rejected"
+              "rejected",
+              "withdrawn"
             ]
           },
           "lastSubmittedAt": {
@@ -5608,7 +5613,8 @@
               "offer_pending_review",
               "offer_changes_requested",
               "offer_approved",
-              "rejected"
+              "rejected",
+              "withdrawn"
             ]
           },
           "version": {
@@ -5913,7 +5919,8 @@
               "approve_offer",
               "request_changes",
               "reject",
-              "edit"
+              "edit",
+              "withdraw"
             ]
           },
           "authorUserId": {
