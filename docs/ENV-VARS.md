@@ -106,6 +106,12 @@ Canonical dev onboarding:
 2. Create `backend/.secret.local` with any secrets needed for emulator testing (from a shared password manager if secrets exist)
 3. Run `pnpm run dev` — emulators + frontend start together
 
+## Variables reference
+
+| Variable          | Category          | Where          | Notes                                                                                                                                                                                                        |
+| ----------------- | ----------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RAG_SERVICE_URL` | Non-secret config | `backend/.env` | Base URL of the interbotRAG service. Local dev default: `http://127.0.0.1:5001/internbotrag/australia-southeast1/api`. Production: deployed interbotRAG Cloud Function URL. Used by the advisor proxy route. |
+
 ## Adding a new variable
 
 Use the `/add-env-var` Claude Code skill for consistency.
