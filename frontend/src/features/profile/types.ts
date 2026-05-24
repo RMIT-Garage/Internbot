@@ -62,7 +62,9 @@ export type PlatformUser = StudentUser | CoordinatorUser
 
 // PATCH /users/me request body shape
 export interface UpdateProfilePayload {
+  displayName?: string
   studentProfile: {
+    programCode?: string
     phone?: string | null
     academicInfo?: {
       programName?: string

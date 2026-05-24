@@ -9,8 +9,10 @@ import type { StudentUser, UpdateProfilePayload } from '../types'
 import type { Resolver, SubmitHandler } from 'react-hook-form'
 
 const schema = z.object({
+  displayName: z.string().min(1, 'Name is required'),
   phone: z.string().min(1, 'Phone is required'),
   programName: z.string().min(1, 'Program name is required'),
+  programCode: z.string().min(1, 'Program code is required'),
   programLevel: z.enum(['undergraduate', 'postgraduate']),
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
   majors: z.string().optional(),
@@ -19,6 +21,14 @@ const schema = z.object({
   creditUnitsEarned: z.coerce.number().min(1, 'Credit units earned is required'),
   unitsAttempted: z.coerce.number().min(1, 'Units attempted is required'),
 })
+
+const PROGRAM_MAP: Record<string, string> = {
+  BP096: 'Bachelor of Software Engineering (Professional)',
+  BP347: 'Bachelor of Computer Science (Professional)',
+  BP348: 'Bachelor of Data Science (Professional)',
+  BP349: 'Bachelor of Information Technology (Professional)',
+  BP356: 'Bachelor of Cyber Security (Professional)',
+}
 
 type FormValues = z.infer<typeof schema>
 
@@ -35,8 +45,10 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
+      displayName: user.displayName ?? '',
       phone: user.studentProfile.phone ?? '',
       programName: ai?.programName ?? '',
+      programCode: user.studentProfile.programCode ?? '',
       programLevel: ai?.programLevel ?? 'undergraduate',
       currentStudyLoad: ai?.currentStudyLoad ?? 'full_time',
       majors: ai?.majors?.join(', ') ?? '',
@@ -51,6 +63,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
   } = form
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
@@ -63,7 +76,9 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
         : undefined
 
     const payload: UpdateProfilePayload = {
+      displayName: values.displayName,
       studentProfile: {
+        programCode: values.programCode,
         phone: values.phone,
         academicInfo: {
           programName: values.programName,
@@ -133,6 +148,13 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
             <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
               Personal
             </legend>
+            <Field label="Full Name" error={errors.displayName?.message}>
+              <input
+                {...register('displayName')}
+                placeholder="Your full name"
+                className={inputCls}
+              />
+            </Field>
             <Field label="Phone Number" error={errors.phone?.message}>
               <input {...register('phone')} placeholder="+61 400 000 000" className={inputCls} />
             </Field>
@@ -144,16 +166,23 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
               Academic Program
             </legend>
             <div className="grid grid-cols-2 gap-4">
-              <Field
-                label="Program Name"
-                error={errors.programName?.message}
-                className="col-span-2"
-              >
-                <input
-                  {...register('programName')}
-                  placeholder="Bachelor of Software Engineering"
+              <Field label="Program" error={errors.programCode?.message}>
+                <select
+                  {...register('programCode')}
+                  onChange={(e) => {
+                    const code = e.target.value
+                    setValue('programCode', code)
+                    setValue('programName', PROGRAM_MAP[code] ?? '')
+                  }}
                   className={inputCls}
-                />
+                >
+                  <option value="">Select your program</option>
+                  {Object.entries(PROGRAM_MAP).map(([code, name]) => (
+                    <option key={code} value={code}>
+                      {code} — {name}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Program Level" error={errors.programLevel?.message}>
                 <select {...register('programLevel')} className={inputCls}>

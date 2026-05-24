@@ -66,6 +66,7 @@ export function ProfileView({ user, onSave, saving }: Props) {
             <DataField label="Full Name" value={displayName} />
             <DataField label="Email Address" value={email} />
             <DataField label="Phone Number" value={studentProfile.phone} />
+            <DataField label="Program Code" value={studentProfile.programCode} />
           </div>
         </Section>
 
