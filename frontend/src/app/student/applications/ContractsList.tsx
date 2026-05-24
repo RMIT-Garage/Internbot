@@ -99,18 +99,18 @@ const kpiConfig = [
     label: 'Approved',
     sub: 'Confirmed placements',
     icon: CheckCircle2,
-    iconBg: 'bg-green-50',
-    iconColor: 'text-green-600',
-    numCls: 'text-green-700',
+    iconBg: 'bg-red-50',
+    iconColor: 'text-red-500',
+    numCls: 'text-red-600',
   },
   {
     key: 'flagged',
     label: 'Needs action',
     sub: 'Changes or rejected',
     icon: XCircle,
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-500',
-    numCls: 'text-amber-700',
+    iconBg: 'bg-gray-100',
+    iconColor: 'text-gray-500',
+    numCls: 'text-gray-900',
   },
 ]
 
@@ -296,7 +296,7 @@ export function ContractsList() {
       ) : (
         <SurfaceCard className="overflow-hidden p-0">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          <div className="grid grid-cols-[1fr_120px_100px_140px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             <span>Opportunity</span>
             <span className="hidden sm:block">Type</span>
             <span className="hidden md:block">Applied</span>
@@ -307,7 +307,7 @@ export function ContractsList() {
             <Link
               key={i.id}
               href={`/student/applications/view?id=${i.id}`}
-              className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+              className={`grid grid-cols-[1fr_120px_100px_140px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
             >
               {/* Opportunity info */}
               <div className="flex min-w-0 items-center gap-3">

@@ -76,9 +76,9 @@ function OpportunityRow({
   const isApplying = applyingId === opportunity.id
 
   return (
-    <div className="flex items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
+    <div className="grid grid-cols-[1fr_80px_160px] items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
       {/* Main info */}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-gray-900">{opportunity.jobTitle}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <span className="text-xs text-gray-500">{opportunity.employerName}</span>
@@ -95,41 +95,40 @@ function OpportunityRow({
       </div>
 
       {/* Applications count */}
-      <span className="hidden shrink-0 items-center gap-1 text-xs text-gray-400 md:flex">
+      <span className="hidden items-center gap-1 text-xs text-gray-400 md:flex">
         <Users className="h-3.5 w-3.5" />
         {opportunity.applicationCount}
       </span>
 
-      {/* Status badge if applied */}
-      {myInternship && (
-        <span className="hidden sm:block">
-          <StatusBadge status={internshipStatusToBadge(myInternship.status)} />
-        </span>
-      )}
-
-      {/* CTA */}
-      <div className="shrink-0">
-        {alreadyApplied && myInternship ? (
-          <Link
-            href={`/student/applications/view?id=${myInternship.id}`}
-            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
-          >
-            View <ArrowRight className="h-3 w-3" />
-          </Link>
-        ) : opportunity.status === 'published' ? (
-          <button
-            type="button"
-            onClick={() => onApply(opportunity.id)}
-            disabled={applyingId !== null}
-            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
-          >
-            {isApplying ? 'Applying…' : 'Apply'}
-          </button>
-        ) : (
-          <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
-            Closed
-          </span>
-        )}
+      {/* Status badge if applied, else placeholder for grid alignment */}
+      {/* Status + CTA */}
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          {myInternship && <StatusBadge status={internshipStatusToBadge(myInternship.status)} />}
+        </div>
+        <div className="shrink-0">
+          {alreadyApplied && myInternship ? (
+            <Link
+              href={`/student/applications/view?id=${myInternship.id}`}
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+            >
+              View <ArrowRight className="h-3 w-3" />
+            </Link>
+          ) : opportunity.status === 'published' ? (
+            <button
+              type="button"
+              onClick={() => onApply(opportunity.id)}
+              disabled={applyingId !== null}
+              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+            >
+              {isApplying ? 'Applying…' : 'Apply'}
+            </button>
+          ) : (
+            <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
+              Closed
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -431,16 +430,16 @@ export default function StudentOpportunitiesPage() {
             <Briefcase className="h-4 w-4 text-red-500" />
           </div>
           <div>
-            <p className="text-xl font-bold text-gray-900">{preApproved.length}</p>
+            <p className="text-xl font-bold text-red-600">{preApproved.length}</p>
             <p className="text-xs text-gray-400">Pre-approved roles</p>
           </div>
         </SurfaceCard>
         <SurfaceCard className="flex items-center gap-3 p-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50">
-            <Star className="h-4 w-4 text-amber-500" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50">
+            <Star className="h-4 w-4 text-red-500" />
           </div>
           <div>
-            <p className="text-xl font-bold text-gray-900">{selfSourced.length}</p>
+            <p className="text-xl font-bold text-red-600">{selfSourced.length}</p>
             <p className="text-xs text-gray-400">Self-sourced</p>
           </div>
         </SurfaceCard>
@@ -462,7 +461,7 @@ export default function StudentOpportunitiesPage() {
         </div>
       )}
       {applyError && (
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{applyError}</span>
           <button
             type="button"
@@ -519,7 +518,7 @@ export default function StudentOpportunitiesPage() {
           </p>
           <SurfaceCard className="overflow-hidden p-0">
             {/* List header */}
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <div className="grid grid-cols-[1fr_80px_160px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
               <span className="hidden md:block">Applicants</span>
               <span>Action</span>
@@ -537,8 +536,8 @@ export default function StudentOpportunitiesPage() {
       {!loading && selfSourced.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50">
-              <Star className="h-3.5 w-3.5 text-amber-500" />
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50">
+              <Star className="h-3.5 w-3.5 text-red-500" />
             </div>
             <h2 className="text-sm font-bold text-gray-800">Self-sourced Opportunities</h2>
             <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
@@ -549,7 +548,7 @@ export default function StudentOpportunitiesPage() {
             Opportunities sourced by students and verified by a coordinator.
           </p>
           <SurfaceCard className="overflow-hidden p-0">
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            <div className="grid grid-cols-[1fr_80px_160px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
               <span>Opportunity</span>
               <span className="hidden md:block">Applicants</span>
               <span>Action</span>
