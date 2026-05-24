@@ -35,6 +35,7 @@ import { AddInternshipCommentCommandHandler } from '../../application/commands/a
 import { DecideInternshipOfferCommandHandler } from '../../application/commands/decide-internship-offer'
 import { DeleteInternshipAttachmentCommandHandler } from '../../application/commands/delete-internship-attachment'
 import { CreateInternshipAttachmentUploadIntentCommandHandler } from '../../application/commands/create-internship-attachment-upload-intent'
+import { ConfirmInternshipAttachmentCommandHandler } from '../../application/commands/confirm-internship-attachment'
 import { GetInternshipQueryHandler } from '../../application/queries/get-internship'
 import { GetInternshipAttachmentQueryHandler } from '../../application/queries/get-internship-attachment'
 import { ListInternshipsQueryHandler } from '../../application/queries/list-internships'
@@ -82,6 +83,7 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
     deps.idGenerator
   )
   const deleteAttachment = new DeleteInternshipAttachmentCommandHandler(deps.uow, deps.authz)
+  const confirmAttachment = new ConfirmInternshipAttachmentCommandHandler(deps.uow, deps.authz)
   const createAttachmentUploadIntent = new CreateInternshipAttachmentUploadIntentCommandHandler(
     deps.uow,
     deps.authz,
@@ -170,6 +172,26 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
           attachmentId: paramAttachmentId(req),
         })
         res.status(204).send()
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
+
+  router.post(
+    '/:id/attachments/:attachmentId/confirm',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { actor } = req as AuthenticatedRequest
+        const { id } = await confirmAttachment.handle({
+          actor,
+          internshipId: paramId(req),
+          attachmentId: paramAttachmentId(req),
+        })
+        const result = await getInternship.handle({ actor, internshipId: id })
+        res.setHeader('ETag', etagFromInternship(result))
+        res.setHeader('Cache-Control', 'private, no-cache')
+        res.status(200).json(toInternshipResponse(result))
       } catch (err) {
         next(err)
       }

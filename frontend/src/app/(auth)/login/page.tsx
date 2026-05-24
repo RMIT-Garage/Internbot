@@ -54,35 +54,9 @@ export default function LoginPage() {
                 </Link>
               </p>
             </div>
-
-            <div className="mt-6 flex items-center justify-center gap-4 border-t border-zinc-100 pt-4 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-              <Link href="/support" className="hover:text-zinc-600">
-                Technical Support
-              </Link>
-              <span aria-hidden="true">·</span>
-              <Link href="/privacy" className="hover:text-zinc-600">
-                Privacy Statement
-              </Link>
-            </div>
           </div>
-
-          <dl className="flex items-center justify-center gap-12 text-center text-zinc-200">
-            <Stat value="450+" label="Partners" />
-            <Stat value="2.4k" label="Placements" />
-          </dl>
         </div>
       </main>
-    </div>
-  )
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div>
-      <dt className="text-2xl font-bold tracking-tight">{value}</dt>
-      <dd className="text-[11px] font-semibold tracking-[0.2em] text-zinc-400 uppercase">
-        {label}
-      </dd>
     </div>
   )
 }
