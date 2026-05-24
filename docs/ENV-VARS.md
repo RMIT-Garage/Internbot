@@ -60,6 +60,24 @@ GitHub Variables would only be for:
 - Values that differ per-repo-fork
 - Values you want to change without a PR
 
+### Backend runtime non-secret env (function dotenv)
+
+Non-secret config that the `api` function reads via `process.env` is injected
+through Firebase Functions v2 dotenv files in `backend/`. The Firebase CLI loads
+`backend/.env` (all projects) and `backend/.env.<projectId>` (project-specific)
+at deploy time and sets them as the function's runtime env.
+
+`RAG_SERVER_URL` — the base URL of the Interbot RAG service — is the first such
+value. Since all `.env*` files are gitignored, the deploy workflow writes it
+fresh each run: `deploy-dev.yml` / `deploy-prod.yml` pass the URL as the
+`rag_server_url` input to `_deploy.yml`, whose "Write runtime function env" step
+appends it to `backend/.env.<projectId>` before `firebase deploy`. Locally, set
+it in `backend/.env` (see `backend/.env.example`).
+
+The matching RAG API key (`RAG_API_KEY`, an `ibk_*` bearer token) is **not**
+config — it is a runtime secret and must never go in a dotenv file (those deploy
+as plaintext env). Manage it as a secret per the next section.
+
 ## Runtime backend secrets — `defineSecret()`
 
 When you add a runtime secret (e.g. Stripe API key):
