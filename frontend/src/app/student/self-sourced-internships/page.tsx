@@ -118,14 +118,14 @@ export default function Page() {
 
                 <div>
                   <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Website
+                    Job Link
                   </label>
                   <input
                     value={sourceUrl}
                     onChange={(e) => setSourceUrl(e.target.value)}
                     type="url"
                     className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm transition outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
-                    placeholder="https://company.com"
+                    placeholder="https://company-job-page.com"
                   />
                 </div>
               </div>
