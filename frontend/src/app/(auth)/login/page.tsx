@@ -9,14 +9,14 @@ export default function LoginPage() {
   useRedirectIfAuthed()
 
   return (
-    <div className="relative isolate flex min-h-screen flex-col bg-zinc-950 text-white">
+    <div className="relative isolate flex min-h-screen flex-col overflow-hidden bg-zinc-950 text-white">
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(56,89,153,0.45),transparent_70%),linear-gradient(to_bottom,#0b1220,#050810_60%,#000)]"
+        className="absolute inset-0 -z-10 bg-[url('/login-bg.jpg')] bg-cover bg-center contrast-110 grayscale-[10%]"
       />
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 -z-10 h-1/3 bg-linear-to-t from-black/80 to-transparent"
+        className="absolute inset-0 -z-10 bg-gradient-to-br from-black/50 to-black/70"
       />
 
       <main className="flex flex-1 items-center justify-center px-4 py-10 sm:py-14">
@@ -49,40 +49,14 @@ export default function LoginPage() {
               />
               <p className="text-center text-xs text-zinc-500">
                 Don&apos;t have an account?{' '}
-                <Link href="/register" className="text-brand-600 font-medium hover:underline">
+                <Link href="/register" className="font-medium text-red-600 hover:underline">
                   Create one
                 </Link>
               </p>
             </div>
-
-            <div className="mt-6 flex items-center justify-center gap-4 border-t border-zinc-100 pt-4 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-              <Link href="/support" className="hover:text-zinc-600">
-                Technical Support
-              </Link>
-              <span aria-hidden="true">·</span>
-              <Link href="/privacy" className="hover:text-zinc-600">
-                Privacy Statement
-              </Link>
-            </div>
           </div>
-
-          <dl className="flex items-center justify-center gap-12 text-center text-zinc-200">
-            <Stat value="450+" label="Partners" />
-            <Stat value="2.4k" label="Placements" />
-          </dl>
         </div>
       </main>
-    </div>
-  )
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div>
-      <dt className="text-2xl font-bold tracking-tight">{value}</dt>
-      <dd className="text-[11px] font-semibold tracking-[0.2em] text-zinc-400 uppercase">
-        {label}
-      </dd>
     </div>
   )
 }

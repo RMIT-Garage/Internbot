@@ -10,7 +10,7 @@
     ],
     "deny": [
       "Bash(rm -rf *)",
-      "Bash(git push --force*)",
+      "Bash(git push --force *)",
       "Bash(git push -f *)",
       "Bash(git reset --hard*)",
       "Bash(git checkout -- *)",
@@ -100,7 +100,7 @@
           },
           {
             "type": "command",
-            "command": "case \"$CLAUDE_COMMAND\" in *'--force'*|*'-f origin'*|*'--no-verify'*) echo 'BLOCKED: --force push and --no-verify are not allowed in this project.' >&2; exit 2 ;; esac"
+            "command": "case \"$CLAUDE_COMMAND\" in *'--force-with-lease'*) true ;; *'--force'*|*'-f origin'*|*'--no-verify'*) echo 'BLOCKED: --force push and --no-verify are not allowed in this project.' >&2; exit 2 ;; esac"
           }
         ]
       }

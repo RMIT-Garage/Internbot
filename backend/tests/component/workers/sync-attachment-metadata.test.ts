@@ -2,10 +2,9 @@
  * Component — workers/sync-attachment-metadata.
  *
  * Verifies the worker correctly consumes Cloud Storage `OBJECT_FINALIZE`
- * events and dispatches them through the CQRS layer. We do not exercise the
- * full media pipeline (no actual upload to the Storage emulator) — the
- * worker's responsibility is event-payload translation; the underlying
- * SyncStorageAttachment command behaviour is covered by integration tests.
+ * events and dispatches them through the CQRS layer. The worker's only job
+ * is event-payload translation; the underlying FinalizeStorageAttachment
+ * command behaviour is covered by integration tests.
  *
  * Each test mints its own random ids and tracks them via `trackDoc(...)` so
  * the suite is parallel-safe.
@@ -13,36 +12,19 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { SyncAttachmentMetadataWorker } from '../../../src/workers/sync-attachment-metadata'
-import { SyncStorageAttachmentCommandHandler } from '../../../src/application/commands/sync-storage-attachment'
+import { FinalizeStorageAttachmentCommandHandler } from '../../../src/application/commands/finalize-storage-attachment'
 import { FirestoreUnitOfWork } from '../../../src/infrastructure/firestore/firestore-unit-of-work'
 import { adminDb, Timestamp } from '../../../src/infrastructure/config/firebase-admin'
-import type { AttachmentStorage } from '../../../src/application/ports/attachment-storage'
 import { clearDocs, initEmulator, trackDoc } from '../../setup.emulator'
 
-class RecordingAttachmentStorage implements AttachmentStorage {
-  readonly deleted: string[] = []
-
-  async createReadUrl(): Promise<string> {
-    return 'unused'
-  }
-
-  async deleteObject(filePath: string): Promise<void> {
-    this.deleted.push(filePath)
-  }
-}
-
-function buildWorker(storage: AttachmentStorage = new RecordingAttachmentStorage()) {
+function buildWorker() {
   return new SyncAttachmentMetadataWorker(
-    new SyncStorageAttachmentCommandHandler(new FirestoreUnitOfWork(), storage)
+    new FinalizeStorageAttachmentCommandHandler(new FirestoreUnitOfWork())
   )
 }
 
 async function seedOpportunity(opportunityId: string): Promise<void> {
   const now = Timestamp.fromDate(new Date('2026-04-01T00:00:00Z'))
-  // Pre-approved opportunities have no `createdByUserId` / `submittedByUserId`
-  // / `verifiedByUserId` / `verifiedAt` — the production repo omits the
-  // optional fields rather than persisting `null`, and the storage zod
-  // schema only accepts `optional()` (undefined), not nullable.
   await adminDb
     .collection('opportunities')
     .doc(opportunityId)
@@ -62,31 +44,39 @@ async function seedOpportunity(opportunityId: string): Promise<void> {
   trackDoc('opportunities', opportunityId)
 }
 
-async function seedInternship(
-  internshipId: string,
-  userId: string,
-  opportunityId: string
+async function seedAttachment(
+  parent: 'opportunities' | 'internships',
+  parentId: string,
+  attachmentId: string,
+  filePath: string
 ): Promise<void> {
-  const now = Timestamp.fromDate(new Date('2026-04-01T00:00:00Z'))
-  await adminDb.collection('internships').doc(internshipId).set({
-    userId,
-    opportunityId,
-    studentProgramCode: 'BP096',
-    opportunityEmployerName: 'Example Pty Ltd',
-    opportunityJobTitle: 'Software Intern',
-    opportunityType: 'pre_approved',
-    status: 'applied',
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
-    _schemaVersion: 1,
-  })
-  trackDoc('internships', internshipId)
+  await adminDb
+    .collection(parent)
+    .doc(parentId)
+    .collection('attachments')
+    .doc(attachmentId)
+    .set({
+      filePath,
+      fileName: filePath.split('/').pop(),
+      contentType: 'application/pdf',
+      uploadedAt: Timestamp.fromDate(new Date('2026-04-03T00:00:00Z')),
+      uploadStatus: 'uploading',
+      _schemaVersion: 1,
+    })
 }
 
-async function listAttachmentPaths(parent: string, parentId: string): Promise<string[]> {
-  const snap = await adminDb.collection(parent).doc(parentId).collection('attachments').get()
-  return snap.docs.map((doc) => String(doc.data()['filePath']))
+async function readAttachment(
+  parent: 'opportunities' | 'internships',
+  parentId: string,
+  attachmentId: string
+): Promise<Record<string, unknown> | undefined> {
+  const snap = await adminDb
+    .collection(parent)
+    .doc(parentId)
+    .collection('attachments')
+    .doc(attachmentId)
+    .get()
+  return snap.data()
 }
 
 describe('SyncAttachmentMetadataWorker — component', () => {
@@ -95,10 +85,12 @@ describe('SyncAttachmentMetadataWorker — component', () => {
     await clearDocs()
   })
 
-  it('consumes a finalize event and writes the opportunity attachment subdoc', async () => {
+  it('flips a pre-written opportunity attachment to finalized when OBJECT_FINALIZE arrives', async () => {
     const opportunityId = `opp_${randomUUID()}`
+    const attachmentId = `att_${randomUUID().slice(0, 12).replace(/-/g, '')}`
+    const filePath = `opportunities/${opportunityId}/attachments/${attachmentId}-position.pdf`
     await seedOpportunity(opportunityId)
-    const filePath = `opportunities/${opportunityId}/attachments/jd-${randomUUID().slice(0, 6)}.pdf`
+    await seedAttachment('opportunities', opportunityId, attachmentId, filePath)
     const worker = buildWorker()
 
     await worker.handle({
@@ -106,16 +98,21 @@ describe('SyncAttachmentMetadataWorker — component', () => {
         name: filePath,
         contentType: 'application/pdf',
         timeCreated: '2026-04-04T09:05:00Z',
+        generation: '1700000000007777',
       },
     })
 
-    expect(await listAttachmentPaths('opportunities', opportunityId)).toEqual([filePath])
+    const after = await readAttachment('opportunities', opportunityId, attachmentId)
+    expect(after?.['uploadStatus']).toBe('finalized')
+    expect(after?.['storageGeneration']).toBe('1700000000007777')
   })
 
-  it('passes a Date-shaped timeCreated through to the command handler', async () => {
+  it('passes a Date-shaped timeCreated through to the finalize handler', async () => {
     const opportunityId = `opp_${randomUUID()}`
+    const attachmentId = `att_${randomUUID().slice(0, 12).replace(/-/g, '')}`
+    const filePath = `opportunities/${opportunityId}/attachments/${attachmentId}-position.pdf`
     await seedOpportunity(opportunityId)
-    const filePath = `opportunities/${opportunityId}/attachments/jd-${randomUUID().slice(0, 6)}.pdf`
+    await seedAttachment('opportunities', opportunityId, attachmentId, filePath)
     const worker = buildWorker()
 
     await worker.handle({
@@ -123,51 +120,46 @@ describe('SyncAttachmentMetadataWorker — component', () => {
         name: filePath,
         contentType: 'application/pdf',
         timeCreated: new Date('2026-04-04T09:05:00Z'),
+        generation: '1700000000008888',
       },
     })
 
-    expect(await listAttachmentPaths('opportunities', opportunityId)).toEqual([filePath])
-  })
-
-  it('stages a second internship attachment alongside the first (no auto-delete)', async () => {
-    const ownerId = `usr_owner_${randomUUID()}`
-    const opportunityId = `opp_${randomUUID()}`
-    const internshipId = `int_${randomUUID()}`
-    await seedOpportunity(opportunityId)
-    await seedInternship(internshipId, ownerId, opportunityId)
-    const firstPath = `users/${ownerId}/internships/${internshipId}/attachments/first.pdf`
-    const secondPath = `users/${ownerId}/internships/${internshipId}/attachments/second-${randomUUID().slice(0, 6)}.pdf`
-    const storage = new RecordingAttachmentStorage()
-    const worker = buildWorker(storage)
-
-    await worker.handle({
-      data: { name: firstPath, contentType: 'application/pdf' },
-    })
-    await worker.handle({
-      data: { name: secondPath, contentType: 'application/pdf' },
-    })
-
-    const paths = (await listAttachmentPaths('internships', internshipId)).sort()
-    expect(paths).toEqual([firstPath, secondPath].sort())
-    expect(storage.deleted).toEqual([])
+    const after = await readAttachment('opportunities', opportunityId, attachmentId)
+    expect(after?.['uploadStatus']).toBe('finalized')
   })
 
   it('does nothing when the event has no object name', async () => {
-    const storage = new RecordingAttachmentStorage()
-    const worker = buildWorker(storage)
+    const opportunityId = `opp_${randomUUID()}`
+    const attachmentId = `att_${randomUUID().slice(0, 12).replace(/-/g, '')}`
+    const filePath = `opportunities/${opportunityId}/attachments/${attachmentId}-position.pdf`
+    await seedOpportunity(opportunityId)
+    await seedAttachment('opportunities', opportunityId, attachmentId, filePath)
+    const worker = buildWorker()
 
     await worker.handle({ data: { contentType: 'application/pdf' } })
 
-    expect(storage.deleted).toEqual([])
+    expect(
+      (await readAttachment('opportunities', opportunityId, attachmentId))?.['uploadStatus']
+    ).toBe('uploading')
   })
 
-  it('removes a finalized object that lives outside the recognised attachment path conventions', async () => {
-    const storage = new RecordingAttachmentStorage()
-    const worker = buildWorker(storage)
+  it('silently ignores an event whose path does not match the attachment convention', async () => {
+    const worker = buildWorker()
     const stray = `users/${randomUUID()}/avatar/photo.png`
 
-    await worker.handle({ data: { name: stray, contentType: 'image/png' } })
+    await expect(
+      worker.handle({ data: { name: stray, contentType: 'image/png' } })
+    ).resolves.toBeUndefined()
+  })
 
-    expect(storage.deleted).toEqual([stray])
+  it('silently ignores an event whose attachmentId prefix is unknown to the parent', async () => {
+    const opportunityId = `opp_${randomUUID()}`
+    await seedOpportunity(opportunityId)
+    const worker = buildWorker()
+    const stale = `opportunities/${opportunityId}/attachments/att_ghost-position.pdf`
+
+    await expect(
+      worker.handle({ data: { name: stale, contentType: 'application/pdf' } })
+    ).resolves.toBeUndefined()
   })
 })

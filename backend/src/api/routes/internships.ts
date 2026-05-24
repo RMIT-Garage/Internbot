@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from '../middleware/auth'
 import { ApiError } from '../errors'
 import {
   addInternshipCommentRequestSchema,
+  createInternshipAttachmentUploadIntentRequestSchema,
   createInternshipRequestSchema,
   decideInternshipOfferRequestSchema,
   patchInternshipRequestSchema,
@@ -16,21 +17,27 @@ import {
   etagFromInternship,
   parseListInternshipsQuery,
   toAddInternshipCommentCommand,
+  toCreateInternshipAttachmentUploadIntentCommand,
   toCreateInternshipCommand,
   toInternshipActivityResponse,
   toInternshipAttachmentDownloadResponse,
+  toInternshipAttachmentUploadIntentResponse,
   toInternshipListResponse,
   toInternshipResponse,
   toDecideInternshipOfferCommand,
   toSubmitInternshipOfferCommand,
   toUpdateInternshipCommand,
+  toWithdrawInternshipCommand,
 } from '../mappers/internship'
 import { CreateInternshipCommandHandler } from '../../application/commands/create-internship'
 import { UpdateInternshipCommandHandler } from '../../application/commands/update-internship'
 import { SubmitInternshipOfferCommandHandler } from '../../application/commands/submit-internship-offer'
 import { AddInternshipCommentCommandHandler } from '../../application/commands/add-internship-comment'
 import { DecideInternshipOfferCommandHandler } from '../../application/commands/decide-internship-offer'
+import { WithdrawInternshipCommandHandler } from '../../application/commands/withdraw-internship'
 import { DeleteInternshipAttachmentCommandHandler } from '../../application/commands/delete-internship-attachment'
+import { CreateInternshipAttachmentUploadIntentCommandHandler } from '../../application/commands/create-internship-attachment-upload-intent'
+import { ConfirmInternshipAttachmentCommandHandler } from '../../application/commands/confirm-internship-attachment'
 import { GetInternshipQueryHandler } from '../../application/queries/get-internship'
 import { GetInternshipAttachmentQueryHandler } from '../../application/queries/get-internship-attachment'
 import { ListInternshipsQueryHandler } from '../../application/queries/list-internships'
@@ -77,7 +84,19 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
     deps.authz,
     deps.idGenerator
   )
+  const withdrawInternship = new WithdrawInternshipCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator
+  )
   const deleteAttachment = new DeleteInternshipAttachmentCommandHandler(deps.uow, deps.authz)
+  const confirmAttachment = new ConfirmInternshipAttachmentCommandHandler(deps.uow, deps.authz)
+  const createAttachmentUploadIntent = new CreateInternshipAttachmentUploadIntentCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator,
+    deps.attachmentStorage
+  )
   const getInternship = new GetInternshipQueryHandler(
     deps.internshipQueries,
     deps.opportunityQueries,
@@ -160,6 +179,49 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
           attachmentId: paramAttachmentId(req),
         })
         res.status(204).send()
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
+
+  router.post(
+    '/:id/attachments/:attachmentId/confirm',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { actor } = req as AuthenticatedRequest
+        const { id } = await confirmAttachment.handle({
+          actor,
+          internshipId: paramId(req),
+          attachmentId: paramAttachmentId(req),
+        })
+        const result = await getInternship.handle({ actor, internshipId: id })
+        res.setHeader('ETag', etagFromInternship(result))
+        res.setHeader('Cache-Control', 'private, no-cache')
+        res.status(200).json(toInternshipResponse(result))
+      } catch (err) {
+        next(err)
+      }
+    }
+  )
+
+  router.post(
+    '/:id/attachments/upload-intents',
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const parsed = createInternshipAttachmentUploadIntentRequestSchema.safeParse(req.body)
+        if (!parsed.success) {
+          next(zodBodyError(parsed.error))
+          return
+        }
+        const { actor } = req as AuthenticatedRequest
+        const result = await createAttachmentUploadIntent.handle(
+          toCreateInternshipAttachmentUploadIntentCommand(actor, paramId(req), parsed.data)
+        )
+        res.setHeader('Cache-Control', 'private, no-store')
+        res
+          .status(201)
+          .json(toInternshipAttachmentUploadIntentResponse(result, parsed.data.contentType))
       } catch (err) {
         next(err)
       }
@@ -292,6 +354,25 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
 
       const { id } = await decideOffer.handle(
         toDecideInternshipOfferCommand(actor, internshipId, req.header('If-Match'), parsed.data)
+      )
+      const result = await getInternship.handle({ actor, internshipId: id })
+
+      res.setHeader('Location', `/api/v1/internships/${id}`)
+      res.setHeader('ETag', etagFromInternship(result))
+      res.setHeader('Cache-Control', 'private, no-cache')
+      res.status(201).json(toInternshipResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.post('/:id/withdrawals', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const internshipId = paramId(req)
+
+      const { id } = await withdrawInternship.handle(
+        toWithdrawInternshipCommand(actor, internshipId, req.header('If-Match'))
       )
       const result = await getInternship.handle({ actor, internshipId: id })
 

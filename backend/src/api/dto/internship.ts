@@ -6,6 +6,7 @@ import {
 } from '../../domain/value-objects/internship-enums'
 import { opportunityTypeValues } from '../../domain/value-objects/opportunity-enums'
 import { roleValues } from '../../domain/value-objects/user-enums'
+import { attachmentUploadStatusValues } from '../../domain/value-objects/attachment'
 
 export const internshipAttachmentResponseSchema = z
   .object({
@@ -13,6 +14,11 @@ export const internshipAttachmentResponseSchema = z
     fileName: z.string().nullable().meta({ example: 'offer-letter.pdf' }),
     contentType: z.string().nullable().meta({ example: 'application/pdf' }),
     uploadedAt: z.string().datetime().meta({ example: '2026-04-05T02:50:00Z' }),
+    uploadStatus: z.enum(attachmentUploadStatusValues).meta({
+      example: 'finalized',
+      description:
+        'Lifecycle state. `uploading` = intent issued, signed URL outstanding, GCS object not confirmed yet. `finalized` = OBJECT_FINALIZE event observed, file is downloadable.',
+    }),
   })
   .meta({
     id: 'InternshipAttachmentResponse',
@@ -34,6 +40,29 @@ export const internshipAttachmentDownloadResponseSchema = internshipAttachmentRe
 
 export type InternshipAttachmentDownloadResponse = z.infer<
   typeof internshipAttachmentDownloadResponseSchema
+>
+
+export const internshipAttachmentUploadIntentResponseSchema = z
+  .object({
+    attachmentId: z.string().meta({ example: 'att_001' }),
+    filePath: z.string().meta({
+      example: 'users/usr_aBc123XyZ/internships/int_042/attachments/att_001-offer-letter.pdf',
+    }),
+    uploadUrl: z.string().url().meta({
+      example:
+        'https://storage.googleapis.com/...attachments/att_001-offer-letter.pdf?X-Goog-Signature=...',
+    }),
+    uploadExpiresAt: z.string().datetime().meta({ example: '2026-04-04T09:15:00Z' }),
+    contentType: z.string().meta({ example: 'application/pdf' }),
+  })
+  .meta({
+    id: 'InternshipAttachmentUploadIntentResponse',
+    description:
+      'V4 signed PUT URL the student-owner can upload an offer document to. The URL is bound to the supplied `contentType` — the client MUST send a matching `Content-Type` header on the PUT.',
+  })
+
+export type InternshipAttachmentUploadIntentResponse = z.infer<
+  typeof internshipAttachmentUploadIntentResponseSchema
 >
 
 export const internshipResponseSchema = z

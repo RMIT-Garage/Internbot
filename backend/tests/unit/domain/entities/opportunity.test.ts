@@ -170,6 +170,7 @@ function oppAttachment(id = 'att_001'): Attachment {
     contentType: 'application/pdf',
     uploadedAt: NOW,
     storageGeneration: '9876543210',
+    uploadStatus: 'finalized',
   })
 }
 

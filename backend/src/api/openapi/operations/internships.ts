@@ -2,6 +2,7 @@ import type { ZodOpenApiOperationObject } from 'zod-openapi'
 import { z } from 'zod'
 import {
   addInternshipCommentRequestSchema,
+  createInternshipAttachmentUploadIntentRequestSchema,
   createInternshipRequestSchema,
   decideInternshipOfferRequestSchema,
   patchInternshipRequestSchema,
@@ -10,6 +11,7 @@ import {
 import {
   internshipActivityResponseSchema,
   internshipAttachmentDownloadResponseSchema,
+  internshipAttachmentUploadIntentResponseSchema,
   internshipListResponseSchema,
   internshipResponseSchema,
 } from '../../dto/internship'
@@ -109,6 +111,46 @@ export const getInternshipAttachmentOperation: ZodOpenApiOperationObject = {
     },
     '404': {
       description: 'No internship or attachment exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
+export const createInternshipAttachmentUploadIntentOperation: ZodOpenApiOperationObject = {
+  operationId: 'createInternshipAttachmentUploadIntent',
+  summary: 'Reserve an internship attachment upload slot',
+  description:
+    'Student-owner only. Allowed only while the internship is `applied` or `offer_changes_requested`. Pre-writes the attachment metadata as `uploading` and returns a short-lived V4 signed PUT URL the client uploads the file bytes to directly. The client MUST send a matching `Content-Type` header on the PUT. A GCS object-finalised event flips the attachment to `finalized`.',
+  tags: ['Internships'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: internshipIdPathParams },
+  requestBody: {
+    required: true,
+    content: {
+      'application/json': { schema: createInternshipAttachmentUploadIntentRequestSchema },
+    },
+  },
+  responses: {
+    '201': {
+      description: 'Upload intent created. Use `uploadUrl` to PUT the file bytes.',
+      content: {
+        'application/json': { schema: internshipAttachmentUploadIntentResponseSchema },
+      },
+    },
+    '403': {
+      description: 'Caller is not the owning student.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No internship exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '409': {
+      description: 'Internship status does not permit attachment upload.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '422': {
+      description: 'Missing or invalid `fileName` / `contentType`.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },
@@ -228,7 +270,7 @@ export const submitInternshipOfferOperation: ZodOpenApiOperationObject = {
   operationId: 'submitInternshipOffer',
   summary: 'Submit an internship offer for coordinator review',
   description:
-    'Student-owner only. Requires at least one offer attachment and transitions applied/changes_requested to offer_pending_review.',
+    'Student-owner only. Requires at least one finalized offer attachment and transitions applied/changes_requested to offer_pending_review. Offer dates are optional and may be supplied later by the coordinator.',
   tags: ['Internships'],
   security: [{ bearerAuth: [] }],
   requestParams: { path: internshipIdPathParams, header: ifMatchHeaderSchema },
@@ -258,7 +300,7 @@ export const submitInternshipOfferOperation: ZodOpenApiOperationObject = {
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     '422': {
-      description: 'Missing offer details or offer attachment.',
+      description: 'No finalized offer attachment present.',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

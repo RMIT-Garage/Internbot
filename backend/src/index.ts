@@ -3,15 +3,14 @@ import { beforeUserCreated, HttpsError } from 'firebase-functions/v2/identity'
 import { onObjectFinalized } from 'firebase-functions/v2/storage'
 import type { BlockingFunction } from 'firebase-functions/v1'
 import { createApp } from './api/app'
-import { SyncStorageAttachmentCommandHandler } from './application/commands/sync-storage-attachment'
+import { FinalizeStorageAttachmentCommandHandler } from './application/commands/finalize-storage-attachment'
 import { resolveStorageBucket } from './infrastructure/config/storage-bucket'
 import { firestoreUnitOfWork } from './infrastructure/firestore/firestore-unit-of-work'
-import { gcsAttachmentStorage } from './infrastructure/storage/gcs-attachment-storage'
 import { SyncAttachmentMetadataWorker } from './workers/sync-attachment-metadata'
 
 const app = createApp()
 const syncAttachmentMetadataWorker = new SyncAttachmentMetadataWorker(
-  new SyncStorageAttachmentCommandHandler(firestoreUnitOfWork, gcsAttachmentStorage)
+  new FinalizeStorageAttachmentCommandHandler(firestoreUnitOfWork)
 )
 
 // Resolved at deploy parse time. The Firebase CLI loads this module to
@@ -48,20 +47,21 @@ export const api = onRequest(
 )
 
 /**
- * Cloud Storage finalize trigger — synchronizes trusted attachment metadata
- * into Firestore after the frontend uploads directly to Storage.
+ * Cloud Storage finalize trigger — flips a pre-written attachment subdoc
+ * from `uploading` to `finalized` after the client's signed-URL PUT lands.
  *
- * Flow: Storage rules gate the upload (only the owning student or the
- * opportunity creator/submitter can write under the expected prefix). Cloud
- * Storage emits OBJECT_FINALIZE, Eventarc delivers it, this function parses
- * the path and validates the parent + ownership invariants, then writes the
- * Firestore attachment doc.
+ * Flow: the `POST /attachments/upload-intents` endpoint authz's the caller,
+ * pre-writes the Firestore attachment subdoc in `uploading` state, and
+ * returns a V4 signed PUT URL. The client uploads directly to GCS; Cloud
+ * Storage emits OBJECT_FINALIZE; Eventarc delivers it; this function parses
+ * the path, locates the matching subdoc, and transitions its state.
  *
- * `retry: true` opts the underlying Eventarc subscription into retry-on-error
- * (default Pub/Sub backoff, 7-day TTL). Transient Firestore / Storage failures
- * propagate as exceptions and are redelivered; deterministic logical failures
- * (invalid path, parent missing) are absorbed inside the handler so they do
- * not loop.
+ * `retry: true` opts the Eventarc subscription into retry-on-error (default
+ * Pub/Sub backoff, 7-day TTL). Transient Firestore failures propagate so
+ * Pub/Sub redelivers (the transition is idempotent — re-finalizing an
+ * already-finalized attachment is a no-op). Logical failures (invalid path,
+ * parent missing, attachment id unknown) are absorbed inside the handler so
+ * they do not loop.
  */
 export const syncAttachmentMetadata = onObjectFinalized(
   {

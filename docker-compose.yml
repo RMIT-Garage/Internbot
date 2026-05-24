@@ -11,7 +11,7 @@ services:
     ports:
       - "4000:4000"  # Emulator UI
       - "5001:5001"  # Cloud Functions
-      - "8080:8080"  # Firestore
+      - "8090:8080"  # Firestore
       - "9099:9099"  # Authentication
       - "9199:9199"  # Storage
     volumes:

@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
 
         <p className="mt-6 text-center text-xs text-zinc-500">
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="text-brand-600 font-medium hover:underline">
+          <Link href="/register" className="font-medium text-red-600 hover:underline">
             Sign up
           </Link>
         </p>

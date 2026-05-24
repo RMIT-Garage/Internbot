@@ -332,26 +332,27 @@ A machine-readable OpenAPI 3.1 document generated from this spec is the recommen
 
 #### File upload pattern
 
-File-backed records should behave like a single user action in the UI, even though the backend handles them in stages.
+File-backed records use a **backend-mediated, two-step intent + finalize** flow. The frontend never holds GCS credentials and never talks to Firebase Storage rules; the backend authorizes the upload, pre-writes the attachment subdoc in an `uploading` state, and an `OBJECT_FINALIZE` storage event flips the row to `finalized`.
 
-Recommended pattern:
+Flow:
 
-1. Frontend creates a draft record with metadata.
-2. Backend returns the draft ID and expected Cloud Storage path prefix.
-3. Frontend uploads one or more files directly to Cloud Storage when the record type supports attachments.
-4. A Cloud Storage `onObjectFinalized` trigger in Cloud Functions v2 parses the storage path and writes attachment metadata into Firestore.
-5. Frontend calls a submit endpoint only when the user is ready to send the current draft for coordinator review.
-6. Backend verifies that required files and metadata are already present in Firestore, then marks the record ready for review.
+1. Frontend `POST`s to an upload-intents endpoint on the parent record (e.g. `/api/v1/internships/{id}/attachments/upload-intents`) with `fileName` and `contentType`.
+2. Backend authorizes the actor against the parent record, mints an `att_*` id and a path of the form `<parent>/<id>/attachments/<attachmentId>-<sanitisedFileName>`, pre-writes the attachment subdoc with `uploadStatus: 'uploading'`, and returns a short-lived V4 signed `PUT` URL plus the attachment metadata.
+3. Frontend `PUT`s the file bytes directly to the signed URL with the matching `Content-Type`. No Firebase Auth, no Storage rules.
+4. GCS emits an `OBJECT_FINALIZE` Eventarc event. The `SyncAttachmentMetadataWorker` extracts `<attachmentId>` from the path prefix, loads the parent aggregate, calls `aggregate.finalizeAttachment(attachmentId, generation, finalizedAt)`, and persists — flipping `uploadStatus` to `'finalized'` and recording the `storageGeneration`.
+5. Frontend `GET`s the parent record (or attachment) and treats `uploadStatus === 'finalized'` as upload-complete. The read path 404s attachments still in `uploading`.
+6. Frontend `POST`s the submit endpoint (e.g. offer submission) once the file shows up as `finalized`. The submit handler requires at least one `finalized` attachment.
 
 Rules:
 
 - Opportunity attachments (position description documents) are optional.
-- Job offer document is required on the internship before offer submission.
-- Cloud Storage upload completion should not, by itself, start review. It only synchronizes file metadata into Firestore.
-- The backend should be the source of truth for saved attachment metadata. Frontend should not be trusted as the final source of attachment records.
-- The Storage-triggered function should verify that each file path matches the expected user-owned upload prefix before saving attachment metadata.
-- Attachments are append-only on finalize: the storage trigger never deletes prior files. A student may upload multiple files before submitting; resubmission does not remove previously uploaded attachments. Cleanup of obsolete files (if needed) is a separate concern outside the upload trigger.
-- If upload fails, the record remains in its current state.
+- Job offer document is required on the internship before offer submission; the gate is `attachments.some((a) => a.isFinalized())`, not `length > 0`.
+- The upload-intent endpoint is the only authorization point. There are no Firebase Storage rules on attachment paths — write access is gated entirely by the signed URL, which is only minted after the backend authorizes the actor against the parent record.
+- The backend is the source of truth for saved attachment metadata. Frontend never sends attachment metadata on submit.
+- The storage trigger is idempotent: `finalizeAttachment` is a no-op when the attachment is already `finalized`, so Pub/Sub redelivery is safe.
+- The storage trigger verifies the path's owner prefix matches the attachment's parent before applying the transition (so a leaked signed URL pointed at a stale path cannot finalize another aggregate's row).
+- Attachments are append-only: the storage trigger never deletes prior files. A student may upload multiple files before submitting; resubmission does not remove previously uploaded attachments. Cleanup of obsolete files (if needed) is a separate concern outside the upload trigger.
+- If the PUT fails, the attachment subdoc stays in `uploading` and is invisible to reads; the record remains in its current state. The frontend may retry the intent + PUT.
 - If submit fails, the frontend may retry submit without recreating the draft.
 - A record in review remains editable until the coordinator makes a final decision.
 - Editing a record under review updates the same internship and the coordinator reviews the latest version.
@@ -774,7 +775,8 @@ Success response:
       "id": "att_001",
       "fileName": "position-description.pdf",
       "contentType": "application/pdf",
-      "uploadedAt": "2026-04-04T09:05:00Z"
+      "uploadedAt": "2026-04-04T09:05:00Z",
+      "uploadStatus": "finalized"
     }
   ],
   "createdAt": "2026-04-04T09:00:00Z",
@@ -784,7 +786,7 @@ Success response:
 
 Notes:
 
-- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). See section 8.3A for the attachment shape.
+- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). Attachments still in `uploading` state are filtered out — only `finalized` rows are returned. See section 8.3A for the underlying document shape.
 - To obtain a download URL for a specific attachment, fetch the attachment directly via `GET /opportunities/{id}/attachments/{attachmentId}` — the response includes a `downloadUrl` field (see section 7.11).
 
 Response headers:
@@ -960,7 +962,7 @@ Notes:
 
 #### `POST /api/v1/internships/{id}/offer-submissions`
 
-Purpose: Submit the job offer for coordinator review after uploading the offer document. Creates an offer-submission record that transitions the internship from `applied` (or `offer_changes_requested`) to `offer_pending_review` and populates offer fields. The submission is reified as an activity entry in `internships/{id}/activity` with `type: submit_offer`, so the plural-noun sub-resource has real backing data.
+Purpose: Submit the job offer for coordinator review after uploading the offer document. Creates an offer-submission record that transitions the internship from `applied` (or `offer_changes_requested`) to `offer_pending_review`. The only hard requirement is at least one `finalized` offer attachment; offer dates are optional and may be supplied later (e.g. by the coordinator at the offer stage). The submission is reified as an activity entry in `internships/{id}/activity` with `type: submit_offer`, so the plural-noun sub-resource has real backing data.
 
 Auth: Student owner
 
@@ -968,11 +970,13 @@ Concurrency: supported (optional `If-Match` header)
 
 Request body:
 
-| Field     | Type   | Required | Notes                            |
-| --------- | ------ | -------- | -------------------------------- |
-| offerDate | string | Yes      | ISO 8601 date (UTC)              |
-| startDate | string | Yes      | Internship start date (ISO 8601) |
-| endDate   | string | No       | Internship end date (ISO 8601)   |
+| Field     | Type   | Required | Notes                                                                                  |
+| --------- | ------ | -------- | -------------------------------------------------------------------------------------- |
+| offerDate | string | No       | ISO 8601 date (UTC). When omitted, any previously-set value is preserved.              |
+| startDate | string | No       | Internship start date (ISO 8601). When omitted, any previously-set value is preserved. |
+| endDate   | string | No       | Internship end date (ISO 8601). Must not be before `startDate` when both are present.  |
+
+A submission with an empty body `{}` is valid as long as a finalized attachment exists.
 
 Success response (`201 Created`): the full updated internship resource (same shape as `GET /internships/{id}`). Response includes a `Location` header pointing to `/api/v1/internships/{id}`.
 
@@ -983,8 +987,8 @@ Failure cases:
 - `404` internship does not exist
 - `409` internship is not in `applied` or `offer_changes_requested` state
 - `412` client sent `If-Match` and it does not match the internship's current `ETag` (only possible when the client opts in to concurrency checks)
-- `422` at least one offer attachment is required in the `attachments` subcollection
-- `422` missing or invalid offer details (`offerDate`, `startDate`)
+- `422` no offer attachment in `finalized` state in the `attachments` subcollection (rows still `uploading` do not count)
+- `422` `endDate` is before `startDate` (`invalid_internship_dates`)
 
 Side effects:
 
@@ -1143,7 +1147,8 @@ Success response:
       "id": "att_101",
       "fileName": "offer-letter.pdf",
       "contentType": "application/pdf",
-      "uploadedAt": "2026-04-05T02:50:00Z"
+      "uploadedAt": "2026-04-05T02:50:00Z",
+      "uploadStatus": "finalized"
     }
   ],
   "lastSubmittedAt": "2026-04-05T03:14:12Z",
@@ -1155,7 +1160,7 @@ Success response:
 Notes:
 
 - `opportunity*` fields are denormalized from the linked opportunity at query time for convenience. The canonical source is the `opportunities/{opportunityId}` document.
-- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). See section 8.3A for the attachment shape.
+- `attachments` is denormalized from the `attachments` subcollection at query time. Always present (empty array if no attachments). Attachments still in `uploading` state are filtered out — only `finalized` rows are returned. See section 8.3A for the underlying document shape.
 - To obtain a download URL for a specific attachment, fetch the attachment directly via `GET /internships/{id}/attachments/{attachmentId}` — the response includes a `downloadUrl` field (see section 7.11).
 - The `activity` subcollection is not inlined. Clients fetch it separately via the activity feed endpoints.
 
@@ -1938,15 +1943,73 @@ Side effects:
 
 ### 7.11 Attachments
 
-Attachments are file uploads associated with either an opportunity (position description documents) or an internship (offer letter). Upload itself happens directly to Cloud Storage (see section 7.0 → File upload pattern); the endpoints below cover the read path.
+Attachments are file uploads associated with either an opportunity (position description documents) or an internship (offer letter). Uploads are mediated by the backend: the client requests an upload intent, receives a short-lived V4 signed `PUT` URL, and uploads the bytes directly to Cloud Storage. A Cloud Storage `OBJECT_FINALIZE` event then flips the attachment's `uploadStatus` from `uploading` to `finalized`. See section 7.0 → File upload pattern for the full lifecycle.
 
-Attachment metadata (`id`, `fileName`, `contentType`, `uploadedAt`) is returned inline as the `attachments` array on `GET /opportunities/{id}` and `GET /internships/{id}`. To obtain a short-lived signed download URL for a specific attachment, fetch the attachment resource directly using the endpoints below — the `downloadUrl` is a field on the attachment, following the Stripe Files pattern.
+Attachment metadata (`id`, `fileName`, `contentType`, `uploadedAt`, `uploadStatus`) is returned inline as the `attachments` array on `GET /opportunities/{id}` and `GET /internships/{id}` — but only after the attachment has finalized. To obtain a short-lived signed download URL for a specific attachment, fetch the attachment resource directly using the endpoints below — the `downloadUrl` is a field on the attachment, following the Stripe Files pattern.
+
+#### `POST /api/v1/opportunities/{id}/attachments/upload-intents`
+
+Purpose: Authorize a coordinator to upload a position description file, pre-write the attachment subdoc in `uploading` state, and return a short-lived V4 signed `PUT` URL the client uses to upload bytes directly to Cloud Storage.
+
+Auth: Coordinator only.
+
+Request body:
+
+```json
+{
+  "fileName": "position-description.pdf",
+  "contentType": "application/pdf"
+}
+```
+
+Success response (`201 Created`):
+
+```json
+{
+  "attachmentId": "att_aBc123",
+  "uploadUrl": "https://storage.googleapis.com/<bucket>/opportunities/opp_042/attachments/att_aBc123-position-description.pdf?X-Goog-Signature=...",
+  "uploadUrlExpiresAt": "2026-04-05T04:10:00Z",
+  "filePath": "opportunities/opp_042/attachments/att_aBc123-position-description.pdf",
+  "contentType": "application/pdf"
+}
+```
+
+- The signed `PUT` URL is short-lived (~10 minutes). The client must `PUT` the bytes with `Content-Type: application/pdf` (matching the value passed at intent time) before expiry.
+- After `PUT` succeeds, Cloud Storage emits an `OBJECT_FINALIZE` event; the backend worker flips `uploadStatus` to `finalized`. The attachment becomes visible to reads only after that flip.
+- The intent endpoint is idempotent on retries by client: a fresh intent always pre-writes a new `att_*` id, so retrying produces a new attachment row.
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not a coordinator
+- `404` opportunity does not exist
+- `422` `fileName` is empty, contains path separators, or `contentType` is not on the allowlist
+
+#### `POST /api/v1/internships/{id}/attachments/upload-intents`
+
+Purpose: Authorize the owning student to upload an offer document.
+
+Auth: Owning student only.
+
+Allowed states: `applied`, `offer_changes_requested`. Once the offer is `offer_pending_review`, `offer_approved`, or `rejected`, attachment uploads are locked.
+
+Request body and success response: same shape as the opportunity variant above (with `filePath` rooted at `users/{userId}/internships/{id}/attachments/...`).
+
+Failure cases:
+
+- `401` unauthorized
+- `403` caller is not the owning student
+- `404` internship does not exist
+- `409` internship status does not permit attachment uploads (`reason: attachment_locked_in_status`)
+- `422` `fileName` is empty, contains path separators, or `contentType` is not on the allowlist
 
 #### `GET /api/v1/opportunities/{id}/attachments/{attachmentId}`
 
 Purpose: Return a single opportunity attachment's metadata along with a fresh short-lived signed Cloud Storage URL for downloading the underlying file. Standard CRUD read on the attachment sub-resource — the signed URL is a field on the resource, not a separate action endpoint (matching [Stripe Files](https://docs.stripe.com/api/files/object) and GitHub Release assets' `browser_download_url` field).
 
 Auth: Student (if the parent opportunity is `published` and in their semester) or Coordinator.
+
+Behaviour: the endpoint 404s for attachments still in `uploading` (i.e. ones whose `OBJECT_FINALIZE` event has not yet been processed).
 
 Success response (`200 OK`):
 
@@ -1956,6 +2019,7 @@ Success response (`200 OK`):
   "fileName": "position-description.pdf",
   "contentType": "application/pdf",
   "uploadedAt": "2026-04-04T09:05:00Z",
+  "uploadStatus": "finalized",
   "downloadUrl": "https://storage.googleapis.com/<bucket>/opportunities/opp_042/attachments/position-description.pdf?X-Goog-Signature=...",
   "downloadUrlExpiresAt": "2026-04-05T04:10:00Z"
 }
@@ -2161,17 +2225,18 @@ Subcollections:
 
 ### 8.3A Attachment Object
 
-Purpose: Reusable file attachment shape for `attachments` subcollection documents written by the Storage-triggered backend sync. Used by both `opportunities/{id}/attachments` and `internships/{id}/attachments`.
+Purpose: Reusable file attachment shape for `attachments` subcollection documents. The row is pre-written by the upload-intent endpoint with `uploadStatus: 'uploading'` and flipped to `'finalized'` by the Cloud Storage `OBJECT_FINALIZE` trigger. Used by both `opportunities/{id}/attachments` and `internships/{id}/attachments`.
 
-Document ID: Firestore auto-generated. Exposed as `id` in API DTOs from `snapshot.id`; not stored as a field in the document body.
+Document ID: `att_*` prefixed id minted by the upload-intent handler. Exposed as `id` in API DTOs from `snapshot.id`; not stored as a field in the document body. The document id is also embedded as a prefix in `filePath` (e.g. `<parent>/<id>/attachments/<attachmentId>-<sanitisedFileName>`) so the storage trigger can recover it from the GCS event without indexing.
 
-| Field             | Type      | Required | Example                                                        | Notes                                                                                                                                                                                       |
-| ----------------- | --------- | -------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| filePath          | string    | Yes      | `users/usr_aBc123XyZ/internships/int_001/attachments/file.pdf` | Cloud Storage path                                                                                                                                                                          |
-| fileName          | string    | No       | `offer.pdf`                                                    | Original file name                                                                                                                                                                          |
-| contentType       | string    | No       | `application/pdf`                                              | MIME type                                                                                                                                                                                   |
-| uploadedAt        | timestamp | Yes      | server timestamp                                               | Upload completion time                                                                                                                                                                      |
-| storageGeneration | string    | No       | `1700000000000001`                                             | GCS object generation captured by the storage trigger. Used as `ifGenerationMatch` on delete to close the dual-write race. Optional only for legacy docs written before this field existed. |
+| Field             | Type      | Required | Example                                                                 | Notes                                                                                                                                                                             |
+| ----------------- | --------- | -------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filePath          | string    | Yes      | `users/usr_aBc123XyZ/internships/int_001/attachments/att_xxx-offer.pdf` | Cloud Storage path. Embeds the `att_*` id as the filename prefix.                                                                                                                 |
+| fileName          | string    | No       | `offer.pdf`                                                             | Original file name                                                                                                                                                                |
+| contentType       | string    | No       | `application/pdf`                                                       | MIME type                                                                                                                                                                         |
+| uploadedAt        | timestamp | Yes      | server timestamp                                                        | Initial intent time; updated to GCS `timeCreated` when the storage trigger finalizes.                                                                                             |
+| uploadStatus      | string    | Yes      | `uploading`                                                             | One of `uploading`, `finalized`. Pre-written `uploading` by the intent endpoint; flipped to `finalized` by the storage trigger. Reads 404 attachments that are still `uploading`. |
+| storageGeneration | string    | No       | `1700000000000001`                                                      | GCS object generation captured by the storage trigger. Used as `ifGenerationMatch` on delete to close the dual-write race. Absent on rows still in `uploading` state.             |
 
 ### 8.4 `internships`
 
@@ -2491,8 +2556,8 @@ sequenceDiagram
     CS->>B: onObjectFinalized trigger
     B->>FS: Write attachment to internships/{id}/attachments subcollection
 
-    S->>F: Submit offer details
-    F->>B: POST /api/v1/internships/{id}/offer-submissions { offerDate, startDate, endDate }
+    S->>F: Submit for review
+    F->>B: POST /api/v1/internships/{id}/offer-submissions { } (dates optional)
     B->>FS: Validate at least one offer attachment exists
     B->>FS: Update status to offer_pending_review
     B->>FS: Write activity: submit_offer
@@ -2522,7 +2587,7 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> applied: Student applies to a published opportunity
 
-    applied --> offer_pending_review: Submit offer (upload document + offer details)
+    applied --> offer_pending_review: Submit offer (upload document)
 
     offer_pending_review --> offer_approved: Coordinator approves offer
     offer_pending_review --> offer_changes_requested: Coordinator requests changes

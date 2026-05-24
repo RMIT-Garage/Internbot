@@ -66,8 +66,9 @@ export class InternshipCommented implements DomainEvent {
 }
 
 /**
- * Storage trigger reflected a finalized GCS object into Firestore. Subdoc-only
- * write — does NOT rotate `version`, since the trigger has no ETag context.
+ * Intent endpoint pre-wrote an attachment subdoc in `uploading` state. The
+ * client has been issued a signed PUT URL and may or may not complete the
+ * upload. Subdoc-only write — does NOT rotate `version`.
  */
 export class InternshipAttachmentAdded implements DomainEvent {
   readonly kind = 'internship_attachment_added' as const
@@ -77,6 +78,23 @@ export class InternshipAttachmentAdded implements DomainEvent {
   constructor(attachment: Attachment) {
     this.attachment = attachment
     this.occurredAt = attachment.uploadedAt
+  }
+}
+
+/**
+ * Storage `OBJECT_FINALIZE` event confirmed the upload landed. Worker
+ * transitions the attachment from `uploading` → `finalized` and records the
+ * GCS generation so a later soft-delete can use `ifGenerationMatch`.
+ * Subdoc-only — does NOT rotate `version`.
+ */
+export class InternshipAttachmentFinalized implements DomainEvent {
+  readonly kind = 'internship_attachment_finalized' as const
+  readonly occurredAt: Date
+  readonly attachment: Attachment
+
+  constructor(attachment: Attachment, finalizedAt: Date) {
+    this.attachment = attachment
+    this.occurredAt = finalizedAt
   }
 }
 
@@ -99,6 +117,18 @@ export class InternshipAttachmentRemoved implements DomainEvent {
   }
 }
 
+/** Student withdrew their application. Terminal state — rotates parent version. */
+export class InternshipWithdrawn implements DomainEvent {
+  readonly kind = 'internship_withdrawn' as const
+  readonly occurredAt: Date
+  readonly activity: InternshipActivity
+
+  constructor(activity: InternshipActivity) {
+    this.activity = activity
+    this.occurredAt = activity.createdAt
+  }
+}
+
 export type InternshipDomainEvent =
   | InternshipApplied
   | InternshipOfferEdited
@@ -106,4 +136,6 @@ export type InternshipDomainEvent =
   | InternshipDecided
   | InternshipCommented
   | InternshipAttachmentAdded
+  | InternshipAttachmentFinalized
   | InternshipAttachmentRemoved
+  | InternshipWithdrawn
