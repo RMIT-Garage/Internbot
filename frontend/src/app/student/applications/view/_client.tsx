@@ -4,8 +4,17 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { AlertTriangle, FileText, Paperclip, UploadCloud, X } from 'lucide-react'
-import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/student/Premium'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Clock,
+  FileText,
+  Paperclip,
+  UploadCloud,
+  X,
+} from 'lucide-react'
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { InternshipsService } from '@/lib/api/openapi-client'
@@ -14,8 +23,7 @@ import type {
   CreateInternshipAttachmentUploadIntentRequest,
 } from '@/lib/api/openapi-client'
 import { apiFetch } from '@/lib/api/client'
-import type { InternshipActivityResponse } from '@/api/models/InternshipActivityResponse'
-import { formatDate, formatDatetime } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 const ACCEPTED_TYPES: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -26,138 +34,180 @@ const ACCEPTED_TYPES: Record<string, string> = {
 }
 const MAX_BYTES = 25 * 1024 * 1024
 
-type StepStatus = 'completed' | 'in_progress' | 'pending' | 'changes_requested'
+type StageStatus = 'completed' | 'active' | 'pending' | 'changes_requested' | 'rejected'
 
-interface WorkflowStep {
-  title: string
-  description: string
-  status: StepStatus
+interface Stage {
+  label: string
+  status: StageStatus
 }
 
-function getWorkflowSteps(
-  status: InternshipResponse['status'],
-  hasFinalized: boolean
-): WorkflowStep[] {
+function getStages(status: InternshipResponse['status']): Stage[] {
+  const isRejected = status === 'rejected'
+  const pastApplied = status !== 'applied'
+  const pastSubmit = status === 'offer_pending_review' || status === 'offer_approved' || isRejected
+  const isReviewing = status === 'offer_pending_review'
+  const isApproved = status === 'offer_approved'
+  const isChanges = status === 'offer_changes_requested'
+
   return [
+    { label: 'Applied', status: 'completed' },
     {
-      title: 'Application Submitted',
-      description: 'You have successfully applied to this opportunity.',
-      status: 'completed',
-    },
-    {
-      title: 'Submit Offer Documents',
-      description:
-        status === 'offer_changes_requested'
-          ? 'Your coordinator has requested changes. Update your documents and resubmit.'
-          : 'Upload your offer letter and submit to your coordinator for review.',
-      status:
-        status === 'offer_changes_requested'
-          ? 'changes_requested'
-          : status === 'applied'
-            ? hasFinalized
-              ? 'in_progress'
-              : 'pending'
-            : 'completed',
-    },
-    {
-      title: 'Coordinator Review',
-      description: 'Your coordinator will review your submitted offer documents.',
-      status:
-        status === 'offer_pending_review'
-          ? 'in_progress'
-          : status === 'offer_approved' || status === 'rejected'
+      label: 'Offer Submitted',
+      status: isChanges
+        ? 'changes_requested'
+        : isRejected
+          ? 'rejected'
+          : pastSubmit
             ? 'completed'
+            : pastApplied
+              ? 'active'
+              : 'pending',
+    },
+    {
+      label: 'Under Review',
+      status: isRejected
+        ? 'rejected'
+        : isApproved
+          ? 'completed'
+          : isReviewing
+            ? 'active'
             : 'pending',
     },
     {
-      title: 'Placement Confirmed',
-      description: 'Your internship placement has been approved and confirmed.',
-      status: status === 'offer_approved' ? 'completed' : 'pending',
+      label: 'Confirmed',
+      status: isApproved ? 'completed' : isRejected ? 'rejected' : 'pending',
     },
   ]
 }
 
-const stepCircleClass: Record<StepStatus, string> = {
-  completed: 'bg-red-600 text-white border-red-600',
-  in_progress: 'border border-red-300 bg-red-50 text-red-600',
-  changes_requested: 'border border-amber-400 bg-amber-50 text-amber-600',
-  pending: 'border border-gray-200 bg-white text-gray-400',
-}
-
-function WorkflowTracker({
-  status,
-  hasFinalized,
-}: {
-  status: InternshipResponse['status']
-  hasFinalized: boolean
-}) {
-  const steps = getWorkflowSteps(status, hasFinalized)
+function StageBar({ status }: { status: InternshipResponse['status'] }) {
+  const stages = getStages(status)
   return (
-    <SurfaceCard className="p-5">
-      <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
-        Review Process
-      </p>
-      <h2 className="mb-5 text-base font-bold text-black">What happens next?</h2>
+    <SurfaceCard className="px-6 py-4">
+      <div className="flex items-center gap-0">
+        {stages.map((stage, i) => {
+          const isLast = i === stages.length - 1
+          const dotClass =
+            stage.status === 'completed'
+              ? 'bg-red-600 text-white'
+              : stage.status === 'active'
+                ? 'bg-red-50 text-red-600 ring-2 ring-red-400'
+                : stage.status === 'changes_requested'
+                  ? 'bg-amber-50 text-amber-600 ring-2 ring-amber-400'
+                  : stage.status === 'rejected'
+                    ? 'bg-red-900 text-white'
+                    : 'bg-white text-gray-300 ring-1 ring-gray-200'
+          const labelClass =
+            stage.status === 'completed' || stage.status === 'active'
+              ? 'text-black font-semibold'
+              : stage.status === 'changes_requested'
+                ? 'text-amber-700 font-semibold'
+                : stage.status === 'rejected'
+                  ? 'text-red-900 font-semibold'
+                  : 'text-gray-400'
+          const lineClass = stage.status === 'completed' ? 'bg-red-600' : 'bg-gray-200'
 
-      <div className="border-t border-gray-100 pt-5">
-        {steps.map((step, i) => (
-          <div key={step.title} className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${stepCircleClass[step.status]}`}
-              >
-                {i + 1}
+          return (
+            <div key={stage.label} className="flex min-w-0 flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                {i > 0 && (
+                  <div
+                    className={`h-0.5 flex-1 ${stages[i - 1]!.status === 'completed' ? 'bg-red-600' : 'bg-gray-200'}`}
+                  />
+                )}
+                <div
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${dotClass}`}
+                >
+                  {stage.status === 'completed' ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : stage.status === 'active' ? (
+                    <Clock className="h-3.5 w-3.5" />
+                  ) : stage.status === 'changes_requested' ? (
+                    <span>!</span>
+                  ) : stage.status === 'rejected' ? (
+                    <X className="h-3.5 w-3.5" />
+                  ) : (
+                    <Circle className="h-3 w-3" />
+                  )}
+                </div>
+                {!isLast && <div className={`h-0.5 flex-1 ${lineClass}`} />}
               </div>
-              {i < steps.length - 1 && <div className="mt-1 h-8 w-px bg-gray-200" />}
+              <p className={`mt-2 text-center text-xs ${labelClass}`}>{stage.label}</p>
             </div>
-            <div className="pt-0.5 pb-5">
-              <p
-                className={`text-sm leading-none font-semibold ${
-                  step.status === 'pending' ? 'text-gray-400' : 'text-black'
-                }`}
-              >
-                {step.title}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-gray-500">{step.description}</p>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </SurfaceCard>
   )
 }
 
-function toTimelineItem(a: InternshipActivityResponse): {
-  title: string
-  description?: string
-  time: string
-  tone: 'red' | 'charcoal' | 'neutral'
-} {
-  const isCoord = a.authorRole === 'coordinator'
-  const labels: Record<string, string> = {
-    apply: 'Applied to opportunity',
-    submit_offer: 'Offer submitted for review',
-    comment: isCoord ? 'Coordinator commented' : 'You commented',
-    approve_offer: 'Offer approved by coordinator',
-    request_changes: 'Changes requested by coordinator',
-    reject: 'Offer rejected by coordinator',
-    edit: 'Offer details updated',
+function ReviewerPanel({ internship }: { internship: InternshipResponse }) {
+  const { coordinatorDecision, coordinatorComment, reviewedAt } = internship
+
+  const decisionConfig: Record<
+    NonNullable<InternshipResponse['coordinatorDecision']>,
+    { label: string; bg: string; text: string; border: string }
+  > = {
+    approved: {
+      label: 'Approved',
+      bg: 'bg-green-50',
+      text: 'text-green-800',
+      border: 'border-green-200',
+    },
+    rejected: {
+      label: 'Rejected',
+      bg: 'bg-red-50',
+      text: 'text-red-800',
+      border: 'border-red-200',
+    },
+    changes_requested: {
+      label: 'Changes Requested',
+      bg: 'bg-amber-50',
+      text: 'text-amber-800',
+      border: 'border-amber-200',
+    },
   }
-  const tones: Record<string, 'red' | 'charcoal' | 'neutral'> = {
-    apply: 'neutral',
-    submit_offer: 'charcoal',
-    comment: 'neutral',
-    approve_offer: 'charcoal',
-    request_changes: 'red',
-    reject: 'red',
-    edit: 'neutral',
-  }
-  return {
-    title: labels[a.type] ?? a.type,
-    description: a.text ?? undefined,
-    time: formatDatetime(a.createdAt),
-    tone: tones[a.type] ?? 'neutral',
-  }
+
+  const cfg = coordinatorDecision ? decisionConfig[coordinatorDecision] : null
+
+  return (
+    <SurfaceCard className="p-5">
+      <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
+        Coordinator Review
+      </p>
+      <h2 className="mb-4 text-base font-bold text-black">Reviewer Notes & Decision</h2>
+
+      {!coordinatorDecision ? (
+        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-5 text-center">
+          <Clock className="mx-auto h-8 w-8 text-gray-300" />
+          <p className="mt-2 text-sm font-medium text-gray-500">Awaiting coordinator review</p>
+          <p className="mt-1 text-xs text-gray-400">
+            Your coordinator will review your submitted offer documents.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className={`rounded-xl border px-4 py-3 ${cfg!.bg} ${cfg!.border}`}>
+            <p className="text-xs font-bold tracking-wide text-gray-500 uppercase">Decision</p>
+            <p className={`mt-1 text-sm font-bold ${cfg!.text}`}>{cfg!.label}</p>
+            {reviewedAt && <p className="mt-1 text-xs text-gray-400">{formatDate(reviewedAt)}</p>}
+          </div>
+          {coordinatorComment ? (
+            <div>
+              <p className="mb-1.5 text-xs font-bold tracking-wide text-gray-500 uppercase">
+                Reviewer Notes
+              </p>
+              <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700">
+                {coordinatorComment}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">No additional notes from the reviewer.</p>
+          )}
+        </div>
+      )}
+    </SurfaceCard>
+  )
 }
 
 export default function ApplicationDetailClient() {
@@ -176,10 +226,8 @@ export default function ApplicationDetailClient() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Activity timeline state
-  const [activity, setActivity] = useState<InternshipActivityResponse[]>([])
-  const [activityLoading, setActivityLoading] = useState(false)
+  // Guards background polls so they don't set state after unmount.
+  const mountedRef = useRef(true)
 
   // Offer submission state
   const [offerDate, setOfferDate] = useState('')
@@ -241,26 +289,11 @@ export default function ApplicationDetailClient() {
   }, [user, id, internship, uploading])
 
   useEffect(() => {
-    if (authLoading || !user || !id) return
-    let active = true
-    const run = async () => {
-      try {
-        setActivityLoading(true)
-        const data = await apiFetch<{ items: InternshipActivityResponse[] }>(
-          `/api/v1/internships/${id}/activity`
-        )
-        if (active) setActivity(data.items)
-      } catch {
-        // activity is supplementary — fail silently
-      } finally {
-        if (active) setActivityLoading(false)
-      }
-    }
-    run()
+    mountedRef.current = true
     return () => {
-      active = false
+      mountedRef.current = false
     }
-  }, [authLoading, user, id])
+  }, [])
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!id) return
@@ -294,6 +327,44 @@ export default function ApplicationDetailClient() {
     setSelectedFile(file)
   }
 
+  // Polls in the background until OBJECT_FINALIZE flips the attachment to
+  // finalized. Uses a 120s window because Eventarc cold-starts on dev can
+  // take well beyond 30s. If it times out, deletes the stuck row so the user
+  // can try again, and surfaces an error. Stops immediately on unmount.
+  const pollAttachmentFinalized = async (attachmentId: string) => {
+    const deadline = Date.now() + 120_000
+    while (mountedRef.current && id && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000))
+      if (!mountedRef.current || !id) return
+      let updated: InternshipResponse
+      try {
+        updated = await InternshipsService.getInternship(id)
+      } catch {
+        continue
+      }
+      if (!mountedRef.current) return
+      setInternship(updated)
+      const att = updated.attachments.find((a) => a.id === attachmentId)
+      if (att?.uploadStatus === 'finalized') return
+    }
+    // Timed out — clean up the stuck row so the user isn't permanently blocked.
+    if (!mountedRef.current || !id) return
+    try {
+      await InternshipsService.deleteInternshipAttachment(id, attachmentId)
+      if (!mountedRef.current) return
+      setInternship((prev) =>
+        prev
+          ? { ...prev, attachments: prev.attachments.filter((a) => a.id !== attachmentId) }
+          : prev
+      )
+    } catch {
+      // ignore — worst case the stuck row remains until next page load (which auto-cleans it)
+    }
+    setUploadError(
+      'Upload confirmation is taking too long. The file was received but could not be confirmed — please try uploading again.'
+    )
+  }
+
   const handleUpload = async () => {
     if (!selectedFile || !id) return
     setUploadError(null)
@@ -305,8 +376,6 @@ export default function ApplicationDetailClient() {
         fileName: file.name,
         contentType: file.type as CreateInternshipAttachmentUploadIntentRequest.contentType,
       })
-      // Intent created — DB row now owns the display; drop the preview immediately.
-      setSelectedFile(null)
 
       // Real GCS V4 signed URLs use PUT; the local Storage emulator returns a
       // multipart POST URL instead (it doesn't support signed-URL PUT).
@@ -318,15 +387,26 @@ export default function ApplicationDetailClient() {
       })
       if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
 
-      // Poll until the OBJECT_FINALIZE event flips the attachment to finalized (max 30s)
-      const deadline = Date.now() + 30_000
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 1500))
-        const updated = await InternshipsService.getInternship(id)
-        setInternship(updated)
-        const att = updated.attachments.find((a) => a.id === intent.attachmentId)
-        if (att?.uploadStatus === 'finalized') break
+      // Directly finalize via API — no need to wait for the Eventarc
+      // OBJECT_FINALIZE cold start (can be minutes on dev). The trigger
+      // still fires later and is a no-op on an already-finalized attachment.
+      try {
+        const confirmed = await apiFetch<InternshipResponse>(
+          `/api/v1/internships/${id}/attachments/${intent.attachmentId}/confirm`,
+          { method: 'POST' }
+        )
+        setInternship(confirmed)
+      } catch {
+        // Confirm endpoint unavailable (e.g. older backend) — fall back to
+        // a one-time refresh so the "uploading" row appears and let the
+        // background poll flip it to "finalized" when Eventarc delivers.
+        const refreshed = await InternshipsService.getInternship(id)
+        setInternship(refreshed)
+        void pollAttachmentFinalized(intent.attachmentId)
       }
+
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : ''
       setUploadError(
@@ -334,9 +414,9 @@ export default function ApplicationDetailClient() {
           ? 'Could not reach the server. Check your connection and try again.'
           : msg || 'Upload failed. Please try again.'
       )
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } finally {
       setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -442,6 +522,8 @@ export default function ApplicationDetailClient() {
           </SurfaceCard>
         </div>
       )}
+
+      {!loading && internship && <StageBar status={internship.status} />}
 
       {!loading && internship && (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -643,36 +725,11 @@ export default function ApplicationDetailClient() {
                 </p>
               </SurfaceCard>
             )}
-
-            {/* Activity Timeline */}
-            <SurfaceCard className="p-6">
-              <p className="mb-1 text-[10px] font-bold tracking-[0.2em] text-red-600 uppercase">
-                Timeline
-              </p>
-              <h2 className="mb-5 text-xl font-bold text-black">Activity</h2>
-              {activityLoading ? (
-                <div className="space-y-4">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex gap-3">
-                      <Skeleton className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
-                      <div className="flex-1 space-y-1">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : activity.length === 0 ? (
-                <p className="text-sm text-black/40">No activity recorded yet.</p>
-              ) : (
-                <TimelineFeed items={activity.map(toTimelineItem)} />
-              )}
-            </SurfaceCard>
           </div>
 
-          {/* Right column — workflow tracker */}
+          {/* Right column — reviewer notes & decision */}
           <aside className="xl:sticky xl:top-6 xl:self-start">
-            <WorkflowTracker status={internship.status} hasFinalized={hasFinalized} />
+            <ReviewerPanel internship={internship} />
           </aside>
         </div>
       )}
