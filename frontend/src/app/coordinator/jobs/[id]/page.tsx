@@ -9,12 +9,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  SurfaceCard,
-  TimelineFeed,
-} from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/coordinator/Premium'
 import { ReviewDecisionPanel } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { getSelfSourcedJob, recentActivity, selfSourcedJobs } from '@/lib/coordinator/mockData'
@@ -37,9 +32,9 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Placement Review"
+        eyebrow="Placement Verification"
         title={job.jobTitle}
-        description={`${job.studentName} submitted ${job.company} for institutional approval.`}
+        description={`${job.studentName} confirmed ${job.company} for institutional verification and approval.`}
         actions={
           <Link
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
@@ -55,9 +50,9 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           <SurfaceCard className="p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-slate-950">Internship Information</h2>
+                <h2 className="text-xl font-bold text-slate-950">Placement Information</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Submitted {formatDate(job.submissionDate)}
+                  Placement confirmed {formatDate(job.submissionDate)}
                 </p>
               </div>
               <StatusBadge status={job.status} />
@@ -86,14 +81,14 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           </SurfaceCard>
 
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Submitted Role Description</h2>
+            <h2 className="text-lg font-bold text-slate-950">Submitted Placement Details</h2>
             <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
               {job.description}
             </p>
           </SurfaceCard>
 
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Review Timeline</h2>
+            <h2 className="text-lg font-bold text-slate-950">Verification Timeline</h2>
             <div className="mt-4">
               <TimelineFeed items={recentActivity.slice(0, 3)} />
             </div>
@@ -101,14 +96,13 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <AIInsightCard
-            title="AI Insights"
-            confidence={job.aiConfidence ?? 88}
-            insight={job.aiAdvisory}
-          />
+          <SurfaceCard className="p-6">
+            <h2 className="text-lg font-bold text-slate-950">Verification Checklist</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{job.aiAdvisory}</p>
+          </SurfaceCard>
 
           <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Risk Analysis</h2>
+            <h2 className="text-lg font-bold text-slate-950">Compliance Review</h2>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
               <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Risk level</p>
               <p className="mt-1 text-2xl font-bold text-slate-950">{job.riskLevel ?? 'Low'}</p>
@@ -129,7 +123,7 @@ export default async function CoordinatorJobReviewPage({ params }: JobReviewPage
           <SurfaceCard className="p-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
               <MessageSquareText className="h-5 w-5 text-red-700" />
-              Reviewer Notes
+              Review Decision
             </h2>
             <ReviewDecisionPanel
               id={job.id}

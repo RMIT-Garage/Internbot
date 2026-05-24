@@ -1,12 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, FileText, History, MessageSquareText, ShieldCheck } from 'lucide-react'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  SurfaceCard,
-  TimelineFeed,
-} from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, SurfaceCard, TimelineFeed } from '@/components/coordinator/Premium'
 import { ReviewDecisionPanel } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { contractApprovals, getContractApproval, recentActivity } from '@/lib/coordinator/mockData'
@@ -95,11 +90,14 @@ export default async function CoordinatorContractReviewPage({ params }: Contract
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <AIInsightCard
-            title="AI Insights"
-            confidence={contract.aiConfidence ?? 86}
-            insight={`Institutional checks found ${contract.aiIssues.length} review signals. Risk level is ${contract.riskLevel ?? 'Low'} based on clause coverage, signatures, and date alignment.`}
-          />
+          <SurfaceCard className="p-6">
+            <h2 className="text-lg font-bold text-slate-950">Review Checklist</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Institutional checks found {contract.aiIssues.length} review signals. Risk level is{' '}
+              {contract.riskLevel ?? 'Low'} based on clause coverage, signatures, and date
+              alignment.
+            </p>
+          </SurfaceCard>
 
           <SurfaceCard className="p-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">

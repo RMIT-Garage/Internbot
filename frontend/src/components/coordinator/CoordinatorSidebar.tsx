@@ -5,10 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   Bell,
   BriefcaseBusiness,
-  BrainCircuit,
-  ClipboardList,
   CalendarDays,
-  FileCheck2,
   GraduationCap,
   LayoutDashboard,
   ScrollText,
@@ -18,13 +15,20 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/coordinator/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/coordinator/jobs', label: 'Placement Reviews', icon: BriefcaseBusiness },
-  { href: '/coordinator/opportunities', label: 'Opportunities', icon: GraduationCap },
-  { href: '/coordinator/contracts', label: 'Contracts', icon: FileCheck2 },
+  {
+    href: '/coordinator/opportunities',
+    label: 'Internship Opportunities',
+    icon: GraduationCap,
+    sections: ['Published Opportunities', 'Self-Sourced Reviews'],
+  },
+  {
+    href: '/coordinator/jobs',
+    label: 'Placement Processing',
+    icon: BriefcaseBusiness,
+    sections: ['Active Placements', 'Contract Review', 'Final Approval'],
+  },
   { href: '/coordinator/students', label: 'Students', icon: Users },
   { href: '/coordinator/semesters', label: 'Semesters', icon: CalendarDays },
-  { href: '/coordinator/ai-advisor', label: 'AI Insights', icon: BrainCircuit },
-  { href: '/coordinator/audits', label: 'Activity Logs', icon: ClipboardList },
   { href: '/coordinator/notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -41,11 +45,11 @@ export function CoordinatorSidebar() {
           <span className="block text-sm font-bold text-slate-950">
             {process.env.NEXT_PUBLIC_APP_NAME ?? 'Internbot'}
           </span>
-          <span className="block text-xs text-slate-500">Coordinator Hub</span>
+          <span className="block text-xs text-slate-500">Placement Operations</span>
         </div>
       </div>
       <nav className="flex-1 space-y-1.5 p-4">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, sections }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`)
 
           return (
@@ -60,25 +64,18 @@ export function CoordinatorSidebar() {
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              <span className="min-w-0">
+                <span className="block truncate">{label}</span>
+                {sections && active && (
+                  <span className="mt-1 block text-[11px] leading-4 font-semibold text-slate-500">
+                    {sections.join(' / ')}
+                  </span>
+                )}
+              </span>
             </Link>
           )
         })}
       </nav>
-      <div className="border-t border-slate-200 p-4">
-        <div className="rounded-2xl bg-slate-950 p-4 text-white">
-          <p className="text-xs font-bold tracking-[0.18em] text-red-200 uppercase">
-            AI Governance
-          </p>
-          <p className="mt-2 text-sm font-semibold">7 workflow recommendations ready.</p>
-          <Link
-            href="/coordinator/ai-advisor"
-            className="mt-3 inline-flex text-xs font-bold text-red-200 hover:text-white"
-          >
-            Open insights
-          </Link>
-        </div>
-      </div>
     </aside>
   )
 }

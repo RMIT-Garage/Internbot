@@ -6,11 +6,13 @@ export default function CoordinatorJobsPage() {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Approval Queue"
-        title="Placement Reviews"
-        description="Triage student-submitted placements with AI insights, workplace risk signals, and review actions."
+        eyebrow="Phase 2: Post-Offer Administration"
+        title="Placement Processing"
+        description="Formal university processing for confirmed placements with submitted contracts and placement documents."
       />
-      <Suspense fallback={<div className="text-sm text-zinc-500">Loading jobs...</div>}>
+      <Suspense
+        fallback={<div className="text-sm text-zinc-500">Loading placement processing...</div>}
+      >
         <JobsList />
       </Suspense>
     </div>

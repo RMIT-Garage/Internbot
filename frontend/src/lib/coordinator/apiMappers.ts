@@ -50,7 +50,7 @@ export function mapOpportunityToSelfSourcedJob(opportunity: OpportunityResponse)
       'AI advisory is not yet backed by the API. Coordinator should assess learning alignment, supervision, and work mode.',
     concerns:
       opportunity.status === 'pending_verification' ? ['Awaiting coordinator verification'] : [],
-    notes: [`API-backed opportunity ${opportunity.id}`],
+    notes: [],
     aiConfidence: 84,
     riskLevel: opportunity.workMode === 'remote' ? 'Medium' : 'Low',
   }
@@ -72,8 +72,8 @@ export function mapInternshipToContractApproval(
     aiIssues:
       internship.status === 'offer_pending_review'
         ? ['Offer is awaiting coordinator review', 'Attachment and date checks require review']
-        : ['No blocking API-backed issues recorded'],
-    notes: [`API-backed internship ${internship.id}`],
+        : [],
+    notes: [],
     aiConfidence: 86,
     riskLevel: internship.status === 'rejected' ? 'High' : 'Medium',
   }
@@ -96,20 +96,104 @@ export function mapSemesterToInventory(semester: SemesterResponse) {
   }
 }
 
-export function mapNotification(notification: NotificationResponse) {
+export function mapNotification(
+  notification: NotificationResponse,
+  context: {
+    internships?: Map<string, InternshipListItemResponse | InternshipResponse>
+    opportunities?: Map<string, OpportunityResponse>
+  } = {}
+) {
   const href = notification.relatedInternshipId
     ? `/coordinator/contracts/review?id=${encodeURIComponent(notification.relatedInternshipId)}`
     : notification.relatedOpportunityId
       ? `/coordinator/jobs/review?id=${encodeURIComponent(notification.relatedOpportunityId)}`
       : '/coordinator/notifications'
+  const internship = notification.relatedInternshipId
+    ? context.internships?.get(notification.relatedInternshipId)
+    : undefined
+  const opportunity = notification.relatedOpportunityId
+    ? context.opportunities?.get(notification.relatedOpportunityId)
+    : undefined
+  const workflow = buildNotificationWorkflow(notification, internship, opportunity)
 
   return {
     id: notification.id,
-    title: notification.title,
-    body: notification.body,
-    urgency: notification.type.includes('decision') ? 'High' : 'Medium',
+    title: workflow.primary,
+    body: workflow.secondary,
+    workflowStage: workflow.stage,
+    placementType: workflow.placementType,
+    updatedAt: shortDate(notification.createdAt),
     unread: !notification.readAt,
     href,
+  }
+}
+
+function buildNotificationWorkflow(
+  notification: NotificationResponse,
+  internship?: InternshipListItemResponse | InternshipResponse,
+  opportunity?: OpportunityResponse
+) {
+  if (internship) {
+    const student = internship.userId || 'Student'
+    const event =
+      internship.status === 'offer_approved'
+        ? 'placement approved'
+        : internship.status === 'rejected'
+          ? 'placement rejected'
+          : internship.status === 'offer_changes_requested'
+            ? 'responded to requested placement changes'
+            : 'uploaded signed contract'
+    const stage =
+      internship.status === 'offer_pending_review'
+        ? 'Contract verification stage'
+        : internship.status === 'offer_approved'
+          ? 'Review completed'
+          : internship.status === 'offer_changes_requested'
+            ? 'Changes requested'
+            : internship.status.replace(/_/g, ' ')
+
+    return {
+      primary: `${student} ${event}`,
+      secondary: `${internship.opportunityJobTitle} • ${internship.opportunityEmployerName} • ${stage}`,
+      stage,
+      placementType:
+        internship.opportunityType === 'custom' ? 'Self-sourced placement' : 'Partner opportunity',
+    }
+  }
+
+  if (opportunity) {
+    const student = opportunity.submittedByUserId ?? opportunity.createdByUserId ?? 'Student'
+    const event =
+      opportunity.status === 'pending_verification'
+        ? 'submitted placement verification'
+        : opportunity.status === 'published'
+          ? 'placement approved'
+          : opportunity.status === 'rejected'
+            ? 'placement rejected'
+            : 'placement record updated'
+    const stage =
+      opportunity.status === 'pending_verification'
+        ? 'Awaiting coordinator review'
+        : opportunity.status === 'published'
+          ? 'Review completed'
+          : opportunity.status === 'rejected'
+            ? 'Review closed'
+            : opportunity.status.replace(/_/g, ' ')
+
+    return {
+      primary: `${student} ${event}`,
+      secondary: `${opportunity.jobTitle} • ${opportunity.employerName} • ${stage}`,
+      stage,
+      placementType:
+        opportunity.type === 'custom' ? 'Self-sourced placement' : 'Partner opportunity',
+    }
+  }
+
+  return {
+    primary: notification.title,
+    secondary: notification.body,
+    stage: notification.type.replace(/_/g, ' '),
+    placementType: 'Workflow alert',
   }
 }
 

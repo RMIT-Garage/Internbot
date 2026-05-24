@@ -145,19 +145,25 @@ export function StudentsList() {
               <thead className="sticky top-0 bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
                 <tr>
                   <th scope="col" className="px-4 py-3">
-                    Name
+                    Student
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Student ID
+                    Internship
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Course
+                    Source
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Current Stage
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Risk
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Semester
                   </th>
                   <th scope="col" className="px-4 py-3">
-                    Overall Status
+                    Status
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Action
@@ -186,18 +192,27 @@ export function StudentsList() {
                         <div>
                           <p className="font-bold text-slate-950">{student.name}</p>
                           <p className="mt-1 text-xs text-slate-500">{student.email}</p>
-                          {student.recordId && (
-                            <p className="mt-1 text-xs font-semibold text-slate-700">
-                              Record {student.recordId}
-                            </p>
-                          )}
+                          <p className="mt-1 text-xs font-semibold text-slate-700">
+                            {student.studentId}
+                          </p>
                         </div>
                       </td>
-                      <td className="px-4 py-4 font-medium whitespace-nowrap text-slate-700">
-                        {student.studentId}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div>
+                          <p className="font-semibold text-slate-800">
+                            {student.placementStatus || 'No placement yet'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">{student.course}</p>
+                        </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-slate-600">
-                        {student.course}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <StudentMetaBadge label={studentSource(student)} />
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-700">
+                        {studentStage(student)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <StudentRiskBadge label={studentRisk(student)} />
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-slate-600">
                         {student.semester}
@@ -213,7 +228,7 @@ export function StudentsList() {
                 })}
                 {paged.rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-zinc-500">
+                    <td colSpan={8} className="px-4 py-10 text-center text-zinc-500">
                       No students match these filters.
                     </td>
                   </tr>
@@ -232,7 +247,7 @@ export function StudentsList() {
 
       <aside className="space-y-4">
         <SurfaceCard className="p-5">
-          <h2 className="font-bold text-slate-950">Cohort Analytics</h2>
+          <h2 className="font-bold text-slate-950">WIL Monitoring</h2>
           <div className="mt-4 space-y-4">
             {[
               [
@@ -260,10 +275,10 @@ export function StudentsList() {
           </div>
         </SurfaceCard>
         <SurfaceCard className="p-5">
-          <h2 className="font-bold text-slate-950">Audit Freshness</h2>
+          <h2 className="font-bold text-slate-950">Operational Focus</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            84% of active students have a coordinator or system audit entry within the last seven
-            days.
+            Student records show whether the student is still seeking an internship or has moved
+            into post-offer placement processing.
           </p>
         </SurfaceCard>
       </aside>
@@ -289,4 +304,62 @@ function ensureUniqueStudentRows(students: CoordinatorStudent[]): CoordinatorStu
       rowId: `${baseRowId}-fallback-${index}`,
     }
   })
+}
+
+function StudentMetaBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+      {label}
+    </span>
+  )
+}
+
+function StudentRiskBadge({ label }: { label: string }) {
+  const elevated = label !== 'No placement yet' && label !== 'On track'
+  return (
+    <span
+      className={[
+        'inline-flex rounded-full px-2.5 py-1 text-xs font-bold',
+        elevated ? 'bg-red-50 text-red-800' : 'bg-slate-100 text-slate-700',
+      ].join(' ')}
+    >
+      {label}
+    </span>
+  )
+}
+
+function studentSource(student: CoordinatorStudent) {
+  const status = (student.placementStatus ?? '').toLowerCase()
+  if (status.includes('self') || status.includes('review')) return 'Self-Sourced'
+  if (status.includes('contract') || status.includes('accepted') || status.includes('approved')) {
+    return 'Coordinator Opportunity'
+  }
+  return 'CareerHub'
+}
+
+function studentStage(student: CoordinatorStudent) {
+  const status = (student.placementStatus ?? '').toLowerCase()
+  if (!student.placementStatus) return 'Seeking Internship'
+  if (status.includes('change')) return 'Documents Requested'
+  if (status.includes('review')) return 'PD Review'
+  if (status.includes('contract')) return 'Contract Review'
+  if (status.includes('accepted') || status.includes('approved')) return 'Approved'
+  if (status.includes('flag')) return 'Needs Follow-Up'
+  return 'Seeking Internship'
+}
+
+function studentRisk(student: CoordinatorStudent) {
+  const status = (student.placementStatus ?? '').toLowerCase()
+  if (student.overallStatus === 'inactive') return 'No Placement Yet'
+  if (status.includes('change')) return 'Missing Documents'
+  if (status.includes('flag') || student.overallStatus === 'needs_attention')
+    return 'Needs Follow-Up'
+  if (student.lastAudit && getDaysSince(student.lastAudit) > 14) return 'Waiting >14 Days'
+  return student.overallStatus === 'approved' ? 'On track' : 'No placement yet'
+}
+
+function getDaysSince(value: string) {
+  const diff = Date.now() - Date.parse(value)
+  if (!Number.isFinite(diff) || diff < 0) return 0
+  return Math.floor(diff / 86_400_000)
 }

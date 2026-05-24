@@ -4,6 +4,7 @@ import type {
   InternshipResponse,
   NotificationListResponse,
   NotificationResponse,
+  OpportunityAttachmentResponse,
   OpportunityListResponse,
   OpportunityResponse,
   SemesterListResponse,
@@ -87,6 +88,15 @@ export function getInternship(id: string) {
   return apiFetch<InternshipResponse>(`/api/v1/internships/${id}`)
 }
 
+export function getInternshipAttachment(id: string, attachmentId: string) {
+  return apiFetch<
+    {
+      downloadUrl: string
+      downloadUrlExpiresAt: string
+    } & InternshipResponse['attachments'][number]
+  >(`/api/v1/internships/${id}/attachments/${attachmentId}`)
+}
+
 export function decideInternship(
   internship: Pick<InternshipResponse, 'id' | 'version'>,
   decision: 'approved' | 'rejected' | 'changes_requested',
@@ -108,6 +118,15 @@ export function listOpportunities(query: Query = {}) {
 
 export function getOpportunity(id: string) {
   return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${id}`)
+}
+
+export function getOpportunityAttachment(id: string, attachmentId: string) {
+  return apiFetch<
+    {
+      downloadUrl: string
+      downloadUrlExpiresAt: string
+    } & OpportunityAttachmentResponse
+  >(`/api/v1/opportunities/${id}/attachments/${attachmentId}`)
 }
 
 export function verifyOpportunity(
@@ -148,6 +167,17 @@ export function updateOpportunity(
   return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${opportunity.id}`, {
     method: 'PATCH',
     body,
+  })
+}
+
+export function transitionOpportunity(
+  opportunity: Pick<OpportunityResponse, 'id'>,
+  to: 'published' | 'archived',
+  comment?: string
+) {
+  return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${opportunity.id}/transitions`, {
+    method: 'POST',
+    body: { to, ...(comment ? { comment } : {}) },
   })
 }
 

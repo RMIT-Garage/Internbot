@@ -43,7 +43,7 @@ const coordinatorAuditChecklist = [
   'Semesters: list, create, and display-name update wired to semester endpoints.',
   'Opportunities: list, create, and editable title/employer fields wired to opportunity endpoints.',
   'Notifications: list, mark one read, and mark all read states wired to notification endpoints.',
-  'AI insights: backend integration pending until an AI review endpoint exists.',
+  'Review signals: backend integration pending until an automated review endpoint exists.',
   'Tickets: no coordinator ticket frontend route is present, so ticket APIs are not surfaced.',
 ] as const
 

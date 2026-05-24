@@ -1,14 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, Plus, Sparkles } from 'lucide-react'
+import { CalendarDays, ClipboardCheck, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/coordinator/Premium'
+import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
 import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { semesterInventory } from '@/lib/coordinator/mockData'
@@ -166,19 +161,14 @@ export default function CoordinatorSemestersPage() {
           progress={81}
         />
         <KPIStatCard
-          title="AI recommendations"
+          title="Workload signals"
           value="7"
-          detail="Setup and workload signals"
-          icon={Sparkles}
+          detail="Setup and review indicators"
+          icon={ClipboardCheck}
           tone="red"
           progress={46}
         />
       </div>
-      <AIInsightCard
-        title={`AI Recommendations (${source === 'api' ? 'API-backed semesters' : 'fallback semesters'})`}
-        confidence={87}
-        insight="Semester 2 should open coordinator review capacity one week earlier based on current contract turnaround and projected application volume."
-      />
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
           {`Using isolated fallback data: ${error}`}

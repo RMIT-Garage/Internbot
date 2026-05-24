@@ -229,7 +229,7 @@ export function StudentProfileClient() {
           <SurfaceCard className="p-5">
             <div className="flex items-center gap-3">
               <ShieldAlert className="h-5 w-5 text-red-700" />
-              <h2 className="font-bold text-slate-950">AI and Risk Summary</h2>
+              <h2 className="font-bold text-slate-950">Risk Summary</h2>
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-500">
               Additional student profile data unavailable. Risk indicators are derived from current

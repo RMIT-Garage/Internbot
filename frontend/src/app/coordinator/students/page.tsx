@@ -10,7 +10,7 @@ export default function CoordinatorStudentsPage() {
       <CoordinatorPageHeader
         eyebrow="Student Directory"
         title="Students"
-        description="Search the WIL cohort, monitor placement states, and inspect audit recency across programs."
+        description="Search the WIL cohort, monitor placement states, and inspect student progress across programs."
         actions={
           <>
             <PendingActionButton message="Student export API integration pending.">

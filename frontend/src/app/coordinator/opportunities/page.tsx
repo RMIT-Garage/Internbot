@@ -1,87 +1,170 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { BarChart3, BriefcaseBusiness, Plus, Sparkles } from 'lucide-react'
-import { toast } from 'sonner'
+import type { FormEvent } from 'react'
 import {
-  AIInsightCard,
-  CoordinatorPageHeader,
-  KPIStatCard,
-  SurfaceCard,
-} from '@/components/coordinator/Premium'
+  Archive,
+  BriefcaseBusiness,
+  ClipboardCheck,
+  Eye,
+  FileText,
+  PenLine,
+  Plus,
+  Search,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
 import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
-import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { opportunities } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import {
   createOpportunity,
   listOpportunities,
   listSemesters,
+  transitionOpportunity,
   updateOpportunity,
-  verifyOpportunity,
 } from '@/lib/coordinator/api'
 import { formatDate } from '@/lib/utils'
 import type { OpportunityResponse, OpportunityStatus, SemesterResponse } from '@/types/api'
 
 type WorkMode = 'onsite' | 'hybrid' | 'remote'
 type OpportunityType = 'pre_approved' | 'custom'
+type QuickStatusFilter =
+  | 'all'
+  | 'published'
+  | 'draft'
+  | 'pending_verification'
+  | 'rejected'
+  | 'archived'
+type SortOption =
+  | 'action_required'
+  | 'newest'
+  | 'oldest_waiting'
+  | 'recently_updated'
+  | 'employer'
+  | 'student'
+type PublishingView = 'active' | 'archived' | 'all'
+type OpportunityTab = 'published' | 'self_sourced'
 
 interface OpportunityRow {
   id: string
   title: string
   company: string
   semesterId: string
+  semesterLabel: string
+  courseLabel: string
   type: OpportunityType
   descriptionText: string
   workMode: WorkMode | null
   location: string | null
   sourceUrl: string | null
-  status: 'active' | 'pending' | 'archived'
   statusRaw: OpportunityStatus
   applications: number
-  engagement: string
-  closingDate: string
   createdByUserId: string | null
   submittedByUserId: string | null
   verifiedByUserId: string | null
   verifiedAt: string | null
+  attachmentCount: number
+  createdAt: string
+  updatedAt: string
 }
 
-function mapOpportunityRow(item: OpportunityResponse): OpportunityRow {
+interface OpportunityFilters {
+  search: string
+  quickStatus: QuickStatusFilter
+  semesterId: string
+  course: string
+  employer: string
+  student: string
+  sort: SortOption
+}
+
+type MockOpportunity = (typeof opportunities)[number]
+
+const initialFilters: OpportunityFilters = {
+  search: '',
+  quickStatus: 'all',
+  semesterId: 'all',
+  course: '',
+  employer: '',
+  student: '',
+  sort: 'action_required',
+}
+
+function mapOpportunityRow(
+  item: OpportunityResponse,
+  semesterLabels: Map<string, string>,
+  semesterCourseLabels: Map<string, string>
+): OpportunityRow {
   return {
     id: item.id,
     title: item.jobTitle,
     company: item.employerName,
     semesterId: item.semesterId,
+    semesterLabel: semesterLabels.get(item.semesterId) ?? item.semesterId,
+    courseLabel: semesterCourseLabels.get(item.semesterId) ?? 'Program pending',
     type: item.type,
     descriptionText: item.descriptionText,
     workMode: item.workMode,
     location: item.location,
     sourceUrl: item.sourceUrl,
-    status:
-      item.status === 'published'
-        ? 'active'
-        : item.status === 'pending_verification' || item.status === 'draft'
-          ? 'pending'
-          : 'archived',
     statusRaw: item.status,
     applications: item.applicationCount,
-    engagement: item.applicationCount > 10 ? 'High' : item.applicationCount > 3 ? 'Medium' : 'New',
-    closingDate: item.updatedAt,
     createdByUserId: item.createdByUserId,
     submittedByUserId: item.submittedByUserId,
     verifiedByUserId: item.verifiedByUserId,
     verifiedAt: item.verifiedAt,
+    attachmentCount: item.attachments.length,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }
+}
+
+function mapMockOpportunityRow(
+  item: MockOpportunity,
+  semesterLabels: Map<string, string>,
+  semesterCourseLabels: Map<string, string>
+): OpportunityRow {
+  return {
+    id: item.id,
+    title: item.title,
+    company: item.company,
+    semesterId: item.semesterId,
+    semesterLabel: semesterLabels.get(item.semesterId) ?? item.semesterId,
+    courseLabel: semesterCourseLabels.get(item.semesterId) ?? 'Program pending',
+    type: item.type,
+    descriptionText: item.descriptionText,
+    workMode: item.workMode,
+    location: item.location,
+    sourceUrl: item.sourceUrl,
+    statusRaw: item.statusRaw,
+    applications: item.applications,
+    createdByUserId: item.createdByUserId,
+    submittedByUserId: item.submittedByUserId,
+    verifiedByUserId: item.verifiedByUserId,
+    verifiedAt: item.verifiedAt,
+    attachmentCount: 0,
+    createdAt: item.closingDate,
+    updatedAt: item.closingDate,
   }
 }
 
 export default function CoordinatorOpportunitiesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [verifyingId, setVerifyingId] = useState<string | null>(null)
+  const [transitioningId, setTransitioningId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [comments, setComments] = useState<Record<string, string>>({})
-  const [editForm, setEditForm] = useState({ title: '', company: '', descriptionText: '' })
+  const [publishingView, setPublishingView] = useState<PublishingView>('active')
+  const [activeTab, setActiveTab] = useState<OpportunityTab>('published')
+  const [filters, setFilters] = useState<OpportunityFilters>(initialFilters)
+  const [editForm, setEditForm] = useState({
+    title: '',
+    company: '',
+    descriptionText: '',
+    sourceUrl: '',
+    type: 'pre_approved' as OpportunityType,
+  })
   const [createForm, setCreateForm] = useState({
     semesterId: '',
     type: 'pre_approved' as OpportunityType,
@@ -103,6 +186,14 @@ export default function CoordinatorOpportunitiesPage() {
     { emptyData: [] }
   )
 
+  const semesterLabels = useMemo(() => {
+    return new Map(semestersResource.data.map((semester) => [semester.id, semester.displayName]))
+  }, [semestersResource.data])
+
+  const semesterCourseLabels = useMemo(() => {
+    return new Map(semestersResource.data.map((semester) => [semester.id, semester.courseCode]))
+  }, [semestersResource.data])
+
   const {
     data: opportunityRows,
     loading,
@@ -112,41 +203,47 @@ export default function CoordinatorOpportunitiesPage() {
     reload,
   } = useCoordinatorApiResource(
     async () => {
-      if (process.env.NODE_ENV === 'development') {
-        console.debug(
-          '[coordinator/opportunities] backend filters: limit only; opportunity cards derive display fields client-side'
-        )
-      }
       const response = await listOpportunities({ limit: 100, sort: '-createdAt' })
-      return response.items.map(mapOpportunityRow)
+      return response.items.map((item) =>
+        mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
+      )
     },
-    opportunities,
-    'opportunities',
+    opportunities.map((item) => mapMockOpportunityRow(item, semesterLabels, semesterCourseLabels)),
+    `opportunities-${semestersResource.data.length}`,
     { emptyData: [] }
   )
 
-  const semesterLabels = useMemo(() => {
-    return new Map(semestersResource.data.map((semester) => [semester.id, semester.displayName]))
-  }, [semestersResource.data])
-
-  const pendingVerification = opportunityRows.filter(
-    (opportunity) => opportunity.statusRaw === 'pending_verification'
+  const filteredRows = useMemo(
+    () =>
+      sortRows(
+        opportunityRows.filter((row) => matchesFilters(row, filters)),
+        filters.sort
+      ),
+    [filters, opportunityRows]
   )
-  const publishedOpportunities = opportunityRows.filter(
-    (opportunity) => opportunity.statusRaw === 'published' || opportunity.statusRaw === 'draft'
-  )
-  const archivedOpportunities = opportunityRows.filter(
-    (opportunity) => opportunity.statusRaw === 'archived' || opportunity.statusRaw === 'rejected'
-  )
+  const publishedRows = filteredRows.filter((row) => isPublishedOpportunityRow(row, publishingView))
+  const publishingCounts = {
+    active: opportunityRows.filter((row) => isPublishedOpportunityRow(row, 'active')).length,
+    archived: opportunityRows.filter((row) => isPublishedOpportunityRow(row, 'archived')).length,
+    all: opportunityRows.filter((row) => isPublishedOpportunityRow(row, 'all')).length,
+  }
+  const selfSourcedRows = filteredRows.filter((row) => isSelfSourcedReviewRow(row))
+  const pendingReviewCount = opportunityRows.filter(
+    (row) => row.statusRaw === 'pending_verification'
+  ).length
+  const activePostingCount = opportunityRows.filter((row) =>
+    isPublishedOpportunityRow(row, 'active')
+  ).length
   const canCreate = isCreateFormValid(createForm) && semestersResource.data.length > 0 && !saving
+  const hasFilters = !areFiltersDefault(filters)
 
   if (loading) {
     return (
       <div className="space-y-6">
         <CoordinatorPageHeader
-          eyebrow="Opportunities Management"
-          title="Partner Opportunities"
-          description="Manage employer opportunities, engagement metrics, application volume, and publication state."
+          eyebrow="Phase 1: Internship Search"
+          title="Internship Opportunities"
+          description="Manage internships before a student officially receives an offer."
         />
         <CoordinatorContentSkeleton title="Loading opportunities..." />
       </div>
@@ -156,9 +253,9 @@ export default function CoordinatorOpportunitiesPage() {
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Opportunities Management"
-        title="Partner Opportunities"
-        description="Manage employer opportunities, engagement metrics, application volume, and publication state."
+        eyebrow="Phase 1: Internship Search"
+        title="Internship Opportunities"
+        description="Manage the student-facing opportunity board and review self-sourced position descriptions before placement processing begins."
         actions={
           <button
             type="button"
@@ -172,164 +269,50 @@ export default function CoordinatorOpportunitiesPage() {
       />
 
       {showCreate && (
-        <SurfaceCard className="p-5">
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-slate-950">Create opportunity</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Select a semester and enter the required opportunity details before publishing to the
-              workflow API.
-            </p>
-          </div>
-          {(semestersResource.loading || semestersResource.error) && (
-            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              {semestersResource.loading
-                ? 'Loading semesters...'
-                : `Semester API unavailable: ${semestersResource.error}`}
-            </div>
-          )}
-          {!semestersResource.loading &&
-            !semestersResource.error &&
-            semestersResource.data.length === 0 && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
-                No semesters available. Create/activate a semester before creating opportunities.
-              </div>
-            )}
-          <form className="grid gap-3 md:grid-cols-2" onSubmit={handleCreateOpportunity}>
-            <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
-              Semester
-              <select
-                value={createForm.semesterId}
-                onChange={(event) =>
-                  setCreateForm((current) => ({ ...current, semesterId: event.target.value }))
-                }
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
-              >
-                <option value="">Select semester</option>
-                {semestersResource.data.map((semester) => (
-                  <option key={semester.id} value={semester.id}>
-                    {semester.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
-              Type
-              <select
-                value={createForm.type}
-                onChange={(event) =>
-                  setCreateForm((current) => ({
-                    ...current,
-                    type: event.target.value as OpportunityType,
-                  }))
-                }
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
-              >
-                <option value="pre_approved">Pre-approved</option>
-                <option value="custom">Custom</option>
-              </select>
-            </label>
-            <TextInput
-              label="Employer"
-              value={createForm.employerName}
-              onChange={(value) =>
-                setCreateForm((current) => ({ ...current, employerName: value }))
-              }
-            />
-            <TextInput
-              label="Job title"
-              value={createForm.jobTitle}
-              onChange={(value) => setCreateForm((current) => ({ ...current, jobTitle: value }))}
-            />
-            <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
-              Work mode
-              <select
-                value={createForm.workMode}
-                onChange={(event) =>
-                  setCreateForm((current) => ({
-                    ...current,
-                    workMode: event.target.value as WorkMode,
-                  }))
-                }
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
-              >
-                <option value="onsite">Onsite</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="remote">Remote</option>
-              </select>
-            </label>
-            <TextInput
-              label="Location"
-              value={createForm.location}
-              onChange={(value) => setCreateForm((current) => ({ ...current, location: value }))}
-            />
-            <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase md:col-span-2">
-              Description
-              <textarea
-                value={createForm.descriptionText}
-                onChange={(event) =>
-                  setCreateForm((current) => ({ ...current, descriptionText: event.target.value }))
-                }
-                className="min-h-24 rounded-xl border border-slate-200 p-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
-              />
-            </label>
-            <TextInput
-              label={
-                createForm.type === 'pre_approved'
-                  ? 'Career Hub/source URL'
-                  : 'Source URL (optional)'
-              }
-              value={createForm.sourceUrl}
-              onChange={(value) => setCreateForm((current) => ({ ...current, sourceUrl: value }))}
-            />
-            <div className="flex items-end">
-              <button
-                type="submit"
-                disabled={!canCreate}
-                className="inline-flex h-10 items-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? 'Creating...' : 'Create opportunity'}
-              </button>
-            </div>
-          </form>
-        </SurfaceCard>
+        <CreateOpportunityPanel
+          createForm={createForm}
+          canCreate={canCreate}
+          saving={saving}
+          semesters={semestersResource.data}
+          semesterLoading={semestersResource.loading}
+          semesterError={semestersResource.error}
+          onFormChange={setCreateForm}
+          onSubmit={handleCreateOpportunity}
+        />
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3">
         <KPIStatCard
-          title="Active roles"
-          value={publishedOpportunities.length}
-          detail="Visible or draft opportunities"
+          title="Published listings"
+          value={activePostingCount}
+          detail="Student-facing internships and approved self-sourced roles"
           icon={BriefcaseBusiness}
           tone="charcoal"
-          progress={66}
+          progress={58}
+        />
+        <KPIStatCard
+          title="Awaiting review"
+          value={pendingReviewCount}
+          detail="Self-sourced position descriptions needing suitability review"
+          icon={ClipboardCheck}
+          tone="red"
+          progress={42}
         />
         <KPIStatCard
           title="Applications"
           value={opportunityRows.reduce((sum, opportunity) => sum + opportunity.applications, 0)}
-          detail="Across postings"
-          icon={BarChart3}
+          detail="Across published opportunity records"
+          icon={FileText}
           tone="neutral"
-          progress={58}
-        />
-        <KPIStatCard
-          title="Pending verification"
-          value={pendingVerification.length}
-          detail="Student-submitted custom roles"
-          icon={Sparkles}
-          tone="red"
-          progress={42}
+          progress={50}
         />
       </div>
 
-      <AIInsightCard
-        title={`Opportunity AI Suggestions (${source === 'api' ? 'API-backed' : 'fallback data'})`}
-        confidence={84}
-        insight="Cyber security postings are drawing strong engagement. Consider publishing one additional remote-friendly analytics role for Semester 2 demand."
-      />
-
       {error && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          {`Using isolated fallback data: ${error}`}
+          {source === 'fallback'
+            ? `Using isolated fallback data: ${error}`
+            : `Opportunity API unavailable: ${error}`}
         </div>
       )}
       {!loading && !error && source === 'api' && opportunityRows.length === 0 && (
@@ -338,83 +321,42 @@ export default function CoordinatorOpportunitiesPage() {
         </div>
       )}
 
-      <OpportunitySection
-        title="Pending verification"
-        description="Student-submitted custom opportunities awaiting coordinator approval."
-        emptyMessage="No opportunities are pending verification."
-      >
-        {pendingVerification.map((opportunity) => (
-          <OpportunityCard
-            key={opportunity.id}
-            opportunity={opportunity}
-            semesterLabel={semesterLabels.get(opportunity.semesterId) ?? opportunity.semesterId}
-            editingId={editingId}
-            editForm={editForm}
-            saving={saving}
-            verifyingId={verifyingId}
-            comment={comments[opportunity.id] ?? ''}
-            onCommentChange={(comment) =>
-              setComments((current) => ({ ...current, [opportunity.id]: comment }))
-            }
-            onEditStart={startEdit}
-            onEditChange={setEditForm}
-            onUpdate={handleUpdateOpportunity}
-            onVerify={handleVerifyOpportunity}
-          />
-        ))}
-      </OpportunitySection>
+      <OpportunityFiltersBar
+        filters={filters}
+        semesters={semestersResource.data}
+        totalCount={opportunityRows.length}
+        shownCount={filteredRows.length}
+        hasFilters={hasFilters}
+        onChange={setFilters}
+        onClear={() => setFilters(initialFilters)}
+      />
 
-      <OpportunitySection
-        title="Published opportunities"
-        description="Coordinator-managed opportunities available for student workflows."
-        emptyMessage="No published or draft opportunities yet."
-      >
-        {publishedOpportunities.map((opportunity) => (
-          <OpportunityCard
-            key={opportunity.id}
-            opportunity={opportunity}
-            semesterLabel={semesterLabels.get(opportunity.semesterId) ?? opportunity.semesterId}
-            editingId={editingId}
-            editForm={editForm}
-            saving={saving}
-            verifyingId={verifyingId}
-            comment={comments[opportunity.id] ?? ''}
-            onCommentChange={(comment) =>
-              setComments((current) => ({ ...current, [opportunity.id]: comment }))
-            }
-            onEditStart={startEdit}
-            onEditChange={setEditForm}
-            onUpdate={handleUpdateOpportunity}
-            onVerify={handleVerifyOpportunity}
-          />
-        ))}
-      </OpportunitySection>
+      <OpportunityTabs
+        activeTab={activeTab}
+        publishedCount={publishedRows.length}
+        selfSourcedCount={selfSourcedRows.length}
+        onTabChange={setActiveTab}
+      />
 
-      <OpportunitySection
-        title="Archived/rejected opportunities"
-        description="Closed records retained for review context."
-        emptyMessage="No archived or rejected opportunities."
-      >
-        {archivedOpportunities.map((opportunity) => (
-          <OpportunityCard
-            key={opportunity.id}
-            opportunity={opportunity}
-            semesterLabel={semesterLabels.get(opportunity.semesterId) ?? opportunity.semesterId}
-            editingId={editingId}
-            editForm={editForm}
-            saving={saving}
-            verifyingId={verifyingId}
-            comment={comments[opportunity.id] ?? ''}
-            onCommentChange={(comment) =>
-              setComments((current) => ({ ...current, [opportunity.id]: comment }))
-            }
-            onEditStart={startEdit}
-            onEditChange={setEditForm}
-            onUpdate={handleUpdateOpportunity}
-            onVerify={handleVerifyOpportunity}
-          />
-        ))}
-      </OpportunitySection>
+      {activeTab === 'published' ? (
+        <PublishedOpportunitySection
+          rows={publishedRows}
+          view={publishingView}
+          counts={publishingCounts}
+          editingId={editingId}
+          editForm={editForm}
+          saving={saving}
+          transitioningId={transitioningId}
+          onViewChange={setPublishingView}
+          onEditStart={startEdit}
+          onEditChange={setEditForm}
+          onEditCancel={() => setEditingId(null)}
+          onUpdate={handleUpdateOpportunity}
+          onTransition={handleTransitionOpportunity}
+        />
+      ) : (
+        <SelfSourcedReviewSection rows={selfSourcedRows} />
+      )}
     </div>
   )
 
@@ -424,13 +366,15 @@ export default function CoordinatorOpportunitiesPage() {
       title: opportunity.title,
       company: opportunity.company,
       descriptionText: opportunity.descriptionText,
+      sourceUrl: opportunity.sourceUrl ?? '',
+      type: opportunity.type,
     })
   }
 
-  async function handleCreateOpportunity(event: React.FormEvent<HTMLFormElement>) {
+  async function handleCreateOpportunity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!canCreate) {
-      toast.error('Select a semester and complete all required fields.')
+      toast.error(getCreateOpportunityValidationMessage(createForm))
       return
     }
 
@@ -446,7 +390,10 @@ export default function CoordinatorOpportunitiesPage() {
         location: createForm.location.trim(),
         ...(createForm.sourceUrl.trim() ? { sourceUrl: createForm.sourceUrl.trim() } : {}),
       })
-      setData([mapOpportunityRow(created), ...opportunityRows])
+      setData([
+        mapOpportunityRow(created, semesterLabels, semesterCourseLabels),
+        ...opportunityRows,
+      ])
       setShowCreate(false)
       setCreateForm({
         semesterId: '',
@@ -460,16 +407,21 @@ export default function CoordinatorOpportunitiesPage() {
       })
       toast.success('Opportunity created.')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Opportunity API unavailable.')
+      toast.error(formatOpportunityError(err, createForm.type))
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleUpdateOpportunity(event: React.FormEvent<HTMLFormElement>, id: string) {
+  async function handleUpdateOpportunity(event: FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault()
     if (!editForm.title.trim() || !editForm.company.trim()) {
       toast.error('Job title and employer are required.')
+      return
+    }
+    const sourceUrlError = getSourceUrlError(editForm.type, editForm.sourceUrl)
+    if (sourceUrlError) {
+      toast.error(sourceUrlError)
       return
     }
 
@@ -481,225 +433,914 @@ export default function CoordinatorOpportunitiesPage() {
           jobTitle: editForm.title.trim(),
           employerName: editForm.company.trim(),
           descriptionText: editForm.descriptionText.trim() || undefined,
+          sourceUrl: editForm.sourceUrl.trim() || null,
         }
       )
-      setData(opportunityRows.map((row) => (row.id === id ? mapOpportunityRow(updated) : row)))
+      setData(
+        opportunityRows.map((row) =>
+          row.id === id ? mapOpportunityRow(updated, semesterLabels, semesterCourseLabels) : row
+        )
+      )
       setEditingId(null)
       toast.success('Opportunity updated.')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Opportunity API unavailable.')
+      toast.error(formatOpportunityError(err, editForm.type))
       reload()
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleVerifyOpportunity(
-    opportunity: OpportunityRow,
-    decision: 'approved' | 'rejected'
-  ) {
-    const comment = comments[opportunity.id]?.trim() ?? ''
-    if (decision === 'rejected' && !comment) {
-      toast.error('A rejection comment is required.')
-      return
-    }
-
-    setVerifyingId(opportunity.id)
+  async function handleTransitionOpportunity(opportunity: OpportunityRow, to: 'archived') {
+    setTransitioningId(opportunity.id)
     try {
-      const updated = await verifyOpportunity(
-        { id: opportunity.id },
-        decision,
-        comment || undefined
-      )
+      const updated = await transitionOpportunity({ id: opportunity.id }, to)
       setData(
-        opportunityRows.map((row) => (row.id === opportunity.id ? mapOpportunityRow(updated) : row))
-      )
-      setComments((current) => ({ ...current, [opportunity.id]: '' }))
-      toast.success(decision === 'approved' ? 'Opportunity verified.' : 'Opportunity rejected.')
-    } catch (err) {
-      if (isAlreadyReviewedError(err)) {
-        toast.info('This opportunity has already been reviewed.')
-        setData(
-          opportunityRows.map((row) =>
-            row.id === opportunity.id
-              ? {
-                  ...row,
-                  status: 'archived',
-                  statusRaw: 'rejected',
-                }
-              : row
-          )
+        opportunityRows.map((row) =>
+          row.id === opportunity.id
+            ? mapOpportunityRow(updated, semesterLabels, semesterCourseLabels)
+            : row
         )
-        reload()
-      } else {
-        toast.error(err instanceof Error ? err.message : 'Opportunity verification unavailable.')
-      }
+      )
+      toast.success('Opportunity archived.')
+    } catch (err) {
+      const fallbackMessage = 'Opportunity transition unavailable.'
+      toast.error(err instanceof Error ? `${fallbackMessage} ${err.message}` : fallbackMessage)
+      reload()
     } finally {
-      setVerifyingId(null)
+      setTransitioningId(null)
     }
   }
 }
 
-function OpportunitySection({
-  title,
-  description,
-  emptyMessage,
-  children,
+function CreateOpportunityPanel({
+  createForm,
+  canCreate,
+  saving,
+  semesters,
+  semesterLoading,
+  semesterError,
+  onFormChange,
+  onSubmit,
 }: {
-  title: string
-  description: string
-  emptyMessage: string
-  children: React.ReactNode
+  createForm: {
+    semesterId: string
+    type: OpportunityType
+    employerName: string
+    jobTitle: string
+    descriptionText: string
+    workMode: WorkMode
+    location: string
+    sourceUrl: string
+  }
+  canCreate: boolean
+  saving: boolean
+  semesters: SemesterResponse[]
+  semesterLoading: boolean
+  semesterError: string | null
+  onFormChange: (form: {
+    semesterId: string
+    type: OpportunityType
+    employerName: string
+    jobTitle: string
+    descriptionText: string
+    workMode: WorkMode
+    location: string
+    sourceUrl: string
+  }) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
-  const hasItems = Array.isArray(children) ? children.length > 0 : Boolean(children)
-
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+    <SurfaceCard className="p-5">
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-slate-950">Create opportunity</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Coordinator-created opportunities start in the publishing workflow and can be made visible
+          to students once ready.
+        </p>
       </div>
-      {hasItems ? (
-        <div className="grid gap-4 lg:grid-cols-3">{children}</div>
-      ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
-          {emptyMessage}
+      {(semesterLoading || semesterError) && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          {semesterLoading ? 'Loading semesters...' : `Semester API unavailable: ${semesterError}`}
         </div>
       )}
-    </section>
+      {!semesterLoading && !semesterError && semesters.length === 0 && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
+          No semesters available. Create/activate a semester before creating opportunities.
+        </div>
+      )}
+      <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit}>
+        <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+          Semester
+          <select
+            value={createForm.semesterId}
+            onChange={(event) => onFormChange({ ...createForm, semesterId: event.target.value })}
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+          >
+            <option value="">Select semester</option>
+            {semesters.map((semester) => (
+              <option key={semester.id} value={semester.id}>
+                {semester.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+          Type
+          <select
+            value={createForm.type}
+            onChange={(event) =>
+              onFormChange({ ...createForm, type: event.target.value as OpportunityType })
+            }
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+          >
+            <option value="pre_approved">Pre-approved</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <TextInput
+          label="Employer"
+          value={createForm.employerName}
+          onChange={(value) => onFormChange({ ...createForm, employerName: value })}
+        />
+        <TextInput
+          label="Job title"
+          value={createForm.jobTitle}
+          onChange={(value) => onFormChange({ ...createForm, jobTitle: value })}
+        />
+        <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+          Work mode
+          <select
+            value={createForm.workMode}
+            onChange={(event) =>
+              onFormChange({ ...createForm, workMode: event.target.value as WorkMode })
+            }
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+          >
+            <option value="onsite">Onsite</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="remote">Remote</option>
+          </select>
+        </label>
+        <TextInput
+          label="Location"
+          value={createForm.location}
+          onChange={(value) => onFormChange({ ...createForm, location: value })}
+        />
+        <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase md:col-span-2">
+          Description
+          <textarea
+            value={createForm.descriptionText}
+            onChange={(event) =>
+              onFormChange({ ...createForm, descriptionText: event.target.value })
+            }
+            className="min-h-24 rounded-xl border border-slate-200 p-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+          />
+        </label>
+        <TextInput
+          label={createForm.type === 'pre_approved' ? 'CareerHub opportunity link' : 'Source URL'}
+          value={createForm.sourceUrl}
+          onChange={(value) => onFormChange({ ...createForm, sourceUrl: value })}
+          error={getSourceUrlError(createForm.type, createForm.sourceUrl)}
+        />
+        <div className="flex items-end">
+          <button
+            type="submit"
+            disabled={!canCreate}
+            className="inline-flex h-10 items-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? 'Creating...' : 'Create opportunity'}
+          </button>
+        </div>
+      </form>
+    </SurfaceCard>
   )
 }
 
-function OpportunityCard({
-  opportunity,
-  semesterLabel,
-  editingId,
-  editForm,
-  saving,
-  verifyingId,
-  comment,
-  onCommentChange,
-  onEditStart,
-  onEditChange,
-  onUpdate,
-  onVerify,
+function OpportunityFiltersBar({
+  filters,
+  semesters,
+  totalCount,
+  shownCount,
+  hasFilters,
+  onChange,
+  onClear,
 }: {
-  opportunity: OpportunityRow
-  semesterLabel: string
-  editingId: string | null
-  editForm: { title: string; company: string; descriptionText: string }
-  saving: boolean
-  verifyingId: string | null
-  comment: string
-  onCommentChange: (comment: string) => void
-  onEditStart: (opportunity: OpportunityRow) => void
-  onEditChange: (form: { title: string; company: string; descriptionText: string }) => void
-  onUpdate: (event: React.FormEvent<HTMLFormElement>, id: string) => void
-  onVerify: (opportunity: OpportunityRow, decision: 'approved' | 'rejected') => void
+  filters: OpportunityFilters
+  semesters: SemesterResponse[]
+  totalCount: number
+  shownCount: number
+  hasFilters: boolean
+  onChange: (filters: OpportunityFilters) => void
+  onClear: () => void
 }) {
-  const isPendingVerification = opportunity.statusRaw === 'pending_verification'
-  const isVerifying = verifyingId === opportunity.id
+  const statusOptions: Array<{ value: QuickStatusFilter; label: string }> = [
+    { value: 'all', label: 'All states' },
+    { value: 'published', label: 'Published / Approved' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'pending_verification', label: 'Under review' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'archived', label: 'Archived' },
+  ]
 
   return (
-    <SurfaceCard className="p-5 transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {editingId === opportunity.id ? (
-            <form className="space-y-2" onSubmit={(event) => onUpdate(event, opportunity.id)}>
-              <input
-                value={editForm.title}
-                onChange={(event) => onEditChange({ ...editForm, title: event.target.value })}
-                className="h-9 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-red-500"
-              />
-              <input
-                value={editForm.company}
-                onChange={(event) => onEditChange({ ...editForm, company: event.target.value })}
-                className="h-9 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
-              />
-              <button
-                type="submit"
-                disabled={saving}
-                className="h-9 rounded-xl bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
-              >
-                Save
-              </button>
-            </form>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => onEditStart(opportunity)}
-                className="text-left font-bold text-slate-950 hover:text-red-700"
-              >
-                {opportunity.title}
-              </button>
-              <p className="mt-1 text-sm text-slate-500">{opportunity.company}</p>
-            </>
-          )}
-        </div>
-        <StatusBadge status={opportunity.status} />
-      </div>
-
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <Detail label="Semester" value={semesterLabel} />
-        <Detail label="Type" value={opportunity.type.replace('_', ' ')} />
-        <Detail label="Applications" value={String(opportunity.applications)} />
-        <Detail label="Work mode" value={opportunity.workMode ?? 'Not supplied'} />
-      </div>
-
-      <div className="mt-4 space-y-1 text-sm text-slate-500">
-        <p>Status: {opportunity.statusRaw.replace(/_/g, ' ')}</p>
-        <p>Updated {formatDate(opportunity.closingDate)}</p>
-        <p>Created by: {opportunity.createdByUserId ?? 'Not recorded'}</p>
-        <p>Submitted by: {opportunity.submittedByUserId ?? 'Not student-submitted'}</p>
-        {opportunity.verifiedAt && <p>Reviewed {formatDate(opportunity.verifiedAt)}</p>}
-      </div>
-
-      {isPendingVerification ? (
-        <div className="mt-4 space-y-3 rounded-xl border border-red-100 bg-red-50 p-3">
-          <label className="grid gap-1 text-xs font-bold tracking-wide text-red-900 uppercase">
-            Review comment
-            <textarea
-              value={comment}
-              onChange={(event) => onCommentChange(event.target.value)}
-              className="min-h-20 rounded-xl border border-red-100 bg-white p-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+    <SurfaceCard className="space-y-4 p-4">
+      <div className="grid gap-3 xl:grid-cols-[1.5fr_0.8fr_0.9fr_1fr_0.9fr_0.9fr_0.9fr]">
+        <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+          Search
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
+            <input
+              value={filters.search}
+              onChange={(event) => onChange({ ...filters, search: event.target.value })}
+              placeholder="Role, employer, student"
+              className="h-10 w-full rounded-xl border border-slate-200 pr-3 pl-9 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
             />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={isVerifying}
-              onClick={() => onVerify(opportunity, 'approved')}
-              className="h-9 rounded-xl bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isVerifying ? 'Sending...' : 'Verify'}
-            </button>
-            <button
-              type="button"
-              disabled={isVerifying}
-              onClick={() => onVerify(opportunity, 'rejected')}
-              className="h-9 rounded-xl border border-red-200 bg-white px-3 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Reject
-            </button>
           </div>
-        </div>
-      ) : (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-          Reviewed/completed state. Verification actions are unavailable for this status.
+        </label>
+        <SelectField
+          label="State"
+          value={filters.quickStatus}
+          onChange={(value) => onChange({ ...filters, quickStatus: value as QuickStatusFilter })}
+          options={statusOptions}
+        />
+        <SelectField
+          label="Semester"
+          value={filters.semesterId}
+          onChange={(value) => onChange({ ...filters, semesterId: value })}
+          options={[
+            { value: 'all', label: 'All semesters' },
+            ...semesters.map((semester) => ({ value: semester.id, label: semester.displayName })),
+          ]}
+        />
+        <TextInput
+          label="Program/course"
+          value={filters.course}
+          onChange={(value) => onChange({ ...filters, course: value })}
+        />
+        <TextInput
+          label="Employer"
+          value={filters.employer}
+          onChange={(value) => onChange({ ...filters, employer: value })}
+        />
+        <TextInput
+          label="Student"
+          value={filters.student}
+          onChange={(value) => onChange({ ...filters, student: value })}
+        />
+        <SelectField
+          label="Sort"
+          value={filters.sort}
+          onChange={(value) => onChange({ ...filters, sort: value as SortOption })}
+          options={[
+            { value: 'action_required', label: 'Action required first' },
+            { value: 'newest', label: 'Newest submissions' },
+            { value: 'oldest_waiting', label: 'Oldest waiting' },
+            { value: 'recently_updated', label: 'Recently updated' },
+            { value: 'employer', label: 'Employer A-Z' },
+            { value: 'student', label: 'Student A-Z' },
+          ]}
+        />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+        <p className="text-sm font-medium text-slate-600">
+          Showing <span className="font-bold text-slate-950">{shownCount}</span> of{' '}
+          <span className="font-bold text-slate-950">{totalCount}</span> opportunity records
+        </p>
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-sm font-bold text-red-700 hover:text-red-900"
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+      {hasFilters && (
+        <div className="flex flex-wrap gap-2">
+          {filterChips(filters).map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => onChange({ ...filters, [chip.key]: initialFilters[chip.key] })}
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50"
+            >
+              {chip.label} x
+            </button>
+          ))}
         </div>
       )}
     </SurfaceCard>
   )
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function PublishedOpportunitySection({
+  rows,
+  view,
+  counts,
+  editingId,
+  editForm,
+  saving,
+  transitioningId,
+  onViewChange,
+  onEditStart,
+  onEditChange,
+  onEditCancel,
+  onUpdate,
+  onTransition,
+}: {
+  rows: OpportunityRow[]
+  view: PublishingView
+  counts: Record<PublishingView, number>
+  editingId: string | null
+  editForm: {
+    title: string
+    company: string
+    descriptionText: string
+    sourceUrl: string
+    type: OpportunityType
+  }
+  saving: boolean
+  transitioningId: string | null
+  onViewChange: (view: PublishingView) => void
+  onEditStart: (opportunity: OpportunityRow) => void
+  onEditChange: (form: {
+    title: string
+    company: string
+    descriptionText: string
+    sourceUrl: string
+    type: OpportunityType
+  }) => void
+  onEditCancel: () => void
+  onUpdate: (event: FormEvent<HTMLFormElement>, id: string) => void
+  onTransition: (opportunity: OpportunityRow, to: 'archived') => void
+}) {
+  const emptyMessage =
+    view === 'archived'
+      ? 'No archived coordinator-created opportunities match the current filters.'
+      : view === 'all'
+        ? 'No coordinator-created opportunities match the current filters.'
+        : 'No active coordinator-created opportunities match the current filters.'
+
   return (
-    <div className="rounded-xl bg-slate-50 p-3">
-      <p className="text-xs font-bold text-slate-500 uppercase">{label}</p>
-      <p className="mt-1 text-sm font-bold text-slate-950">{value}</p>
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <SectionHeader
+          title="Published Opportunities"
+          description="Student-facing internship listings. No placement processing or contract review happens here."
+        />
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+          {[
+            { value: 'active', label: 'Active / Published' },
+            { value: 'archived', label: 'Archived' },
+            { value: 'all', label: 'All' },
+          ].map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => onViewChange(item.value as PublishingView)}
+              className={[
+                'inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold transition',
+                view === item.value
+                  ? 'bg-slate-950 text-white'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950',
+              ].join(' ')}
+            >
+              {item.label}
+              <span
+                className={[
+                  'rounded-full px-1.5 py-0.5 text-[10px]',
+                  view === item.value ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600',
+                ].join(' ')}
+              >
+                {counts[item.value as PublishingView]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <SurfaceCard className="overflow-hidden">
+        <div className="grid grid-cols-[1.5fr_1fr_0.9fr_1fr_0.8fr_0.6fr_1.1fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-xl:hidden">
+          <span>Role</span>
+          <span>Employer</span>
+          <span>Source type</span>
+          <span>Semester</span>
+          <span>Published status</span>
+          <span>Applicants</span>
+          <span>Actions</span>
+        </div>
+        {rows.length === 0 ? (
+          <EmptyState message={emptyMessage} />
+        ) : (
+          rows.map((row) => (
+            <form
+              key={row.id}
+              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 xl:grid-cols-[1.5fr_1fr_0.9fr_1fr_0.8fr_0.6fr_1.1fr] xl:items-center"
+              onSubmit={(event) => onUpdate(event, row.id)}
+            >
+              {editingId === row.id ? (
+                <>
+                  <input
+                    value={editForm.title}
+                    onChange={(event) => onEditChange({ ...editForm, title: event.target.value })}
+                    className="h-9 rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-red-500"
+                  />
+                  <input
+                    value={editForm.company}
+                    onChange={(event) => onEditChange({ ...editForm, company: event.target.value })}
+                    className="h-9 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
+                  />
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="font-bold text-slate-950">{row.title}</p>
+                    <p className="mt-1 text-xs text-slate-500 xl:hidden">{row.company}</p>
+                    {row.type === 'custom' && row.statusRaw === 'published' && (
+                      <p className="mt-1 text-xs font-semibold text-slate-600">
+                        Approved - waiting for student to upload offer/contract documents
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-slate-700 max-xl:hidden">{row.company}</p>
+                </>
+              )}
+              <SourceTypeBadge row={row} />
+              <p className="text-sm text-slate-600">{row.semesterLabel}</p>
+              <StatePill status={row.statusRaw} type={row.type} />
+              <p className="text-sm font-bold text-slate-950">{row.applications}</p>
+              <div className="flex flex-wrap gap-2">
+                {editingId === row.id ? (
+                  <>
+                    <input
+                      value={editForm.sourceUrl}
+                      onChange={(event) =>
+                        onEditChange({ ...editForm, sourceUrl: event.target.value })
+                      }
+                      placeholder={
+                        editForm.type === 'pre_approved'
+                          ? 'CareerHub opportunity link'
+                          : 'Job listing URL'
+                      }
+                      className={[
+                        'h-8 min-w-48 rounded-lg border px-2.5 text-xs font-medium outline-none focus:border-red-500',
+                        getSourceUrlError(editForm.type, editForm.sourceUrl)
+                          ? 'border-red-300 bg-red-50/40'
+                          : 'border-slate-200',
+                      ].join(' ')}
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="inline-flex h-8 items-center rounded-lg bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onEditCancel}
+                      className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <IconAction
+                      href={`/coordinator/jobs/review?id=${row.id}`}
+                      label="View"
+                      icon={Eye}
+                    />
+                    {!isArchived(row) && (
+                      <>
+                        <IconButton label="Edit" icon={PenLine} onClick={() => onEditStart(row)} />
+                        <IconButton
+                          label={transitioningId === row.id ? 'Archiving' : 'Archive'}
+                          icon={Archive}
+                          disabled={transitioningId === row.id}
+                          onClick={() => onTransition(row, 'archived')}
+                        />
+                      </>
+                    )}
+                    {isArchived(row) && (
+                      <span className="inline-flex min-h-8 items-center rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-1 text-xs leading-4 font-semibold text-slate-500">
+                        This opportunity has been archived and is no longer active.
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            </form>
+          ))
+        )}
+      </SurfaceCard>
+    </section>
+  )
+}
+
+function SelfSourcedReviewSection({ rows }: { rows: OpportunityRow[] }) {
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        title="Self-Sourced Placement Reviews"
+        description="Position descriptions submitted by students for internship suitability approval. Placement documents remain locked until approval."
+      />
+      <SurfaceCard className="overflow-hidden">
+        <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_1.2fr_0.6fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-2xl:hidden">
+          <span>Role</span>
+          <span>Student</span>
+          <span>Employer</span>
+          <span>Submitted</span>
+          <span>Status</span>
+          <span>Action</span>
+        </div>
+        {rows.length === 0 ? (
+          <EmptyState message="No self-sourced placement verification records match the current filters." />
+        ) : (
+          rows.map((row) => (
+            <div
+              key={row.id}
+              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 2xl:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_1.2fr_0.6fr] 2xl:items-center"
+            >
+              <div>
+                <p className="font-bold text-slate-950">{row.title}</p>
+                <p className="mt-1 text-xs text-slate-500">{row.courseLabel}</p>
+              </div>
+              <p className="text-sm font-medium text-slate-700">
+                {row.submittedByUserId ?? 'Student not recorded'}
+              </p>
+              <p className="text-sm text-slate-600">{row.company}</p>
+              <p className="text-sm text-slate-600">{formatDate(row.createdAt)}</p>
+              <div className="space-y-1">
+                <IntakeTracker status={row.statusRaw} />
+                <StatePill status={row.statusRaw} type={row.type} />
+                {row.statusRaw === 'pending_verification' && (
+                  <p className="text-xs font-bold text-red-700">Action required</p>
+                )}
+              </div>
+              <Link
+                href={`/coordinator/jobs/review?id=${row.id}`}
+                className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-black"
+              >
+                Review
+              </Link>
+            </div>
+          ))
+        )}
+      </SurfaceCard>
+    </section>
+  )
+}
+
+function OpportunityTabs({
+  activeTab,
+  publishedCount,
+  selfSourcedCount,
+  onTabChange,
+}: {
+  activeTab: OpportunityTab
+  publishedCount: number
+  selfSourcedCount: number
+  onTabChange: (tab: OpportunityTab) => void
+}) {
+  const tabs: Array<{ id: OpportunityTab; label: string; count: number; detail: string }> = [
+    {
+      id: 'published',
+      label: 'Published Opportunities',
+      count: publishedCount,
+      detail: 'Job board and approved opportunity records',
+    },
+    {
+      id: 'self_sourced',
+      label: 'Self-Sourced Reviews',
+      count: selfSourcedCount,
+      detail: 'Position description suitability checks',
+    },
+  ]
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          className={[
+            'rounded-2xl border p-4 text-left transition',
+            activeTab === tab.id
+              ? 'border-red-200 bg-red-50/40 shadow-sm'
+              : 'border-slate-200 bg-white hover:border-slate-300',
+          ].join(' ')}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-950">{tab.label}</span>
+            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
+              {tab.count}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">{tab.detail}</p>
+        </button>
+      ))}
     </div>
   )
+}
+
+function IntakeTracker({ status }: { status: OpportunityStatus }) {
+  const isRejected = status === 'rejected'
+  const steps = ['Submitted', 'Under Review', isRejected ? 'Rejected' : 'Approved']
+  const currentIndex =
+    status === 'pending_verification' || status === 'draft'
+      ? 1
+      : status === 'published' || status === 'rejected'
+        ? 2
+        : 1
+
+  return (
+    <div className="min-w-44">
+      <div className="flex items-center gap-1.5">
+        {steps.map((step, index) => {
+          const isComplete =
+            index < currentIndex || (index === currentIndex && status === 'published')
+          const isCurrent = index === currentIndex
+          return (
+            <div key={step} className="flex flex-1 items-center gap-1.5">
+              <span
+                className={[
+                  'h-2.5 w-2.5 rounded-full border',
+                  isRejected && isCurrent
+                    ? 'border-red-700 bg-red-700'
+                    : isComplete
+                      ? 'border-slate-950 bg-slate-950'
+                      : isCurrent
+                        ? 'border-red-700 bg-white'
+                        : 'border-slate-300 bg-white',
+                ].join(' ')}
+              />
+              {index < steps.length - 1 && (
+                <span
+                  className={[
+                    'h-px flex-1',
+                    index < currentIndex ? 'bg-slate-950' : 'bg-slate-200',
+                  ].join(' ')}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="mt-1 text-xs font-bold text-slate-700">{steps[currentIndex]}</p>
+    </div>
+  )
+}
+
+function SourceTypeBadge({ row }: { row: OpportunityRow }) {
+  const label =
+    row.type === 'custom'
+      ? 'Self-Sourced Approved'
+      : row.sourceUrl?.includes('career')
+        ? 'CareerHub'
+        : 'Coordinator Published'
+
+  return (
+    <span className="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+      {label}
+    </span>
+  )
+}
+
+function SectionHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-slate-950">{title}</h2>
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+    </div>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return <div className="px-4 py-8 text-sm text-slate-500">{message}</div>
+}
+
+function StatePill({ status, type }: { status: OpportunityStatus; type: OpportunityType }) {
+  const label =
+    status === 'pending_verification'
+      ? 'Under review'
+      : status === 'published' && type === 'custom'
+        ? 'Approved Opportunity'
+        : status.replace(/_/g, ' ')
+  const tone =
+    status === 'pending_verification' || status === 'rejected'
+      ? 'border-red-200 bg-red-50 text-red-800'
+      : status === 'published'
+        ? 'border-slate-300 bg-white text-slate-950'
+        : 'border-slate-200 bg-slate-50 text-slate-700'
+
+  return (
+    <span
+      className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${tone}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function TextInput({
+  label,
+  value,
+  onChange,
+  error,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  error?: string
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+      {label}
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={[
+          'h-10 rounded-xl border px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500',
+          error ? 'border-red-300 bg-red-50/40' : 'border-slate-200',
+        ].join(' ')}
+      />
+      {error && <span className="text-xs font-medium text-red-700 normal-case">{error}</span>}
+    </label>
+  )
+}
+
+function IconAction({
+  href,
+  label,
+  icon: Icon,
+}: {
+  href: string
+  label: string
+  icon: typeof Eye
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </Link>
+  )
+}
+
+function IconButton({
+  label,
+  icon: Icon,
+  disabled,
+  onClick,
+}: {
+  label: string
+  icon: typeof Eye
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  )
+}
+
+function matchesFilters(row: OpportunityRow, filters: OpportunityFilters) {
+  const search = filters.search.trim().toLowerCase()
+  const course = filters.course.trim().toLowerCase()
+  const employer = filters.employer.trim().toLowerCase()
+  const student = filters.student.trim().toLowerCase()
+  const haystack = [
+    row.title,
+    row.company,
+    row.semesterLabel,
+    row.courseLabel,
+    row.submittedByUserId ?? '',
+    row.location ?? '',
+    row.descriptionText,
+  ]
+    .join(' ')
+    .toLowerCase()
+
+  if (search && !haystack.includes(search)) return false
+  if (filters.quickStatus !== 'all' && row.statusRaw !== filters.quickStatus) return false
+  if (filters.semesterId !== 'all' && row.semesterId !== filters.semesterId) return false
+  if (course && !`${row.courseLabel} ${row.semesterLabel}`.toLowerCase().includes(course)) {
+    return false
+  }
+  if (employer && !row.company.toLowerCase().includes(employer)) return false
+  if (student && !(row.submittedByUserId ?? '').toLowerCase().includes(student)) return false
+  return true
+}
+
+function matchesPublishingView(row: OpportunityRow, view: PublishingView) {
+  if (view === 'all') return true
+  if (view === 'archived') return isArchived(row)
+  return !isArchived(row)
+}
+
+function isPublishedOpportunityRow(row: OpportunityRow, view: PublishingView) {
+  const isApprovedOpportunity =
+    row.type === 'pre_approved' || (row.type === 'custom' && row.statusRaw === 'published')
+  if (!isApprovedOpportunity) return false
+  return matchesPublishingView(row, view)
+}
+
+function isSelfSourcedReviewRow(row: OpportunityRow) {
+  if (row.type !== 'custom' && !row.submittedByUserId) return false
+  return row.statusRaw === 'pending_verification' || row.statusRaw === 'rejected'
+}
+
+function isArchived(row: OpportunityRow) {
+  const status = String(row.statusRaw).toLowerCase()
+  return status === 'archived' || status === 'unpublished_archived'
+}
+
+function sortRows(rows: OpportunityRow[], sort: SortOption) {
+  return [...rows].sort((a, b) => {
+    if (sort === 'action_required') {
+      const actionDelta = actionPriority(a) - actionPriority(b)
+      if (actionDelta !== 0) return actionDelta
+      return dateValue(b.updatedAt) - dateValue(a.updatedAt)
+    }
+    if (sort === 'newest') return dateValue(b.createdAt) - dateValue(a.createdAt)
+    if (sort === 'oldest_waiting') return dateValue(a.createdAt) - dateValue(b.createdAt)
+    if (sort === 'recently_updated') return dateValue(b.updatedAt) - dateValue(a.updatedAt)
+    if (sort === 'employer') return a.company.localeCompare(b.company)
+    return (a.submittedByUserId ?? '').localeCompare(b.submittedByUserId ?? '')
+  })
+}
+
+function actionPriority(row: OpportunityRow) {
+  if (row.statusRaw === 'pending_verification') return 0
+  if (row.statusRaw === 'draft') return 1
+  if (row.statusRaw === 'published') return 2
+  return 3
+}
+
+function dateValue(value: string) {
+  return new Date(value).getTime()
+}
+
+function filterChips(filters: OpportunityFilters) {
+  const chips: Array<{ key: keyof OpportunityFilters; label: string }> = []
+  if (filters.search) chips.push({ key: 'search', label: `Search: ${filters.search}` })
+  if (filters.quickStatus !== 'all') {
+    chips.push({ key: 'quickStatus', label: `State: ${filters.quickStatus.replace(/_/g, ' ')}` })
+  }
+  if (filters.semesterId !== 'all') chips.push({ key: 'semesterId', label: 'Semester selected' })
+  if (filters.course) chips.push({ key: 'course', label: `Program/course: ${filters.course}` })
+  if (filters.employer) chips.push({ key: 'employer', label: `Employer: ${filters.employer}` })
+  if (filters.student) chips.push({ key: 'student', label: `Student: ${filters.student}` })
+  if (filters.sort !== initialFilters.sort) chips.push({ key: 'sort', label: `Sort changed` })
+  return chips
+}
+
+function areFiltersDefault(filters: OpportunityFilters) {
+  return Object.keys(initialFilters).every((key) => {
+    const filterKey = key as keyof OpportunityFilters
+    return filters[filterKey] === initialFilters[filterKey]
+  })
 }
 
 function isCreateFormValid(form: {
@@ -713,37 +1354,82 @@ function isCreateFormValid(form: {
 }) {
   if (!form.semesterId || !form.employerName.trim() || !form.jobTitle.trim()) return false
   if (!form.descriptionText.trim() || !form.location.trim()) return false
-  if (form.type === 'pre_approved' && !form.sourceUrl.trim()) return false
+  if (form.type === 'pre_approved' && !isValidCareerHubUrl(form.sourceUrl)) return false
+  if (form.type === 'custom' && form.sourceUrl.trim() && !isValidJobListingUrl(form.sourceUrl)) {
+    return false
+  }
   return true
 }
 
-function isAlreadyReviewedError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
-  return (
-    message.includes('not pending') ||
-    message.includes('already reviewed') ||
-    message.includes('already been reviewed') ||
-    message.includes('not pending verification')
-  )
+function isValidCareerHubUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:') return false
+    return ['rmit.careercentre.me', 'careerhub.rmit.edu.au'].some(
+      (domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`)
+    )
+  } catch {
+    return false
+  }
 }
 
-function TextInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
+function isValidJobListingUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+
+  try {
+    const url = new URL(trimmed)
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+function getSourceUrlError(type: OpportunityType, value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  if (type === 'pre_approved' && !isValidCareerHubUrl(trimmed)) {
+    return 'Please enter a valid RMIT CareerHub opportunity link.'
+  }
+  if (type === 'custom' && !isValidJobListingUrl(trimmed)) {
+    return 'Please enter a valid job listing URL.'
+  }
+  return undefined
+}
+
+function getCreateOpportunityValidationMessage(form: {
+  semesterId: string
+  type: OpportunityType
+  employerName: string
+  jobTitle: string
+  descriptionText: string
+  location: string
+  sourceUrl: string
 }) {
-  return (
-    <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
-      {label}
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
-      />
-    </label>
-  )
+  if (form.type === 'pre_approved' && !isValidCareerHubUrl(form.sourceUrl)) {
+    return 'Please enter a valid RMIT CareerHub opportunity link.'
+  }
+  if (form.type === 'custom' && form.sourceUrl.trim() && !isValidJobListingUrl(form.sourceUrl)) {
+    return 'Please enter a valid job listing URL.'
+  }
+  return 'Select a semester and complete all required fields.'
+}
+
+function formatOpportunityError(error: unknown, type: OpportunityType) {
+  const message = error instanceof Error ? error.message : 'Opportunity API unavailable.'
+  const lower = message.toLowerCase()
+  if (
+    lower.includes('career hub') ||
+    lower.includes('careerhub') ||
+    lower.includes('allowlist') ||
+    lower.includes('sourceurl')
+  ) {
+    return type === 'pre_approved'
+      ? 'Please enter a valid RMIT CareerHub opportunity link.'
+      : 'Please enter a valid job listing URL.'
+  }
+  return message
 }
