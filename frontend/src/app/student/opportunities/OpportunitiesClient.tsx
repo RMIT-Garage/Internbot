@@ -1,13 +1,24 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { BarChart3, BriefcaseBusiness, CalendarDays, Sparkles } from 'lucide-react'
+import {
+  ArrowRight,
+  Briefcase,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  MapPin,
+  RefreshCw,
+  Sparkles,
+  Star,
+  Users,
+} from 'lucide-react'
 
 import { useAuth } from '@/hooks/useAuth'
-import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/student/Premium'
+import { SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
-
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import {
   OpportunitiesService,
@@ -47,35 +58,129 @@ function internshipStatusToBadge(status: InternshipListItemResponse.status): Stu
   return map[status] ?? 'applied'
 }
 
+interface OpportunityRowProps {
+  opportunity: OpportunityResponse
+  myInternship: InternshipListItemResponse | undefined
+  alreadyApplied: boolean
+  applyingId: string | null
+  onApply: (id: string) => void
+}
+
+function OpportunityRow({
+  opportunity,
+  myInternship,
+  alreadyApplied,
+  applyingId,
+  onApply,
+}: OpportunityRowProps) {
+  const isApplying = applyingId === opportunity.id
+
+  return (
+    <div className="flex items-center gap-4 px-5 py-4 transition hover:bg-gray-50">
+      {/* Avatar */}
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-xs font-bold text-gray-500">
+        {opportunity.employerName.charAt(0).toUpperCase()}
+      </div>
+
+      {/* Main info */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-gray-900">{opportunity.jobTitle}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span className="text-xs text-gray-500">{opportunity.employerName}</span>
+          {opportunity.workMode && (
+            <span className="text-xs text-gray-400 capitalize">{opportunity.workMode}</span>
+          )}
+          {opportunity.location && (
+            <span className="flex items-center gap-0.5 text-xs text-gray-400">
+              <MapPin className="h-3 w-3" />
+              {opportunity.location}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Applications count */}
+      <span className="hidden shrink-0 items-center gap-1 text-xs text-gray-400 md:flex">
+        <Users className="h-3.5 w-3.5" />
+        {opportunity.applicationCount}
+      </span>
+
+      {/* Status badge if applied */}
+      {myInternship && (
+        <span className="hidden sm:block">
+          <StatusBadge status={internshipStatusToBadge(myInternship.status)} />
+        </span>
+      )}
+
+      {/* CTA */}
+      <div className="shrink-0">
+        {alreadyApplied && myInternship ? (
+          <Link
+            href={`/student/applications/view?id=${myInternship.id}`}
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+          >
+            View <ArrowRight className="h-3 w-3" />
+          </Link>
+        ) : opportunity.status === 'published' ? (
+          <button
+            type="button"
+            onClick={() => onApply(opportunity.id)}
+            disabled={applyingId !== null}
+            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+          >
+            {isApplying ? 'Applying…' : 'Apply'}
+          </button>
+        ) : (
+          <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
+            Closed
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function OpportunityListSkeleton() {
+  return (
+    <SurfaceCard className="overflow-hidden p-0">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className={`flex items-center gap-4 px-5 py-4 ${i > 0 ? 'border-t border-gray-100' : ''}`}
+        >
+          <Skeleton className="h-9 w-9 rounded-xl" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-48" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+          <Skeleton className="h-8 w-16 rounded-xl" />
+        </div>
+      ))}
+    </SurfaceCard>
+  )
+}
+
 export default function StudentOpportunitiesPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const semesterId = searchParams.get('semesterId') ?? undefined
-  // `?change=1` lets the "Change Semester" button bypass the auto-redirect
-  // below and stay on the selection screen.
   const wantsChange = searchParams.get('change') === '1'
 
-  // Semester selection state
   const [semesters, setSemesters] = useState<SemesterResponse[]>([])
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null)
   const [loadingSemesters, setLoadingSemesters] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [semesterError, setSemesterError] = useState<string | null>(null)
 
-  // Opportunities state
   const [opportunities, setOpportunities] = useState<OpportunityResponse[]>([])
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Apply-flow state
   const [applyingId, setApplyingId] = useState<string | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
 
-  // Load semesters + pre-select the user's current semester. If they already
-  // have a saved selection and didn't explicitly ask to change it, jump
-  // straight to the opportunities view.
   useEffect(() => {
     if (authLoading || !user) return
     const loadSemesters = async () => {
@@ -94,7 +199,7 @@ export default function StudentOpportunitiesPage() {
           }
         }
       } catch {
-        // Non-fatal — semester selection will still work
+        // Non-fatal
       } finally {
         setLoadingSemesters(false)
       }
@@ -102,13 +207,11 @@ export default function StudentOpportunitiesPage() {
     loadSemesters()
   }, [authLoading, user, router, semesterId, wantsChange])
 
-  // Load opportunities once a semesterId is known from the URL
   useEffect(() => {
     if (authLoading || !user || !semesterId) return
     const loadData = async () => {
       try {
         setLoading(true)
-        // Reset so skeleton shows when switching semesters
         setOpportunities([])
         setInternships([])
         const [oppRes, intRes] = await Promise.all([
@@ -131,7 +234,6 @@ export default function StudentOpportunitiesPage() {
     setApplyingId(opportunityId)
     try {
       await InternshipsService.createInternship({ opportunityId })
-      // Refetch so the card flips to "Applied" and the KPI count updates.
       const refreshed = await InternshipsService.listInternships()
       setInternships(refreshed.items)
     } catch (err: unknown) {
@@ -166,178 +268,206 @@ export default function StudentOpportunitiesPage() {
     }
   }
 
-  // ── Semester selection step ────────────────────────────────────────────────
+  // ── Semester selection ─────────────────────────────────────────────────────
   if (!semesterId) {
     return (
-      <div className="space-y-6">
-        <CoordinatorPageHeader
-          eyebrow="Opportunities"
-          title="Select Your Semester"
-          description="Choose an active semester to browse available internship opportunities."
-        />
+      <div className="space-y-8">
+        <div>
+          <p className="text-xs font-bold tracking-[0.18em] text-red-600 uppercase">
+            Opportunities
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">Select Your Semester</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Choose an active semester to browse available internship opportunities.
+          </p>
+        </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4">
-          <Sparkles className="h-5 w-5 text-red-600" />
-          <p className="text-sm text-red-700">
-            Only <b>active semesters</b> are eligible for enrollment.
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-blue-500" />
+          <p className="text-sm text-blue-700">
+            Only <strong>active semesters</strong> are shown below.
           </p>
         </div>
 
         {semesterError && (
-          <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{semesterError}</div>
-        )}
-
-        {!loadingSemesters && semesters.length === 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
-            No active semesters available. Please check back later or contact your coordinator.
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {semesterError}
           </div>
         )}
 
         {loadingSemesters ? (
-          <div
-            className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-            aria-busy="true"
-            aria-live="polite"
-          >
-            <span className="sr-only">Loading semesters…</span>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-busy="true">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex justify-between">
+              <SurfaceCard key={i} className="p-6">
+                <div className="flex items-start justify-between">
                   <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-6 w-6" />
+                  <Skeleton className="h-5 w-5 rounded-full" />
                 </div>
-                <Skeleton className="mt-4 h-6 w-32 bg-slate-200" />
+                <Skeleton className="mt-5 h-6 w-36" />
                 <Skeleton className="mt-2 h-3 w-24" />
-                <Skeleton className="mt-3 h-3 w-40" />
-              </div>
+                <Skeleton className="mt-3 h-3 w-32" />
+              </SurfaceCard>
             ))}
           </div>
+        ) : semesters.length === 0 ? (
+          <SurfaceCard className="flex flex-col items-center py-16 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+              <CalendarDays className="h-6 w-6 text-gray-400" />
+            </div>
+            <p className="mt-4 text-sm font-semibold text-gray-600">No active semesters</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Please check back later or contact your coordinator.
+            </p>
+          </SurfaceCard>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {semesters.map((sem) => {
               const isSelected = selectedSemester === sem.id
               return (
-                <div
+                <button
                   key={sem.id}
+                  type="button"
                   onClick={() => setSelectedSemester(sem.id)}
-                  className={`cursor-pointer rounded-3xl border p-6 transition ${
+                  className={`w-full rounded-2xl border p-6 text-left transition ${
                     isSelected
-                      ? 'border-red-500 bg-red-50 shadow-lg'
-                      : 'border-slate-200 bg-white hover:shadow-md'
+                      ? 'border-red-500 bg-red-50 shadow-sm'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
                   }`}
                 >
-                  <div className="flex justify-between">
-                    <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
+                        sem.status === 'active'
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
                       {sem.status}
                     </span>
                     <div
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        isSelected ? 'border-red-500 bg-red-500' : 'border-slate-300'
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                        isSelected ? 'border-red-500 bg-red-500' : 'border-gray-300'
                       }`}
-                    />
+                    >
+                      {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+                    </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-slate-400" />
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {sem.semesterCode ?? 'Semester'}
-                    </h3>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-500">{sem.courseCode}</p>
+                  <p className="mt-4 text-lg font-bold text-gray-900">
+                    {sem.semesterCode ?? 'Semester'}
+                  </p>
+                  {sem.courseCode && (
+                    <p className="mt-0.5 text-sm text-gray-500">{sem.courseCode}</p>
+                  )}
                   {sem.enrolmentOpenAt && (
-                    <p className="mt-2 text-xs text-slate-400">
-                      Opens: {new Date(sem.enrolmentOpenAt).toLocaleDateString()}
+                    <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      Opens{' '}
+                      {new Date(sem.enrolmentOpenAt).toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </p>
                   )}
-                </div>
+                </button>
               )
             })}
           </div>
         )}
 
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={confirmSemester}
-            disabled={submitting || !selectedSemester}
-            className="rounded-2xl bg-red-600 px-8 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {submitting ? 'Saving...' : 'Confirm & View Opportunities'}
-          </button>
-          {selectedSemester && (
-            <p className="text-sm text-slate-500">
-              Selected:{' '}
-              <span className="font-semibold text-slate-900">
-                {semesters.find((s) => s.id === selectedSemester)?.semesterCode}
-              </span>
-            </p>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={confirmSemester}
+          disabled={submitting || !selectedSemester || loadingSemesters}
+          className="flex items-center gap-2 rounded-2xl bg-red-600 px-8 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+        >
+          {submitting ? 'Saving…' : 'Confirm & Browse Opportunities'}
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
     )
   }
 
   // ── Opportunities list ─────────────────────────────────────────────────────
   const appliedOpportunityIds = new Set(internships.map((i) => i.opportunityId))
-  const activeCount = opportunities.filter((o) => o.status === 'published').length
+  const preApproved = opportunities.filter((o) => o.type === OpportunityResponse.type.PRE_APPROVED)
+  const selfSourced = opportunities.filter((o) => o.type === OpportunityResponse.type.CUSTOM)
+  const currentSemester = semesters.find((s) => s.id === semesterId)
   const appliedCount = internships.length
 
+  const rowProps = (o: OpportunityResponse) => ({
+    opportunity: o,
+    myInternship: internships.find((i) => i.opportunityId === o.id),
+    alreadyApplied: appliedOpportunityIds.has(o.id),
+    applyingId,
+    onApply: applyToOpportunity,
+  })
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <CoordinatorPageHeader
-          eyebrow="Opportunities"
-          title="Available Internships"
-          description="Browse and apply to internship opportunities available in your semester."
-        />
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold tracking-[0.18em] text-red-600 uppercase">
+            Opportunities
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">Available Internships</h1>
+          {currentSemester && (
+            <p className="mt-0.5 text-sm text-gray-500">
+              {currentSemester.semesterCode}
+              {currentSemester.courseCode ? ` · ${currentSemester.courseCode}` : ''}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => router.push('/student/opportunities?change=1')}
-          className="shrink-0 rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
         >
-          Change Semester
+          <RefreshCw className="h-3.5 w-3.5" />
+          Change semester
         </button>
       </div>
 
-      {/* KPI ROW */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <KPIStatCard
-          title="Active roles"
-          value={activeCount}
-          detail="Published opportunities"
-          icon={BriefcaseBusiness}
-          tone="red"
-          progress={
-            opportunities.length > 0 ? Math.round((activeCount / opportunities.length) * 100) : 0
-          }
-        />
-        <KPIStatCard
-          title="My applications"
-          value={appliedCount}
-          detail="Submitted applications"
-          icon={BarChart3}
-          tone="charcoal"
-          progress={
-            activeCount > 0 ? Math.min(Math.round((appliedCount / activeCount) * 100), 100) : 0
-          }
-        />
-        <KPIStatCard
-          title="Total available"
-          value={opportunities.length}
-          detail="Opportunities this semester"
-          icon={Sparkles}
-          tone="neutral"
-          progress={100}
-        />
+      {/* KPI strip */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50">
+            <Briefcase className="h-4 w-4 text-red-500" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900">{preApproved.length}</p>
+            <p className="text-xs text-gray-400">Pre-approved roles</p>
+          </div>
+        </SurfaceCard>
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50">
+            <Star className="h-4 w-4 text-amber-500" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900">{selfSourced.length}</p>
+            <p className="text-xs text-gray-400">Self-sourced</p>
+          </div>
+        </SurfaceCard>
+        <SurfaceCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <Users className="h-4 w-4 text-gray-500" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900">{appliedCount}</p>
+            <p className="text-xs text-gray-400">My applications</p>
+          </div>
+        </SurfaceCard>
       </div>
 
+      {/* Error banners */}
       {error && !loading && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
-
       {applyError && (
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <span>{applyError}</span>
           <button
             type="button"
@@ -349,101 +479,94 @@ export default function StudentOpportunitiesPage() {
         </div>
       )}
 
-      {!loading && opportunities.length === 0 && !error && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          No opportunities available for your semester yet.
+      {/* Loading */}
+      {loading && opportunities.length === 0 && (
+        <div className="space-y-8">
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-40" />
+            <OpportunityListSkeleton />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-48" />
+            <OpportunityListSkeleton />
+          </div>
         </div>
       )}
 
-      {/* OPPORTUNITY GRID */}
-      <div className="grid gap-4 lg:grid-cols-3" aria-busy={loading} aria-live="polite">
-        {loading && opportunities.length === 0
-          ? [0, 1, 2, 3, 4, 5].map((i) => (
-              <SurfaceCard key={`skeleton-${i}`} className="flex flex-col p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-5 w-3/4 bg-slate-200" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </div>
-                  <Skeleton className="h-6 w-16" />
-                </div>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <Skeleton className="h-16 rounded-xl bg-slate-50" />
-                  <Skeleton className="h-16 rounded-xl bg-slate-50" />
-                </div>
-                <Skeleton className="mt-3 h-3 w-24" />
-                <div className="mt-auto pt-4">
-                  <Skeleton className="h-9 rounded-xl" />
-                </div>
-                <span className="sr-only">Loading opportunity…</span>
-              </SurfaceCard>
-            ))
-          : opportunities.map((opportunity) => {
-              const alreadyApplied = appliedOpportunityIds.has(opportunity.id)
-              const myInternship = internships.find((i) => i.opportunityId === opportunity.id)
+      {/* No opportunities */}
+      {!loading && opportunities.length === 0 && !error && (
+        <SurfaceCard className="flex flex-col items-center py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+            <Briefcase className="h-6 w-6 text-gray-400" />
+          </div>
+          <p className="mt-4 text-sm font-semibold text-gray-600">No opportunities yet</p>
+          <p className="mt-1 text-xs text-gray-400">
+            No opportunities have been published for your semester yet.
+          </p>
+        </SurfaceCard>
+      )}
 
-              return (
-                <SurfaceCard
-                  key={opportunity.id}
-                  className="flex flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate font-bold text-slate-950">{opportunity.jobTitle}</h2>
-                      <p className="mt-1 text-sm text-slate-500">{opportunity.employerName}</p>
-                    </div>
-                    {myInternship && (
-                      <StatusBadge status={internshipStatusToBadge(myInternship.status)} />
-                    )}
-                  </div>
+      {/* Pre-approved section */}
+      {!loading && preApproved.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50">
+              <Briefcase className="h-3.5 w-3.5 text-red-500" />
+            </div>
+            <h2 className="text-sm font-bold text-gray-800">Pre-approved Opportunities</h2>
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+              {preApproved.length}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Vetted by your coordinator — apply directly and submit your offer documents once
+            accepted.
+          </p>
+          <SurfaceCard className="overflow-hidden p-0">
+            {/* List header */}
+            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+              <span>Opportunity</span>
+              <span className="hidden md:block">Applicants</span>
+              <span>Action</span>
+            </div>
+            {preApproved.map((o, idx) => (
+              <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
+                <OpportunityRow {...rowProps(o)} />
+              </div>
+            ))}
+          </SurfaceCard>
+        </div>
+      )}
 
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-2xl font-bold text-slate-950">
-                        {opportunity.applicationCount}
-                      </p>
-                      <p className="text-xs text-slate-500">Applications</p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-sm font-bold text-slate-950 capitalize">
-                        {opportunity.type.replace('_', ' ')}
-                      </p>
-                      <p className="text-xs text-slate-500">Type</p>
-                    </div>
-                  </div>
-
-                  {opportunity.workMode && (
-                    <p className="mt-3 text-xs text-slate-400 capitalize">
-                      {opportunity.workMode}
-                      {opportunity.location ? ` · ${opportunity.location}` : ''}
-                    </p>
-                  )}
-
-                  <div className="mt-auto pt-4">
-                    {alreadyApplied ? (
-                      <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-500">
-                        Applied
-                      </span>
-                    ) : opportunity.status === 'published' ? (
-                      <button
-                        type="button"
-                        onClick={() => applyToOpportunity(opportunity.id)}
-                        disabled={applyingId !== null}
-                        className="block w-full rounded-xl bg-red-600 py-2 text-center text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {applyingId === opportunity.id ? 'Applying…' : 'Apply'}
-                      </button>
-                    ) : (
-                      <span className="block w-full rounded-xl bg-slate-100 py-2 text-center text-sm font-semibold text-slate-400">
-                        Not available
-                      </span>
-                    )}
-                  </div>
-                </SurfaceCard>
-              )
-            })}
-      </div>
+      {/* Self-sourced section */}
+      {!loading && selfSourced.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50">
+              <Star className="h-3.5 w-3.5 text-amber-500" />
+            </div>
+            <h2 className="text-sm font-bold text-gray-800">Self-sourced Opportunities</h2>
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+              {selfSourced.length}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Opportunities sourced by students and verified by a coordinator.
+          </p>
+          <SurfaceCard className="overflow-hidden p-0">
+            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+              <span>Opportunity</span>
+              <span className="hidden md:block">Applicants</span>
+              <span>Action</span>
+            </div>
+            {selfSourced.map((o, idx) => (
+              <div key={o.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
+                <OpportunityRow {...rowProps(o)} />
+              </div>
+            ))}
+          </SurfaceCard>
+        </div>
+      )}
     </div>
   )
 }
