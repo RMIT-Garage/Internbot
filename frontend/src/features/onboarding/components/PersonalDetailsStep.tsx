@@ -10,6 +10,7 @@ import type { StudentUser, UpdateProfilePayload } from '@/features/profile/types
 import { Navbar } from '@/components/layout/Navbar'
 
 const schema = z.object({
+  displayName: z.string().min(1, 'Student name is required'),
   phone: z.string().min(1, 'Phone number is required'),
 })
 
@@ -44,19 +45,16 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      displayName: displayName ?? '',
       phone: studentProfile.phone ?? '',
     },
   })
 
   const onSubmit = async (values: FormValues) => {
-    if (!displayName) {
-      toast.error('Your student name is missing. Please contact support before continuing.')
-      return
-    }
-
     try {
       await onSave({
         studentProfile: { phone: values.phone },
+        displayName: values.displayName,
       })
 
       toast.success('Progress saved!')
@@ -68,7 +66,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
 
   const handleSaveProgress = handleSubmit(async (values) => {
     try {
-      await onSave({ studentProfile: { phone: values.phone } })
+      await onSave({ studentProfile: { phone: values.phone }, displayName: values.displayName })
       toast.success('Progress saved!')
     } catch {
       toast.error('Failed to save.')
@@ -159,27 +157,24 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
           {/* Form card */}
           <div className="rounded-xl border border-gray-100 p-8 shadow-sm lg:p-10">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-              {/* Student name — locked */}
+              {/* Student name — editable */}
               <div>
                 <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
                   Student Name
                 </label>
-                <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
-                  <span
-                    className={`text-lg font-medium tracking-wide uppercase ${
-                      !displayName ? 'text-red-500' : 'text-gray-900'
-                    }`}
-                  >
-                    {displayName ?? 'Missing Name'}
-                  </span>
-                  <div className="flex items-center gap-1.5 rounded-full border border-gray-100 bg-white px-2.5 py-1.5 text-[10px] font-medium text-gray-400 uppercase">
-                    <Lock size={14} className="text-gray-400" />
-                    RMIT Core
-                  </div>
-                </div>
-                <p className="mt-2.5 text-[11px] text-gray-500 italic">
-                  Contact Student Connect if your legal name has changed.
-                </p>
+                <input
+                  type="text"
+                  {...register('displayName')}
+                  placeholder="Your full name"
+                  className={`w-full rounded-lg border px-5 py-4 text-lg transition-colors outline-none placeholder:text-gray-400 focus:bg-white focus:ring-2 ${
+                    errors.displayName
+                      ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-100 bg-gray-100/50 text-gray-600 focus:border-red-600/20 focus:ring-red-600/20'
+                  }`}
+                />
+                {errors.displayName && (
+                  <p className="mt-1 text-xs text-red-500">{errors.displayName.message}</p>
+                )}
               </div>
 
               {/* Student number + email — locked */}
@@ -242,7 +237,7 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving || !displayName}
+                  disabled={saving}
                   className="flex items-center gap-2 rounded-xl bg-red-600 px-10 py-3.5 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
                 >
                   {saving ? 'Saving…' : 'Next Step'}

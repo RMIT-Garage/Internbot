@@ -28,13 +28,18 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
   const ai = studentProfile.academicInfo
 
   const missingFields = [
-    !displayName ? 'Display name' : null,
+    !displayName ? 'Student name' : null,
     !studentProfile.phone ? 'Phone number' : null,
     !studentProfile.semesterId ? 'Semester selection' : null,
     !studentProfile.academicInfo ? 'Academic information' : null,
   ].filter((field): field is string => Boolean(field))
 
   const handleFinalSubmit = async () => {
+    if (!displayName) {
+      toast.error('Student name is required. Please go back and fill in your name.')
+      return
+    }
+
     if (!isConfirmed) {
       toast.error('Please confirm the data integrity checkbox.')
       return
@@ -263,7 +268,7 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
             </button>
             <button
               onClick={handleFinalSubmit}
-              disabled={saving || !isConfirmed || missingFields.length > 0}
+              disabled={saving || !isConfirmed}
               className="flex-1 rounded-xl bg-[#B91C1C] px-10 py-3 text-xs font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60 md:flex-none"
             >
               {saving

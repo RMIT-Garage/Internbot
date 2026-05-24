@@ -10,17 +10,19 @@ import { ChevronDown, ArrowRight } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload, ProgramLevel } from '@/features/profile/types'
 import { Navbar } from '@/components/layout/Navbar'
 
-const PROGRAMS = [
-  'Bachelor of Software Engineering (Professional)',
-  'Bachelor of Computer Science',
-  'Bachelor of Information Technology',
-  'Bachelor of Business Information Systems',
-  'Master of Information Technology',
-  'Master of Engineering (Software)',
-]
+const PROGRAM_MAP: Record<string, string> = {
+  BP096: 'Bachelor of Software Engineering (Professional)',
+  BP347: 'Bachelor of Computer Science (Professional)',
+  BP348: 'Bachelor of Data Science (Professional)',
+  BP349: 'Bachelor of Information Technology (Professional)',
+  BP356: 'Bachelor of Cyber Security (Professional)',
+}
+
+const PROGRAMS = Object.entries(PROGRAM_MAP)
 
 const schema = z.object({
   programName: z.string().min(1, 'Program name is required'),
+  programCode: z.string().min(1, 'Program code is required'),
   programLevel: z.enum(['undergraduate', 'postgraduate']),
 
   gpa: z.preprocess(
@@ -73,7 +75,8 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
-      programName: ai?.programName ?? PROGRAMS[0],
+      programCode: user.studentProfile.programCode ?? '',
+      programName: PROGRAM_MAP[user.studentProfile.programCode ?? ''] ?? ai?.programName ?? '',
       programLevel: ai?.programLevel ?? 'undergraduate',
       gpa: ai?.gpa ?? undefined,
       unitsAttempted: ai?.unitsAttempted ?? undefined,
@@ -84,6 +87,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
 
   const buildPayload = (values: FormValues): UpdateProfilePayload => ({
     studentProfile: {
+      programCode: values.programCode,
       academicInfo: {
         programName: values.programName,
         programLevel: values.programLevel,
@@ -115,8 +119,10 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
   const watchedGpa = watch('gpa')
   const watchedUnitsAttempted = watch('unitsAttempted')
   const watchedCreditUnitsEarned = watch('creditUnitsEarned')
+  const watchedProgramCode = watch('programCode')
 
   const isFormIncomplete =
+    !watchedProgramCode ||
     watchedGpa === undefined ||
     watchedGpa === null ||
     String(watchedGpa) === '' ||
@@ -209,23 +215,29 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                 </div>
               )}
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-                {/* Program name */}
+                {/* Program */}
                 <div>
                   <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                    Program Name
+                    Program
                   </label>
                   <div className="relative">
                     <select
-                      {...register('programName')}
+                      {...register('programCode')}
+                      onChange={(e) => {
+                        const code = e.target.value
+                        setValue('programCode', code)
+                        setValue('programName', PROGRAM_MAP[code] ?? '')
+                      }}
                       className={`w-full appearance-none rounded-xl border px-5 py-4 font-medium transition-all outline-none focus:ring-2 ${
-                        errors.programName
+                        errors.programCode
                           ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
                           : 'border-gray-200 bg-slate-50 text-slate-700 focus:border-red-500 focus:ring-red-500/10'
-                      } `}
+                      }`}
                     >
-                      {PROGRAMS.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
+                      <option value="">Select your program</option>
+                      {PROGRAMS.map(([code, name]) => (
+                        <option key={code} value={code}>
+                          {code} — {name}
                         </option>
                       ))}
                     </select>
@@ -234,8 +246,8 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
                       className="pointer-events-none absolute top-1/2 right-5 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                  {errors.programName && (
-                    <p className="mt-1 text-xs text-red-500">{errors.programName.message}</p>
+                  {errors.programCode && (
+                    <p className="mt-1 text-xs text-red-500">{errors.programCode.message}</p>
                   )}
                 </div>
 
