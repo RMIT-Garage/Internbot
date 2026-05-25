@@ -28,6 +28,8 @@ import { getOpportunity, getOpportunityAttachment, getUser } from '@/lib/coordin
 import { mapOpportunityToSelfSourcedJob } from '@/lib/coordinator/apiMappers'
 import { type ApprovalStatus, type SelfSourcedJob } from '@/lib/coordinator/mockData'
 import { getReviewBackHref, SELF_SOURCED_REVIEW_CONTEXT } from '@/lib/coordinator/reviewRouting'
+import { useJobCheck } from '@/features/coordinator-ai/hooks/useJobCheck'
+import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { OpportunityAttachmentResponse, OpportunityStatus } from '@/types/api'
@@ -44,6 +46,8 @@ export function JobReviewClient() {
   const [attachments, setAttachments] = useState<OpportunityAttachmentResponse[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [studentOwnerLabel, setStudentOwnerLabel] = useState(STUDENT_PROFILE_PENDING)
+  const [opportunityText, setOpportunityText] = useState<string | null>(null)
+  const jobCheck = useJobCheck(opportunityText)
 
   useEffect(() => {
     let active = true
@@ -63,12 +67,12 @@ export function JobReviewClient() {
         const ownerLabel = await resolveStudentOwnerLabel(opportunity.submittedByUserId)
         if (!active) return
         setStudentOwnerLabel(ownerLabel)
-        setJob({
-          ...mappedJob,
-          studentName: ownerLabel,
-          studentId: ownerLabel,
-        })
+        const jobData = { ...mappedJob, studentName: ownerLabel, studentId: ownerLabel }
+        setJob(jobData)
         setAttachments(opportunity.attachments)
+        setOpportunityText(
+          `Job Title: ${mappedJob.jobTitle}\nEmployer: ${mappedJob.company}\nDescription: ${mappedJob.description}\nWork Pattern: ${mappedJob.workPattern}`
+        )
       })
       .catch((err: unknown) => {
         if (!active) return
@@ -155,6 +159,7 @@ export function JobReviewClient() {
         attachments={attachments}
         attachmentError={attachmentError}
         canReview={canSuitabilityReview}
+        jobCheck={jobCheck}
         onAttachmentOpen={async (attachment, mode) => {
           setAttachmentError(null)
           try {
@@ -266,6 +271,14 @@ export function JobReviewClient() {
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <SurfaceCard className="p-6">
+            <CheckerResultPanel
+              result={jobCheck.result}
+              isLoading={jobCheck.isLoading}
+              error={jobCheck.error}
+              feature="job-checker"
+            />
+          </SurfaceCard>
+          <SurfaceCard className="p-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
               <MessageSquareText className="h-5 w-5 text-red-700" />
               Review Decision
@@ -294,6 +307,7 @@ function SuitabilityApprovalReview({
   attachments,
   attachmentError,
   canReview,
+  jobCheck,
   onAttachmentOpen,
   onDecisionSuccess,
   onAlreadyReviewed,
@@ -304,6 +318,11 @@ function SuitabilityApprovalReview({
   attachments: OpportunityAttachmentResponse[]
   attachmentError: string | null
   canReview: boolean
+  jobCheck: {
+    result: import('@/features/coordinator-ai/types').CheckerResponse | null
+    isLoading: boolean
+    error: string | null
+  }
   onAttachmentOpen: (
     attachment: OpportunityAttachmentResponse,
     mode: 'view' | 'download'
@@ -377,6 +396,14 @@ function SuitabilityApprovalReview({
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <SurfaceCard className="p-6">
+            <CheckerResultPanel
+              result={jobCheck.result}
+              isLoading={jobCheck.isLoading}
+              error={jobCheck.error}
+              feature="job-checker"
+            />
+          </SurfaceCard>
           <SurfaceCard className="p-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
               <MessageSquareText className="h-5 w-5 text-red-700" />

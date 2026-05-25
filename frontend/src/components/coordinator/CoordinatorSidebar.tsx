@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   ScrollText,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,7 @@ export const navItems = [
   { href: '/coordinator/tickets', label: 'Tickets', icon: MessageSquare },
   { href: '/coordinator/semesters', label: 'Semesters', icon: CalendarDays },
   { href: '/coordinator/notifications', label: 'Notifications', icon: Bell },
+  { href: '/coordinator/assistant', label: 'AI Assistant', icon: Sparkles },
 ]
 
 export function CoordinatorSidebar() {

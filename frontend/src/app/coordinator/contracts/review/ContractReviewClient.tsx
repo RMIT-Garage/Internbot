@@ -24,6 +24,8 @@ import { getInternship, getInternshipAttachment, getUser } from '@/lib/coordinat
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
 import { type ApprovalStatus, type ContractApproval } from '@/lib/coordinator/mockData'
 import { getReviewBackHref } from '@/lib/coordinator/reviewRouting'
+import { useContractCheck } from '@/features/coordinator-ai/hooks/useContractCheck'
+import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { InternshipAttachmentResponse, InternshipStatus } from '@/types/api'
@@ -39,6 +41,8 @@ export function ContractReviewClient() {
   const [attachments, setAttachments] = useState<InternshipAttachmentResponse[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [studentLabel, setStudentLabel] = useState(STUDENT_PROFILE_PENDING)
+  const [contractText, setContractText] = useState<string | null>(null)
+  const contractCheck = useContractCheck(contractText)
 
   useEffect(() => {
     let active = true
@@ -56,9 +60,13 @@ export function ContractReviewClient() {
         const resolvedStudentLabel = await resolveStudentLabel(internship.userId)
         if (!active) return
         setBackendStatus(internship.status)
-        setContract(mapInternshipToContractApproval(internship))
+        const mapped = mapInternshipToContractApproval(internship)
+        setContract(mapped)
         setAttachments(internship.attachments)
         setStudentLabel(resolvedStudentLabel)
+        setContractText(
+          `Student: ${resolvedStudentLabel}\nCourse: ${mapped.course}\nSemester: ${mapped.semester}\nPlacement Host: ${mapped.placementHost}\nDocument: ${mapped.documentName}`
+        )
       })
       .catch((err: unknown) => {
         if (!active) return
@@ -216,6 +224,14 @@ export function ContractReviewClient() {
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <SurfaceCard className="p-6">
+            <CheckerResultPanel
+              result={contractCheck.result}
+              isLoading={contractCheck.isLoading}
+              error={contractCheck.error}
+              feature="contract-checker"
+            />
+          </SurfaceCard>
           <SurfaceCard className="p-6">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
               <MessageSquareText className="h-5 w-5 text-red-700" />

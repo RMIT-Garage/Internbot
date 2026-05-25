@@ -18,6 +18,7 @@ import { createInternshipsRouter } from './internships'
 import { createNotificationsRouter } from './notifications'
 import { createTicketsRouter } from './tickets'
 import { createAdvisorRouter } from './advisor'
+import { createCoordinatorAiRouter } from './coordinator-ai'
 
 export interface ApiRouterDeps {
   uow: UnitOfWork
@@ -102,5 +103,6 @@ export function createApiRouter(deps: ApiRouterDeps): ExpressRouter {
     })
   )
   router.use('/advisor', createAdvisorRouter())
+  router.use('/coordinator/ai', createCoordinatorAiRouter({ authz: deps.authz }))
   return router
 }
