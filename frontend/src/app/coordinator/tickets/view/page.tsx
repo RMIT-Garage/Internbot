@@ -3,9 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, Send, User } from 'lucide-react'
+import { ArrowLeft, Send, User, AlertCircle } from 'lucide-react'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
-import { SurfaceCard } from '@/components/coordinator/Premium'
 import { apiFetch } from '@/lib/api/client'
 import { TransitionTicketRequest } from '@/api/models/TransitionTicketRequest'
 import type { TicketResponse } from '@/api/models/TicketResponse'
@@ -20,22 +19,26 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'Other',
 }
 
-const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
-  open: { label: 'Open', dot: 'bg-red-500', badge: 'bg-red-50 text-red-700 border-red-200' },
+const STATUS_CONFIG: Record<string, { label: string; dot: string; pill: string }> = {
+  open: {
+    label: 'Open',
+    dot: 'bg-red-600',
+    pill: 'bg-red-600 text-white',
+  },
   in_progress: {
     label: 'In Progress',
-    dot: 'bg-amber-400',
-    badge: 'bg-amber-50 text-amber-700 border-amber-200',
+    dot: 'bg-red-400',
+    pill: 'bg-red-100 text-red-700',
   },
   resolved: {
     label: 'Resolved',
-    dot: 'bg-green-500',
-    badge: 'bg-green-50 text-green-700 border-green-200',
+    dot: 'bg-black',
+    pill: 'bg-black text-white',
   },
   closed: {
     label: 'Closed',
-    dot: 'bg-slate-300',
-    badge: 'bg-slate-50 text-slate-500 border-slate-200',
+    dot: 'bg-black/20',
+    pill: 'bg-black/10 text-black/50',
   },
 }
 
@@ -47,31 +50,31 @@ const TRANSITIONS: Record<
     {
       to: TransitionTicketRequest.to.IN_PROGRESS,
       label: 'Start Reviewing',
-      style: 'bg-slate-900 text-white hover:bg-black',
+      style: 'bg-black text-white hover:bg-black/80',
     },
     {
       to: TransitionTicketRequest.to.CLOSED,
-      label: 'Close',
-      style: 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+      label: 'Close Ticket',
+      style: 'border border-black/10 text-black/50 hover:bg-black/5',
     },
   ],
   in_progress: [
     {
       to: TransitionTicketRequest.to.RESOLVED,
       label: 'Mark Resolved',
-      style: 'bg-green-700 text-white hover:bg-green-800',
+      style: 'bg-black text-white hover:bg-black/80',
     },
     {
       to: TransitionTicketRequest.to.CLOSED,
-      label: 'Close',
-      style: 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+      label: 'Close Ticket',
+      style: 'border border-black/10 text-black/50 hover:bg-black/5',
     },
   ],
   resolved: [
     {
       to: TransitionTicketRequest.to.CLOSED,
-      label: 'Close',
-      style: 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+      label: 'Close Ticket',
+      style: 'border border-black/10 text-black/50 hover:bg-black/5',
     },
   ],
   closed: [],
@@ -90,29 +93,28 @@ function formatDate(iso: string) {
 function ReplyBubble({ reply }: { reply: TicketReplyResponse }) {
   const isCoordinator = reply.authorRole === 'coordinator'
   return (
-    <div className={`flex gap-3 ${isCoordinator ? 'justify-end' : 'justify-start'}`}>
-      {!isCoordinator && (
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100">
-          <User className="h-3.5 w-3.5 text-slate-500" />
-        </div>
-      )}
+    <div className={`flex gap-3 ${isCoordinator ? 'flex-row-reverse' : 'flex-row'}`}>
       <div
-        className={`max-w-[72%] rounded-2xl px-4 py-3 ${
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
           isCoordinator
-            ? 'rounded-tr-sm bg-slate-900 text-white'
-            : 'rounded-tl-sm border border-slate-200 bg-white text-slate-800'
+            ? 'bg-red-600 text-white'
+            : 'border border-black/10 bg-black/[0.04] text-black/40'
+        }`}
+      >
+        {isCoordinator ? 'C' : <User className="h-3.5 w-3.5" />}
+      </div>
+      <div
+        className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+          isCoordinator
+            ? 'rounded-tr-sm bg-black text-white'
+            : 'rounded-tl-sm border border-black/[0.08] bg-white text-black'
         }`}
       >
         <p className="text-sm leading-relaxed whitespace-pre-wrap">{reply.text}</p>
-        <p className={`mt-1.5 text-[11px] ${isCoordinator ? 'text-slate-400' : 'text-slate-400'}`}>
+        <p className={`mt-1.5 text-[11px] ${isCoordinator ? 'text-white/40' : 'text-black/30'}`}>
           {isCoordinator ? 'You (Coordinator)' : 'Student'} · {formatDate(reply.createdAt)}
         </p>
       </div>
-      {isCoordinator && (
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-100">
-          <span className="text-xs font-bold text-red-700">C</span>
-        </div>
-      )}
     </div>
   )
 }
@@ -180,8 +182,8 @@ function TicketViewContent() {
         body: { to },
       })
       setTicket(updated)
-    } catch (err) {
-      // show toast or ignore — ticket state didn't change
+    } catch {
+      // ticket state unchanged
     } finally {
       setTransitioning(null)
     }
@@ -189,18 +191,15 @@ function TicketViewContent() {
 
   if (!id) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        No ticket ID provided.
+      <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+        <p className="text-sm text-red-700">No ticket ID provided.</p>
       </div>
     )
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <CoordinatorContentSkeleton title="Loading ticket…" />
-      </div>
-    )
+    return <CoordinatorContentSkeleton title="Loading ticket…" />
   }
 
   if (error || !ticket) {
@@ -208,12 +207,13 @@ function TicketViewContent() {
       <div className="space-y-4">
         <Link
           href="/coordinator/tickets"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-black/40 hover:text-black"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Tickets
         </Link>
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error ?? 'Ticket not found.'}
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+          <p className="text-sm text-red-700">{error ?? 'Ticket not found.'}</p>
         </div>
       </div>
     )
@@ -225,76 +225,92 @@ function TicketViewContent() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/coordinator/tickets"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to Tickets
-        </Link>
-      </div>
+      <Link
+        href="/coordinator/tickets"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-black/40 transition hover:text-black"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to Tickets
+      </Link>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
         {/* Left: conversation */}
         <div className="space-y-4">
-          {/* Thread */}
-          <SurfaceCard className="p-5">
-            <div className="mb-4 border-b border-slate-100 pb-4">
-              <p className="text-xs font-bold tracking-wide text-red-600 uppercase">
-                Support Ticket
-              </p>
-              <h1 className="mt-1 text-xl font-bold text-slate-900">{ticket.subject}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span className="font-mono">{ticket.userId}</span>
-                {ticket.category && (
-                  <>
-                    <span>·</span>
-                    <span>{CATEGORY_LABELS[ticket.category] ?? ticket.category}</span>
-                  </>
-                )}
-                <span>·</span>
-                <span>{new Date(ticket.createdAt).toLocaleDateString('en-AU')}</span>
+          {/* Ticket header */}
+          <div className="rounded-3xl border border-black/[0.08] bg-white p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold tracking-widest text-red-600 uppercase">
+                  Support Ticket
+                </p>
+                <h1 className="mt-1.5 text-xl font-bold text-black">{ticket.subject}</h1>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-black/35">
+                  <span className="font-mono">{ticket.userId}</span>
+                  {ticket.category && (
+                    <>
+                      <span>·</span>
+                      <span>{CATEGORY_LABELS[ticket.category] ?? ticket.category}</span>
+                    </>
+                  )}
+                  <span>·</span>
+                  <span>
+                    {new Date(ticket.createdAt).toLocaleDateString('en-AU', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
               </div>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${statusCfg.pill}`}
+              >
+                {statusCfg.label}
+              </span>
             </div>
+          </div>
 
+          {/* Thread */}
+          <div className="rounded-3xl border border-black/[0.08] bg-black/[0.02] p-5">
             <div className="space-y-4">
               {/* Original body */}
               <div className="flex gap-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100">
-                  <User className="h-3.5 w-3.5 text-slate-500" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white">
+                  <User className="h-3.5 w-3.5 text-black/40" />
                 </div>
-                <div className="max-w-[72%] rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 text-slate-800">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{ticket.body}</p>
-                  <p className="mt-1.5 text-[11px] text-slate-400">
+                <div className="max-w-[70%] rounded-2xl rounded-tl-sm border border-black/[0.08] bg-white px-4 py-3">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-black">
+                    {ticket.body}
+                  </p>
+                  <p className="mt-1.5 text-[11px] text-black/30">
                     Student · {formatDate(ticket.createdAt)}
                   </p>
                 </div>
               </div>
 
-              {/* Replies */}
               {ticket.replies.map((reply) => (
                 <ReplyBubble key={reply.id} reply={reply} />
               ))}
 
               {ticket.replies.length === 0 && (
-                <p className="py-3 text-center text-xs text-slate-400">
-                  No replies yet. Be the first to respond.
+                <p className="py-4 text-center text-xs text-black/25">
+                  No replies yet — be the first to respond.
                 </p>
               )}
 
               <div ref={bottomRef} />
             </div>
-          </SurfaceCard>
+          </div>
 
           {/* Reply input */}
           {canReply ? (
-            <SurfaceCard className="p-4">
+            <div className="rounded-3xl border border-black/[0.08] bg-white p-5">
               {replyError && (
-                <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {replyError}
+                <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" />
+                  <p className="text-xs text-red-700">{replyError}</p>
                 </div>
               )}
-              <label className="mb-2 block text-xs font-bold tracking-wide text-slate-500 uppercase">
+              <label className="mb-2 block text-xs font-bold tracking-widest text-black/40 uppercase">
                 Reply as Coordinator
               </label>
               <textarea
@@ -306,74 +322,84 @@ function TicketViewContent() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleReply()
                 }}
-                className="w-full resize-none rounded-xl border border-slate-200 p-3 text-sm text-slate-900 outline-none focus:border-red-400 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full resize-none rounded-2xl border border-black/10 bg-black/[0.02] p-3 text-sm text-black transition outline-none focus:border-red-400 focus:bg-white disabled:opacity-50"
               />
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[11px] text-black/25">⌘↵ to send</span>
                 <button
                   type="button"
                   onClick={handleReply}
                   disabled={submitting || !replyText.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-800 disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-40"
                 >
                   <Send className="h-3.5 w-3.5" />
                   {submitting ? 'Sending…' : 'Send Reply'}
                 </button>
               </div>
-            </SurfaceCard>
+            </div>
           ) : (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-center text-sm text-slate-500">
-              This ticket is closed.
+            <div className="rounded-3xl border border-black/[0.08] bg-black/[0.02] px-5 py-4 text-center text-sm text-black/30">
+              This ticket is closed and no longer accepting replies.
             </div>
           )}
         </div>
 
-        {/* Right: status + actions */}
+        {/* Right: actions + details */}
         <div className="space-y-4">
-          <SurfaceCard className="p-5">
-            <p className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">Status</p>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold ${statusCfg.badge}`}
-            >
-              <span className={`h-2 w-2 rounded-full ${statusCfg.dot}`} />
-              {statusCfg.label}
-            </span>
-
-            {transitions.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Actions</p>
+          {/* Actions */}
+          {transitions.length > 0 && (
+            <div className="rounded-3xl border border-black/[0.08] bg-white p-5">
+              <p className="mb-3 text-xs font-bold tracking-widest text-black/40 uppercase">
+                Actions
+              </p>
+              <div className="space-y-2">
                 {transitions.map(({ to, label, style }) => (
                   <button
                     key={to}
                     type="button"
                     onClick={() => handleTransition(to)}
                     disabled={transitioning !== null}
-                    className={`w-full rounded-xl px-3 py-2 text-sm font-semibold transition disabled:opacity-50 ${style}`}
+                    className={`w-full rounded-xl px-3 py-2.5 text-sm font-bold transition disabled:opacity-50 ${style}`}
                   >
                     {transitioning === to ? 'Updating…' : label}
                   </button>
                 ))}
               </div>
-            )}
-          </SurfaceCard>
+            </div>
+          )}
 
-          <SurfaceCard className="p-5">
-            <p className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">Details</p>
-            <dl className="space-y-2 text-sm">
+          {/* Status */}
+          <div className="rounded-3xl border border-black/[0.08] bg-white p-5">
+            <p className="mb-3 text-xs font-bold tracking-widest text-black/40 uppercase">Status</p>
+            <div className="flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${statusCfg.dot}`} />
+              <span className="font-semibold text-black">{statusCfg.label}</span>
+            </div>
+          </div>
+
+          {/* Details */}
+          <div className="rounded-3xl border border-black/[0.08] bg-white p-5">
+            <p className="mb-3 text-xs font-bold tracking-widest text-black/40 uppercase">
+              Details
+            </p>
+            <dl className="space-y-3 text-sm">
               <div>
-                <dt className="text-xs text-slate-400">Student ID</dt>
-                <dd className="mt-0.5 font-mono text-xs text-slate-700">{ticket.userId}</dd>
+                <dt className="text-xs text-black/30">Student ID</dt>
+                <dd className="mt-0.5 font-mono text-xs break-all text-black/70">
+                  {ticket.userId}
+                </dd>
               </div>
               {ticket.category && (
                 <div>
-                  <dt className="text-xs text-slate-400">Category</dt>
-                  <dd className="mt-0.5 text-slate-700">
+                  <dt className="text-xs text-black/30">Category</dt>
+                  <dd className="mt-0.5 font-medium text-black">
                     {CATEGORY_LABELS[ticket.category] ?? ticket.category}
                   </dd>
                 </div>
               )}
               <div>
-                <dt className="text-xs text-slate-400">Opened</dt>
-                <dd className="mt-0.5 text-slate-700">
+                <dt className="text-xs text-black/30">Opened</dt>
+                <dd className="mt-0.5 text-black/70">
                   {new Date(ticket.createdAt).toLocaleDateString('en-AU', {
                     day: 'numeric',
                     month: 'short',
@@ -382,11 +408,11 @@ function TicketViewContent() {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-400">Replies</dt>
-                <dd className="mt-0.5 font-semibold text-slate-900">{ticket.replies.length}</dd>
+                <dt className="text-xs text-black/30">Replies</dt>
+                <dd className="mt-0.5 text-xl font-black text-black">{ticket.replies.length}</dd>
               </div>
             </dl>
-          </SurfaceCard>
+          </div>
         </div>
       </div>
     </div>
