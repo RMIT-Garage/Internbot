@@ -220,7 +220,7 @@ function TicketViewContent() {
 
   const badgeStatus = STATUS_BADGE_MAP[ticket.status] ?? 'inactive'
   const transitions = TRANSITIONS[ticket.status] ?? []
-  const canReply = ticket.status !== 'closed'
+  const canReply = ticket.status === 'in_progress'
 
   return (
     <div className="space-y-5">
@@ -320,7 +320,9 @@ function TicketViewContent() {
             </SurfaceCard>
           ) : (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-center text-sm text-slate-500">
-              This ticket is closed and no longer accepting replies.
+              {ticket.status === 'open'
+                ? 'Click "Start Reviewing" to begin replying to this ticket.'
+                : 'This ticket is no longer accepting replies.'}
             </div>
           )}
         </div>

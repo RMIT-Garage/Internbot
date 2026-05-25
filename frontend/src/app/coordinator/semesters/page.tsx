@@ -291,7 +291,7 @@ export default function CoordinatorSemestersPage() {
             return (
               <div
                 key={semester.id}
-                className="grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 hover:bg-slate-50 sm:grid-cols-[2fr_1fr_1fr_auto_auto_auto]"
+                className="grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 hover:bg-slate-50 sm:grid-cols-[2fr_1fr_1fr_auto_auto]"
               >
                 {/* Name + meta */}
                 <div className="min-w-0">
@@ -336,10 +336,10 @@ export default function CoordinatorSemestersPage() {
                 {/* Students */}
                 <Link
                   href={`/coordinator/semesters/${semester.id}/students`}
-                  className="hidden items-center gap-1 text-sm font-semibold text-slate-900 hover:text-red-700 sm:flex"
+                  className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 sm:inline-flex"
                 >
-                  <Users className="h-3.5 w-3.5 text-slate-400" />
-                  {semester.students ?? 0}
+                  <Users className="h-3.5 w-3.5" />
+                  {semester.students ?? 0} Students
                 </Link>
 
                 {/* Actions */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
@@ -29,8 +29,10 @@ const PLACEMENT_STATUS_COLORS: Record<SemesterStudentPlacementStatus, string> = 
 }
 
 export default function SemesterStudentsClient() {
-  const params = useParams<{ id: string }>()
-  const semesterId = params.id ?? ''
+  // useParams() returns the build-time '_' placeholder in static export.
+  // Parse the real semester ID directly from the live browser URL instead.
+  const pathname = usePathname()
+  const semesterId = pathname.split('/').at(-2) ?? ''
   const [students, setStudents] = useState<SemesterStudentItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
