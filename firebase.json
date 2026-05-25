@@ -15,6 +15,14 @@
         "function": { "functionId": "api", "region": "australia-southeast1" }
       },
       {
+        "source": "/coordinator/semesters/*/students",
+        "destination": "/coordinator/semesters/_/students/index.html"
+      },
+      {
+        "source": "/coordinator/semesters/*/students/",
+        "destination": "/coordinator/semesters/_/students/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
