@@ -112,7 +112,7 @@ describe('ListSemestersQueryHandler — integration', () => {
         cursor: undefined,
       },
     })
-    expect(result.items.every((s) => s.courseCode === courseA)).toBe(true)
+    expect(result.items.every((s) => s.semester.courseCode === courseA)).toBe(true)
     expect(result.items.length).toBeGreaterThanOrEqual(3)
   })
 
@@ -176,7 +176,7 @@ describe('ListSemestersQueryHandler — integration', () => {
         cursor: undefined,
       },
     })
-    const ids = result.items.map((s) => s.id)
+    const ids = result.items.map((s) => s.semester.id)
     expect(ids).toContain(withWindow.id)
     expect(ids).toContain(noWindow.id)
   })

@@ -226,7 +226,9 @@ describe('SelectSemesterCommandHandler — integration', () => {
     ).rejects.toMatchObject({ name: 'ConflictError', reason: 'semester_not_active' })
   })
 
-  it('outside the enrolment window → ConflictError(enrolment_window_closed)', async () => {
+  it('enrollment_open semester succeeds regardless of enrolment window dates', async () => {
+    // Enrollment is now gated on semester.status, not on a time window.
+    // An enrollment_open semester with a past close-window must still accept students.
     const student = await seedStudent({ complete: true })
     const semester = await seedActiveSemester(ALWAYS_CLOSED_WINDOW)
     const select = new SelectSemesterCommandHandler(
@@ -240,7 +242,7 @@ describe('SelectSemesterCommandHandler — integration', () => {
         userId: student.id,
         payload: { semesterId: semester.id },
       })
-    ).rejects.toMatchObject({ name: 'ConflictError', reason: 'enrolment_window_closed' })
+    ).resolves.toMatchObject({ id: expect.any(String) })
   })
 
   it('missing semester id → NotFoundError', async () => {
