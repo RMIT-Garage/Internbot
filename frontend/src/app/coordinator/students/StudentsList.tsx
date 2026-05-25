@@ -33,6 +33,7 @@ function pageHref(searchParams: URLSearchParams, page: number) {
 
 export function StudentsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
+  const [studentNames, setStudentNames] = useState<Record<string, string>>({})
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -79,14 +80,24 @@ export function StudentsList() {
     Promise.all(
       missingIds.map(async (id) => {
         try {
-          return [id, formatStudentDisplay(await getUser(id))] as const
+          const user = await getUser(id)
+          return [id, formatStudentDisplay(user), user.displayName ?? null] as const
         } catch {
-          return [id, STUDENT_PROFILE_PENDING] as const
+          return [id, STUDENT_PROFILE_PENDING, null] as const
         }
       })
     ).then((entries) => {
       if (!active) return
-      setStudentLabels((current) => ({ ...current, ...Object.fromEntries(entries) }))
+      setStudentLabels((current) => ({
+        ...current,
+        ...Object.fromEntries(entries.map(([id, label]) => [id, label])),
+      }))
+      setStudentNames((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          entries.filter(([, , name]) => name).map(([id, , name]) => [id, name!])
+        ),
+      }))
     })
 
     return () => {
@@ -201,6 +212,7 @@ export function StudentsList() {
               {paged.rows.map((student) => {
                 const href = studentHref(student)
                 const studentDisplay = studentDisplayLabel(student, studentLabels)
+                const studentName = studentNames[student.id]
 
                 return (
                   <tr
@@ -218,7 +230,16 @@ export function StudentsList() {
                   >
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div>
-                        <p className="font-bold text-slate-950">{studentDisplay}</p>
+                        {studentName && studentName !== studentDisplay ? (
+                          <>
+                            <p className="font-bold text-slate-950">{studentName}</p>
+                            <p className="mt-0.5 text-xs font-medium text-slate-500">
+                              {studentDisplay}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="font-bold text-slate-950">{studentDisplay}</p>
+                        )}
                         {isRealStudentValue(student.email) && (
                           <p className="mt-1 text-xs text-slate-500">{student.email}</p>
                         )}

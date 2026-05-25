@@ -1,14 +1,27 @@
 import { Timestamp, type Query, type QueryDocumentSnapshot } from 'firebase-admin/firestore'
+import { z } from 'zod'
 import { Timestamp as FsTimestamp, adminDb } from '../config/firebase-admin'
-import type { Ticket } from '../../domain/entities/ticket'
 import type { TicketQueryService } from '../../application/ports/queries/ticket-query-service'
 import type {
   TicketListCursor,
   TicketListFilter,
   TicketListPage,
+  TicketWithReplies,
 } from '../../application/read-models/ticket'
+import { TicketReply } from '../../domain/value-objects/ticket-reply'
+import { roleValues } from '../../domain/value-objects/user-enums'
 import { TICKET_COLLECTION, parseTicket } from './firestore-ticket-repository'
 import { translateFirestoreErrors } from './translate-firestore-errors'
+
+const firestoreTimestamp = z.instanceof(Timestamp)
+
+const ticketReplyStorageSchema = z.object({
+  authorUserId: z.string().min(1),
+  authorRole: z.enum(roleValues),
+  text: z.string().min(1),
+  createdAt: firestoreTimestamp,
+  _schemaVersion: z.number().int().optional(),
+})
 
 /**
  * Firestore impl of the read-side `TicketQueryService`. Singleton — not
@@ -16,12 +29,31 @@ import { translateFirestoreErrors } from './translate-firestore-errors'
  * per-read transactional overhead.
  */
 export class FirestoreTicketQueryService implements TicketQueryService {
-  async findById(id: string): Promise<Ticket | null> {
+  async findById(id: string): Promise<TicketWithReplies | null> {
     return translateFirestoreErrors(
       async () => {
-        const snap = await adminDb.collection(TICKET_COLLECTION).doc(id).get()
+        const ref = adminDb.collection(TICKET_COLLECTION).doc(id)
+        const [snap, repliesSnap] = await Promise.all([
+          ref.get(),
+          ref.collection('replies').orderBy('createdAt', 'asc').get(),
+        ])
         if (!snap.exists) return null
-        return parseTicket(snap.id, snap.data())
+        const ticket = parseTicket(snap.id, snap.data())
+        const replies = repliesSnap.docs.flatMap((doc) => {
+          const parsed = ticketReplyStorageSchema.safeParse(doc.data())
+          if (!parsed.success) return []
+          const d = parsed.data
+          return [
+            TicketReply.rehydrate({
+              id: doc.id,
+              authorUserId: d.authorUserId,
+              authorRole: d.authorRole,
+              text: d.text,
+              createdAt: d.createdAt.toDate(),
+            }),
+          ]
+        })
+        return { ticket, replies }
       },
       { op: 'tickets.findById', resource: 'Ticket', id }
     )

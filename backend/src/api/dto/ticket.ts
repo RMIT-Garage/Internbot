@@ -2,6 +2,21 @@ import { z } from 'zod'
 import { ticketStatusValues } from '../../domain/value-objects/ticket-enums'
 import { roleValues } from '../../domain/value-objects/user-enums'
 
+export const ticketReplyResponseSchema = z
+  .object({
+    id: z.string().meta({ example: 'rep_001' }),
+    authorUserId: z.string().meta({ example: 'usr_DeF456UvW' }),
+    authorRole: z.enum(roleValues),
+    text: z.string().meta({ example: 'Yes, you can apply now.' }),
+    createdAt: z.string().datetime().meta({ example: '2026-04-05T04:00:00Z' }),
+  })
+  .meta({
+    id: 'TicketReplyResponse',
+    description: 'Reply on a ticket conversation thread.',
+  })
+
+export type TicketReplyResponse = z.infer<typeof ticketReplyResponseSchema>
+
 export const ticketResponseSchema = z
   .object({
     id: z.string().meta({ example: 'tkt_001' }),
@@ -13,6 +28,7 @@ export const ticketResponseSchema = z
     category: z.string().nullable().meta({ example: 'eligibility' }),
     status: z.enum(ticketStatusValues),
     version: z.number().int().nonnegative(),
+    replies: z.array(ticketReplyResponseSchema),
     createdAt: z.string().datetime().meta({ example: '2026-04-05T03:14:12Z' }),
     updatedAt: z.string().datetime().meta({ example: '2026-04-05T03:14:12Z' }),
   })
@@ -24,10 +40,10 @@ export const ticketResponseSchema = z
 export type TicketResponse = z.infer<typeof ticketResponseSchema>
 
 export const ticketListItemResponseSchema = ticketResponseSchema
-  .omit({ body: true, version: true })
+  .omit({ body: true, version: true, replies: true })
   .meta({
     id: 'TicketListItemResponse',
-    description: 'Support ticket list item — body is omitted from list responses.',
+    description: 'Support ticket list item — body and replies are omitted from list responses.',
   })
 
 export type TicketListItemResponse = z.infer<typeof ticketListItemResponseSchema>
@@ -43,18 +59,3 @@ export const ticketListResponseSchema = z
   })
 
 export type TicketListResponse = z.infer<typeof ticketListResponseSchema>
-
-export const ticketReplyResponseSchema = z
-  .object({
-    id: z.string().meta({ example: 'rep_001' }),
-    authorUserId: z.string().meta({ example: 'usr_DeF456UvW' }),
-    authorRole: z.enum(roleValues),
-    text: z.string().meta({ example: 'Yes, you can apply now.' }),
-    createdAt: z.string().datetime().meta({ example: '2026-04-05T04:00:00Z' }),
-  })
-  .meta({
-    id: 'TicketReplyResponse',
-    description: 'Reply on a ticket conversation thread.',
-  })
-
-export type TicketReplyResponse = z.infer<typeof ticketReplyResponseSchema>

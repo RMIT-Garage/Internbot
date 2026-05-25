@@ -264,6 +264,7 @@ function readModelToResponse(model: OpportunityReadModel): OpportunityResponse {
     submittedByUserId: opportunity.submittedByUserId ?? null,
     verifiedByUserId: opportunity.verifiedByUserId ?? null,
     verifiedAt: dateToIso(opportunity.verifiedAt),
+    verificationComment: opportunity.verificationComment ?? null,
     attachmentUploadPathPrefix: `opportunities/${opportunity.id}/attachments/`,
     attachments: model.attachments.map((a) => ({
       id: a.id,

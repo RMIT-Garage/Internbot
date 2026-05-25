@@ -22,6 +22,7 @@ export type OpportunityResponse = {
   submittedByUserId: string | null
   verifiedByUserId: string | null
   verifiedAt: string | null
+  verificationComment: string | null
   attachmentUploadPathPrefix: string
   attachments: Array<OpportunityAttachmentResponse>
   createdAt: string

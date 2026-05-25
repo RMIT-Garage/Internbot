@@ -172,6 +172,13 @@ export function toTicketResponse(result: TicketResult): TicketResponse {
     category: ticket.category ?? null,
     status: ticket.status,
     version: ticket.version,
+    replies: result.replies.map((r) => ({
+      id: r.id,
+      authorUserId: r.authorUserId,
+      authorRole: r.authorRole,
+      text: r.text,
+      createdAt: r.createdAt.toISOString(),
+    })),
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
   }

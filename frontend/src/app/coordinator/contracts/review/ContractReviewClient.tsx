@@ -397,12 +397,13 @@ function WorkflowProgress({ status }: { status: ApprovalStatus }) {
       {steps.map((step, index) => {
         const complete = index < currentIndex || status === 'approved'
         const rejected = step.id === 'rejected' && step.current
+        const nextComplete = index + 1 < currentIndex || status === 'approved'
         return (
           <div key={step.id} className="relative flex flex-col items-center gap-2 text-center">
             {index > 0 && (
               <div
                 className={[
-                  'absolute top-3 right-1/2 left-0 h-0.5',
+                  'absolute top-3 right-1/2 left-0 h-0.5 -translate-y-1/2',
                   complete ? 'bg-slate-950' : 'bg-slate-200',
                 ].join(' ')}
               />
@@ -410,8 +411,8 @@ function WorkflowProgress({ status }: { status: ApprovalStatus }) {
             {index < steps.length - 1 && (
               <div
                 className={[
-                  'absolute top-3 right-0 left-1/2 h-0.5',
-                  complete ? 'bg-slate-950' : 'bg-slate-200',
+                  'absolute top-3 right-0 left-1/2 h-0.5 -translate-y-1/2',
+                  nextComplete ? 'bg-slate-950' : 'bg-slate-200',
                 ].join(' ')}
               />
             )}

@@ -50,7 +50,7 @@ async function seedSemester(status: SemesterStatus = 'draft'): Promise<{ id: str
     await transition.handle({
       actor: actorFor('coordinator'),
       semesterId: id,
-      to: status === 'archived' ? 'archived' : 'active',
+      to: status === 'archived' ? 'archived' : 'enrollment_open',
       comment: undefined,
     })
     if (status === 'archived') {
@@ -69,7 +69,7 @@ describe('TransitionSemesterCommandHandler — integration', () => {
     await clearDocs()
   })
 
-  it('draft → active updates parent status and writes an activity record', async () => {
+  it('draft → enrollment_open updates parent status and writes an activity record', async () => {
     const { id } = await seedSemester('draft')
     const handler = new TransitionSemesterCommandHandler(
       new FirestoreUnitOfWork(),
@@ -84,23 +84,23 @@ describe('TransitionSemesterCommandHandler — integration', () => {
     await handler.handle({
       actor: coord,
       semesterId: id,
-      to: 'active',
+      to: 'enrollment_open',
       comment: 'kickoff',
     })
 
     const result = await get.handle({ actor: coord, semesterId: id })
-    expect(result.semester.status).toBe('active')
+    expect(result.semester.status).toBe('enrollment_open')
 
     const activity = await adminDb.collection('semesters').doc(id).collection('activity').get()
     expect(activity.size).toBe(1)
     const record = activity.docs[0]!.data()
     expect(record['from']).toBe('draft')
-    expect(record['to']).toBe('active')
+    expect(record['to']).toBe('enrollment_open')
     expect(record['actorUserId']).toBe(coord.platformUser!.id)
     expect(record['comment']).toBe('kickoff')
   })
 
-  it('archived → active throws ConflictError invalid_state_transition', async () => {
+  it('archived → enrollment_open throws ConflictError invalid_state_transition', async () => {
     // Seed a semester directly in archived state via two transitions
     // (draft → active is not a path to archived, so use draft → archived).
     const create = new CreateSemesterCommandHandler(
@@ -139,7 +139,7 @@ describe('TransitionSemesterCommandHandler — integration', () => {
       handler.handle({
         actor: actorFor('coordinator'),
         semesterId: id,
-        to: 'active',
+        to: 'enrollment_open',
         comment: undefined,
       })
     ).rejects.toMatchObject({ name: 'ConflictError', reason: 'invalid_state_transition' })
@@ -155,7 +155,7 @@ describe('TransitionSemesterCommandHandler — integration', () => {
       handler.handle({
         actor: actorFor('coordinator'),
         semesterId: id,
-        to: 'active',
+        to: 'enrollment_open',
         comment: undefined,
         metadata: { expectedVersion: 0 },
       })

@@ -9,6 +9,8 @@ import type {
   OpportunityResponse,
   SemesterListResponse,
   SemesterResponse,
+  SemesterStatus,
+  SemesterStudentListResponse,
   UserActivityFeedResponse,
 } from '@/types/api'
 
@@ -226,6 +228,24 @@ export function updateSemester(
     method: 'PATCH',
     body,
   })
+}
+
+export function transitionSemester(
+  semester: Pick<SemesterResponse, 'id'>,
+  to: Exclude<SemesterStatus, 'draft'>,
+  comment?: string
+) {
+  return apiFetch<SemesterResponse>(`/api/v1/semesters/${semester.id}/transitions`, {
+    method: 'POST',
+    body: { to, ...(comment ? { comment } : {}) },
+  })
+}
+
+export function listSemesterStudents(semesterId: string, query: Query = {}) {
+  const allowedKeys = new Set(['placementStatus', 'programCode', 'pageToken', 'limit'])
+  const sanitized = sanitizeQuery(query, allowedKeys, 'semesterStudents')
+  const path = withQuery(`/api/v1/semesters/${semesterId}/students`, sanitized)
+  return apiFetch<SemesterStudentListResponse>(path)
 }
 
 export function listNotifications(query: Query = {}) {

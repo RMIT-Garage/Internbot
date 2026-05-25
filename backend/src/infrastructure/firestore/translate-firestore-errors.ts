@@ -60,6 +60,7 @@ export type FirestoreOp =
   | 'tickets.list'
   | 'tickets.save'
   | 'tickets.delete'
+  | 'semesterStudents.listBySemesterId'
 
 /**
  * Singular domain resource label used in `NotFoundError` messages
@@ -69,6 +70,7 @@ export type FirestoreOp =
 export type FirestoreResource =
   | 'User'
   | 'Semester'
+  | 'SemesterStudent'
   | 'Opportunity'
   | 'Internship'
   | 'Notification'

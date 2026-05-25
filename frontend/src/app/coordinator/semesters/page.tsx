@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { CalendarDays, ClipboardCheck, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
@@ -8,12 +9,27 @@ import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorCont
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { semesterInventory } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { createSemester, listSemesters, updateSemester } from '@/lib/coordinator/api'
+import {
+  createSemester,
+  listSemesters,
+  updateSemester,
+  transitionSemester,
+} from '@/lib/coordinator/api'
 import { mapSemesterToInventory } from '@/lib/coordinator/apiMappers'
+import type { SemesterResponse, SemesterStatus } from '@/types/api'
+
+const TRANSITION_TARGETS: Record<SemesterStatus, Exclude<SemesterStatus, 'draft'>[]> = {
+  draft: ['enrollment_open', 'archived'],
+  enrollment_open: ['placement_running', 'archived'],
+  placement_running: ['reporting', 'archived'],
+  reporting: ['archived'],
+  archived: [],
+}
 
 export default function CoordinatorSemestersPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [transitioning, setTransitioning] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({
     semesterCode: '',
     courseCode: '',
@@ -24,6 +40,7 @@ export default function CoordinatorSemestersPage() {
   })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [rawSemesters, setRawSemesters] = useState<SemesterResponse[]>([])
   const {
     data: semesters,
     loading,
@@ -39,6 +56,7 @@ export default function CoordinatorSemestersPage() {
         )
       }
       const response = await listSemesters({ limit: 100 })
+      setRawSemesters(response.items)
       return response.items.map(mapSemesterToInventory)
     },
     semesterInventory,
@@ -111,7 +129,9 @@ export default function CoordinatorSemestersPage() {
                 className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
               >
                 <option value="draft">Draft</option>
-                <option value="active">Active</option>
+                <option value="enrollment_open">Enrollment Open</option>
+                <option value="placement_running">Placement Running</option>
+                <option value="reporting">Reporting</option>
                 <option value="archived">Archived</option>
               </select>
             </label>
@@ -197,6 +217,7 @@ export default function CoordinatorSemestersPage() {
                   'Students',
                   'Current Phase',
                   'Flags',
+                  'Actions',
                 ].map((head) => (
                   <th key={head} className="px-5 py-3">
                     {head}
@@ -205,62 +226,88 @@ export default function CoordinatorSemestersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {semesters.map((semester) => (
-                <tr key={semester.name} className="hover:bg-slate-50">
-                  <td className="px-5 py-4 font-bold text-slate-950">
-                    {editingId === semester.id ? (
-                      <form
-                        className="flex min-w-64 gap-2"
-                        onSubmit={(event) => handleUpdateSemester(event, semester.id)}
-                      >
-                        <input
-                          value={editingName}
-                          onChange={(event) => setEditingName(event.target.value)}
-                          className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
-                        />
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="h-9 rounded-xl bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
+              {semesters.map((semester) => {
+                const raw = rawSemesters.find((r) => r.id === semester.id)
+                const rawStatus = raw?.status as SemesterStatus | undefined
+                const targets = rawStatus ? TRANSITION_TARGETS[rawStatus] : []
+                return (
+                  <tr key={semester.id} className="hover:bg-slate-50">
+                    <td className="px-5 py-4 font-bold text-slate-950">
+                      {editingId === semester.id ? (
+                        <form
+                          className="flex min-w-64 gap-2"
+                          onSubmit={(event) => handleUpdateSemester(event, semester.id)}
                         >
-                          Save
+                          <input
+                            value={editingName}
+                            onChange={(event) => setEditingName(event.target.value)}
+                            className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
+                          />
+                          <button
+                            type="submit"
+                            disabled={saving}
+                            className="h-9 rounded-xl bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
+                          >
+                            Save
+                          </button>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(semester.id)
+                            setEditingName(semester.name)
+                          }}
+                          className="text-left font-bold text-slate-950 hover:text-red-700"
+                        >
+                          {semester.name}
                         </button>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingId(semester.id)
-                          setEditingName(semester.name)
-                        }}
-                        className="text-left font-bold text-slate-950 hover:text-red-700"
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={semester.status as 'active' | 'pending' | 'archived'} />
+                    </td>
+                    <td className="px-5 py-4 text-slate-600">{semester.window}</td>
+                    <td className="px-5 py-4 font-semibold text-slate-900">
+                      <Link
+                        href={`/coordinator/semesters/${semester.id}/students`}
+                        className="hover:text-red-700 hover:underline"
                       >
-                        {semester.name}
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge status={semester.status as 'active' | 'pending' | 'archived'} />
-                  </td>
-                  <td className="px-5 py-4 text-slate-600">{semester.window}</td>
-                  <td className="px-5 py-4 font-semibold text-slate-900">{semester.students}</td>
-                  <td className="px-5 py-4 text-slate-600">{semester.phase}</td>
-                  <td className="px-5 py-4 font-bold text-red-700">{semester.flagged}</td>
-                </tr>
-              ))}
+                        {semester.students}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-4 text-slate-600">{semester.phase}</td>
+                    <td className="px-5 py-4 font-bold text-red-700">{semester.flagged}</td>
+                    <td className="px-5 py-4">
+                      {targets.length > 0 && raw && (
+                        <select
+                          disabled={transitioning === semester.id}
+                          defaultValue=""
+                          onChange={(event) => {
+                            const to = event.target.value as Exclude<SemesterStatus, 'draft'>
+                            if (to) handleTransitionSemester(raw, to)
+                            event.target.value = ''
+                          }}
+                          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-red-500 disabled:opacity-60"
+                        >
+                          <option value="" disabled>
+                            Transition…
+                          </option>
+                          {targets.map((t) => (
+                            <option key={t} value={t}>
+                              → {t.replace(/_/g, ' ')}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </SurfaceCard>
-      <div className="grid gap-4 md:grid-cols-3">
-        {semesters.map((semester) => (
-          <SurfaceCard key={semester.name} className="p-5">
-            <CalendarDays className="h-5 w-5 text-red-700" />
-            <h2 className="mt-4 font-bold text-slate-950">{semester.name}</h2>
-            <p className="mt-2 text-sm text-slate-500">{semester.phase}</p>
-          </SurfaceCard>
-        ))}
-      </div>
     </div>
   )
 
@@ -277,7 +324,7 @@ export default function CoordinatorSemestersPage() {
         semesterCode: createForm.semesterCode,
         courseCode: createForm.courseCode,
         displayName: createForm.displayName,
-        status: createForm.status as 'draft' | 'active' | 'archived',
+        status: createForm.status as SemesterStatus,
         ...(createForm.enrolmentOpenAt
           ? { enrolmentOpenAt: new Date(createForm.enrolmentOpenAt).toISOString() }
           : {}),
@@ -285,6 +332,7 @@ export default function CoordinatorSemestersPage() {
           ? { enrolmentCloseAt: new Date(createForm.enrolmentCloseAt).toISOString() }
           : {}),
       })
+      setRawSemesters([created, ...rawSemesters])
       setData([mapSemesterToInventory(created), ...semesters])
       setShowCreate(false)
       setCreateForm({
@@ -303,6 +351,23 @@ export default function CoordinatorSemestersPage() {
     }
   }
 
+  async function handleTransitionSemester(
+    raw: SemesterResponse,
+    to: Exclude<SemesterStatus, 'draft'>
+  ) {
+    setTransitioning(raw.id)
+    try {
+      const updated = await transitionSemester({ id: raw.id }, to)
+      setRawSemesters(rawSemesters.map((r) => (r.id === raw.id ? updated : r)))
+      setData(semesters.map((s) => (s.id === raw.id ? mapSemesterToInventory(updated) : s)))
+      toast.success(`Semester transitioned to ${to.replace(/_/g, ' ')}.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Transition failed.')
+    } finally {
+      setTransitioning(null)
+    }
+  }
+
   async function handleUpdateSemester(event: React.FormEvent<HTMLFormElement>, id: string) {
     event.preventDefault()
     if (!editingName.trim()) {
@@ -313,6 +378,7 @@ export default function CoordinatorSemestersPage() {
     setSaving(true)
     try {
       const updated = await updateSemester({ id }, { displayName: editingName.trim() })
+      setRawSemesters(rawSemesters.map((r) => (r.id === id ? updated : r)))
       setData(
         semesters.map((semester) =>
           semester.id === id ? mapSemesterToInventory(updated) : semester

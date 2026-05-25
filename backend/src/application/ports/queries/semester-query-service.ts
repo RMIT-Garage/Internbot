@@ -1,6 +1,11 @@
 import type { Semester } from '../../../domain/entities/semester'
 import type { SemesterListFilter, SemesterListPage } from '../../read-models/semester'
 
+export interface SemesterKPIs {
+  enrolledStudentCount: number
+  openOfferCount: number
+}
+
 /**
  * Read-side port for the `semesters` aggregate. Standalone singleton — not
  * on the UnitOfWork. The natural-key lookup is read-only and must NOT be
@@ -13,4 +18,6 @@ export interface SemesterQueryService {
   findById(id: string): Promise<Semester | null>
   findByNaturalKey(semesterCode: string, courseCode: string): Promise<Semester | null>
   list(filter: SemesterListFilter): Promise<SemesterListPage>
+  getKPIs(semesterId: string): Promise<SemesterKPIs>
+  getKPIsForList(semesterIds: string[]): Promise<Map<string, SemesterKPIs>>
 }

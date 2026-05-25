@@ -509,7 +509,17 @@ function SemesterSnapshot({ semesters }: { semesters: SemesterResponse[] }) {
           <div key={semester.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-bold text-slate-950">{semester.displayName}</p>
-              <StatusBadge status={semester.status === 'draft' ? 'pending' : semester.status} />
+              <StatusBadge
+                status={
+                  semester.status === 'draft'
+                    ? 'pending'
+                    : semester.status === 'enrollment_open' ||
+                        semester.status === 'placement_running' ||
+                        semester.status === 'reporting'
+                      ? 'active'
+                      : 'archived'
+                }
+              />
             </div>
             <p className="mt-2 text-sm text-slate-500">
               {semester.enrolmentOpenAt && semester.enrolmentCloseAt

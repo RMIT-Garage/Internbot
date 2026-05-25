@@ -54,16 +54,20 @@ export function deriveWorkflowState(
 
   return {
     ...deriveInternshipProgress(internships),
-    semesterEnrolmentState: deriveSemesterEnrolmentState(semester, now),
+    semesterEnrolmentState: deriveSemesterEnrolmentState(semester),
   }
 }
 
-function deriveSemesterEnrolmentState(
-  semester: Semester | undefined,
-  now: Date
-): SemesterEnrolmentState {
+function deriveSemesterEnrolmentState(semester: Semester | undefined): SemesterEnrolmentState {
   if (!semester) return 'not_enrolled'
-  return semester.isEnrolmentOpen(now) ? 'enrolled' : 'window_closed'
+  // Status is now the authoritative enrollment gate. Coordinator transitions
+  // (enrollment_open → placement_running) replace the time-window check.
+  if (semester.status === 'enrollment_open') return 'enrolled'
+  if (semester.status === 'placement_running' || semester.status === 'reporting') {
+    return 'window_closed'
+  }
+  // draft or archived — student has a stale semesterId, treat as not enrolled
+  return 'not_enrolled'
 }
 
 function deriveInternshipProgress(

@@ -22,6 +22,8 @@ export const semesterResponseSchema = z
     enrolmentCloseAt: z.string().datetime().nullable().meta({ example: '2026-03-13T23:59:59Z' }),
     createdAt: z.string().datetime().meta({ example: '2026-04-05T03:14:12Z' }),
     updatedAt: z.string().datetime().meta({ example: '2026-04-05T03:14:12Z' }),
+    enrolledStudentCount: z.number().int().nonnegative(),
+    openOfferCount: z.number().int().nonnegative(),
   })
   .meta({
     id: 'SemesterResponse',

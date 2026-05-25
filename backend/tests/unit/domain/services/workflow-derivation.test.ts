@@ -73,9 +73,7 @@ function buildStudent(profile: StudentProfile): User {
 
 function buildSemester(
   opts: {
-    status?: 'draft' | 'active' | 'archived'
-    open?: Date
-    close?: Date
+    status?: 'draft' | 'enrollment_open' | 'placement_running' | 'reporting' | 'archived'
   } = {}
 ): Semester {
   return Semester.rehydrate({
@@ -84,9 +82,9 @@ function buildSemester(
     semesterCode: '2026-S1',
     courseCode: 'INTE2710',
     displayName: 'Sem 1 2026',
-    status: opts.status ?? 'active',
-    enrolmentOpenAt: opts.open,
-    enrolmentCloseAt: opts.close,
+    status: opts.status ?? 'enrollment_open',
+    enrolmentOpenAt: undefined,
+    enrolmentCloseAt: undefined,
     createdAt: NOW,
     updatedAt: NOW,
   })
@@ -98,6 +96,7 @@ function buildInternship(status: InternshipStatus): Internship {
     version: 1,
     userId: 'usr_test',
     opportunityId: 'opp_001',
+    semesterId: 'sem_001',
     offerDate: undefined,
     startDate: undefined,
     endDate: undefined,
@@ -131,14 +130,10 @@ describe('deriveWorkflowState', () => {
     })
   })
 
-  it('complete profile + semester within open window → opportunity_browsing / browsing_opportunities / enrolled', () => {
+  it('complete profile + enrollment_open semester → opportunity_browsing / browsing_opportunities / enrolled', () => {
     const state = deriveWorkflowState(
       buildStudent(completeProfile('sem_001', NOW)),
-      buildSemester({
-        status: 'active',
-        open: new Date('2026-03-01T00:00:00Z'),
-        close: new Date('2026-05-01T00:00:00Z'),
-      }),
+      buildSemester({ status: 'enrollment_open' }),
       NOW
     )
     expect(state.currentWorkflowStep).toBe('opportunity_browsing')
@@ -146,26 +141,19 @@ describe('deriveWorkflowState', () => {
     expect(state.semesterEnrolmentState).toBe('enrolled')
   })
 
-  it('complete profile + semester whose window has closed → window_closed', () => {
+  it('complete profile + placement_running semester → window_closed', () => {
     const state = deriveWorkflowState(
       buildStudent(completeProfile('sem_001', NOW)),
-      buildSemester({
-        status: 'active',
-        open: new Date('2026-01-01T00:00:00Z'),
-        close: new Date('2026-02-01T00:00:00Z'),
-      }),
+      buildSemester({ status: 'placement_running' }),
       NOW
     )
     expect(state.semesterEnrolmentState).toBe('window_closed')
   })
 
-  it('complete profile + semester whose window has not opened yet → window_closed', () => {
+  it('complete profile + reporting semester → window_closed', () => {
     const state = deriveWorkflowState(
       buildStudent(completeProfile('sem_001', NOW)),
-      buildSemester({
-        status: 'active',
-        open: new Date('2026-06-01T00:00:00Z'),
-      }),
+      buildSemester({ status: 'reporting' }),
       NOW
     )
     expect(state.semesterEnrolmentState).toBe('window_closed')

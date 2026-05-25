@@ -107,19 +107,39 @@ export function mapInternshipToContractApproval(
 }
 
 export function mapSemesterToInventory(semester: SemesterResponse) {
+  const badgeStatus =
+    semester.status === 'enrollment_open' ||
+    semester.status === 'placement_running' ||
+    semester.status === 'reporting'
+      ? 'active'
+      : semester.status === 'draft'
+        ? 'pending'
+        : 'archived'
+
+  const phase =
+    semester.status === 'enrollment_open'
+      ? 'Enrollment Open'
+      : semester.status === 'placement_running'
+        ? 'Placement Running'
+        : semester.status === 'reporting'
+          ? 'Reporting'
+          : semester.status === 'draft'
+            ? 'Setup'
+            : 'Archived'
+
   return {
     id: semester.id,
     semesterCode: semester.semesterCode,
     courseCode: semester.courseCode,
     name: semester.displayName,
-    status: semester.status === 'draft' ? 'pending' : semester.status,
-    students: 0,
+    status: badgeStatus,
+    students: semester.enrolledStudentCount,
     window:
       semester.enrolmentOpenAt && semester.enrolmentCloseAt
         ? `${shortDate(semester.enrolmentOpenAt)} - ${shortDate(semester.enrolmentCloseAt)}`
         : 'Window pending',
-    phase: semester.status === 'active' ? 'Review and approvals' : 'Academic cycle setup',
-    flagged: 0,
+    phase,
+    flagged: semester.openOfferCount,
   }
 }
 

@@ -11,8 +11,6 @@ import request from 'supertest'
 import { randomUUID } from 'node:crypto'
 import { createApp } from '../../../src/api/app'
 import {
-  ALWAYS_CLOSED_WINDOW,
-  ALWAYS_OPEN_WINDOW,
   initEmulator,
   clearDocs,
   clearAuthUsers,
@@ -110,40 +108,49 @@ async function completeStudentProfile(
 }
 
 interface SemesterOpts {
-  open?: Date
-  close?: Date
-  transitionTo?: 'active' | 'archived'
+  transitionTo?: 'enrollment_open' | 'placement_running' | 'archived'
 }
 
 async function createSemester(
   app: ReturnType<typeof createApp>,
   coordinator: { idToken: string },
-  opts: SemesterOpts = { transitionTo: 'active' }
+  opts: SemesterOpts = { transitionTo: 'enrollment_open' }
 ): Promise<{ id: string }> {
-  const body: Record<string, unknown> = {
-    semesterCode: uniqueSemesterCode(),
-    courseCode: uniqueCourseCode(),
-    displayName: 'Sem',
-    status: 'draft',
-  }
-  if (opts.open) body['enrolmentOpenAt'] = opts.open.toISOString()
-  if (opts.close) body['enrolmentCloseAt'] = opts.close.toISOString()
-
   const create = await request(app)
     .post('/api/v1/semesters')
     .set('Authorization', `Bearer ${coordinator.idToken}`)
-    .send(body)
+    .send({
+      semesterCode: uniqueSemesterCode(),
+      courseCode: uniqueCourseCode(),
+      displayName: 'Sem',
+      status: 'draft',
+    })
   expect(create.status).toBe(201)
   trackDoc('semesters', create.body.id)
+  const semesterId = create.body.id as string
 
-  if (opts.transitionTo) {
-    const transition = await request(app)
-      .post(`/api/v1/semesters/${create.body.id}/transitions`)
+  if (opts.transitionTo === 'enrollment_open' || opts.transitionTo === 'placement_running') {
+    const t1 = await request(app)
+      .post(`/api/v1/semesters/${semesterId}/transitions`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ to: opts.transitionTo })
-    expect(transition.status).toBe(201)
+      .send({ to: 'enrollment_open' })
+    expect(t1.status).toBe(201)
   }
-  return { id: create.body.id }
+  if (opts.transitionTo === 'placement_running') {
+    const t2 = await request(app)
+      .post(`/api/v1/semesters/${semesterId}/transitions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ to: 'placement_running' })
+    expect(t2.status).toBe(201)
+  }
+  if (opts.transitionTo === 'archived') {
+    const t1 = await request(app)
+      .post(`/api/v1/semesters/${semesterId}/transitions`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ to: 'archived' })
+    expect(t1.status).toBe(201)
+  }
+  return { id: semesterId }
 }
 
 describe('PUT /api/v1/users/:id/semester-selection — component', () => {
@@ -185,15 +192,13 @@ describe('PUT /api/v1/users/:id/semester-selection — component', () => {
     expect(res.body.error.reason).toBe('semester_not_active')
   })
 
-  it('outside enrolment window → 409 enrolment_window_closed', async () => {
+  it('placement_running semester → 409 semester_not_active', async () => {
     const app = createApp()
     const student = await syncStudent(app)
     await completeStudentProfile(app, student)
     const coordinator = await makeCoordinator()
-    const semester = await createSemester(app, coordinator, {
-      ...ALWAYS_CLOSED_WINDOW,
-      transitionTo: 'active',
-    })
+    // Enrollment closed once coordinator transitions to placement_running.
+    const semester = await createSemester(app, coordinator, { transitionTo: 'placement_running' })
 
     const res = await request(app)
       .put(`/api/v1/users/${student.id}/semester-selection`)
@@ -201,7 +206,7 @@ describe('PUT /api/v1/users/:id/semester-selection — component', () => {
       .send({ semesterId: semester.id })
 
     expect(res.status).toBe(409)
-    expect(res.body.error.reason).toBe('enrolment_window_closed')
+    expect(res.body.error.reason).toBe('semester_not_active')
   })
 
   it('first success sets semesterSelectedAt; subsequent PUTs leave it unchanged', async () => {
@@ -287,10 +292,7 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
     const student = await syncStudent(app)
     await completeStudentProfile(app, student)
     const coordinator = await makeCoordinator()
-    const semester = await createSemester(app, coordinator, {
-      ...ALWAYS_OPEN_WINDOW,
-      transitionTo: 'active',
-    })
+    const semester = await createSemester(app, coordinator)
     const select = await request(app)
       .put('/api/v1/users/me/semester-selection')
       .set('Authorization', `Bearer ${student.idToken}`)
@@ -314,10 +316,7 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
     const student = await syncStudent(app)
     await completeStudentProfile(app, student)
     const coordinator = await makeCoordinator()
-    const semester = await createSemester(app, coordinator, {
-      ...ALWAYS_OPEN_WINDOW,
-      transitionTo: 'active',
-    })
+    const semester = await createSemester(app, coordinator)
     const select = await request(app)
       .put('/api/v1/users/me/semester-selection')
       .set('Authorization', `Bearer ${student.idToken}`)
@@ -393,36 +392,27 @@ describe('GET /api/v1/users/:id/workflow — component', () => {
     expect(select.body.studentProfile.semesterId).toBe(semester.id)
   })
 
-  it('semesterEnrolmentState reflects window_closed when the semester is active but the window has closed', async () => {
+  it('semesterEnrolmentState is window_closed when coordinator transitions semester to placement_running', async () => {
     const app = createApp()
     const student = await syncStudent(app)
     await completeStudentProfile(app, student)
     const coordinator = await makeCoordinator()
-    // Open window so selection succeeds, then a second active semester
-    // with a closed window. We select the open one and verify the
-    // workflow query reports window_closed when we point the workflow
-    // at the closed semester via re-selection? — the simpler path: an
-    // open-then-immediately-closing window. Since we can't time-travel,
-    // use a semester whose window already closed and skip enrolment
-    // gating by patching the user record directly is not possible here.
-    // Instead: select an open-window semester, then PATCH the semester
-    // via the coordinator to close the window.
-    const semester = await createSemester(app, coordinator, {
-      ...ALWAYS_OPEN_WINDOW,
-      transitionTo: 'active',
-    })
+    // Select an enrollment_open semester, then coordinator transitions to
+    // placement_running — which closes enrollment for new students while
+    // letting existing students keep their slot.
+    const semester = await createSemester(app, coordinator)
     const select = await request(app)
       .put('/api/v1/users/me/semester-selection')
       .set('Authorization', `Bearer ${student.idToken}`)
       .send({ semesterId: semester.id })
     expect(select.status).toBe(200)
 
-    // Close the window retroactively via PATCH.
-    const close = await request(app)
-      .patch(`/api/v1/semesters/${semester.id}`)
+    // Coordinator closes enrollment via status transition.
+    const transition = await request(app)
+      .post(`/api/v1/semesters/${semester.id}/transitions`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ enrolmentCloseAt: new Date('2024-02-01T00:00:00Z').toISOString() })
-    expect(close.status).toBe(200)
+      .send({ to: 'placement_running' })
+    expect(transition.status).toBe(201)
 
     const res = await request(app)
       .get('/api/v1/users/me/workflow')

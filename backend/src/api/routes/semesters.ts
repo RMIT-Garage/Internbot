@@ -17,15 +17,21 @@ import {
   etagFromSemester,
   parseListSemestersQuery,
 } from '../mappers/semester'
+import {
+  parseListSemesterStudentsQuery,
+  toSemesterStudentListResponse,
+} from '../mappers/semester-student'
 import { CreateSemesterCommandHandler } from '../../application/commands/create-semester'
 import { UpdateSemesterCommandHandler } from '../../application/commands/update-semester'
 import { TransitionSemesterCommandHandler } from '../../application/commands/transition-semester'
 import { GetSemesterQueryHandler } from '../../application/queries/get-semester'
 import { ListSemestersQueryHandler } from '../../application/queries/list-semesters'
+import { ListSemesterStudentsQueryHandler } from '../../application/queries/list-semester-students'
 import type { UnitOfWork } from '../../application/ports/unit-of-work'
 import type { IdGenerator } from '../../application/ports/id-generator'
 import type { AuthorizationService } from '../../application/ports/authorization-service'
 import type { SemesterQueryService } from '../../application/ports/queries/semester-query-service'
+import type { SemesterStudentQueryService } from '../../application/ports/queries/semester-student-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface SemestersRouterDeps {
@@ -33,6 +39,7 @@ export interface SemestersRouterDeps {
   idGenerator: IdGenerator
   authz: AuthorizationService
   semesterQueries: SemesterQueryService
+  semesterStudentQueries: SemesterStudentQueryService
 }
 
 /**
@@ -54,6 +61,11 @@ export function createSemestersRouter(deps: SemestersRouterDeps): ExpressRouter 
   const transitionSemester = new TransitionSemesterCommandHandler(deps.uow, deps.authz)
   const getSemester = new GetSemesterQueryHandler(deps.semesterQueries, deps.authz)
   const listSemesters = new ListSemestersQueryHandler(deps.semesterQueries, deps.authz)
+  const listSemesterStudents = new ListSemesterStudentsQueryHandler(
+    deps.semesterStudentQueries,
+    deps.semesterQueries,
+    deps.authz
+  )
 
   // ---------- LIST ----------
   router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -73,6 +85,24 @@ export function createSemestersRouter(deps: SemestersRouterDeps): ExpressRouter 
 
       const result = await listSemesters.handle({ actor, filter: parsed.query })
       res.status(200).json(toSemesterListResponse(result))
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ---------- LIST STUDENTS ----------
+  router.get('/:id/students', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { actor } = req as AuthenticatedRequest
+      const semesterId = paramId(req)
+      const limit = clampLimit(req.query['limit'])
+      const params = parseListSemesterStudentsQuery(req.query as Record<string, unknown>, limit)
+      const result = await listSemesterStudents.handle({
+        actor,
+        semesterId,
+        filter: params,
+      })
+      res.status(200).json(toSemesterStudentListResponse(result))
     } catch (err) {
       next(err)
     }

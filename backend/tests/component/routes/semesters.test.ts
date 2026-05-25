@@ -235,7 +235,7 @@ describe('PATCH /api/v1/semesters/:id — component', () => {
     const res = await request(app)
       .patch(`/api/v1/semesters/${id}`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ status: 'active' })
+      .send({ status: 'enrollment_open' })
 
     expect(res.status).toBe(400)
     expect(res.body.error.reason).toBe('immutable_field')
@@ -266,7 +266,7 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
     await clearAuthUsers()
   })
 
-  it('draft → active → 201, activity record written with from/to/actorUserId', async () => {
+  it('draft → enrollment_open → 201, activity record written with from/to/actorUserId', async () => {
     const app = createApp()
     const coordinator = await makeCoordinator()
     const { id } = await createDraftSemester(app, coordinator)
@@ -274,10 +274,10 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
     const res = await request(app)
       .post(`/api/v1/semesters/${id}/transitions`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ to: 'active', comment: 'kickoff' })
+      .send({ to: 'enrollment_open', comment: 'kickoff' })
 
     expect(res.status).toBe(201)
-    expect(res.body.status).toBe('active')
+    expect(res.body.status).toBe('enrollment_open')
     expect(res.headers['location']).toBe(`/api/v1/semesters/${id}`)
     // Successful transition bumps the version monotonically: create seeded v1, this transition → v2.
     expect(res.headers['etag']).toBe('W/"2"')
@@ -286,11 +286,11 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
     expect(activity.size).toBe(1)
     const record = activity.docs[0]!.data()
     expect(record['from']).toBe('draft')
-    expect(record['to']).toBe('active')
+    expect(record['to']).toBe('enrollment_open')
     expect(record['actorUserId']).toBe(coordinator.platformUserId)
   })
 
-  it('archived → active → 409 invalid_state_transition', async () => {
+  it('archived → enrollment_open → 409 invalid_state_transition', async () => {
     const app = createApp()
     const coordinator = await makeCoordinator()
     const { id } = await createDraftSemester(app, coordinator)
@@ -304,7 +304,7 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
     const res = await request(app)
       .post(`/api/v1/semesters/${id}/transitions`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ to: 'active' })
+      .send({ to: 'enrollment_open' })
 
     expect(res.status).toBe(409)
     expect(res.body.error.reason).toBe('invalid_state_transition')
@@ -319,7 +319,7 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
       .post(`/api/v1/semesters/${id}/transitions`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
       .set('If-Match', 'W/"0"')
-      .send({ to: 'active' })
+      .send({ to: 'enrollment_open' })
 
     expect(res.status).toBe(412)
     expect(res.body.error.reason).toBe('etag_mismatch')
@@ -335,14 +335,14 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
     const res = await request(app)
       .post(`/api/v1/semesters/${id}/transitions`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ to: 'active' })
+      .send({ to: 'enrollment_open' })
     expect(res.status).toBe(201)
 
     const [snap, activity] = await Promise.all([
       adminDb.collection('semesters').doc(id).get(),
       adminDb.collection('semesters').doc(id).collection('activity').get(),
     ])
-    expect(snap.data()?.['status']).toBe('active')
+    expect(snap.data()?.['status']).toBe('enrollment_open')
     expect(activity.size).toBe(1)
   })
 })

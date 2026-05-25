@@ -3,6 +3,11 @@ import type { TicketActivity } from '../../domain/value-objects/ticket-activity'
 import type { TicketReply } from '../../domain/value-objects/ticket-reply'
 import type { TicketStatus } from '../../domain/value-objects/ticket-enums'
 
+export interface TicketWithReplies {
+  readonly ticket: Ticket
+  readonly replies: readonly TicketReply[]
+}
+
 export interface TicketListCursor {
   readonly sortField: 'createdAt'
   readonly sortDirection: 'asc' | 'desc'
