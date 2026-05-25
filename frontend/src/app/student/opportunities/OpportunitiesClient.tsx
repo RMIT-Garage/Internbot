@@ -698,12 +698,21 @@ export default function StudentOpportunitiesPage() {
                                 can submit a new opportunity with updated details.
                               </p>
                             )}
-                            <Link
-                              href="/student/self-sourced-internships"
-                              className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                            >
-                              Submit another
-                            </Link>
+                            <div className="mt-2.5 flex items-center gap-2">
+                              <Link
+                                href={`/student/opportunities/review?id=${o.id}`}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
+                              >
+                                View Details
+                                <ArrowRight className="h-3 w-3" />
+                              </Link>
+                              <Link
+                                href="/student/self-sourced-internships"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                              >
+                                Submit another
+                              </Link>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -719,6 +728,13 @@ export default function StudentOpportunitiesPage() {
                               Your submission is being reviewed. Once a coordinator approves it,
                               this opportunity will appear above and you&apos;ll be able to apply.
                             </p>
+                            <Link
+                              href={`/student/opportunities/review?id=${o.id}`}
+                              className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
+                            >
+                              View Details
+                              <ArrowRight className="h-3 w-3" />
+                            </Link>
                           </div>
                         </div>
                       )}
