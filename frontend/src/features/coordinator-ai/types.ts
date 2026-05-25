@@ -34,6 +34,17 @@ export interface CoordinatorChatResponse {
   webSources?: WebSource[]
 }
 
+export interface CheckerAttachment {
+  mimeType: string
+  dataBase64: string
+  fileName?: string
+}
+
+export interface CheckerInput {
+  userInput: string
+  attachment?: CheckerAttachment
+}
+
 export interface CheckerModelOutput {
   scratchpad: string
   decision: 'Yes' | 'No'
