@@ -229,7 +229,7 @@ export default function CoordinatorSemestersPage() {
               {semesters.map((semester) => {
                 const raw = rawSemesters.find((r) => r.id === semester.id)
                 const rawStatus = raw?.status as SemesterStatus | undefined
-                const targets = rawStatus ? TRANSITION_TARGETS[rawStatus] : []
+                const targets = rawStatus ? (TRANSITION_TARGETS[rawStatus] ?? []) : []
                 return (
                   <tr key={semester.id} className="hover:bg-slate-50">
                     <td className="px-5 py-4 font-bold text-slate-950">
