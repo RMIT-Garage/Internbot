@@ -1,14 +1,9 @@
 import SemesterStudentsClient from './SemesterStudentsClient'
 
 export function generateStaticParams() {
-  return []
+  return [{ id: '_' }]
 }
 
-export default async function SemesterStudentsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-  return <SemesterStudentsClient semesterId={id} />
+export default function SemesterStudentsPage() {
+  return <SemesterStudentsClient />
 }
