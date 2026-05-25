@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, GraduationCap, PenLine, ShieldCheck, UserCircle2 } from 'lucide-react'
+import { AlertCircle, GraduationCap, PenLine, ShieldCheck } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload } from '../types'
 import { ProfileEditForm } from './ProfileEditForm'
 import { AnalyticsStrip, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
@@ -85,21 +85,6 @@ export function ProfileView({ user, onSave, saving }: Props) {
               <DataField label="Email address" value={email} />
               <DataField label="Phone number" value={studentProfile.phone} />
               <DataField label="Program code" value={studentProfile.programCode} />
-            </div>
-          </ProfileSection>
-
-          <ProfileSection title="Academic program">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <DataField label="Declared majors" value={ai?.majors?.join(', ') ?? null} />
-              <DataField label="Declared minors" value={ai?.minors?.join(', ') ?? null} />
-              <DataField
-                label="Study load"
-                value={ai?.currentStudyLoad?.replace(/_/g, ' ') ?? null}
-              />
-              <DataField
-                label="Program status"
-                value={ai?.programStatus?.replace(/_/g, ' ') ?? null}
-              />
             </div>
           </ProfileSection>
 
@@ -191,15 +176,6 @@ export function ProfileView({ user, onSave, saving }: Props) {
             >
               Edit profile
             </button>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-5">
-            <div className="flex items-center gap-2">
-              <UserCircle2 className="h-4 w-4 text-red-700" aria-hidden />
-              <h3 className="text-sm font-bold text-slate-950">Account</h3>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">{email}</p>
-            <p className="mt-1 text-xs text-slate-400">Signed in with your RMIT student account.</p>
           </SurfaceCard>
         </div>
       </div>
