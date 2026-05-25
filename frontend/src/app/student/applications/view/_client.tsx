@@ -31,6 +31,9 @@ import type {
 import type { PatchInternshipRequest } from '@/api'
 import { apiFetch } from '@/lib/api/client'
 import { formatDate } from '@/lib/utils'
+import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
+import { useStudentContractCheck } from '@/features/coordinator-ai/hooks/useStudentContractCheck'
+import type { CheckerInput } from '@/features/coordinator-ai/types'
 
 const ACCEPTED_TYPES: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -371,6 +374,9 @@ export default function ApplicationDetailClient() {
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
 
+  const [checkerInput, setCheckerInput] = useState<CheckerInput | null>(null)
+  const contractCheck = useStudentContractCheck(checkerInput)
+
   useEffect(() => {
     if (authLoading || !user || !id) return
     let active = true
@@ -400,6 +406,40 @@ export default function ApplicationDetailClient() {
           .catch(() => {
             /* non-fatal — basic details still available on internship */
           })
+
+        // Build contract checker input once internship loads (use data before stuck cleanup)
+        const contractText = [
+          `Employer: ${data.opportunityEmployerName}`,
+          `Job Title: ${data.opportunityJobTitle}`,
+          `Program Code: ${data.studentProgramCode ?? 'unknown'}`,
+          `Offer Date: ${data.offerDate ?? 'unknown'}`,
+          `Start Date: ${data.startDate ?? 'unknown'}`,
+          `End Date: ${data.endDate ?? 'unknown'}`,
+        ].join('\n')
+
+        const primaryAtt = data.attachments.find((a) => a.uploadStatus === 'finalized')
+        if (primaryAtt && active) {
+          InternshipsService.getInternshipAttachment(id, primaryAtt.id)
+            .then(async ({ downloadUrl }) => {
+              const res = await fetch(downloadUrl)
+              if (!res.ok) throw new Error('download failed')
+              const buf = await res.arrayBuffer()
+              if (active)
+                setCheckerInput({
+                  userInput: contractText,
+                  attachment: {
+                    mimeType: primaryAtt.contentType ?? 'application/octet-stream',
+                    dataBase64: arrayBufferToBase64(buf),
+                    fileName: primaryAtt.fileName ?? undefined,
+                  },
+                })
+            })
+            .catch(() => {
+              if (active) setCheckerInput({ userInput: contractText })
+            })
+        } else if (active) {
+          setCheckerInput({ userInput: contractText })
+        }
       } catch (err: unknown) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load application')
       } finally {
@@ -1120,6 +1160,16 @@ export default function ApplicationDetailClient() {
 
           {/* Right column — reviewer panel + withdraw */}
           <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+            {(contractCheck.isLoading || contractCheck.result || contractCheck.error) && (
+              <SurfaceCard className="p-4">
+                <CheckerResultPanel
+                  result={contractCheck.result}
+                  isLoading={contractCheck.isLoading}
+                  error={contractCheck.error}
+                  feature="contract-checker"
+                />
+              </SurfaceCard>
+            )}
             <ReviewerPanel internship={internship} />
 
             {['applied', 'offer_pending_review', 'offer_changes_requested'].includes(
@@ -1177,4 +1227,13 @@ export default function ApplicationDetailClient() {
       )}
     </div>
   )
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i] ?? 0)
+  }
+  return btoa(binary)
 }
