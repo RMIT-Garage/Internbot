@@ -100,9 +100,7 @@ describe('TransitionSemesterCommandHandler — integration', () => {
     expect(record['comment']).toBe('kickoff')
   })
 
-  it('archived → enrollment_open throws ConflictError invalid_state_transition', async () => {
-    // Seed a semester directly in archived state via two transitions
-    // (draft → active is not a path to archived, so use draft → archived).
+  it('archived → enrollment_open succeeds (free-form transitions)', async () => {
     const create = new CreateSemesterCommandHandler(
       new FirestoreUnitOfWork(),
       defaultAuthorizationService,
@@ -142,7 +140,7 @@ describe('TransitionSemesterCommandHandler — integration', () => {
         to: 'enrollment_open',
         comment: undefined,
       })
-    ).rejects.toMatchObject({ name: 'ConflictError', reason: 'invalid_state_transition' })
+    ).resolves.toMatchObject({ id })
   })
 
   it('stale expectedVersion throws PreconditionFailedError', async () => {

@@ -175,29 +175,27 @@ describe('Semester.applyTransition', () => {
     expect(s.status).toBe('archived')
   })
 
-  it('archived → enrollment_open throws ConflictError(invalid_state_transition)', () => {
+  it('archived → enrollment_open is allowed (free-form transitions)', () => {
     const s = buildSemester({ status: 'archived' })
-    try {
-      s.applyTransition('enrollment_open', 'usr_coord', undefined, now)
-      expect.fail('should have thrown')
-    } catch (err: unknown) {
-      expect((err as { name?: string }).name).toBe('ConflictError')
-      expect((err as { reason?: string }).reason).toBe('invalid_state_transition')
-    }
+    s.applyTransition('enrollment_open', 'usr_coord', undefined, now)
+    expect(s.status).toBe('enrollment_open')
   })
 
-  it('draft → placement_running is rejected (must go through enrollment_open first)', () => {
+  it('draft → placement_running is allowed (free-form transitions)', () => {
     const s = buildSemester({ status: 'draft' })
-    expect(() => s.applyTransition('placement_running', 'usr_coord', undefined, now)).toThrow()
+    s.applyTransition('placement_running', 'usr_coord', undefined, now)
+    expect(s.status).toBe('placement_running')
   })
 
-  it('enrollment_open → reporting is rejected (must go through placement_running first)', () => {
+  it('enrollment_open → reporting is allowed (free-form transitions)', () => {
     const s = buildSemester({ status: 'enrollment_open' })
-    expect(() => s.applyTransition('reporting', 'usr_coord', undefined, now)).toThrow()
+    s.applyTransition('reporting', 'usr_coord', undefined, now)
+    expect(s.status).toBe('reporting')
   })
 
-  it('archived → archived is rejected', () => {
+  it('archived → archived is allowed (no-op status)', () => {
     const s = buildSemester({ status: 'archived' })
-    expect(() => s.applyTransition('archived', 'usr_coord', undefined, now)).toThrow()
+    s.applyTransition('archived', 'usr_coord', undefined, now)
+    expect(s.status).toBe('archived')
   })
 })
