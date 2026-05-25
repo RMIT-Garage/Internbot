@@ -63,6 +63,71 @@ describe('normalizeFaqChatResponse', () => {
     expect(normalized.webSources).toEqual(data.webSources)
   })
 
+  it('sets contentType to markdown when answer contains markdown bullets', () => {
+    const answer = [
+      'Requirements:',
+      '',
+      '* **Duration**: 40 weeks minimum.',
+      '* **Payment**: Must be paid.',
+    ].join('\n')
+
+    const normalized = normalizeFaqChatResponse({
+      reply: '{}',
+      structuredData: {
+        type: 'faq',
+        data: {
+          answer,
+          sources: [],
+          confidence: 0.9,
+          answered_from_context: true,
+        },
+      },
+      sources: [],
+    })
+
+    expect(normalized.reply).toBe(answer)
+    expect(normalized.contentType).toBe('markdown')
+  })
+
+  it('extracts FAQ answer from trailing JSON in reply when structuredData is absent', () => {
+    const answer =
+      'The Software Engineering WIL course coordinators are:\n\n* Alessio Bonti — alessio.bonti@rmit.edu.au'
+    const trailingJson = JSON.stringify({
+      answer,
+      sources: [],
+      confidence: 0.9,
+      answered_from_context: true,
+    })
+    const reply = `Some model reasoning before the JSON block.\n\n${trailingJson}`
+
+    const normalized = normalizeFaqChatResponse({
+      reply,
+      sources: [{ title: 'FAQ', section: 'Contacts', sourceUrl: 'https://example.com' }],
+    })
+
+    expect(normalized.reply).toBe(answer)
+    expect(normalized.contentType).toBe('markdown')
+    expect(normalized.structuredData).toBeUndefined()
+    expect(String(normalized.reply)).not.toContain('"answered_from_context"')
+  })
+
+  it('flattens pure JSON reply string', () => {
+    const answer = 'You need 48 credit points to be eligible.'
+    const normalized = normalizeFaqChatResponse({
+      reply: JSON.stringify({
+        answer,
+        sources: [],
+        confidence: 0.9,
+        answered_from_context: true,
+      }),
+      sources: [],
+    })
+
+    expect(normalized.reply).toBe(answer)
+    expect(normalized.contentType).toBe('plain')
+    expect(normalized.structuredData).toBeUndefined()
+  })
+
   it('dedupes retrieval and model sources that match title, section, and url', () => {
     const url =
       'https://www.rmit.edu.au/students/careers-opportunities/internships-work-experience-wil'

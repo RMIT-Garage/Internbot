@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api/client'
+import { mapAssistantChatResponse } from '@/lib/chat/map-assistant-chat-response'
 import type { AdvisorChatResponse, ChatAttachment, Message } from '../types'
 
 const INITIAL_MESSAGE: Message = {
@@ -49,14 +50,16 @@ export function useAdvisorChat() {
         body: attachment ? { userInput: text, attachment } : { userInput: text },
       })
 
+      const mapped = mapAssistantChatResponse(data)
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
             ? {
                 ...m,
-                content: data.reply,
-                contentType: data.contentType ?? 'plain',
-                contentBlocks: data.contentBlocks,
+                content: mapped.content,
+                contentType: mapped.contentType,
+                contentBlocks: mapped.contentBlocks,
                 sources: data.sources,
                 webSources: data.webSources,
                 isStreaming: false,

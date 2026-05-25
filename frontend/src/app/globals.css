@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 
 /* RMIT design tokens.
    We override Tailwind's default `red-*` scale so every existing `bg-red-700`,
