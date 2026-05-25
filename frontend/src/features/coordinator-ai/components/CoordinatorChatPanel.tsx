@@ -1,9 +1,20 @@
 'use client'
 
-import { useRef } from 'react'
-import { ArrowUp, BookOpen, ClipboardList, Scale, Sparkles, Users } from 'lucide-react'
+import { useRef, useState } from 'react'
+import {
+  ArrowUp,
+  BookOpen,
+  ClipboardList,
+  Scale,
+  Sparkles,
+  Users,
+  Paperclip,
+  X,
+} from 'lucide-react'
 import { CoordinatorChatMessage } from './CoordinatorChatMessage'
-import type { CoordinatorMessage } from '../types'
+import type { ChatAttachment, CoordinatorMessage } from '../types'
+
+const MAX_ATTACHMENT_BYTES = 1_500_000
 
 const PROMPT_CARDS = [
   {
@@ -37,7 +48,7 @@ interface CoordinatorChatPanelProps {
   isLoading: boolean
   input: string
   onInputChange: (value: string) => void
-  onSend: (text: string) => void
+  onSend: (text: string, attachment?: ChatAttachment) => void
   chatEndRef: React.RefObject<HTMLDivElement | null>
   userInitial: string
   userName: string
@@ -54,6 +65,9 @@ export function CoordinatorChatPanel({
   userName,
 }: CoordinatorChatPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachment | null>(null)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const isWelcome = messages.length === 1
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -65,14 +79,37 @@ export function CoordinatorChatPanel({
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return
-    onSend(input)
+    onSend(input, pendingAttachment ?? undefined)
     onInputChange('')
+    setPendingAttachment(null)
+    setAttachmentError(null)
     inputRef.current?.focus()
   }
 
   const handleCard = (prompt: string) => {
     onSend(prompt)
     inputRef.current?.focus()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachmentError(
+        `File too large (max 1.5 MB). "${file.name}" is ${(file.size / 1_000_000).toFixed(1)} MB.`
+      )
+      return
+    }
+
+    setAttachmentError(null)
+    const dataBase64 = await fileToBase64(file)
+    setPendingAttachment({
+      mimeType: file.type || 'application/octet-stream',
+      dataBase64,
+      fileName: file.name,
+    })
   }
 
   return (
@@ -130,7 +167,46 @@ export function CoordinatorChatPanel({
       {/* Input bar */}
       <div className="shrink-0 border-t border-zinc-100 bg-white px-6 py-4">
         <div className="mx-auto max-w-2xl">
-          <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 shadow-sm transition focus-within:border-zinc-400 focus-within:shadow-md hover:shadow-md">
+          {/* Pending attachment pill */}
+          {pendingAttachment && (
+            <div className="mb-2 flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1">
+                <Paperclip className="size-3 shrink-0 text-zinc-500" />
+                <span className="max-w-[240px] truncate text-xs text-zinc-600">
+                  {pendingAttachment.fileName}
+                </span>
+                <button
+                  onClick={() => setPendingAttachment(null)}
+                  aria-label="Remove attachment"
+                  className="ml-0.5 text-zinc-400 hover:text-zinc-600"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Size error */}
+          {attachmentError && <p className="mb-2 text-xs text-red-700">{attachmentError}</p>}
+
+          <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 shadow-sm transition focus-within:border-zinc-400 focus-within:shadow-md hover:shadow-md">
+            {/* Attach button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              aria-label="Attach file"
+              className="flex size-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Paperclip className="size-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,image/*,.doc,.docx"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
             <input
               ref={inputRef}
               type="text"
@@ -157,4 +233,18 @@ export function CoordinatorChatPanel({
       </div>
     </div>
   )
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      const base64 = result.split(',')[1]
+      if (base64) resolve(base64)
+      else reject(new Error('Failed to read file'))
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }

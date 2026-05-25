@@ -15,6 +15,12 @@ export interface WebSource {
   uri: string
 }
 
+export interface ChatAttachment {
+  mimeType: string
+  dataBase64: string
+  fileName?: string
+}
+
 export interface Message {
   id: string
   role: MessageRole
@@ -24,6 +30,7 @@ export interface Message {
   sources?: ChatSource[]
   webSources?: WebSource[]
   isStreaming?: boolean
+  attachmentName?: string
 }
 
 export interface AdvisorChatResponse {

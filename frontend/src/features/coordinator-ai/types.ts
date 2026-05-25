@@ -15,6 +15,12 @@ export interface WebSource {
   uri: string
 }
 
+export interface ChatAttachment {
+  mimeType: string
+  dataBase64: string
+  fileName?: string
+}
+
 export interface CoordinatorMessage {
   id: string
   role: MessageRole
@@ -24,6 +30,7 @@ export interface CoordinatorMessage {
   sources?: ChatSource[]
   webSources?: WebSource[]
   isStreaming?: boolean
+  attachmentName?: string
 }
 
 export interface CoordinatorChatResponse {
@@ -32,6 +39,17 @@ export interface CoordinatorChatResponse {
   contentBlocks?: ContentBlock[]
   sources: ChatSource[]
   webSources?: WebSource[]
+}
+
+export interface CheckerAttachment {
+  mimeType: string
+  dataBase64: string
+  fileName?: string
+}
+
+export interface CheckerInput {
+  userInput: string
+  attachment?: CheckerAttachment
 }
 
 export interface CheckerModelOutput {

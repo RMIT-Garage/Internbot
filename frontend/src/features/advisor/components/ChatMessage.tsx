@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles, ChevronDown, ChevronUp, Globe, BookOpen } from 'lucide-react'
+import { Sparkles, ChevronDown, ChevronUp, Globe, BookOpen, Paperclip } from 'lucide-react'
 import { MessageBodyRenderer } from '@/components/shared/MessageBodyRenderer'
 import type { Message } from '../types'
 
@@ -20,6 +20,12 @@ export function ChatMessage({ message, userInitial }: ChatMessageProps) {
         <div className="flex max-w-[80%] items-end gap-2">
           <div className="rounded-2xl rounded-br-sm bg-zinc-900 px-4 py-2.5 text-sm leading-relaxed text-white">
             {message.content}
+            {message.attachmentName && (
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-zinc-400">
+                <Paperclip className="size-3 shrink-0" />
+                <span className="max-w-[200px] truncate">{message.attachmentName}</span>
+              </div>
+            )}
           </div>
           <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-600">
             {userInitial}

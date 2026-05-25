@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api/client'
-import type { CheckerResponse } from '../types'
+import type { CheckerInput, CheckerResponse } from '../types'
 
 interface CheckState {
   result: CheckerResponse | null
@@ -10,12 +10,12 @@ interface CheckState {
   error: string | null
 }
 
-export function useJobCheck(userInput: string | null) {
+export function useJobCheck(input: CheckerInput | null) {
   const [state, setState] = useState<CheckState>({ result: null, isLoading: false, error: null })
   const hasFired = useRef(false)
 
   useEffect(() => {
-    if (!userInput || hasFired.current) return
+    if (!input || hasFired.current) return
     hasFired.current = true
 
     let active = true
@@ -27,7 +27,9 @@ export function useJobCheck(userInput: string | null) {
 
     apiFetch<CheckerResponse>('/api/v1/coordinator/ai/job-check', {
       method: 'POST',
-      body: { userInput },
+      body: input.attachment
+        ? { userInput: input.userInput, attachment: input.attachment }
+        : { userInput: input.userInput },
     })
       .then((data) => {
         if (active) setState({ result: data, isLoading: false, error: null })
@@ -44,7 +46,7 @@ export function useJobCheck(userInput: string | null) {
     return () => {
       active = false
     }
-  }, [userInput])
+  }, [input])
 
   return state
 }

@@ -26,6 +26,7 @@ import { type ApprovalStatus, type ContractApproval } from '@/lib/coordinator/mo
 import { getReviewBackHref } from '@/lib/coordinator/reviewRouting'
 import { useContractCheck } from '@/features/coordinator-ai/hooks/useContractCheck'
 import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
+import type { CheckerInput } from '@/features/coordinator-ai/types'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { InternshipAttachmentResponse, InternshipStatus } from '@/types/api'
@@ -41,8 +42,8 @@ export function ContractReviewClient() {
   const [attachments, setAttachments] = useState<InternshipAttachmentResponse[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [studentLabel, setStudentLabel] = useState(STUDENT_PROFILE_PENDING)
-  const [contractText, setContractText] = useState<string | null>(null)
-  const contractCheck = useContractCheck(contractText)
+  const [checkerInput, setCheckerInput] = useState<CheckerInput | null>(null)
+  const contractCheck = useContractCheck(checkerInput)
 
   useEffect(() => {
     let active = true
@@ -64,9 +65,29 @@ export function ContractReviewClient() {
         setContract(mapped)
         setAttachments(internship.attachments)
         setStudentLabel(resolvedStudentLabel)
-        setContractText(
-          `Student: ${resolvedStudentLabel}\nCourse: ${mapped.course}\nSemester: ${mapped.semester}\nPlacement Host: ${mapped.placementHost}\nDocument: ${mapped.documentName}`
-        )
+        const userInput = `Student: ${resolvedStudentLabel}\nCourse: ${mapped.course}\nSemester: ${mapped.semester}\nPlacement Host: ${mapped.placementHost}\nDocument: ${mapped.documentName}`
+        const primaryAttachment = internship.attachments[0]
+        if (primaryAttachment) {
+          try {
+            const { downloadUrl } = await getInternshipAttachment(id, primaryAttachment.id)
+            const resp = await fetch(downloadUrl)
+            const buffer = await resp.arrayBuffer()
+            const dataBase64 = arrayBufferToBase64(buffer)
+            if (active)
+              setCheckerInput({
+                userInput,
+                attachment: {
+                  mimeType: primaryAttachment.contentType ?? 'application/octet-stream',
+                  dataBase64,
+                  fileName: primaryAttachment.fileName ?? undefined,
+                },
+              })
+          } catch {
+            if (active) setCheckerInput({ userInput })
+          }
+        } else {
+          if (active) setCheckerInput({ userInput })
+        }
       })
       .catch((err: unknown) => {
         if (!active) return
@@ -533,4 +554,13 @@ function BackLink({ href, children }: { href: string; children: React.ReactNode 
       {children}
     </Link>
   )
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i] ?? 0)
+  }
+  return btoa(binary)
 }

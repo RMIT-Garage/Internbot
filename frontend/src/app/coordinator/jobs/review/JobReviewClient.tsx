@@ -30,6 +30,7 @@ import { type ApprovalStatus, type SelfSourcedJob } from '@/lib/coordinator/mock
 import { getReviewBackHref, SELF_SOURCED_REVIEW_CONTEXT } from '@/lib/coordinator/reviewRouting'
 import { useJobCheck } from '@/features/coordinator-ai/hooks/useJobCheck'
 import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
+import type { CheckerInput } from '@/features/coordinator-ai/types'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { OpportunityAttachmentResponse, OpportunityStatus } from '@/types/api'
@@ -46,8 +47,8 @@ export function JobReviewClient() {
   const [attachments, setAttachments] = useState<OpportunityAttachmentResponse[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [studentOwnerLabel, setStudentOwnerLabel] = useState(STUDENT_PROFILE_PENDING)
-  const [opportunityText, setOpportunityText] = useState<string | null>(null)
-  const jobCheck = useJobCheck(opportunityText)
+  const [checkerInput, setCheckerInput] = useState<CheckerInput | null>(null)
+  const jobCheck = useJobCheck(checkerInput)
 
   useEffect(() => {
     let active = true
@@ -70,9 +71,29 @@ export function JobReviewClient() {
         const jobData = { ...mappedJob, studentName: ownerLabel, studentId: ownerLabel }
         setJob(jobData)
         setAttachments(opportunity.attachments)
-        setOpportunityText(
-          `Job Title: ${mappedJob.jobTitle}\nEmployer: ${mappedJob.company}\nDescription: ${mappedJob.description}\nWork Pattern: ${mappedJob.workPattern}`
-        )
+        const userInput = `Job Title: ${mappedJob.jobTitle}\nEmployer: ${mappedJob.company}\nDescription: ${mappedJob.description}\nWork Pattern: ${mappedJob.workPattern}`
+        const primaryAttachment = opportunity.attachments[0]
+        if (primaryAttachment) {
+          try {
+            const { downloadUrl } = await getOpportunityAttachment(id, primaryAttachment.id)
+            const resp = await fetch(downloadUrl)
+            const buffer = await resp.arrayBuffer()
+            const dataBase64 = arrayBufferToBase64(buffer)
+            if (active)
+              setCheckerInput({
+                userInput,
+                attachment: {
+                  mimeType: primaryAttachment.contentType ?? 'application/octet-stream',
+                  dataBase64,
+                  fileName: primaryAttachment.fileName ?? undefined,
+                },
+              })
+          } catch {
+            if (active) setCheckerInput({ userInput })
+          }
+        } else {
+          if (active) setCheckerInput({ userInput })
+        }
       })
       .catch((err: unknown) => {
         if (!active) return
@@ -724,4 +745,13 @@ function BackLink({ href, children }: { href: string; children: React.ReactNode 
       {children}
     </Link>
   )
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i] ?? 0)
+  }
+  return btoa(binary)
 }

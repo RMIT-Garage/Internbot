@@ -8,10 +8,24 @@ import { ApiError } from '../errors'
 const chatRequestSchema = z.object({
   userInput: z.string().min(1).max(2000),
   useWebSearch: z.boolean().optional(),
+  attachment: z
+    .object({
+      mimeType: z.string().min(1).max(120),
+      dataBase64: z.string().min(1).max(2_000_000),
+      fileName: z.string().min(1).max(260).optional(),
+    })
+    .optional(),
 })
 
 const checkerRequestSchema = z.object({
   userInput: z.string().min(1).max(10000),
+  attachment: z
+    .object({
+      mimeType: z.string().min(1).max(120),
+      dataBase64: z.string().min(1).max(2_000_000),
+      fileName: z.string().min(1).max(260).optional(),
+    })
+    .optional(),
 })
 
 function normalizeFaqResponse(data: Record<string, unknown>): Record<string, unknown> {
@@ -93,8 +107,15 @@ export function createCoordinatorAiRouter(deps: CoordinatorAiRouterDeps): Expres
         return
       }
 
-      const { userInput, useWebSearch } = parsed.data
-      await proxyToRag('faq-rag', { userInput, useWebSearch: useWebSearch ?? false }, res, next)
+      const { userInput, useWebSearch, attachment } = parsed.data
+      await proxyToRag(
+        'faq-rag',
+        attachment
+          ? { userInput, useWebSearch: useWebSearch ?? false, attachment }
+          : { userInput, useWebSearch: useWebSearch ?? false },
+        res,
+        next
+      )
     } catch (err) {
       next(err)
     }
@@ -116,7 +137,13 @@ export function createCoordinatorAiRouter(deps: CoordinatorAiRouterDeps): Expres
         return
       }
 
-      await proxyToRag('job-checker', { userInput: parsed.data.userInput }, res, next)
+      const { userInput, attachment } = parsed.data
+      await proxyToRag(
+        'job-checker',
+        attachment ? { userInput, attachment } : { userInput },
+        res,
+        next
+      )
     } catch (err) {
       next(err)
     }
@@ -138,7 +165,13 @@ export function createCoordinatorAiRouter(deps: CoordinatorAiRouterDeps): Expres
         return
       }
 
-      await proxyToRag('contract-checker', { userInput: parsed.data.userInput }, res, next)
+      const { userInput, attachment } = parsed.data
+      await proxyToRag(
+        'contract-checker',
+        attachment ? { userInput, attachment } : { userInput },
+        res,
+        next
+      )
     } catch (err) {
       next(err)
     }

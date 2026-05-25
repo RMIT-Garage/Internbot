@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api/client'
-import type { AdvisorChatResponse, Message } from '../types'
+import type { AdvisorChatResponse, ChatAttachment, Message } from '../types'
 
 const INITIAL_MESSAGE: Message = {
   id: 'init',
@@ -21,10 +21,15 @@ export function useAdvisorChat() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, attachment?: ChatAttachment) => {
     if (!text.trim() || isLoading) return
 
-    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: text }
+    const userMsg: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      attachmentName: attachment?.fileName,
+    }
     const assistantId = crypto.randomUUID()
     const assistantMsg: Message = {
       id: assistantId,
@@ -41,7 +46,7 @@ export function useAdvisorChat() {
     try {
       const data = await apiFetch<AdvisorChatResponse>('/api/v1/advisor/chat', {
         method: 'POST',
-        body: { userInput: text },
+        body: attachment ? { userInput: text, attachment } : { userInput: text },
       })
 
       setMessages((prev) =>
