@@ -1,16 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles, ChevronDown, ChevronUp, Globe, BookOpen } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronUp, Globe, Sparkles } from 'lucide-react'
 import { MessageBodyRenderer } from '@/components/shared/MessageBodyRenderer'
-import type { Message } from '../types'
+import type { CoordinatorMessage } from '../types'
 
-interface ChatMessageProps {
-  message: Message
+interface CoordinatorChatMessageProps {
+  message: CoordinatorMessage
   userInitial: string
 }
 
-export function ChatMessage({ message, userInitial }: ChatMessageProps) {
+export function CoordinatorChatMessage({ message, userInitial }: CoordinatorChatMessageProps) {
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const isUser = message.role === 'user'
 

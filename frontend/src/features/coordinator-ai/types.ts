@@ -15,7 +15,7 @@ export interface WebSource {
   uri: string
 }
 
-export interface Message {
+export interface CoordinatorMessage {
   id: string
   role: MessageRole
   content: string
@@ -26,10 +26,25 @@ export interface Message {
   isStreaming?: boolean
 }
 
-export interface AdvisorChatResponse {
+export interface CoordinatorChatResponse {
   reply: string
   contentType?: 'plain' | 'markdown' | 'structured'
   contentBlocks?: ContentBlock[]
   sources: ChatSource[]
   webSources?: WebSource[]
+}
+
+export interface CheckerModelOutput {
+  scratchpad: string
+  decision: 'Yes' | 'No'
+  confidence: number
+  concerns: string[]
+  reasonCodes: string[]
+  summary: string
+}
+
+export interface CheckerResponse {
+  structuredData?: { type: 'checker'; data: CheckerModelOutput }
+  webSources?: WebSource[]
+  reply: string
 }

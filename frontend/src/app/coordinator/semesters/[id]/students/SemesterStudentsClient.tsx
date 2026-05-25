@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
@@ -27,7 +28,9 @@ const PLACEMENT_STATUS_COLORS: Record<SemesterStudentPlacementStatus, string> = 
   all_rejected: 'text-red-700 font-semibold',
 }
 
-export default function SemesterStudentsClient({ semesterId }: { semesterId: string }) {
+export default function SemesterStudentsClient() {
+  const params = useParams<{ id: string }>()
+  const semesterId = params.id ?? ''
   const [students, setStudents] = useState<SemesterStudentItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)

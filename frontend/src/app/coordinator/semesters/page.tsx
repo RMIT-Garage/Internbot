@@ -18,12 +18,13 @@ import {
 import { mapSemesterToInventory } from '@/lib/coordinator/apiMappers'
 import type { SemesterResponse, SemesterStatus } from '@/types/api'
 
-const TRANSITION_TARGETS: Record<SemesterStatus, Exclude<SemesterStatus, 'draft'>[]> = {
+const TRANSITION_TARGETS: Record<string, Exclude<SemesterStatus, 'draft'>[]> = {
   draft: ['enrollment_open', 'archived'],
   enrollment_open: ['placement_running', 'archived'],
   placement_running: ['reporting', 'archived'],
   reporting: ['archived'],
   archived: [],
+  active: ['placement_running', 'archived'], // legacy status — treated as enrollment_open
 }
 
 export default function CoordinatorSemestersPage() {
@@ -229,7 +230,7 @@ export default function CoordinatorSemestersPage() {
               {semesters.map((semester) => {
                 const raw = rawSemesters.find((r) => r.id === semester.id)
                 const rawStatus = raw?.status as SemesterStatus | undefined
-                const targets = rawStatus ? TRANSITION_TARGETS[rawStatus] : []
+                const targets = rawStatus ? (TRANSITION_TARGETS[rawStatus] ?? []) : []
                 return (
                   <tr key={semester.id} className="hover:bg-slate-50">
                     <td className="px-5 py-4 font-bold text-slate-950">
@@ -279,27 +280,35 @@ export default function CoordinatorSemestersPage() {
                     <td className="px-5 py-4 text-slate-600">{semester.phase}</td>
                     <td className="px-5 py-4 font-bold text-red-700">{semester.flagged}</td>
                     <td className="px-5 py-4">
-                      {targets.length > 0 && raw && (
-                        <select
-                          disabled={transitioning === semester.id}
-                          defaultValue=""
-                          onChange={(event) => {
-                            const to = event.target.value as Exclude<SemesterStatus, 'draft'>
-                            if (to) handleTransitionSemester(raw, to)
-                            event.target.value = ''
-                          }}
-                          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-red-500 disabled:opacity-60"
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/coordinator/semesters/${semester.id}/students`}
+                          className="text-xs font-medium text-slate-500 hover:text-red-700"
                         >
-                          <option value="" disabled>
-                            Transition…
-                          </option>
-                          {targets.map((t) => (
-                            <option key={t} value={t}>
-                              → {t.replace(/_/g, ' ')}
+                          View students
+                        </Link>
+                        {targets.length > 0 && raw && (
+                          <select
+                            disabled={transitioning === semester.id}
+                            defaultValue=""
+                            onChange={(event) => {
+                              const to = event.target.value as Exclude<SemesterStatus, 'draft'>
+                              if (to) handleTransitionSemester(raw, to)
+                              event.target.value = ''
+                            }}
+                            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-red-500 disabled:opacity-60"
+                          >
+                            <option value="" disabled>
+                              Transition…
                             </option>
-                          ))}
-                        </select>
-                      )}
+                            {targets.map((t) => (
+                              <option key={t} value={t}>
+                                → {t.replace(/_/g, ' ')}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
