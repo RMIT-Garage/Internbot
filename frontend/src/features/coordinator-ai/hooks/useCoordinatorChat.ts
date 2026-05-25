@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api/client'
-import type { CoordinatorChatResponse, CoordinatorMessage } from '../types'
+import type { ChatAttachment, CoordinatorChatResponse, CoordinatorMessage } from '../types'
 
 const INITIAL_MESSAGE: CoordinatorMessage = {
   id: 'init',
@@ -21,10 +21,15 @@ export function useCoordinatorChat() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, attachment?: ChatAttachment) => {
     if (!text.trim() || isLoading) return
 
-    const userMsg: CoordinatorMessage = { id: crypto.randomUUID(), role: 'user', content: text }
+    const userMsg: CoordinatorMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      attachmentName: attachment?.fileName,
+    }
     const assistantId = crypto.randomUUID()
     const assistantMsg: CoordinatorMessage = {
       id: assistantId,
@@ -40,7 +45,7 @@ export function useCoordinatorChat() {
     try {
       const data = await apiFetch<CoordinatorChatResponse>('/api/v1/coordinator/ai/chat', {
         method: 'POST',
-        body: { userInput: text },
+        body: attachment ? { userInput: text, attachment } : { userInput: text },
       })
 
       setMessages((prev) =>

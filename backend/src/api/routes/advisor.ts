@@ -6,6 +6,13 @@ import { ApiError } from '../errors'
 const advisorChatRequestSchema = z.object({
   userInput: z.string().min(1).max(2000),
   useWebSearch: z.boolean().optional(),
+  attachment: z
+    .object({
+      mimeType: z.string().min(1).max(120),
+      dataBase64: z.string().min(1).max(2_000_000),
+      fileName: z.string().min(1).max(260).optional(),
+    })
+    .optional(),
 })
 
 function normalizeFaqResponse(data: Record<string, unknown>): Record<string, unknown> {
@@ -51,7 +58,7 @@ export function createAdvisorRouter(): ExpressRouter {
         return
       }
 
-      const { userInput, useWebSearch } = parsed.data
+      const { userInput, useWebSearch, attachment } = parsed.data
 
       const upstream = await fetch(`${ragServiceUrl}/api/chat/message`, {
         method: 'POST',
@@ -60,6 +67,7 @@ export function createAdvisorRouter(): ExpressRouter {
           feature: 'faq-rag',
           userInput,
           useWebSearch: useWebSearch ?? false,
+          ...(attachment ? { attachment } : {}),
         }),
       })
 
