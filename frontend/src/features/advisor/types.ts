@@ -8,6 +8,7 @@ export interface ChatSource {
   title: string
   section: string
   sourceUrl?: string
+  excerpt?: string
 }
 
 export interface WebSource {

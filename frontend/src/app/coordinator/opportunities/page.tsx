@@ -744,9 +744,9 @@ function OpportunityFiltersBar({
   ]
 
   return (
-    <SurfaceCard className="space-y-4 p-4">
-      <div className="grid gap-3 xl:grid-cols-[1.5fr_0.8fr_0.9fr_1fr_0.9fr_0.9fr_0.9fr]">
-        <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+    <SurfaceCard className="space-y-4 overflow-visible p-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+        <label className="grid min-w-0 gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase md:col-span-2 xl:col-span-2">
           Search
           <div className="relative">
             <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
@@ -754,7 +754,7 @@ function OpportunityFiltersBar({
               value={filters.search}
               onChange={(event) => onChange({ ...filters, search: event.target.value })}
               placeholder="Role, employer, student"
-              className="h-10 w-full rounded-xl border border-slate-200 pr-3 pl-9 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+              className="h-10 w-full min-w-0 rounded-xl border border-slate-200 pr-3 pl-9 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
             />
           </div>
         </label>
@@ -1365,12 +1365,12 @@ function SelectField({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+    <label className="grid min-w-0 gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
+        className="h-10 w-full max-w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1394,13 +1394,13 @@ function TextInput({
   error?: string
 }) {
   return (
-    <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
+    <label className="grid min-w-0 gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
       {label}
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className={[
-          'h-10 rounded-xl border px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500',
+          'h-10 w-full min-w-0 rounded-xl border px-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500',
           error ? 'border-red-300 bg-red-50/40' : 'border-slate-200',
         ].join(' ')}
       />

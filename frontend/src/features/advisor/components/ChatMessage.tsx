@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Sparkles, ChevronDown, ChevronUp, Globe, BookOpen, Paperclip } from 'lucide-react'
+import { Sparkles, Paperclip } from 'lucide-react'
 import { MessageBodyRenderer } from '@/components/shared/MessageBodyRenderer'
+import { ChatSourcesPanel } from '@/components/shared/ChatSourcesPanel'
 import type { Message } from '../types'
 
 interface ChatMessageProps {
@@ -11,7 +11,6 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message, userInitial }: ChatMessageProps) {
-  const [sourcesOpen, setSourcesOpen] = useState(false)
   const isUser = message.role === 'user'
 
   if (isUser) {
@@ -34,10 +33,6 @@ export function ChatMessage({ message, userInitial }: ChatMessageProps) {
       </div>
     )
   }
-
-  const hasSources = (message.sources?.length ?? 0) > 0
-  const hasWebSources = (message.webSources?.length ?? 0) > 0
-  const totalSources = (message.sources?.length ?? 0) + (message.webSources?.length ?? 0)
 
   return (
     <div className="flex items-start gap-3">
@@ -68,57 +63,11 @@ export function ChatMessage({ message, userInitial }: ChatMessageProps) {
           )}
         </div>
 
-        {(hasSources || hasWebSources) && (
-          <div className="overflow-hidden rounded-xl border border-zinc-100">
-            <button
-              onClick={() => setSourcesOpen((o) => !o)}
-              className="flex w-full items-center justify-between px-3 py-2 text-xs text-zinc-400 transition hover:text-zinc-600"
-            >
-              <span className="flex items-center gap-1.5">
-                <BookOpen className="size-3" />
-                {totalSources} source{totalSources > 1 ? 's' : ''}
-              </span>
-              {sourcesOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
-            </button>
-
-            {sourcesOpen && (
-              <div className="space-y-1.5 border-t border-zinc-100 bg-zinc-50 px-3 pt-2 pb-2.5">
-                {message.sources?.map((s, i) => (
-                  <div key={i} className="flex items-start gap-1.5">
-                    <BookOpen className="mt-0.5 size-3 shrink-0 text-zinc-300" />
-                    {s.sourceUrl ? (
-                      <a
-                        href={s.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs leading-snug text-red-700 hover:underline"
-                      >
-                        {s.title} — {s.section}
-                      </a>
-                    ) : (
-                      <span className="text-xs leading-snug text-zinc-500">
-                        {s.title} — {s.section}
-                      </span>
-                    )}
-                  </div>
-                ))}
-                {message.webSources?.map((s, i) => (
-                  <div key={`w${i}`} className="flex items-start gap-1.5">
-                    <Globe className="mt-0.5 size-3 shrink-0 text-zinc-300" />
-                    <a
-                      href={s.uri}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs leading-snug text-red-700 hover:underline"
-                    >
-                      {s.title}
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <ChatSourcesPanel
+          messageId={message.id}
+          sources={message.sources}
+          webSources={message.webSources}
+        />
       </div>
     </div>
   )
