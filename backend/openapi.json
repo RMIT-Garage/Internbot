@@ -1017,7 +1017,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["draft", "active", "archived"]
+                "enum": ["draft", "enrollment_open", "placement_running", "reporting", "archived"]
               }
             },
             "description": "Filter by status. Repeat the param for multi-value (`?status=draft&status=active`)."
@@ -4009,7 +4009,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["draft", "active", "archived"]
+            "enum": ["draft", "enrollment_open", "placement_running", "reporting", "archived"]
           },
           "enrolmentOpenAt": {
             "example": "2026-01-15T00:00:00Z",
@@ -4071,7 +4071,7 @@
         "properties": {
           "to": {
             "type": "string",
-            "enum": ["active", "archived"]
+            "enum": ["enrollment_open", "placement_running", "reporting", "archived"]
           },
           "comment": {
             "type": "string",
@@ -5064,7 +5064,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["draft", "active", "archived"]
+            "enum": ["draft", "enrollment_open", "placement_running", "reporting", "archived"]
           },
           "enrolmentOpenAt": {
             "anyOf": [
@@ -5103,6 +5103,16 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-05T03:14:12Z"
+          },
+          "enrolledStudentCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "openOfferCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -5114,7 +5124,9 @@
           "enrolmentOpenAt",
           "enrolmentCloseAt",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "enrolledStudentCount",
+          "openOfferCount"
         ],
         "additionalProperties": false,
         "description": "Semester record (see WORKFLOW-API-SPEC.md §7.5 / §8.5)."
@@ -5252,6 +5264,16 @@
               }
             ]
           },
+          "verificationComment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attachmentUploadPathPrefix": {
             "type": "string",
             "example": "opportunities/opp_042/attachments/"
@@ -5291,6 +5313,7 @@
           "submittedByUserId",
           "verifiedByUserId",
           "verifiedAt",
+          "verificationComment",
           "attachmentUploadPathPrefix",
           "attachments",
           "createdAt",
@@ -6181,7 +6204,7 @@
         },
         "required": ["id", "userId", "subject", "category", "status", "createdAt", "updatedAt"],
         "additionalProperties": false,
-        "description": "Support ticket list item — body is omitted from list responses."
+        "description": "Support ticket list item — body and replies are omitted from list responses."
       },
       "TicketResponse": {
         "type": "object",
@@ -6222,6 +6245,12 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
+          "replies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketReplyResponse"
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -6243,6 +6272,7 @@
           "category",
           "status",
           "version",
+          "replies",
           "createdAt",
           "updatedAt"
         ],
