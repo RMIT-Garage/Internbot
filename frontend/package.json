@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "generate:api": "openapi --input ../backend/openapi.json --output src/api --client fetch && prettier --write src/api"
+    "generate:api": "openapi --input ../backend/openapi.json --output src/api --client fetch && prettier --write src/api",
+    "generate:icons": "node scripts/generate-brand-icons.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
@@ -48,6 +49,7 @@
     "jsdom": "26.1.0",
     "openapi-typescript-codegen": "^0.30.0",
     "prettier": "3.8.1",
+    "sharp": "0.34.5",
     "prettier-plugin-tailwindcss": "0.6.14",
     "tailwindcss": "4.2.2",
     "typescript": "5.9.3",

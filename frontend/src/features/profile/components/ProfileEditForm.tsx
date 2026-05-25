@@ -120,16 +120,17 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         {/* Modal header */}
-        <div className="flex items-center justify-between border-b border-gray-100 p-6">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6">
           <div>
-            <h2 className="text-lg font-bold">Edit Profile</h2>
-            <p className="mt-0.5 text-xs text-gray-400">
+            <h2 className="text-lg font-bold text-slate-950">Edit profile</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
               Fill all fields to mark your profile as complete
             </p>
           </div>
           <button
+            type="button"
             onClick={onCancel}
-            className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100"
+            className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100"
           >
             <X size={20} />
           </button>
@@ -145,7 +146,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 
           {/* Personal */}
           <fieldset>
-            <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
+            <legend className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
               Personal
             </legend>
             <Field label="Full Name" error={errors.displayName?.message}>
@@ -162,7 +163,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 
           {/* Academic program */}
           <fieldset>
-            <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
+            <legend className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
               Academic Program
             </legend>
             <div className="grid grid-cols-2 gap-4">
@@ -212,7 +213,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 
           {/* Academic record */}
           <fieldset>
-            <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
+            <legend className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
               Academic Record
             </legend>
             <div className="grid grid-cols-3 gap-4">
@@ -251,16 +252,16 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
             <button
               type="submit"
               disabled={saving || isFormIncomplete}
-              className="flex-1 rounded-lg bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-xl bg-red-700 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'SAVE CHANGES'}
+              {saving ? 'Saving…' : 'Save changes'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 rounded-lg border border-gray-200 bg-white py-3 text-sm font-bold text-gray-400 transition hover:bg-gray-50"
+              className="flex-1 rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
             >
-              DISCARD EDITS
+              Cancel
             </button>
           </div>
         </form>
@@ -270,7 +271,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 }
 
 const inputCls =
-  'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 bg-gray-50 placeholder:text-gray-300'
+  'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none'
 
 function Field({
   label,
@@ -285,7 +286,7 @@ function Field({
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ''}`}>
-      <label className="text-xs font-medium text-gray-600">{label}</label>
+      <label className="text-xs font-semibold text-slate-600">{label}</label>
       {children}
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>

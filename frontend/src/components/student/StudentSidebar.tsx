@@ -9,9 +9,9 @@ import {
   GraduationCap,
   LayoutDashboard,
   Lock,
-  ScrollText,
   UserCircle2,
 } from 'lucide-react'
+import { AppLogo } from '@/components/brand/AppLogo'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import type { StudentUserResponse } from '@/lib/api/openapi-client'
@@ -47,9 +47,7 @@ export function StudentSidebar() {
     <aside className="hidden w-72 flex-col border-r border-slate-200 bg-white lg:flex">
       {/* HEADER */}
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-700 text-white shadow-sm">
-          <ScrollText className="h-4 w-4" />
-        </div>
+        <AppLogo />
 
         <div>
           <span className="block text-sm font-bold text-slate-950">

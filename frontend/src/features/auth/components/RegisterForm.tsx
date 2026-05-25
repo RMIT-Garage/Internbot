@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Mail } from 'lucide-react'
+import { ArrowRight, Lock, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { registerSchema, STUDENT_EMAIL_DOMAIN, type RegisterInput } from '@/lib/validations/auth'
@@ -41,6 +41,10 @@ export function RegisterForm() {
           Institutional Email
         </label>
         <div className="relative">
+          <Mail
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
+          />
           <input
             id="institutional-email"
             type="email"
@@ -48,12 +52,8 @@ export function RegisterForm() {
             placeholder="s1234567@student.rmit.edu.au"
             aria-invalid={errors.email ? 'true' : 'false'}
             aria-describedby="institutional-email-hint"
-            className="block w-full rounded-md border border-zinc-300 bg-zinc-50 py-2.5 pr-9 pl-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:outline-none"
+            className="block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
             {...register('email')}
-          />
-          <Mail
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400"
           />
         </div>
         <p id="institutional-email-hint" className="text-xs text-zinc-500 italic">
@@ -73,15 +73,21 @@ export function RegisterForm() {
           >
             Password
           </label>
-          <input
-            id="register-password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="••••••••"
-            aria-invalid={errors.password ? 'true' : 'false'}
-            className="block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:outline-none"
-            {...register('password')}
-          />
+          <div className="relative">
+            <Lock
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
+            />
+            <input
+              id="register-password"
+              type="password"
+              autoComplete="new-password"
+              placeholder="••••••••"
+              aria-invalid={errors.password ? 'true' : 'false'}
+              className="block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
+              {...register('password')}
+            />
+          </div>
           {errors.password && <p className="text-xs text-red-600">{errors.password.message}</p>}
         </div>
 
@@ -92,15 +98,21 @@ export function RegisterForm() {
           >
             Confirm
           </label>
-          <input
-            id="register-confirm"
-            type="password"
-            autoComplete="new-password"
-            placeholder="••••••••"
-            aria-invalid={errors.confirmPassword ? 'true' : 'false'}
-            className="block w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:outline-none"
-            {...register('confirmPassword')}
-          />
+          <div className="relative">
+            <Lock
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
+            />
+            <input
+              id="register-confirm"
+              type="password"
+              autoComplete="new-password"
+              placeholder="••••••••"
+              aria-invalid={errors.confirmPassword ? 'true' : 'false'}
+              className="block w-full rounded-md border border-zinc-300 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
+              {...register('confirmPassword')}
+            />
+          </div>
           {errors.confirmPassword && (
             <p className="text-xs text-red-600">{errors.confirmPassword.message}</p>
           )}
@@ -110,9 +122,10 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-md bg-red-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? 'Creating account…' : 'Create Account'}
+        {isSubmitting ? 'Creating account…' : 'Create account'}
+        {!isSubmitting && <ArrowRight aria-hidden="true" className="size-4" />}
       </button>
     </form>
   )

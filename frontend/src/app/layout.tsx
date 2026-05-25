@@ -8,6 +8,13 @@ export const metadata: Metadata = {
     default: process.env.NEXT_PUBLIC_APP_NAME ?? 'App',
   },
   description: 'Built on garage-boilerplate',
+  icons: {
+    icon: [
+      { url: '/brand/icon.svg', type: 'image/svg+xml' },
+      { url: '/brand/icon.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/brand/icon-180.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

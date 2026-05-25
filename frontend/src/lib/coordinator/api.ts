@@ -21,6 +21,8 @@ export interface CoordinatorUserLookupResponse {
   role?: string
   studentProfile?: {
     studentNumber?: string | null
+    programCode?: string | null
+    semesterId?: string | null
   } | null
 }
 
