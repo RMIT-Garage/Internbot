@@ -25,7 +25,7 @@ import {
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
-import type { InternshipListItemResponse } from '@/types/api'
+import type { InternshipListItemResponse, SemesterStudentPlacementStatus } from '@/types/api'
 
 interface StudentProfile {
   id: string
@@ -46,6 +46,8 @@ export function StudentProfileClient() {
   const recordId = searchParams.get('recordId') ?? ''
   const rowId = searchParams.get('rowId') ?? ''
   const returnTo = normalizeReturnTo(searchParams.get('returnTo'))
+  const placementStatusHint = parsePlacementStatusHint(searchParams.get('placementStatus'))
+  const programCodeHint = searchParams.get('programCode')?.trim() || undefined
 
   const profileResource = useCoordinatorApiResource(
     async () => {
@@ -64,16 +66,37 @@ export function StudentProfileClient() {
           )
       let studentDisplay: string | undefined
       let displayName: string | undefined
+      let email: string | undefined
+      let programCode: string | undefined
       if (canFilterByUserId) {
         try {
           const user = await getUser(studentId)
           studentDisplay = formatStudentDisplay(user)
           displayName = user.displayName ?? undefined
+          email = user.email ?? undefined
+          programCode = user.studentProfile?.programCode ?? undefined
         } catch {
-          // both stay undefined
+          // profile fields stay undefined
         }
       }
-      return buildProfile(studentId, profileInternships, recordId, studentDisplay, displayName)
+      const fromInternships = buildProfile(
+        studentId,
+        profileInternships,
+        recordId,
+        studentDisplay,
+        displayName,
+        email
+      )
+      if (fromInternships) return fromInternships
+      if (!canFilterByUserId || !studentDisplay) return null
+      return buildProfileWithoutInternships({
+        studentId,
+        studentDisplay,
+        displayName,
+        email,
+        programCode: programCodeHint ?? programCode,
+        placementStatus: placementStatusHint,
+      })
     },
     findFallbackProfile(studentId, rowId),
     `student-profile:${studentId}:${recordId}:${rowId}`,
@@ -328,12 +351,81 @@ function EmptyProfileState({
   )
 }
 
+const SEMESTER_PLACEMENT_STATUS_LABELS: Record<SemesterStudentPlacementStatus, string> = {
+  no_applications: 'No Applications',
+  browsing: 'Browsing',
+  offer_in_review: 'Offer in Review',
+  offer_changes_requested: 'Changes Requested',
+  offer_approved: 'Offer Approved',
+  all_rejected: 'All Rejected',
+}
+
+function buildProfileWithoutInternships(input: {
+  studentId: string
+  studentDisplay: string
+  displayName?: string
+  email?: string
+  programCode?: string
+  placementStatus?: SemesterStudentPlacementStatus
+}): StudentProfile {
+  const placementLabel = input.placementStatus
+    ? SEMESTER_PLACEMENT_STATUS_LABELS[input.placementStatus]
+    : 'No placement activity yet'
+
+  return {
+    id: input.studentId,
+    name: input.studentDisplay,
+    displayName: input.displayName,
+    email: input.email,
+    course: input.programCode ?? 'To confirm',
+    semester: 'Enrolled semester',
+    status: overallStatusFromPlacement(input.placementStatus),
+    placementStatus: placementLabel,
+    latestActivity: null,
+    internships: [],
+  }
+}
+
+function overallStatusFromPlacement(
+  placementStatus?: SemesterStudentPlacementStatus
+): StudentOverallStatus {
+  switch (placementStatus) {
+    case 'offer_changes_requested':
+    case 'all_rejected':
+      return 'needs_attention'
+    case 'offer_approved':
+      return 'approved'
+    case 'no_applications':
+      return 'inactive'
+    default:
+      return 'on_track'
+  }
+}
+
+function parsePlacementStatusHint(
+  value: string | null
+): SemesterStudentPlacementStatus | undefined {
+  if (!value) return undefined
+  const statuses: SemesterStudentPlacementStatus[] = [
+    'no_applications',
+    'browsing',
+    'offer_in_review',
+    'offer_changes_requested',
+    'offer_approved',
+    'all_rejected',
+  ]
+  return statuses.includes(value as SemesterStudentPlacementStatus)
+    ? (value as SemesterStudentPlacementStatus)
+    : undefined
+}
+
 function buildProfile(
   studentId: string,
   internships: InternshipListItemResponse[],
   selectedRecordId: string,
   studentDisplay?: string,
-  displayName?: string
+  displayName?: string,
+  email?: string
 ): StudentProfile | null {
   if (internships.length === 0) return null
   const sorted = [...internships].sort((a, b) => {
@@ -351,7 +443,7 @@ function buildProfile(
     id: profileStudentId,
     name: studentDisplay ?? formatStudentDisplay({ studentId: profileStudentId }),
     displayName,
-    email: undefined,
+    email,
     course: courses.size > 1 ? 'Multiple programs' : (latest.studentProgramCode ?? 'To confirm'),
     semester: 'Current semester',
     status: aggregateStudentStatus(sorted.map((item) => item.status)),
@@ -420,6 +512,9 @@ function isPlacementApprovalStage(item: InternshipListItemResponse) {
 }
 
 function normalizeReturnTo(value: string | null) {
-  if (!value || !value.startsWith('/coordinator/students')) return '/coordinator/students'
-  return value
+  if (!value) return '/coordinator/students'
+  if (value.startsWith('/coordinator/students') || value.startsWith('/coordinator/semesters/')) {
+    return value
+  }
+  return '/coordinator/students'
 }

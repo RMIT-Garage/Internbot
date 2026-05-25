@@ -19,6 +19,16 @@ const PLACEMENT_STATUS_LABELS: Record<SemesterStudentPlacementStatus, string> = 
   all_rejected: 'All Rejected',
 }
 
+function semesterStudentProfileHref(student: SemesterStudentItem, returnTo: string) {
+  const params = new URLSearchParams({
+    id: student.userId,
+    returnTo,
+    placementStatus: student.placementStatus,
+  })
+  if (student.programCode) params.set('programCode', student.programCode)
+  return `/coordinator/students/view?${params.toString()}`
+}
+
 const PLACEMENT_STATUS_COLORS: Record<SemesterStudentPlacementStatus, string> = {
   no_applications: 'text-slate-400',
   browsing: 'text-slate-600',
@@ -182,7 +192,7 @@ export default function SemesterStudentsClient() {
                       <td className="px-5 py-4 text-slate-900">{student.internshipCount}</td>
                       <td className="px-5 py-4 text-right">
                         <Link
-                          href={`/coordinator/students/view?id=${student.userId}`}
+                          href={semesterStudentProfileHref(student, pathname)}
                           className="text-sm font-bold text-red-700 hover:text-red-800"
                         >
                           View Profile

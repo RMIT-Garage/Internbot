@@ -9,10 +9,10 @@ import {
   GraduationCap,
   LayoutDashboard,
   MessageSquare,
-  ScrollText,
   Sparkles,
   Users,
 } from 'lucide-react'
+import { AppLogo } from '@/components/brand/AppLogo'
 import { cn } from '@/lib/utils'
 import {
   PLACEMENT_PROCESSING_CONTEXT,
@@ -48,9 +48,7 @@ export function CoordinatorSidebar() {
   return (
     <aside className="hidden w-72 flex-col border-r border-slate-200 bg-white lg:flex">
       <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-700 text-white shadow-sm">
-          <ScrollText className="h-4 w-4" />
-        </div>
+        <AppLogo />
         <div>
           <span className="block text-sm font-bold text-slate-950">
             {process.env.NEXT_PUBLIC_APP_NAME ?? 'Internbot'}

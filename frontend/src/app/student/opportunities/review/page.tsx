@@ -22,6 +22,9 @@ import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { OpportunitiesService } from '@/lib/api/openapi-client'
 import type { OpportunityResponse } from '@/lib/api/openapi-client'
 import { formatDate } from '@/lib/utils'
+import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
+import { useStudentJobCheck } from '@/features/coordinator-ai/hooks/useStudentJobCheck'
+import type { CheckerInput } from '@/features/coordinator-ai/types'
 
 type ReviewStage = 'completed' | 'active' | 'rejected' | 'pending'
 
@@ -203,11 +206,50 @@ function OpportunityReviewContent() {
   const [opportunity, setOpportunity] = useState<OpportunityResponse | null>(null)
   const [loading, setLoading] = useState(!!id)
   const [error, setError] = useState<string | null>(null)
+  const [checkerInput, setCheckerInput] = useState<CheckerInput | null>(null)
+
+  const jobCheck = useStudentJobCheck(checkerInput)
 
   useEffect(() => {
     if (!id) return
     OpportunitiesService.getOpportunity(id)
-      .then(setOpportunity)
+      .then(async (opp) => {
+        setOpportunity(opp)
+
+        const opportunityText = [
+          `Job Title: ${opp.jobTitle}`,
+          `Employer: ${opp.employerName}`,
+          `Description: ${opp.descriptionText ?? ''}`,
+          `Work Mode: ${opp.workMode ?? 'unspecified'}`,
+          `Location: ${opp.location ?? 'unspecified'}`,
+        ].join('\n')
+
+        const primary = opp.attachments.find((a) => a.uploadStatus === 'finalized')
+        if (primary) {
+          try {
+            const { downloadUrl } = await OpportunitiesService.getOpportunityAttachment(
+              id,
+              primary.id
+            )
+            const res = await fetch(downloadUrl)
+            if (res.ok) {
+              const buf = await res.arrayBuffer()
+              setCheckerInput({
+                userInput: opportunityText,
+                attachment: {
+                  mimeType: primary.contentType ?? 'application/octet-stream',
+                  dataBase64: arrayBufferToBase64(buf),
+                  fileName: primary.fileName ?? undefined,
+                },
+              })
+              return
+            }
+          } catch {
+            // fall through to text-only check
+          }
+        }
+        setCheckerInput({ userInput: opportunityText })
+      })
       .catch(() => setError('Could not load this submission.'))
       .finally(() => setLoading(false))
   }, [id])
@@ -380,6 +422,16 @@ function OpportunityReviewContent() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {(jobCheck.isLoading || jobCheck.result || jobCheck.error) && (
+            <SurfaceCard className="p-4">
+              <CheckerResultPanel
+                result={jobCheck.result}
+                isLoading={jobCheck.isLoading}
+                error={jobCheck.error}
+                feature="job-checker"
+              />
+            </SurfaceCard>
+          )}
           <ReviewStatusCard opportunity={opportunity} />
 
           <SurfaceCard className="space-y-2 p-5">
@@ -411,6 +463,15 @@ function OpportunityReviewContent() {
       </div>
     </div>
   )
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i] ?? 0)
+  }
+  return btoa(binary)
 }
 
 export default function OpportunityReviewPage() {

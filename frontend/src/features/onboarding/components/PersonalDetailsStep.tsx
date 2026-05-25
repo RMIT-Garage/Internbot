@@ -5,9 +5,20 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Lock, Bell, UserCircle, GraduationCap, ArrowRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { StudentUser, UpdateProfilePayload } from '@/features/profile/types'
-import { Navbar } from '@/components/layout/Navbar'
+import {
+  OnboardingAlert,
+  OnboardingFormActions,
+  OnboardingFormCard,
+  OnboardingLockedField,
+  OnboardingPageFrame,
+  OnboardingStepHeader,
+  OnboardingStepper,
+  onboardingInputCls,
+  onboardingInputErrorCls,
+  onboardingLabelCls,
+} from './OnboardingUi'
 
 const schema = z.object({
   displayName: z.string().min(1, 'Student name is required'),
@@ -15,13 +26,6 @@ const schema = z.object({
 })
 
 type FormValues = z.infer<typeof schema>
-
-const STEPS = [
-  { key: 'personal', label: 'Identity', number: '1' },
-  { key: 'academic', label: 'Academic', number: '2' },
-  { key: 'credits', label: 'Credits', number: '3' },
-  { key: 'review', label: 'Finalize', number: '4' },
-] as const
 
 interface Props {
   user: StudentUser
@@ -56,7 +60,6 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
         studentProfile: { phone: values.phone },
         displayName: values.displayName,
       })
-
       toast.success('Progress saved!')
       router.push('/onboarding/academic')
     } catch {
@@ -74,180 +77,70 @@ export function PersonalDetailsStep({ user, onSave, saving }: Props) {
   })
 
   return (
-    <main className="flex-1 bg-white">
-      {/* Header */}
-      <Navbar />
+    <OnboardingPageFrame currentStep="personal">
+      <OnboardingStepper currentStep="personal" />
+      <OnboardingStepHeader
+        eyebrow="Step 1 — Identity"
+        title="Personal details"
+        description="Verify and complete your identity information for your academic record and placement applications."
+      />
 
-      {/* Content */}
-      <div className="max-w-7xl p-12 lg:p-16">
-        {/* Stepper */}
-        <div className="relative mb-16 flex items-center justify-center">
-          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
+      {missingFields.length > 0 && (
+        <OnboardingAlert variant="warning" title="Some required fields are incomplete">
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            {missingFields.map((field) => (
+              <li key={field}>{field}</li>
+            ))}
+          </ul>
+        </OnboardingAlert>
+      )}
 
-          <div className="flex w-full max-w-2xl justify-between">
-            {STEPS.map((step) => {
-              const isActive = step.key === 'personal'
-
-              const isCompleted = false
-
-              let circleClass =
-                'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-white border-2 border-gray-100 text-gray-300'
-
-              let labelClass = 'text-[10px] tracking-widest uppercase text-gray-300'
-
-              if (isActive) {
-                circleClass =
-                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-red-700 border-2 border-red-700 text-white scale-110 shadow-lg shadow-red-100'
-
-                labelClass = 'text-[10px] tracking-widest uppercase text-red-700 font-bold'
-              } else if (isCompleted) {
-                circleClass =
-                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-slate-800 border-2 border-slate-800 text-white'
-
-                labelClass = 'text-[10px] tracking-widest uppercase text-slate-800 font-bold'
-              }
-
-              return (
-                <div key={step.key} className="flex flex-col items-center gap-3">
-                  <div className={circleClass}>{step.number}</div>
-
-                  <span className={labelClass}>{step.label}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-        <div className="mx-auto max-w-3xl space-y-10">
-          {/* Title */}
+      <OnboardingFormCard>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <span className="mb-5 inline-block rounded bg-gray-100 px-3 py-1.5 text-[11px] font-bold tracking-wide text-gray-500 uppercase">
-              Stage 01 — Identity
-            </span>
-            <h2 className="mb-3 text-4xl font-semibold">Personal Details</h2>
-            <p className="max-w-2xl leading-relaxed text-gray-600">
-              Please verify and complete your identity information. These details will be used for
-              your official academic record and graduation certificates.
-            </p>
-            {/* Missing Fields Warning */}
-            {missingFields.length > 0 && (
-              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <div className="flex items-start gap-3">
-                  <Bell className="mt-0.5 h-5 w-5 text-amber-600" />
-
-                  <div className="flex-1">
-                    <h3 className="text-sm font-bold text-amber-900">
-                      Some required profile fields are incomplete
-                    </h3>
-
-                    <p className="mt-1 text-sm text-amber-700">
-                      Please review the following information before continuing with onboarding.
-                    </p>
-
-                    <ul className="mt-3 space-y-1 text-sm text-amber-800">
-                      {missingFields.map((field) => (
-                        <li key={field}>• {field}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
+            <label htmlFor="displayName" className={onboardingLabelCls}>
+              Student name
+            </label>
+            <input
+              id="displayName"
+              type="text"
+              {...register('displayName')}
+              placeholder="Your full name"
+              className={cn(onboardingInputCls, errors.displayName && onboardingInputErrorCls)}
+            />
+            {errors.displayName && (
+              <p className="mt-1 text-xs text-red-600">{errors.displayName.message}</p>
             )}
           </div>
 
-          {/* Form card */}
-          <div className="rounded-xl border border-gray-100 p-8 shadow-sm lg:p-10">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-              {/* Student name — editable */}
-              <div>
-                <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
-                  Student Name
-                </label>
-                <input
-                  type="text"
-                  {...register('displayName')}
-                  placeholder="Your full name"
-                  className={`w-full rounded-lg border px-5 py-4 text-lg transition-colors outline-none placeholder:text-gray-400 focus:bg-white focus:ring-2 ${
-                    errors.displayName
-                      ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
-                      : 'border-gray-100 bg-gray-100/50 text-gray-600 focus:border-red-600/20 focus:ring-red-600/20'
-                  }`}
-                />
-                {errors.displayName && (
-                  <p className="mt-1 text-xs text-red-500">{errors.displayName.message}</p>
-                )}
-              </div>
-
-              {/* Student number + email — locked */}
-              <div className="grid grid-cols-1 gap-x-8 gap-y-8 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
-                    Student Number
-                  </label>
-                  <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
-                    <span className="text-lg text-gray-900">{studentProfile.studentNumber}</span>
-                    <Lock size={16} className="text-gray-300" />
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-2 block text-[10px] font-medium text-gray-500 uppercase">
-                    RMIT Email
-                  </label>
-                  <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-5 py-4">
-                    <span className="text-sm text-gray-900">{email}</span>
-                    <Lock size={16} className="text-gray-300" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Phone — editable */}
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="mb-2 block text-[10px] font-medium text-gray-500 uppercase"
-                >
-                  Phone Number
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  {...register('phone')}
-                  placeholder="+61 400 000 000"
-                  className={`w-full rounded-lg border px-5 py-4 text-lg transition-colors outline-none placeholder:text-gray-400 focus:bg-white focus:ring-2 ${
-                    errors.phone
-                      ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
-                      : 'border-gray-100 bg-gray-100/50 text-gray-600 focus:border-red-600/20 focus:ring-red-600/20'
-                  } `}
-                />
-                {errors.phone && (
-                  <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>
-                )}
-              </div>
-
-              <div className="border-t border-gray-100 pt-8" />
-
-              {/* Actions */}
-              <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleSaveProgress}
-                  disabled={saving}
-                  className="text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
-                >
-                  Save Progress
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex items-center gap-2 rounded-xl bg-red-600 px-10 py-3.5 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
-                >
-                  {saving ? 'Saving…' : 'Next Step'}
-                  <ArrowRight size={20} />
-                </button>
-              </div>
-            </form>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <OnboardingLockedField label="Student number" value={studentProfile.studentNumber} />
+            <OnboardingLockedField label="RMIT email" value={email} />
           </div>
-        </div>
-      </div>
-    </main>
+
+          <div>
+            <label htmlFor="phone" className={onboardingLabelCls}>
+              Phone number
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              {...register('phone')}
+              placeholder="+61 400 000 000"
+              className={cn(onboardingInputCls, errors.phone && onboardingInputErrorCls)}
+            />
+            {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p>}
+          </div>
+
+          <OnboardingFormActions
+            onSave={handleSaveProgress}
+            saveDisabled={saving}
+            submitting={saving}
+            submitLabel="Continue to academic"
+            showSave
+          />
+        </form>
+      </OnboardingFormCard>
+    </OnboardingPageFrame>
   )
 }
