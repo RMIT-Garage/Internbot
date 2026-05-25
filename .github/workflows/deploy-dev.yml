@@ -88,7 +88,7 @@ jobs:
       deploy_targets: functions
       # Non-secret RAG service URL — written into the function's runtime env
       # at deploy. The RAG API key is a separate secret (functions:secrets:set).
-      rag_server_url: https://australia-southeast1-internbotrag.cloudfunctions.net/api
+      rag_service_url: https://australia-southeast1-internbotrag.cloudfunctions.net/api
 
   deploy-frontend:
     needs: [changes, ci, terraform]
