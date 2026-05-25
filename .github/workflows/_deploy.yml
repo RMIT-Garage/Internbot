@@ -20,7 +20,7 @@ on:
         required: false
         type: string
         default: functions
-      rag_server_url:
+      rag_service_url:
         description: Base URL of the RAG service the api function proxies to (non-secret config)
         required: false
         type: string
@@ -73,14 +73,14 @@ jobs:
 
       # Firebase Functions v2 reads runtime env vars from dotenv files in the
       # functions source dir (backend/) at deploy time; `.env.<projectId>` is
-      # loaded only for that project. RAG_SERVER_URL is non-secret config — the
+      # loaded only for that project. RAG_SERVICE_URL is non-secret config — the
       # RAG endpoint requires a separate `ibk_*` key set via
       # `firebase functions:secrets:set RAG_API_KEY`. All .env* files are
       # gitignored, so CI writes this fresh each run.
       - name: Write runtime function env
-        if: inputs.rag_server_url != ''
+        if: inputs.rag_service_url != ''
         run: |
-          echo "RAG_SERVER_URL=${{ inputs.rag_server_url }}" >> "backend/.env.${{ inputs.firebase_project_id }}"
+          echo "RAG_SERVICE_URL=${{ inputs.rag_service_url }}" >> "backend/.env.${{ inputs.firebase_project_id }}"
 
       - name: Deploy to Firebase
         # Pinned firebase-tools major version for deterministic CI runs.
