@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import { CheckCircle2, Circle, CircleDot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,8 +23,8 @@ interface WorkflowStepperProps {
 const CONNECTOR_ROW_CLASS = 'flex items-center self-start pt-3'
 
 /**
- * Full: circle row with flush connectors (same as jobs queue) + label under each node.
- * Compact: circle row only + single caption below.
+ * One connector between each pair of circles (never two side-by-side).
+ * Full variant adds a label under each node.
  */
 export function WorkflowStepper({ steps, className, variant = 'full' }: WorkflowStepperProps) {
   if (steps.length === 0) return null
@@ -34,18 +35,7 @@ export function WorkflowStepper({ steps, className, variant = 'full' }: Workflow
 
   return (
     <div className={cn('w-full', className)} aria-label="Workflow progress">
-      <div className="flex w-full items-start">
-        {steps.map((step, index) => (
-          <StepSegment
-            key={step.id}
-            step={step}
-            index={index}
-            total={steps.length}
-            previousComplete={index > 0 && steps[index - 1]?.state === 'complete'}
-            showLabel
-          />
-        ))}
-      </div>
+      <CircleRow steps={steps} showLabels />
     </div>
   )
 }
@@ -63,18 +53,7 @@ function CompactWorkflowStepper({
 
   return (
     <div className={cn('w-full', className)} aria-label="Workflow progress">
-      <div className="flex w-full items-start">
-        {steps.map((step, index) => (
-          <StepSegment
-            key={step.id}
-            step={step}
-            index={index}
-            total={steps.length}
-            previousComplete={index > 0 && steps[index - 1]?.state === 'complete'}
-            showLabel={false}
-          />
-        ))}
-      </div>
+      <CircleRow steps={steps} showLabels={false} />
       {active && (
         <p className="mt-2 text-xs font-bold text-slate-800">
           {active.label}
@@ -88,55 +67,36 @@ function CompactWorkflowStepper({
   )
 }
 
-function StepSegment({
-  step,
-  index,
-  total,
-  previousComplete,
-  showLabel,
-}: {
-  step: WorkflowStepItem
-  index: number
-  total: number
-  previousComplete: boolean
-  showLabel: boolean
-}) {
-  const isFirst = index === 0
-  const isLast = index === total - 1
-  const connectorAfterComplete = step.state === 'complete'
-
+function CircleRow({ steps, showLabels }: { steps: WorkflowStepItem[]; showLabels: boolean }) {
   return (
-    <div className="flex min-w-0 flex-1 items-start">
-      {!isFirst && (
-        <div className={cn(CONNECTOR_ROW_CLASS, 'min-w-[6px] flex-1')}>
-          <ConnectorLine complete={previousComplete} />
-        </div>
-      )}
-
-      <div
-        className={cn(
-          'relative z-10 flex shrink-0 flex-col items-center',
-          showLabel ? 'gap-2' : undefined
-        )}
-      >
-        <StepNode state={step.state} />
-        {showLabel && (
-          <p
+    <div className="flex w-full items-start">
+      {steps.map((step, index) => (
+        <Fragment key={step.id}>
+          {index > 0 && (
+            <div className={cn(CONNECTOR_ROW_CLASS, 'min-w-[6px] flex-1')}>
+              <ConnectorLine complete={steps[index - 1]?.state === 'complete'} />
+            </div>
+          )}
+          <div
             className={cn(
-              'max-w-[5.5rem] text-center text-[10px] leading-tight font-bold sm:max-w-[6.25rem] sm:text-[11px]',
-              step.state === 'upcoming' ? 'text-slate-400' : 'text-slate-700'
+              'relative z-10 flex shrink-0 flex-col items-center',
+              showLabels && 'gap-2'
             )}
           >
-            {step.label}
-          </p>
-        )}
-      </div>
-
-      {!isLast && (
-        <div className={cn(CONNECTOR_ROW_CLASS, 'min-w-[6px] flex-1')}>
-          <ConnectorLine complete={connectorAfterComplete} />
-        </div>
-      )}
+            <StepNode state={step.state} />
+            {showLabels && (
+              <p
+                className={cn(
+                  'max-w-[5.5rem] text-center text-[10px] leading-tight font-bold sm:max-w-[6.25rem] sm:text-[11px]',
+                  step.state === 'upcoming' ? 'text-slate-400' : 'text-slate-700'
+                )}
+              >
+                {step.label}
+              </p>
+            )}
+          </div>
+        </Fragment>
+      ))}
     </div>
   )
 }
