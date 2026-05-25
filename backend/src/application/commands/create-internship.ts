@@ -77,6 +77,7 @@ export class CreateInternshipCommandHandler {
         id: internshipId,
         userId: platformUser.id,
         opportunityId: opportunity.id,
+        semesterId: opportunity.semesterId,
         activityId: applyActivityId,
         now,
       })

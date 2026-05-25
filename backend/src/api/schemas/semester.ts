@@ -18,11 +18,7 @@ import {
  * the spec calls this a "platform-chosen format" with examples, not a
  * strict regex.
  */
-const semesterCodeSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .regex(/^[A-Za-z0-9-]+$/, { message: 'semesterCode must be alphanumeric with optional hyphens' })
+const semesterCodeSchema = z.string().trim().min(1)
 
 const courseCodeSchema = z
   .string()

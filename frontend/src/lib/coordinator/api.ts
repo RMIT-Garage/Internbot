@@ -4,12 +4,27 @@ import type {
   InternshipResponse,
   NotificationListResponse,
   NotificationResponse,
+  OpportunityAttachmentResponse,
   OpportunityListResponse,
   OpportunityResponse,
   SemesterListResponse,
   SemesterResponse,
+  SemesterStatus,
+  SemesterStudentListResponse,
   UserActivityFeedResponse,
 } from '@/types/api'
+
+export interface CoordinatorUserLookupResponse {
+  id: string
+  email?: string | null
+  displayName?: string | null
+  role?: string
+  studentProfile?: {
+    studentNumber?: string | null
+    programCode?: string | null
+    semesterId?: string | null
+  } | null
+}
 
 type QueryValue = string | number | boolean | null | undefined
 type Query = Record<string, QueryValue>
@@ -87,6 +102,19 @@ export function getInternship(id: string) {
   return apiFetch<InternshipResponse>(`/api/v1/internships/${id}`)
 }
 
+export function getInternshipAttachment(id: string, attachmentId: string) {
+  return apiFetch<
+    {
+      downloadUrl: string
+      downloadUrlExpiresAt: string
+    } & InternshipResponse['attachments'][number]
+  >(`/api/v1/internships/${id}/attachments/${attachmentId}`)
+}
+
+export function getUser(id: string) {
+  return apiFetch<CoordinatorUserLookupResponse>(`/api/v1/users/${id}`)
+}
+
 export function decideInternship(
   internship: Pick<InternshipResponse, 'id' | 'version'>,
   decision: 'approved' | 'rejected' | 'changes_requested',
@@ -108,6 +136,15 @@ export function listOpportunities(query: Query = {}) {
 
 export function getOpportunity(id: string) {
   return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${id}`)
+}
+
+export function getOpportunityAttachment(id: string, attachmentId: string) {
+  return apiFetch<
+    {
+      downloadUrl: string
+      downloadUrlExpiresAt: string
+    } & OpportunityAttachmentResponse
+  >(`/api/v1/opportunities/${id}/attachments/${attachmentId}`)
 }
 
 export function verifyOpportunity(
@@ -139,6 +176,7 @@ export function updateOpportunity(
   body: {
     employerName?: string
     jobTitle?: string
+    semesterId?: string
     descriptionText?: string
     workMode?: 'onsite' | 'hybrid' | 'remote' | null
     location?: string | null
@@ -148,6 +186,17 @@ export function updateOpportunity(
   return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${opportunity.id}`, {
     method: 'PATCH',
     body,
+  })
+}
+
+export function transitionOpportunity(
+  opportunity: Pick<OpportunityResponse, 'id'>,
+  to: 'published' | 'archived',
+  comment?: string
+) {
+  return apiFetch<OpportunityResponse>(`/api/v1/opportunities/${opportunity.id}/transitions`, {
+    method: 'POST',
+    body: { to, ...(comment ? { comment } : {}) },
   })
 }
 
@@ -181,6 +230,24 @@ export function updateSemester(
     method: 'PATCH',
     body,
   })
+}
+
+export function transitionSemester(
+  semester: Pick<SemesterResponse, 'id'>,
+  to: Exclude<SemesterStatus, 'draft'>,
+  comment?: string
+) {
+  return apiFetch<SemesterResponse>(`/api/v1/semesters/${semester.id}/transitions`, {
+    method: 'POST',
+    body: { to, ...(comment ? { comment } : {}) },
+  })
+}
+
+export function listSemesterStudents(semesterId: string, query: Query = {}) {
+  const allowedKeys = new Set(['placementStatus', 'programCode', 'pageToken', 'limit'])
+  const sanitized = sanitizeQuery(query, allowedKeys, 'semesterStudents')
+  const path = withQuery(`/api/v1/semesters/${semesterId}/students`, sanitized)
+  return apiFetch<SemesterStudentListResponse>(path)
 }
 
 export function listNotifications(query: Query = {}) {

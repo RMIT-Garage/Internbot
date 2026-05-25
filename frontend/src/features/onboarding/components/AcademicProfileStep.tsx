@@ -6,27 +6,47 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ChevronDown, ArrowRight } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { StudentUser, UpdateProfilePayload, ProgramLevel } from '@/features/profile/types'
-import { Navbar } from '@/components/layout/Navbar'
+import {
+  OnboardingAlert,
+  OnboardingFormActions,
+  OnboardingFormCard,
+  OnboardingPageFrame,
+  OnboardingStepHeader,
+  OnboardingStepper,
+  onboardingInputCls,
+  onboardingInputErrorCls,
+  onboardingLabelCls,
+} from './OnboardingUi'
 
-const PROGRAMS = [
-  'Bachelor of Software Engineering (Professional)',
-  'Bachelor of Computer Science',
-  'Bachelor of Information Technology',
-  'Bachelor of Business Information Systems',
-  'Master of Information Technology',
-  'Master of Engineering (Software)',
-]
+const PROGRAM_MAP: Record<string, string> = {
+  BP096: 'Bachelor of Software Engineering (Professional)',
+  BP347: 'Bachelor of Computer Science (Professional)',
+  BP348: 'Bachelor of Data Science (Professional)',
+  BP349: 'Bachelor of Information Technology (Professional)',
+  BP356: 'Bachelor of Cyber Security (Professional)',
+}
+
+const PROGRAMS = Object.entries(PROGRAM_MAP)
 
 const schema = z.object({
   programName: z.string().min(1, 'Program name is required'),
+  programCode: z.string().min(1, 'Program code is required'),
   programLevel: z.enum(['undergraduate', 'postgraduate']),
-
-  gpa: z.preprocess((v) => parseFloat(String(v)), z.number().min(0, 'Min 0.0').max(4, 'Max 4.0')),
-  unitsAttempted: z.preprocess((v) => parseInt(String(v), 10), z.number().min(0)),
-  creditUnitsEarned: z.preprocess((v) => parseInt(String(v), 10), z.number().min(0)),
-
+  gpa: z.preprocess(
+    (v) => parseFloat(String(v)),
+    z.number().min(0.01, 'GPA must be greater than 0').max(4, 'Max 4.0')
+  ),
+  unitsAttempted: z.preprocess(
+    (v) => parseInt(String(v), 10),
+    z.number().min(1, 'Units attempted must be at least 1')
+  ),
+  creditUnitsEarned: z.preprocess(
+    (v) => parseInt(String(v), 10),
+    z.number().min(1, 'Credit units earned must be at least 1')
+  ),
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
 })
 
@@ -37,13 +57,6 @@ interface Props {
   onSave: (payload: UpdateProfilePayload) => Promise<void>
   saving: boolean
 }
-
-const STEPS = [
-  { key: 'personal', label: 'Identity', number: '1' },
-  { key: 'academic', label: 'Academic', number: '2' },
-  { key: 'credits', label: 'Credits', number: '3' },
-  { key: 'review', label: 'Finalize', number: '4' },
-] as const
 
 export function AcademicProfileStep({ user, onSave, saving }: Props) {
   const router = useRouter()
@@ -64,7 +77,8 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
-      programName: ai?.programName ?? PROGRAMS[0],
+      programCode: user.studentProfile.programCode ?? '',
+      programName: PROGRAM_MAP[user.studentProfile.programCode ?? ''] ?? ai?.programName ?? '',
       programLevel: ai?.programLevel ?? 'undergraduate',
       gpa: ai?.gpa ?? undefined,
       unitsAttempted: ai?.unitsAttempted ?? undefined,
@@ -75,6 +89,7 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
 
   const buildPayload = (values: FormValues): UpdateProfilePayload => ({
     studentProfile: {
+      programCode: values.programCode,
       academicInfo: {
         programName: values.programName,
         programLevel: values.programLevel,
@@ -96,27 +111,25 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     }
   }
 
-  const handleBack = () => router.push('/onboarding/personal')
-
-  const handleLevelToggle = (level: ProgramLevel) => {
-    setProgramLevel(level)
-    setValue('programLevel', level)
-  }
-
   const watchedGpa = watch('gpa')
   const watchedUnitsAttempted = watch('unitsAttempted')
   const watchedCreditUnitsEarned = watch('creditUnitsEarned')
+  const watchedProgramCode = watch('programCode')
 
   const isFormIncomplete =
+    !watchedProgramCode ||
     watchedGpa === undefined ||
     watchedGpa === null ||
     String(watchedGpa) === '' ||
+    watchedGpa <= 0 ||
     watchedUnitsAttempted === undefined ||
     watchedUnitsAttempted === null ||
     String(watchedUnitsAttempted) === '' ||
+    watchedUnitsAttempted <= 0 ||
     watchedCreditUnitsEarned === undefined ||
     watchedCreditUnitsEarned === null ||
-    String(watchedCreditUnitsEarned) === ''
+    String(watchedCreditUnitsEarned) === '' ||
+    watchedCreditUnitsEarned <= 0
 
   const validationWarnings = [
     errors.programName?.message,
@@ -125,256 +138,183 @@ export function AcademicProfileStep({ user, onSave, saving }: Props) {
     errors.creditUnitsEarned?.message,
   ].filter(Boolean)
 
+  const segmentBtn = (active: boolean) =>
+    cn(
+      'flex-1 rounded-lg py-2.5 text-sm font-bold transition',
+      active
+        ? 'border border-slate-200 bg-white text-red-700 shadow-sm'
+        : 'text-slate-500 hover:text-slate-800'
+    )
+
   return (
-    <main className="flex-1 bg-white">
-      {/* Header */}
-      <Navbar />
+    <OnboardingPageFrame currentStep="academic">
+      <OnboardingStepper currentStep="academic" />
+      <OnboardingStepHeader
+        eyebrow="Step 2 — Academic"
+        title="Academic information"
+        description="Provide your program details so we can match you with the right internship opportunities."
+      />
 
-      <div className="mx-auto max-w-5xl px-8 py-12">
-        {/* Stepper */}
-        <div className="relative mb-16 flex items-center justify-center">
-          <div className="absolute top-5 left-0 -z-10 h-px w-full bg-gray-100" />
-          <div className="flex w-full max-w-2xl justify-between">
-            {STEPS.map((step) => {
-              const isActive = step.key === 'academic'
-              const isCompleted = step.key === 'personal'
-              const isDisabled = step.key === 'credits' || step.key === 'review'
+      {validationWarnings.length > 0 && (
+        <OnboardingAlert variant="error" title="Please fix the following fields">
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            {validationWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </OnboardingAlert>
+      )}
 
-              let circleClass =
-                'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-white border-2 border-gray-100 text-gray-300'
-              let labelClass = 'text-[10px] tracking-widest uppercase text-gray-300'
-
-              if (isActive) {
-                circleClass =
-                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-red-700 border-2 border-red-700 text-white scale-110 shadow-lg shadow-red-100'
-                labelClass = 'text-[10px] tracking-widest uppercase text-red-700 font-bold'
-              } else if (isCompleted) {
-                circleClass =
-                  'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm z-10 bg-slate-800 border-2 border-slate-800 text-white'
-                labelClass = 'text-[10px] tracking-widest uppercase text-slate-800 font-bold'
-              }
-
-              return (
-                <div key={step.key} className="flex flex-col items-center gap-3">
-                  <div className={circleClass}>{step.number}</div>
-                  <span className={labelClass}>{step.label}</span>
-                </div>
-              )
-            })}
+      <OnboardingFormCard>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div>
+            <label htmlFor="programCode" className={onboardingLabelCls}>
+              Program
+            </label>
+            <div className="relative">
+              <select
+                id="programCode"
+                {...register('programCode')}
+                onChange={(e) => {
+                  const code = e.target.value
+                  setValue('programCode', code)
+                  setValue('programName', PROGRAM_MAP[code] ?? '')
+                }}
+                className={cn(
+                  onboardingInputCls,
+                  'appearance-none pr-10',
+                  errors.programCode && onboardingInputErrorCls
+                )}
+              >
+                <option value="">Select your program</option>
+                {PROGRAMS.map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {code} — {name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+            </div>
+            {errors.programCode && (
+              <p className="mt-1 text-xs text-red-600">{errors.programCode.message}</p>
+            )}
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
-          {/* Form — 8 cols */}
-          <div className="space-y-8 lg:col-span-8">
+          <div className="grid gap-6 sm:grid-cols-2">
             <div>
-              <h1 className="mb-4 text-4xl font-semibold text-slate-800">Academic Information</h1>
-              <p className="text-lg leading-relaxed text-slate-500">
-                Provide your current program details to help us curate your academic experience and
-                personalised audit reports.
-              </p>
+              <p className={onboardingLabelCls}>Program level</p>
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProgramLevel('undergraduate')
+                    setValue('programLevel', 'undergraduate')
+                  }}
+                  className={segmentBtn(programLevel === 'undergraduate')}
+                >
+                  Undergraduate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProgramLevel('postgraduate')
+                    setValue('programLevel', 'postgraduate')
+                  }}
+                  className={segmentBtn(programLevel === 'postgraduate')}
+                >
+                  Postgraduate
+                </button>
+              </div>
             </div>
-
-            <div className="rounded-2xl border border-gray-100 bg-white p-10 shadow-sm">
-              {/* Validation Warning Banner */}
-              {validationWarnings.length > 0 && (
-                <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
-
-                    <div>
-                      <h3 className="text-sm font-bold text-red-800">
-                        Please fix the following fields
-                      </h3>
-
-                      <ul className="mt-2 space-y-1 text-sm text-red-700">
-                        {validationWarnings.map((warning) => (
-                          <li key={warning}>• {warning}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-                {/* Program name */}
-                <div>
-                  <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                    Program Name
-                  </label>
-                  <div className="relative">
-                    <select
-                      {...register('programName')}
-                      className={`w-full appearance-none rounded-xl border px-5 py-4 font-medium transition-all outline-none focus:ring-2 ${
-                        errors.programName
-                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
-                          : 'border-gray-200 bg-slate-50 text-slate-700 focus:border-red-500 focus:ring-red-500/10'
-                      } `}
-                    >
-                      {PROGRAMS.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={20}
-                      className="pointer-events-none absolute top-1/2 right-5 -translate-y-1/2 text-slate-400"
-                    />
-                  </div>
-                  {errors.programName && (
-                    <p className="mt-1 text-xs text-red-500">{errors.programName.message}</p>
-                  )}
-                </div>
-
-                {/* Level + GPA */}
-                <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                      Program Level
-                    </label>
-                    <div className="flex rounded-xl border border-gray-100 bg-slate-50 p-1">
-                      <button
-                        type="button"
-                        onClick={() => handleLevelToggle('undergraduate')}
-                        className={`flex-1 rounded-lg py-3 text-sm font-bold transition ${
-                          programLevel === 'undergraduate'
-                            ? 'border border-gray-100 bg-white text-red-600 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        Undergraduate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleLevelToggle('postgraduate')}
-                        className={`flex-1 rounded-lg py-3 text-sm font-bold transition ${
-                          programLevel === 'postgraduate'
-                            ? 'border border-gray-100 bg-white text-red-600 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        Postgraduate
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                      Current GPA (0.0 – 4.0)
-                    </label>
-                    <input
-                      {...register('gpa')}
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="4"
-                      placeholder="3.8"
-                      className={`w-full rounded-xl border px-5 py-3 text-lg font-medium transition outline-none focus:ring-2 ${
-                        errors.gpa
-                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
-                          : 'border-gray-100 bg-slate-100/50 text-slate-600 focus:border-red-400 focus:ring-red-500/10'
-                      } `}
-                    />
-
-                    {errors.gpa && (
-                      <p className="mt-1 text-xs text-red-500">{errors.gpa.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Study Load */}
-                <div>
-                  <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                    Study Load
-                  </label>
-                  <div className="flex rounded-xl border border-gray-100 bg-slate-50 p-1">
-                    {(['full_time', 'part_time', 'unknown'] as const).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => setValue('currentStudyLoad', option)}
-                        className={`flex-1 rounded-lg py-3 text-sm font-bold transition ${
-                          option === (watch('currentStudyLoad') ?? 'full_time')
-                            ? 'border border-gray-100 bg-white text-red-600 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-600'
-                        }`}
-                      >
-                        {option === 'full_time'
-                          ? 'Full Time'
-                          : option === 'part_time'
-                            ? 'Part Time'
-                            : 'Unknown'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Units */}
-                <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                      Units Attempted
-                    </label>
-                    <input
-                      {...register('unitsAttempted')}
-                      type="number"
-                      min="0"
-                      placeholder="24"
-                      className={`w-full rounded-xl border px-5 py-3 text-lg font-medium transition outline-none focus:ring-2 ${
-                        errors.unitsAttempted
-                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
-                          : 'border-gray-100 bg-slate-100/50 text-slate-600 focus:border-red-400 focus:ring-red-500/10'
-                      } `}
-                    />
-                    {errors.unitsAttempted && (
-                      <p className="mt-1 text-xs text-red-500">{errors.unitsAttempted.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                      Credit Units Earned
-                    </label>
-                    <input
-                      {...register('creditUnitsEarned')}
-                      type="number"
-                      min="0"
-                      placeholder="18"
-                      className={`w-full rounded-xl border px-5 py-3 text-lg font-medium transition outline-none focus:ring-2 ${
-                        errors.creditUnitsEarned
-                          ? 'border-red-300 bg-red-50 text-red-700 focus:border-red-500 focus:ring-red-500/20'
-                          : 'border-gray-100 bg-slate-100/50 text-slate-600 focus:border-red-400 focus:ring-red-500/10'
-                      } `}
-                    />
-                    {errors.creditUnitsEarned && (
-                      <p className="mt-1 text-xs text-red-500">
-                        {errors.creditUnitsEarned.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-6">
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    className="text-sm font-bold text-red-600 hover:underline"
-                  >
-                    Back to Personal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving || isFormIncomplete}
-                    className="flex items-center gap-2 rounded-xl bg-red-700 px-10 py-4 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {saving ? 'Saving…' : 'Continue to Credits'}
-                    <ArrowRight size={20} />
-                  </button>
-                </div>
-              </form>
+            <div>
+              <label htmlFor="gpa" className={onboardingLabelCls}>
+                Current GPA (0.0 – 4.0)
+              </label>
+              <input
+                id="gpa"
+                {...register('gpa')}
+                type="number"
+                step="0.1"
+                min="0"
+                max="4"
+                placeholder="3.8"
+                className={cn(onboardingInputCls, errors.gpa && onboardingInputErrorCls)}
+              />
+              {errors.gpa && <p className="mt-1 text-xs text-red-600">{errors.gpa.message}</p>}
             </div>
           </div>
-        </div>
-      </div>
-    </main>
+
+          <div>
+            <p className={onboardingLabelCls}>Study load</p>
+            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              {(['full_time', 'part_time', 'unknown'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setValue('currentStudyLoad', option)}
+                  className={segmentBtn(option === (watch('currentStudyLoad') ?? 'full_time'))}
+                >
+                  {option === 'full_time'
+                    ? 'Full time'
+                    : option === 'part_time'
+                      ? 'Part time'
+                      : 'Unknown'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <label htmlFor="unitsAttempted" className={onboardingLabelCls}>
+                Units attempted
+              </label>
+              <input
+                id="unitsAttempted"
+                {...register('unitsAttempted')}
+                type="number"
+                min="0"
+                placeholder="24"
+                className={cn(onboardingInputCls, errors.unitsAttempted && onboardingInputErrorCls)}
+              />
+              {errors.unitsAttempted && (
+                <p className="mt-1 text-xs text-red-600">{errors.unitsAttempted.message}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="creditUnitsEarned" className={onboardingLabelCls}>
+                Credit points earned
+              </label>
+              <input
+                id="creditUnitsEarned"
+                {...register('creditUnitsEarned')}
+                type="number"
+                min="0"
+                placeholder="168"
+                className={cn(
+                  onboardingInputCls,
+                  errors.creditUnitsEarned && onboardingInputErrorCls
+                )}
+              />
+              {errors.creditUnitsEarned && (
+                <p className="mt-1 text-xs text-red-600">{errors.creditUnitsEarned.message}</p>
+              )}
+            </div>
+          </div>
+
+          <OnboardingFormActions
+            backLabel="Back to personal"
+            onBack={() => router.push('/onboarding/personal')}
+            submitLabel="Continue to credits"
+            submitDisabled={isFormIncomplete}
+            submitting={saving}
+            showSave={false}
+          />
+        </form>
+      </OnboardingFormCard>
+    </OnboardingPageFrame>
   )
 }

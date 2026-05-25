@@ -9,16 +9,26 @@ import type { StudentUser, UpdateProfilePayload } from '../types'
 import type { Resolver, SubmitHandler } from 'react-hook-form'
 
 const schema = z.object({
+  displayName: z.string().min(1, 'Name is required'),
   phone: z.string().min(1, 'Phone is required'),
   programName: z.string().min(1, 'Program name is required'),
+  programCode: z.string().min(1, 'Program code is required'),
   programLevel: z.enum(['undergraduate', 'postgraduate']),
   currentStudyLoad: z.enum(['full_time', 'part_time', 'unknown']),
   majors: z.string().optional(),
   minors: z.string().optional(),
-  gpa: z.coerce.number().min(0).max(4),
-  creditUnitsEarned: z.coerce.number().min(0),
-  unitsAttempted: z.coerce.number().min(0),
+  gpa: z.coerce.number().min(0.01, 'GPA is required').max(4),
+  creditUnitsEarned: z.coerce.number().min(1, 'Credit units earned is required'),
+  unitsAttempted: z.coerce.number().min(1, 'Units attempted is required'),
 })
+
+const PROGRAM_MAP: Record<string, string> = {
+  BP096: 'Bachelor of Software Engineering (Professional)',
+  BP347: 'Bachelor of Computer Science (Professional)',
+  BP348: 'Bachelor of Data Science (Professional)',
+  BP349: 'Bachelor of Information Technology (Professional)',
+  BP356: 'Bachelor of Cyber Security (Professional)',
+}
 
 type FormValues = z.infer<typeof schema>
 
@@ -35,8 +45,10 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
+      displayName: user.displayName ?? '',
       phone: user.studentProfile.phone ?? '',
       programName: ai?.programName ?? '',
+      programCode: user.studentProfile.programCode ?? '',
       programLevel: ai?.programLevel ?? 'undergraduate',
       currentStudyLoad: ai?.currentStudyLoad ?? 'full_time',
       majors: ai?.majors?.join(', ') ?? '',
@@ -51,6 +63,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
   } = form
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
@@ -63,7 +76,9 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
         : undefined
 
     const payload: UpdateProfilePayload = {
+      displayName: values.displayName,
       studentProfile: {
+        programCode: values.programCode,
         phone: values.phone,
         academicInfo: {
           programName: values.programName,
@@ -86,32 +101,61 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
     }
   }
 
+  const { watch } = form
+
+  const watchedGpa = watch('gpa')
+  const watchedUnitsAttempted = watch('unitsAttempted')
+  const watchedCreditUnitsEarned = watch('creditUnitsEarned')
+
+  const isFormIncomplete =
+    !watchedGpa ||
+    watchedGpa <= 0 ||
+    !watchedUnitsAttempted ||
+    watchedUnitsAttempted <= 0 ||
+    !watchedCreditUnitsEarned ||
+    watchedCreditUnitsEarned <= 0
+
   return (
     // Backdrop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         {/* Modal header */}
-        <div className="flex items-center justify-between border-b border-gray-100 p-6">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6">
           <div>
-            <h2 className="text-lg font-bold">Edit Profile</h2>
-            <p className="mt-0.5 text-xs text-gray-400">
+            <h2 className="text-lg font-bold text-slate-950">Edit profile</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
               Fill all fields to mark your profile as complete
             </p>
           </div>
           <button
+            type="button"
             onClick={onCancel}
-            className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100"
+            className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100"
           >
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 p-6">
+          {isFormIncomplete && (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-xs text-red-700">
+              GPA, credit units earned, and units attempted must all be greater than 0 to complete
+              your profile.
+            </div>
+          )}
+
           {/* Personal */}
           <fieldset>
-            <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
+            <legend className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
               Personal
             </legend>
+            <Field label="Full Name" error={errors.displayName?.message}>
+              <input
+                {...register('displayName')}
+                placeholder="Your full name"
+                className={inputCls}
+              />
+            </Field>
             <Field label="Phone Number" error={errors.phone?.message}>
               <input {...register('phone')} placeholder="+61 400 000 000" className={inputCls} />
             </Field>
@@ -119,20 +163,27 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 
           {/* Academic program */}
           <fieldset>
-            <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
+            <legend className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
               Academic Program
             </legend>
             <div className="grid grid-cols-2 gap-4">
-              <Field
-                label="Program Name"
-                error={errors.programName?.message}
-                className="col-span-2"
-              >
-                <input
-                  {...register('programName')}
-                  placeholder="Bachelor of Software Engineering"
+              <Field label="Program" error={errors.programCode?.message}>
+                <select
+                  {...register('programCode')}
+                  onChange={(e) => {
+                    const code = e.target.value
+                    setValue('programCode', code)
+                    setValue('programName', PROGRAM_MAP[code] ?? '')
+                  }}
                   className={inputCls}
-                />
+                >
+                  <option value="">Select your program</option>
+                  {Object.entries(PROGRAM_MAP).map(([code, name]) => (
+                    <option key={code} value={code}>
+                      {code} — {name}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Program Level" error={errors.programLevel?.message}>
                 <select {...register('programLevel')} className={inputCls}>
@@ -162,7 +213,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 
           {/* Academic record */}
           <fieldset>
-            <legend className="mb-3 text-xs font-bold tracking-wider text-gray-400 uppercase">
+            <legend className="mb-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
               Academic Record
             </legend>
             <div className="grid grid-cols-3 gap-4">
@@ -200,17 +251,17 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              disabled={saving}
-              className="flex-1 rounded-lg bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={saving || isFormIncomplete}
+              className="flex-1 rounded-xl bg-red-700 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'SAVE CHANGES'}
+              {saving ? 'Saving…' : 'Save changes'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 rounded-lg border border-gray-200 bg-white py-3 text-sm font-bold text-gray-400 transition hover:bg-gray-50"
+              className="flex-1 rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
             >
-              DISCARD EDITS
+              Cancel
             </button>
           </div>
         </form>
@@ -220,7 +271,7 @@ export function ProfileEditForm({ user, onSave, onCancel, saving }: Props) {
 }
 
 const inputCls =
-  'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 bg-gray-50 placeholder:text-gray-300'
+  'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none'
 
 function Field({
   label,
@@ -235,7 +286,7 @@ function Field({
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ''}`}>
-      <label className="text-xs font-medium text-gray-600">{label}</label>
+      <label className="text-xs font-semibold text-slate-600">{label}</label>
       {children}
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>

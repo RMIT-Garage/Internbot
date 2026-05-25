@@ -28,17 +28,18 @@ interface ReviewDecisionPanelProps {
 
 const notesRequiredMessage = 'Reviewer notes are required for reject or request changes.'
 
-export function ReviewDecisionPanel({
-  id,
-  kind,
-  defaultNotes,
-  canReview,
-  reviewedStatus,
-  backHref,
-  onSuccess,
-  onAlreadyReviewed,
-}: ReviewDecisionPanelProps) {
-  const [notes, setNotes] = useState(defaultNotes)
+export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
+  const {
+    id,
+    kind,
+    defaultNotes,
+    canReview,
+    reviewedStatus,
+    backHref,
+    onSuccess,
+    onAlreadyReviewed,
+  } = props
+  const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState<ReviewDecision | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -71,8 +72,9 @@ export function ReviewDecisionPanel({
         const opportunityDecision = decision === 'approved' ? 'approved' : 'rejected'
         await verifyOpportunity(opportunity, opportunityDecision, trimmedNotes || undefined)
       }
-      const message = decisionMessage(decision)
+      const message = decisionMessage(decision, kind)
       setSuccess(message)
+      setNotes('')
       onSuccess?.(decision, trimmedNotes)
       toast.success('Decision sent to the workflow API.')
     } catch (error) {
@@ -109,22 +111,22 @@ export function ReviewDecisionPanel({
   return (
     <>
       {isReadOnly && (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-bold text-slate-950">Reviewed status</p>
-              <p className="mt-1 text-sm text-slate-600">
-                This item is complete and can no longer be submitted for review.
-              </p>
-            </div>
-            <StatusBadge status={reviewedStatus} />
-          </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <StatusBadge status={reviewedStatus} />
           <Link
             href={backHref}
-            className="mt-4 inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-black"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
           >
             Back to queue
           </Link>
+        </div>
+      )}
+      {isReadOnly && defaultNotes && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+            Coordinator notes
+          </p>
+          <p className="mt-2 text-sm whitespace-pre-wrap text-slate-700">{defaultNotes}</p>
         </div>
       )}
       {error && (
@@ -137,38 +139,44 @@ export function ReviewDecisionPanel({
           {success}
         </div>
       )}
-      <textarea
-        value={notes}
-        onChange={(event) => setNotes(event.target.value)}
-        disabled={isSubmitting || isReadOnly}
-        rows={kind === 'contract' ? 6 : 5}
-        className="mt-4 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-red-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
-      />
       {canReview && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <DecisionButton
-            pending={submitting === 'approved'}
-            disabled={isSubmitting}
-            onClick={() => submit('approved')}
-            className="border-slate-950 bg-slate-950 text-white hover:bg-black"
-          >
-            <Check className="h-4 w-4" /> Approve
-          </DecisionButton>
-          <DecisionButton
-            pending={submitting === 'changes_requested'}
-            disabled={isSubmitting}
-            onClick={() => submit('changes_requested')}
-          >
-            <RotateCcw className="h-4 w-4" /> Changes
-          </DecisionButton>
-          <DecisionButton
-            pending={submitting === 'rejected'}
-            disabled={isSubmitting}
-            onClick={() => submit('rejected')}
-            className="border-red-200 text-red-700 hover:bg-red-50"
-          >
-            <X className="h-4 w-4" /> Reject
-          </DecisionButton>
+        <div className="mt-4 space-y-4">
+          <label className="grid gap-2 text-xs font-bold tracking-wide text-slate-500 uppercase">
+            Coordinator comment
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              disabled={isSubmitting}
+              rows={kind === 'contract' ? 5 : 4}
+              placeholder="Add a note or comment (required when requesting changes or rejecting)."
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+            />
+          </label>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <DecisionButton
+              pending={submitting === 'approved'}
+              disabled={isSubmitting}
+              onClick={() => submit('approved')}
+              className="border-slate-950 bg-slate-950 text-white hover:bg-black"
+            >
+              <Check className="h-4 w-4" /> Approve
+            </DecisionButton>
+            <DecisionButton
+              pending={submitting === 'changes_requested'}
+              disabled={isSubmitting}
+              onClick={() => submit('changes_requested')}
+            >
+              <RotateCcw className="h-4 w-4" /> Request Changes
+            </DecisionButton>
+            <DecisionButton
+              pending={submitting === 'rejected'}
+              disabled={isSubmitting}
+              onClick={() => submit('rejected')}
+              className="border-red-200 text-red-700 hover:bg-red-50"
+            >
+              <X className="h-4 w-4" /> Reject
+            </DecisionButton>
+          </div>
         </div>
       )}
     </>
@@ -186,7 +194,10 @@ function isAlreadyReviewedError(error: unknown): boolean {
   )
 }
 
-function decisionMessage(decision: ReviewDecision) {
+function decisionMessage(decision: ReviewDecision, kind: ReviewDecisionPanelProps['kind']) {
+  if (decision === 'approved' && kind === 'job') {
+    return 'Placement suitability approved. The student can now upload offer and contract documents to begin placement processing.'
+  }
   if (decision === 'approved') return 'Approved. The review state has been updated.'
   if (decision === 'rejected') return 'Rejected. The review state has been updated.'
   return 'Changes requested. The review state has been updated.'

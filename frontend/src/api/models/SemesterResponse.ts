@@ -15,11 +15,15 @@ export type SemesterResponse = {
   enrolmentCloseAt: string | null
   createdAt: string
   updatedAt: string
+  enrolledStudentCount: number
+  openOfferCount: number
 }
 export namespace SemesterResponse {
   export enum status {
     DRAFT = 'draft',
-    ACTIVE = 'active',
+    ENROLLMENT_OPEN = 'enrollment_open',
+    PLACEMENT_RUNNING = 'placement_running',
+    REPORTING = 'reporting',
     ARCHIVED = 'archived',
   }
 }

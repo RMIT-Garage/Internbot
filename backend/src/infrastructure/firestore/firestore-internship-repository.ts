@@ -28,6 +28,7 @@ const firestoreTimestamp = z.instanceof(Timestamp)
 export const internshipStorageSchema = z.object({
   userId: z.string().min(1),
   opportunityId: z.string().min(1),
+  semesterId: z.string().min(1).optional(),
   offerDate: firestoreTimestamp.optional(),
   startDate: firestoreTimestamp.optional(),
   endDate: firestoreTimestamp.optional(),
@@ -62,6 +63,7 @@ type DeleteField = ReturnType<typeof FieldValue.delete>
 type InternshipCreateWrite = {
   userId: string
   opportunityId: string
+  semesterId: string
   status: InternshipStatus
   version: number
   _schemaVersion: typeof INTERNSHIP_SCHEMA_VERSION
@@ -139,6 +141,7 @@ function mapStorageToInternship(
       version: storage.version,
       userId: storage.userId,
       opportunityId: storage.opportunityId,
+      semesterId: storage.semesterId ?? '',
       offerDate: tsToDate(storage.offerDate),
       startDate: tsToDate(storage.startDate),
       endDate: tsToDate(storage.endDate),
@@ -159,6 +162,7 @@ function internshipToCreatePayload(internship: Internship): InternshipCreateWrit
   return {
     userId: internship.userId,
     opportunityId: internship.opportunityId,
+    semesterId: internship.semesterId,
     status: internship.status,
     version: 1,
     _schemaVersion: INTERNSHIP_SCHEMA_VERSION,

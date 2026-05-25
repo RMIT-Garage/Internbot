@@ -1017,7 +1017,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["draft", "active", "archived"]
+                "enum": ["draft", "enrollment_open", "placement_running", "reporting", "archived"]
               }
             },
             "description": "Filter by status. Repeat the param for multi-value (`?status=draft&status=active`)."
@@ -2308,7 +2308,8 @@
                   "offer_pending_review",
                   "offer_changes_requested",
                   "offer_approved",
-                  "rejected"
+                  "rejected",
+                  "withdrawn"
                 ]
               }
             }
@@ -3845,13 +3846,19 @@
       "PatchUserRequest": {
         "type": "object",
         "properties": {
+          "displayName": {
+            "example": "Jane Doe",
+            "description": "The student-facing display name. Self-settable after sign-up (registration no longer captures a name). Trimmed; 1–100 chars.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
           "studentProfile": {
             "$ref": "#/components/schemas/StudentProfilePatch"
           }
         },
-        "required": ["studentProfile"],
         "additionalProperties": false,
-        "description": "Body for PATCH /api/v1/users/:id. Top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400."
+        "description": "Body for PATCH /api/v1/users/:id. `displayName` and `studentProfile` are both writable and optional (send either or both). Other top-level identity fields (email, role, firebaseUid, status, onboardingStage) are rejected with 400."
       },
       "StudentProfilePatch": {
         "type": "object",
@@ -3943,6 +3950,15 @@
               "type": "string"
             }
           },
+          "completedCourses": {
+            "example": ["SEF30012", "APT40005", "PCP20019"],
+            "description": "Self-attested completed course codes (e.g. internship prerequisites). Not verified against an academic record.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
           "notes": {
             "type": "string"
           }
@@ -3977,7 +3993,6 @@
           "semesterCode": {
             "type": "string",
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9-]+$",
             "example": "2026-S1"
           },
           "courseCode": {
@@ -3993,7 +4008,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["draft", "active", "archived"]
+            "enum": ["draft", "enrollment_open", "placement_running", "reporting", "archived"]
           },
           "enrolmentOpenAt": {
             "example": "2026-01-15T00:00:00Z",
@@ -4055,7 +4070,7 @@
         "properties": {
           "to": {
             "type": "string",
-            "enum": ["active", "archived"]
+            "enum": ["enrollment_open", "placement_running", "reporting", "archived"]
           },
           "comment": {
             "type": "string",
@@ -4628,6 +4643,21 @@
             "type": "string",
             "enum": ["full_time", "part_time", "unknown"]
           },
+          "completedCourses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["SEF30012", "APT40005", "PCP20019"],
+            "description": "Self-attested completed course codes. Always present (empty array when none recorded)."
+          },
+          "yearLevel": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "example": 2,
+            "description": "Derived current year level from creditUnitsEarned on a 96-CP/year load, clamped to [1, 4]. Not persisted."
+          },
           "notes": {
             "type": "string"
           },
@@ -4653,6 +4683,8 @@
           "creditUnitsEarned",
           "gpa",
           "currentStudyLoad",
+          "completedCourses",
+          "yearLevel",
           "confirmedAt"
         ],
         "additionalProperties": false,
@@ -4883,6 +4915,7 @@
               "request_changes",
               "reject",
               "edit",
+              "withdraw",
               "transition",
               "verification"
             ]
@@ -4916,6 +4949,7 @@
                   "offer_changes_requested",
                   "offer_approved",
                   "rejected",
+                  "withdrawn",
                   "draft",
                   "pending_verification",
                   "published",
@@ -4937,6 +4971,7 @@
                   "offer_changes_requested",
                   "offer_approved",
                   "rejected",
+                  "withdrawn",
                   "draft",
                   "pending_verification",
                   "published",
@@ -5028,7 +5063,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["draft", "active", "archived"]
+            "enum": ["draft", "enrollment_open", "placement_running", "reporting", "archived"]
           },
           "enrolmentOpenAt": {
             "anyOf": [
@@ -5067,6 +5102,16 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "example": "2026-04-05T03:14:12Z"
+          },
+          "enrolledStudentCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "openOfferCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -5078,7 +5123,9 @@
           "enrolmentOpenAt",
           "enrolmentCloseAt",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "enrolledStudentCount",
+          "openOfferCount"
         ],
         "additionalProperties": false,
         "description": "Semester record (see WORKFLOW-API-SPEC.md §7.5 / §8.5)."
@@ -5216,6 +5263,16 @@
               }
             ]
           },
+          "verificationComment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attachmentUploadPathPrefix": {
             "type": "string",
             "example": "opportunities/opp_042/attachments/"
@@ -5255,6 +5312,7 @@
           "submittedByUserId",
           "verifiedByUserId",
           "verifiedAt",
+          "verificationComment",
           "attachmentUploadPathPrefix",
           "attachments",
           "createdAt",
@@ -5482,7 +5540,8 @@
               "offer_pending_review",
               "offer_changes_requested",
               "offer_approved",
-              "rejected"
+              "rejected",
+              "withdrawn"
             ]
           },
           "lastSubmittedAt": {
@@ -5576,7 +5635,8 @@
               "offer_pending_review",
               "offer_changes_requested",
               "offer_approved",
-              "rejected"
+              "rejected",
+              "withdrawn"
             ]
           },
           "version": {
@@ -5881,7 +5941,8 @@
               "approve_offer",
               "request_changes",
               "reject",
-              "edit"
+              "edit",
+              "withdraw"
             ]
           },
           "authorUserId": {
@@ -6142,7 +6203,7 @@
         },
         "required": ["id", "userId", "subject", "category", "status", "createdAt", "updatedAt"],
         "additionalProperties": false,
-        "description": "Support ticket list item — body is omitted from list responses."
+        "description": "Support ticket list item — body and replies are omitted from list responses."
       },
       "TicketResponse": {
         "type": "object",
@@ -6183,6 +6244,12 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
+          "replies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketReplyResponse"
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -6204,6 +6271,7 @@
           "category",
           "status",
           "version",
+          "replies",
           "createdAt",
           "updatedAt"
         ],

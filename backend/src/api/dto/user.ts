@@ -123,6 +123,16 @@ export const academicInfoResponseSchema = z
     creditUnitsEarned: z.number().meta({ example: 168 }),
     gpa: z.number().meta({ example: 3.2, description: 'GPA on the RMIT /4.0 scale' }),
     currentStudyLoad: z.enum(studyLoadValues),
+    completedCourses: z.array(z.string()).meta({
+      example: ['SEF30012', 'APT40005', 'PCP20019'],
+      description:
+        'Self-attested completed course codes. Always present (empty array when none recorded).',
+    }),
+    yearLevel: z.number().int().meta({
+      example: 2,
+      description:
+        'Derived current year level from creditUnitsEarned on a 96-CP/year load, clamped to [1, 4]. Not persisted.',
+    }),
     notes: z.string().optional(),
     confirmedAt: z.string().datetime().nullable().meta({
       example: '2026-04-05T03:14:12Z',

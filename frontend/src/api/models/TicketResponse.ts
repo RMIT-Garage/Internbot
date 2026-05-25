@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { TicketReplyResponse } from './TicketReplyResponse'
 /**
  * Support ticket record (see WORKFLOW-API-SPEC.md §7.10 / §8.7).
  */
@@ -13,6 +14,7 @@ export type TicketResponse = {
   category: string | null
   status: TicketResponse.status
   version: number
+  replies: Array<TicketReplyResponse>
   createdAt: string
   updatedAt: string
 }

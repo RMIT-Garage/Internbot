@@ -35,7 +35,7 @@ import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
     'Your profile is incomplete. Please fill in your student profile before enrolling.',
-  semester_not_active: 'That semester is no longer active.',
+  semester_not_active: 'This semester is not accepting new enrollments.',
   enrolment_window_closed: 'The enrolment window for that semester is closed.',
 }
 
@@ -162,7 +162,7 @@ export default function StudentOpportunitiesPage() {
       try {
         setLoadingSemesters(true)
         const [semesterRes, profile] = await Promise.all([
-          SemestersService.listSemesters(['active']),
+          SemestersService.listSemesters(['enrollment_open', 'placement_running', 'reporting']),
           UsersService.getMyProfile(),
         ])
         setSemesters(semesterRes.items)
@@ -300,7 +300,7 @@ export default function StudentOpportunitiesPage() {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-gray-900">Select Your Semester</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Choose an active semester to browse available internship opportunities.
+            Choose a semester to browse available internship opportunities.
           </p>
         </div>
 
@@ -315,7 +315,7 @@ export default function StudentOpportunitiesPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
               <CalendarDays className="h-6 w-6 text-gray-400" />
             </div>
-            <p className="mt-4 text-sm font-semibold text-gray-600">No active semesters</p>
+            <p className="mt-4 text-sm font-semibold text-gray-600">No open semesters</p>
             <p className="mt-1 text-xs text-gray-400">
               Please check back later or contact your coordinator.
             </p>
@@ -338,12 +338,14 @@ export default function StudentOpportunitiesPage() {
                   <div className="flex items-start justify-between gap-3">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
-                        sem.status === 'active'
+                        sem.status === 'enrollment_open'
                           ? 'bg-green-50 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
+                          : sem.status === 'placement_running' || sem.status === 'reporting'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-gray-100 text-gray-500'
                       }`}
                     >
-                      {sem.status}
+                      {sem.status.replace(/_/g, ' ')}
                     </span>
                     <div
                       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
@@ -376,15 +378,31 @@ export default function StudentOpportunitiesPage() {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={confirmSemester}
-          disabled={submitting || !selectedSemester || loadingSemesters}
-          className="flex items-center gap-2 rounded-2xl bg-red-600 px-8 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
-        >
-          {submitting ? 'Saving…' : 'Confirm & Browse Opportunities'}
-          <ChevronRight className="h-4 w-4" />
-        </button>
+        {(() => {
+          const selectedSem = semesters.find((s) => s.id === selectedSemester)
+          const isEnrollmentOpen = selectedSem?.status === 'enrollment_open'
+          const isNonEnrollable = selectedSem && selectedSem.status !== 'enrollment_open'
+          return (
+            <>
+              {isNonEnrollable && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  This semester&apos;s enrollment period has ended. You can still browse and apply
+                  for opportunities.
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={confirmSemester}
+                disabled={submitting || !selectedSemester || loadingSemesters || !isEnrollmentOpen}
+                title={isNonEnrollable ? 'Enrollment for this semester is closed' : undefined}
+                className="flex items-center gap-2 rounded-2xl bg-red-600 px-8 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {submitting ? 'Saving…' : 'Confirm & Browse Opportunities'}
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
+          )
+        })()}
       </div>
     )
   }
@@ -593,7 +611,7 @@ export default function StudentOpportunitiesPage() {
               <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gray-100">
                 <Star className="h-3.5 w-3.5 text-gray-400" />
               </div>
-              <h2 className="text-sm font-bold text-gray-800">Pending Coordinator Review</h2>
+              <h2 className="text-sm font-bold text-gray-800">Your Submitted Opportunities</h2>
               <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
                 {selfSourcedPending.length}
               </span>
@@ -609,7 +627,8 @@ export default function StudentOpportunitiesPage() {
             )}
           </div>
           <p className="text-xs text-gray-400">
-            These submissions are awaiting coordinator approval before you can apply.
+            Opportunities you&apos;ve submitted for coordinator review. Once approved, you can
+            apply.
           </p>
           <SurfaceCard className="overflow-hidden p-0">
             <div className="grid grid-cols-[1fr_150px_32px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
@@ -664,16 +683,36 @@ export default function StudentOpportunitiesPage() {
                             <p className="text-sm font-semibold text-gray-900">
                               Submission rejected
                             </p>
-                            <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                              A coordinator reviewed your submission and it was not approved. You
-                              can submit a new opportunity with updated details.
-                            </p>
-                            <Link
-                              href="/student/self-sourced-internships"
-                              className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                            >
-                              Submit another
-                            </Link>
+                            {o.verificationComment ? (
+                              <div className="mt-2 rounded-xl border border-red-200 bg-white px-3 py-2">
+                                <p className="text-xs font-bold tracking-wide text-red-500 uppercase">
+                                  Coordinator note
+                                </p>
+                                <p className="mt-1 text-xs leading-relaxed whitespace-pre-wrap text-gray-700">
+                                  {o.verificationComment}
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                                A coordinator reviewed your submission and it was not approved. You
+                                can submit a new opportunity with updated details.
+                              </p>
+                            )}
+                            <div className="mt-2.5 flex items-center gap-2">
+                              <Link
+                                href={`/student/opportunities/review?id=${o.id}`}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
+                              >
+                                View Details
+                                <ArrowRight className="h-3 w-3" />
+                              </Link>
+                              <Link
+                                href="/student/self-sourced-internships"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                              >
+                                Submit another
+                              </Link>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -687,8 +726,15 @@ export default function StudentOpportunitiesPage() {
                             </p>
                             <p className="mt-1 text-xs leading-relaxed text-gray-500">
                               Your submission is being reviewed. Once a coordinator approves it,
-                              this opportunity will appear above and you'll be able to apply.
+                              this opportunity will appear above and you&apos;ll be able to apply.
                             </p>
+                            <Link
+                              href={`/student/opportunities/review?id=${o.id}`}
+                              className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
+                            >
+                              View Details
+                              <ArrowRight className="h-3 w-3" />
+                            </Link>
                           </div>
                         </div>
                       )}

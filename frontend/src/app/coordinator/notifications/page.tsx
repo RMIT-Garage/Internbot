@@ -3,12 +3,14 @@
 import Link from 'next/link'
 import { Bell, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
 import { coordinatorNotifications } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import {
+  listInternships,
   listNotifications,
+  listOpportunities,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/coordinator/api'
@@ -22,9 +24,18 @@ export default function CoordinatorNotificationsPage() {
           '[coordinator/notifications] backend filters: limit only; read grouping is client-side'
         )
       }
-      const response = await listNotifications({ limit: 50 })
+      const [response, internships, opportunities] = await Promise.all([
+        listNotifications({ limit: 50 }),
+        listInternships({ limit: 100 }),
+        listOpportunities({ limit: 100 }),
+      ])
+      const internshipMap = new Map(internships.items.map((item) => [item.id, item]))
+      const opportunityMap = new Map(opportunities.items.map((item) => [item.id, item]))
+
       return {
-        items: response.items.map(mapNotification),
+        items: response.items.map((item) =>
+          mapNotification(item, { internships: internshipMap, opportunities: opportunityMap })
+        ),
         unreadCount: response.unreadCount,
       }
     },
@@ -37,14 +48,16 @@ export default function CoordinatorNotificationsPage() {
   )
 
   const handleMarkAllRead = async () => {
+    const previousData = resource.data
+    resource.setData({
+      items: resource.data.items.map((item) => ({ ...item, unread: false })),
+      unreadCount: 0,
+    })
     try {
       await markAllNotificationsRead()
-      resource.setData({
-        items: resource.data.items.map((item) => ({ ...item, unread: false })),
-        unreadCount: 0,
-      })
       toast.success('Notifications marked read.')
     } catch (error) {
+      resource.setData(previousData)
       toast.info(
         error instanceof Error
           ? `Notification API unavailable: ${error.message}`
@@ -54,16 +67,21 @@ export default function CoordinatorNotificationsPage() {
   }
 
   const handleMarkRead = async (id: string) => {
+    const notification = resource.data.items.find((item) => item.id === id)
+    if (!notification?.unread) return
+
+    const previousData = resource.data
+    resource.setData({
+      items: resource.data.items.map((item) =>
+        item.id === id ? { ...item, unread: false } : item
+      ),
+      unreadCount: Math.max(0, resource.data.unreadCount - 1),
+    })
     try {
       await markNotificationRead(id)
-      resource.setData({
-        items: resource.data.items.map((item) =>
-          item.id === id ? { ...item, unread: false } : item
-        ),
-        unreadCount: Math.max(0, resource.data.unreadCount - 1),
-      })
       toast.success('Notification marked read.')
     } catch {
+      resource.setData(previousData)
       toast.info('Notification API integration unavailable for this record.')
     }
   }
@@ -91,7 +109,8 @@ export default function CoordinatorNotificationsPage() {
           <button
             type="button"
             onClick={handleMarkAllRead}
-            className="rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800"
+            disabled={resource.data.unreadCount === 0}
+            className="rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
           >
             Mark all read
           </button>
@@ -117,9 +136,19 @@ export default function CoordinatorNotificationsPage() {
           {resource.data.items.map((notification, index) => (
             <div
               key={`${notification.id}-${index}`}
-              className="flex gap-4 px-5 py-4 transition hover:bg-slate-50"
+              className={[
+                'flex gap-4 px-5 py-4 transition-all duration-200 ease-out',
+                notification.unread
+                  ? 'border-l-4 border-l-red-700 bg-red-50/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] hover:bg-red-50'
+                  : 'border-l-4 border-l-transparent bg-white opacity-85 hover:bg-slate-50 hover:opacity-100',
+              ].join(' ')}
             >
-              <div className={notification.unread ? 'text-red-700' : 'text-slate-400'}>
+              <div
+                className={[
+                  'mt-0.5 transition-colors',
+                  notification.unread ? 'text-red-700' : 'text-slate-300',
+                ].join(' ')}
+              >
                 {notification.unread ? (
                   <Bell className="h-5 w-5" />
                 ) : (
@@ -128,19 +157,52 @@ export default function CoordinatorNotificationsPage() {
               </div>
               <Link href={notification.href} className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-bold text-slate-950">{notification.title}</h2>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                    {notification.urgency}
-                  </span>
-                  {notification.unread && <span className="h-2 w-2 rounded-full bg-red-600" />}
+                  <h2
+                    className={[
+                      'transition-colors',
+                      notification.unread
+                        ? 'font-extrabold text-slate-950'
+                        : 'font-bold text-slate-700',
+                    ].join(' ')}
+                  >
+                    {notification.title}
+                  </h2>
+                  {notification.unread ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-white px-2.5 py-1 text-xs font-bold text-red-700">
+                      <span className="h-2 w-2 rounded-full bg-red-600" />
+                      Unread
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-500">
+                      Read
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">{notification.body}</p>
+                <p
+                  className={[
+                    'mt-1 text-sm leading-6 transition-colors',
+                    notification.unread ? 'text-slate-700' : 'text-slate-500',
+                  ].join(' ')}
+                >
+                  {notification.body}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+                    {notification.workflowStage ?? 'Workflow update'}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+                    {notification.placementType ?? 'Placement workflow'}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+                    Updated {notification.updatedAt ?? 'recently'}
+                  </span>
+                </div>
               </Link>
               {notification.unread && (
                 <button
                   type="button"
                   onClick={() => handleMarkRead(notification.id)}
-                  className="h-9 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-white"
+                  className="h-9 shrink-0 rounded-xl border border-red-200 bg-white px-3 text-xs font-bold text-red-700 transition hover:bg-red-50"
                 >
                   Mark read
                 </button>

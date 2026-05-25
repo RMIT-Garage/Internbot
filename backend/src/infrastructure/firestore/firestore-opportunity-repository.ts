@@ -41,6 +41,7 @@ export const opportunityStorageSchema = z.object({
   submittedByUserId: z.string().optional(),
   verifiedByUserId: z.string().optional(),
   verifiedAt: firestoreTimestamp.optional(),
+  verificationComment: z.string().optional(),
   version: z.number().int().nonnegative().default(0),
   createdAt: firestoreTimestamp,
   updatedAt: firestoreTimestamp,
@@ -100,6 +101,7 @@ type OpportunityVerificationWrite = {
   status: OpportunityStatus
   verifiedByUserId: string
   verifiedAt: ServerTimestamp
+  verificationComment?: string
   version: number
 }
 
@@ -161,6 +163,7 @@ function mapStorageToOpportunity(
       submittedByUserId: storage.submittedByUserId,
       verifiedByUserId: storage.verifiedByUserId,
       verifiedAt: tsToDate(storage.verifiedAt),
+      verificationComment: storage.verificationComment,
       createdAt: storage.createdAt.toDate(),
       updatedAt: storage.updatedAt.toDate(),
     },
@@ -368,6 +371,9 @@ export class FirestoreOpportunityRepository implements OpportunityRepository {
             status: opportunity.status,
             verifiedByUserId: opportunity.verifiedByUserId!,
             verifiedAt: FieldValue.serverTimestamp(),
+            ...(opportunity.verificationComment !== undefined
+              ? { verificationComment: opportunity.verificationComment }
+              : {}),
             version: stored + 1,
             updatedAt: FieldValue.serverTimestamp(),
           }

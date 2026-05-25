@@ -15,6 +15,7 @@ import { gcsAttachmentStorage } from '../infrastructure/storage/gcs-attachment-s
 import { defaultAuthorizationService } from '../infrastructure/authorization/default-authorization-service'
 import { firestoreUserQueryService } from '../infrastructure/firestore/firestore-user-query-service'
 import { firestoreSemesterQueryService } from '../infrastructure/firestore/firestore-semester-query-service'
+import { firestoreSemesterStudentQueryService } from '../infrastructure/firestore/firestore-semester-student-query-service'
 import { firestoreOpportunityQueryService } from '../infrastructure/firestore/firestore-opportunity-query-service'
 import { firestoreInternshipQueryService } from '../infrastructure/firestore/firestore-internship-query-service'
 import { firestoreNotificationQueryService } from '../infrastructure/firestore/firestore-notification-query-service'
@@ -26,6 +27,7 @@ import type { AttachmentStorage } from '../application/ports/attachment-storage'
 import type { AuthorizationService } from '../application/ports/authorization-service'
 import type { UserQueryService } from '../application/ports/queries/user-query-service'
 import type { SemesterQueryService } from '../application/ports/queries/semester-query-service'
+import type { SemesterStudentQueryService } from '../application/ports/queries/semester-student-query-service'
 import type { OpportunityQueryService } from '../application/ports/queries/opportunity-query-service'
 import type { InternshipQueryService } from '../application/ports/queries/internship-query-service'
 import type { NotificationQueryService } from '../application/ports/queries/notification-query-service'
@@ -41,6 +43,7 @@ export interface AppOptions {
   authz?: AuthorizationService
   userQueries?: UserQueryService
   semesterQueries?: SemesterQueryService
+  semesterStudentQueries?: SemesterStudentQueryService
   opportunityQueries?: OpportunityQueryService
   internshipQueries?: InternshipQueryService
   notificationQueries?: NotificationQueryService
@@ -84,6 +87,8 @@ export function createApp(options: AppOptions = {}): Express {
   const internshipQueries = options.internshipQueries ?? firestoreInternshipQueryService
   const notificationQueries = options.notificationQueries ?? firestoreNotificationQueryService
   const ticketQueries = options.ticketQueries ?? firestoreTicketQueryService
+  const semesterStudentQueries =
+    options.semesterStudentQueries ?? firestoreSemesterStudentQueryService
   const activityFeedQueries = options.activityFeedQueries ?? firestoreActivityFeedQueryService
   const verifyToken = options.verifyToken ?? verifyFirebaseToken
   const hydratePlatformUser =
@@ -111,6 +116,7 @@ export function createApp(options: AppOptions = {}): Express {
       authz,
       userQueries,
       semesterQueries,
+      semesterStudentQueries,
       opportunityQueries,
       internshipQueries,
       notificationQueries,

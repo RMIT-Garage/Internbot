@@ -16,7 +16,9 @@ export type CreateSemesterRequest = {
 export namespace CreateSemesterRequest {
   export enum status {
     DRAFT = 'draft',
-    ACTIVE = 'active',
+    ENROLLMENT_OPEN = 'enrollment_open',
+    PLACEMENT_RUNNING = 'placement_running',
+    REPORTING = 'reporting',
     ARCHIVED = 'archived',
   }
 }

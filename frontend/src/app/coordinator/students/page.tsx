@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { Download, UserPlus } from 'lucide-react'
 import { PendingActionButton } from '@/components/coordinator/PendingActionButton'
 import { CoordinatorPageHeader } from '@/components/coordinator/Premium'
-import { CoordinatorContentSkeleton } from '@/components/coordinator/CoordinatorContentSkeleton'
+import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StudentsList } from './StudentsList'
 
 export default function CoordinatorStudentsPage() {
@@ -11,7 +11,7 @@ export default function CoordinatorStudentsPage() {
       <CoordinatorPageHeader
         eyebrow="Student Directory"
         title="Students"
-        description="Search the WIL cohort, monitor placement states, and inspect audit recency across programs."
+        description="Search the WIL cohort, monitor placement states, and inspect student progress across programs."
         actions={
           <>
             <PendingActionButton message="Student export API integration pending.">

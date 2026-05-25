@@ -108,6 +108,18 @@ export const enforceStudentEmail: BlockingFunction = beforeUserCreated(
         'Sign-up requires an RMIT student email (e.g. s1234567@student.rmit.edu.au).'
       )
     }
+
+    // Dev-only escape hatch: mark the new account email-verified at creation so
+    // testers skip the verification-email round-trip. The implicit sign-in that
+    // `createUserWithEmailAndPassword` performs then mints a token with
+    // `email_verified: true`, clearing both the token-verifier and the JIT
+    // hydrator gate. Defaults OFF — production never sets this, preserving the
+    // email-ownership check that stops student-number squatting (see
+    // `platform-user-hydrator.ts`). Enable only on the dev function's env.
+    if (process.env['AUTO_VERIFY_EMAIL'] === 'true') {
+      return { emailVerified: true }
+    }
+    return
   }
 )
 

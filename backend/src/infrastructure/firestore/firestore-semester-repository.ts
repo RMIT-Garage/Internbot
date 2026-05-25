@@ -16,11 +16,18 @@ import { translateFirestoreErrors } from './translate-firestore-errors'
 
 const firestoreTimestamp = z.instanceof(Timestamp)
 
+// Accepts both current status values AND legacy 'active' (migrated to
+// 'enrollment_open' in mapStorageToSemester). Stored docs with 'active' are
+// transparently rehydrated as 'enrollment_open'; the next save writes the new
+// value. Run scripts/migrate-semester-status.ts after deploy to close the
+// list-query gap for filter=enrollment_open.
+const storedStatusSchema = z.union([z.enum(semesterStatusValues), z.literal('active')])
+
 export const semesterStorageSchema = z.object({
   semesterCode: z.string().min(1),
   courseCode: z.string().min(1),
   displayName: z.string().min(1),
-  status: z.enum(semesterStatusValues),
+  status: storedStatusSchema,
   // Cleared via PATCH writes `null`; absent means "never set". Both map to
   // `undefined` on the domain side.
   enrolmentOpenAt: firestoreTimestamp.nullable().optional(),
@@ -31,7 +38,7 @@ export const semesterStorageSchema = z.object({
   version: z.number().int().nonnegative().default(0),
   createdAt: firestoreTimestamp,
   updatedAt: firestoreTimestamp,
-  _schemaVersion: z.literal(1),
+  _schemaVersion: z.union([z.literal(1), z.literal(2)]),
 })
 
 type SemesterStorage = z.infer<typeof semesterStorageSchema>
@@ -41,13 +48,17 @@ function tsToDate(ts: Timestamp | null | undefined): Date | undefined {
 }
 
 function mapStorageToSemester(id: string, storage: SemesterStorage): Semester {
+  // Lazy migration: legacy 'active' → 'enrollment_open'. The next save
+  // persists the new value. Run migrate-semester-status.ts to close the
+  // list-query gap for existing docs.
+  const status: SemesterStatus = storage.status === 'active' ? 'enrollment_open' : storage.status
   return Semester.rehydrate({
     id,
     version: storage.version,
     semesterCode: storage.semesterCode,
     courseCode: storage.courseCode,
     displayName: storage.displayName,
-    status: storage.status,
+    status,
     enrolmentOpenAt: tsToDate(storage.enrolmentOpenAt),
     enrolmentCloseAt: tsToDate(storage.enrolmentCloseAt),
     createdAt: storage.createdAt.toDate(),

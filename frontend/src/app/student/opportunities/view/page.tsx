@@ -83,6 +83,9 @@ function OpportunityDetailContent() {
     if (!opportunity) return
     setApplyError(null)
     setApplying(true)
+    if (opportunity.sourceUrl) {
+      window.open(opportunity.sourceUrl, '_blank', 'noopener,noreferrer')
+    }
     try {
       const internship = await InternshipsService.createInternship({ opportunityId: id })
       router.push(`/student/applications/view?id=${internship.id}`)
@@ -278,7 +281,7 @@ function OpportunityDetailContent() {
                   {applying ? 'Submitting…' : 'Apply Now'}
                 </button>
                 <p className="text-center text-[11px] text-gray-400">
-                  You'll be redirected to your application after submitting.
+                  You&apos;ll be redirected to your application after submitting.
                 </p>
               </div>
             )}

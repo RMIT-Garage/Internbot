@@ -8,6 +8,7 @@ import { SemestersService, UsersService } from '@/lib/api/openapi-client'
 import type { SemesterResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
+import { useAuthContext } from '@/providers/AuthProvider'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -26,6 +27,8 @@ export default function StudentSemestersPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  const { refreshProfile } = useAuthContext()
+
   // 1. Load semesters + user profile
   useEffect(() => {
     const loadData = async () => {
@@ -33,7 +36,7 @@ export default function StudentSemestersPage() {
         setLoading(true)
 
         const [semesterRes, user] = await Promise.all([
-          SemestersService.listSemesters(['active']),
+          SemestersService.listSemesters(['enrollment_open']),
           UsersService.getMyProfile(),
         ])
 
@@ -65,7 +68,7 @@ export default function StudentSemestersPage() {
       setSuccess(null)
 
       await UsersService.putMySemesterSelection({ semesterId: selectedSemester })
-
+      await refreshProfile()
       router.push(`/student/opportunities?semesterId=${selectedSemester}`)
     } catch (err: unknown) {
       const reason = getApiErrorReason(err)

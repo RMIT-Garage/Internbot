@@ -1,7 +1,10 @@
 import type { Query } from 'firebase-admin/firestore'
 import { adminDb } from '../config/firebase-admin'
 import type { Semester } from '../../domain/entities/semester'
-import type { SemesterQueryService } from '../../application/ports/queries/semester-query-service'
+import type {
+  SemesterQueryService,
+  SemesterKPIs,
+} from '../../application/ports/queries/semester-query-service'
 import type {
   SemesterListCursor,
   SemesterListFilter,
@@ -13,7 +16,10 @@ import {
   parseSemester,
   semesterNaturalKeyDocId,
 } from './firestore-semester-repository'
+import { INTERNSHIP_COLLECTION } from './firestore-internship-repository'
 import { translateFirestoreErrors } from './translate-firestore-errors'
+
+const USER_COLLECTION = 'users'
 
 /**
  * Firestore impl of the read-side `SemesterQueryService`. Singleton — not
@@ -109,6 +115,33 @@ export class FirestoreSemesterQueryService implements SemesterQueryService {
       },
       { op: 'semesters.list', resource: 'Semester' }
     )
+  }
+
+  async getKPIs(semesterId: string): Promise<SemesterKPIs> {
+    const [enrolledSnap, openOfferSnap] = await Promise.all([
+      adminDb
+        .collection(USER_COLLECTION)
+        .where('role', '==', 'student')
+        .where('studentProfile.semesterId', '==', semesterId)
+        .count()
+        .get(),
+      adminDb
+        .collection(INTERNSHIP_COLLECTION)
+        .where('semesterId', '==', semesterId)
+        .where('status', 'in', ['offer_pending_review', 'offer_changes_requested'])
+        .count()
+        .get(),
+    ])
+    return {
+      enrolledStudentCount: enrolledSnap.data().count,
+      openOfferCount: openOfferSnap.data().count,
+    }
+  }
+
+  async getKPIsForList(semesterIds: string[]): Promise<Map<string, SemesterKPIs>> {
+    if (semesterIds.length === 0) return new Map()
+    const results = await Promise.all(semesterIds.map((id) => this.getKPIs(id)))
+    return new Map(semesterIds.map((id, i) => [id, results[i]!]))
   }
 }
 

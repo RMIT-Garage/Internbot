@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ShieldCheck, AlertCircle, ExternalLink, Settings } from 'lucide-react'
+import Link from 'next/link'
+import { AlertCircle, GraduationCap, PenLine, ShieldCheck } from 'lucide-react'
 import type { StudentUser, UpdateProfilePayload } from '../types'
 import { ProfileEditForm } from './ProfileEditForm'
+import { AnalyticsStrip, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 
 interface Props {
   user: StudentUser
@@ -18,6 +20,8 @@ export function ProfileView({ user, onSave, saving }: Props) {
 
   const isComplete = studentProfile.profileStatus === 'complete'
   const programLevelLabel = ai?.programLevel === 'undergraduate' ? 'Undergraduate' : 'Postgraduate'
+  const initials = (displayName ?? email).charAt(0).toUpperCase()
+  const healthProgress = isComplete ? 100 : 50
 
   const handleSave = async (payload: UpdateProfilePayload) => {
     await onSave(payload)
@@ -25,125 +29,157 @@ export function ProfileView({ user, onSave, saving }: Props) {
   }
 
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-3 gap-8 p-8">
-      {/* ── Left column ── */}
-      <div className="col-span-2 space-y-8">
-        {/* Profile header card */}
-        <div className="relative flex gap-6 overflow-hidden rounded-xl border border-gray-200 bg-white p-8">
-          <div className="absolute top-0 bottom-0 left-0 w-1 bg-red-600" />
-          <div className="relative shrink-0">
-            <div className="flex h-28 w-28 items-center justify-center rounded-2xl border-4 border-red-100 bg-red-50 text-4xl font-bold text-red-300 select-none">
-              {(displayName ?? email).charAt(0).toUpperCase()}
-            </div>
-            <button className="absolute -right-1 -bottom-1 rounded-full border-2 border-white bg-red-600 p-1.5 text-white">
-              <Settings size={14} />
-            </button>
-          </div>
-          <div className="space-y-2">
-            <span className="rounded bg-red-50 px-2 py-1 text-[10px] font-bold text-red-600">
-              STUDENT ID: {studentProfile.studentNumber}
-            </span>
-            <h2 className="text-3xl font-bold">{displayName ?? '—'}</h2>
-            <p className="text-gray-500">{ai?.programName ?? 'Program not set'}</p>
-            <div className="flex gap-2 pt-2">
-              {ai?.programLevel && (
-                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 uppercase">
-                  {programLevelLabel}
+    <div className="space-y-6">
+      <CoordinatorPageHeader
+        eyebrow="Student Hub"
+        title="Profile"
+        description="Your personal details, academic program, and placement readiness."
+        actions={
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-red-800"
+          >
+            <PenLine className="h-4 w-4" aria-hidden />
+            Edit profile
+          </button>
+        }
+      />
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <SurfaceCard className="p-6">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-2xl font-bold text-red-700 ring-1 ring-red-100">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-600 uppercase">
+                  Student ID · {studentProfile.studentNumber}
                 </span>
-              )}
-              {ai?.currentStudyLoad && (
-                <span className="rounded-full bg-blue-500 px-3 py-1 text-xs font-bold text-white uppercase">
-                  {ai.currentStudyLoad.replace('_', ' ')}
-                </span>
-              )}
+                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
+                  {displayName ?? '—'}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {ai?.programName ?? 'Program not set'}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ai?.programLevel && (
+                    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 ring-1 ring-red-100">
+                      {programLevelLabel}
+                    </span>
+                  )}
+                  {ai?.currentStudyLoad && (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                      {ai.currentStudyLoad.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
+          </SurfaceCard>
+
+          <ProfileSection title="Personal details">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DataField label="Full name" value={displayName} />
+              <DataField label="Email address" value={email} />
+              <DataField label="Phone number" value={studentProfile.phone} />
+              <DataField label="Program code" value={studentProfile.programCode} />
+            </div>
+          </ProfileSection>
+
+          <div className="space-y-3">
+            <h3 className="px-1 text-sm font-bold text-slate-950">Academic record</h3>
+            <AnalyticsStrip
+              items={[
+                {
+                  label: 'Current GPA',
+                  value: ai?.gpa?.toString() ?? '—',
+                  detail: 'Weighted average',
+                  tone: 'red',
+                },
+                {
+                  label: 'CP earned',
+                  value: ai?.creditUnitsEarned?.toString() ?? '—',
+                  detail: 'Credit points completed',
+                  tone: 'charcoal',
+                },
+                {
+                  label: 'Units attempted',
+                  value: ai?.unitsAttempted?.toString() ?? '—',
+                  detail: 'Total units enrolled',
+                  tone: 'neutral',
+                },
+              ]}
+            />
           </div>
         </div>
 
-        {/* Personal details */}
-        <Section title="Personal Details" onEdit={() => setEditing(true)}>
-          <div className="grid grid-cols-2 gap-4">
-            <DataField label="Full Name" value={displayName} />
-            <DataField label="Email Address" value={email} />
-            <DataField label="Phone Number" value={studentProfile.phone} />
-          </div>
-        </Section>
+        <div className="space-y-6">
+          <SurfaceCard className="p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-950">Profile health</h3>
+              <span
+                className={`text-xs font-bold ${isComplete ? 'text-green-700' : 'text-amber-700'}`}
+              >
+                {isComplete ? 'Complete' : 'Incomplete'}
+              </span>
+            </div>
+            <div className="mt-4 h-2 w-full rounded-full bg-slate-100">
+              <div
+                className={`h-2 rounded-full transition-all ${isComplete ? 'bg-red-700' : 'bg-amber-400'}`}
+                style={{ width: `${healthProgress}%` }}
+              />
+            </div>
+            {isComplete ? (
+              <div className="mt-5 flex gap-3 rounded-xl border border-green-100 bg-green-50 p-4">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-green-700" aria-hidden />
+                <div>
+                  <p className="text-sm font-bold text-green-900">Ready for placements</p>
+                  <p className="mt-1 text-xs leading-5 text-green-800">
+                    Your profile is visible to coordinators when you apply.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 flex gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4">
+                <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
+                <div>
+                  <p className="text-sm font-bold text-amber-900">Setup still required</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    Complete your academic details and semester selection to unlock opportunities.
+                  </p>
+                  <Link
+                    href="/student/semesters"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-red-700 hover:text-red-800"
+                  >
+                    Continue setup →
+                  </Link>
+                </div>
+              </div>
+            )}
+          </SurfaceCard>
 
-        {/* Academic program */}
-        <Section title="Academic Program">
-          <div className="grid grid-cols-2 gap-4">
-            <DataField label="Declared Majors" value={ai?.majors?.join(', ') ?? null} />
-            <DataField label="Declared Minors" value={ai?.minors?.join(', ') ?? null} />
-            <DataField label="Study Load" value={ai?.currentStudyLoad?.replace('_', ' ') ?? null} />
-            <DataField
-              label="Program Status"
-              value={ai?.programStatus?.replace(/_/g, ' ') ?? null}
-            />
-          </div>
-        </Section>
-
-        {/* Academic record */}
-        <Section title="Academic Record">
-          <div className="grid grid-cols-3 gap-8 py-4">
-            <Stat label="Current GPA" value={ai?.gpa?.toString() ?? '—'} highlight />
-            <Stat label="CP Earned" value={ai?.creditUnitsEarned?.toString() ?? '—'} />
-            <Stat label="Units Attempted" value={ai?.unitsAttempted?.toString() ?? '—'} />
-          </div>
-        </Section>
-      </div>
-
-      {/* ── Right column ── */}
-      <div className="space-y-6">
-        {/* Profile health */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-xs font-bold tracking-wider text-gray-600 uppercase">
-              Profile Health
-            </h3>
-            <span
-              className={`text-xs font-bold ${isComplete ? 'text-green-500' : 'text-amber-500'}`}
+          <SurfaceCard className="p-5">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-red-700" aria-hidden />
+              <h3 className="text-sm font-bold text-slate-950">Need to update details?</h3>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Keep your phone, program, and academic record current so coordinators can review your
+              applications accurately.
+            </p>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 transition hover:bg-slate-50"
             >
-              {isComplete ? '100%' : 'Incomplete'}
-            </span>
-          </div>
-          <div className="mb-6 h-2 w-full rounded-full bg-gray-100">
-            <div
-              className={`h-2 rounded-full transition-all ${isComplete ? 'w-full bg-red-600' : 'w-1/2 bg-amber-400'}`}
-            />
-          </div>
-          {isComplete ? (
-            <div className="flex gap-3 rounded-lg border border-green-100 bg-green-50 p-4">
-              <ShieldCheck className="shrink-0 text-green-600" size={20} />
-              <div>
-                <p className="text-xs font-bold text-green-800">CURRENT STATUS: COMPLETE</p>
-                <p className="text-[10px] text-green-700">
-                  Your profile is visible to coordinators.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-3 rounded-lg border border-amber-100 bg-amber-50 p-4">
-              <AlertCircle className="shrink-0 text-amber-500" size={20} />
-              <div>
-                <p className="text-xs font-bold text-amber-800">PROFILE INCOMPLETE</p>
-                <p className="text-[10px] text-amber-700">
-                  Fill in your academic info to unlock semester selection.
-                </p>
-              </div>
-            </div>
-          )}
+              Edit profile
+            </button>
+          </SurfaceCard>
         </div>
-
-        {/* Edit / discard buttons */}
-        {/* <button
-          onClick={() => setEditing(true)}
-          className="w-full rounded-lg bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700"
-        >
-          EDIT PROFILE
-        </button> */}
       </div>
 
-      {/* Edit form modal */}
       {editing && (
         <ProfileEditForm
           user={user}
@@ -156,58 +192,22 @@ export function ProfileView({ user, onSave, saving }: Props) {
   )
 }
 
-// ── Small helpers ──────────────────────────────────────────────
-
-function Section({
-  title,
-  children,
-  onEdit,
-}: {
-  title: string
-  children: React.ReactNode
-  onEdit?: () => void
-}) {
+function ProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="relative pl-6">
-      <div className="absolute top-0 bottom-0 left-0 w-0.5 bg-red-600" />
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-bold">{title}</h3>
-        {onEdit && (
-          <button onClick={onEdit} className="text-xs font-bold text-red-600 hover:underline">
-            Edit Info
-          </button>
-        )}
+    <SurfaceCard className="overflow-hidden">
+      <div className="border-b border-slate-200 px-5 py-3">
+        <h3 className="text-sm font-bold text-slate-950">{title}</h3>
       </div>
-      {children}
-    </div>
+      <div className="p-5">{children}</div>
+    </SurfaceCard>
   )
 }
 
 function DataField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
-    <div className="rounded-lg bg-gray-50 p-4">
-      <p className="mb-1 text-[10px] font-bold text-gray-400 uppercase">{label}</p>
-      <p className="text-sm font-medium text-slate-800">{value ?? '—'}</p>
-    </div>
-  )
-}
-
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="text-center">
-      <div className={`text-4xl font-black ${highlight ? 'text-red-600' : 'text-slate-800'}`}>
-        {value}
-      </div>
-      <div className="mt-1 text-[10px] font-bold text-gray-400 uppercase">{label}</div>
-    </div>
-  )
-}
-
-function LinkItem({ label }: { label: string }) {
-  return (
-    <div className="flex cursor-pointer items-center gap-2 text-xs font-bold text-red-600 hover:underline">
-      <ExternalLink size={14} />
-      <span>{label}</span>
+    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+      <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-950">{value ?? '—'}</p>
     </div>
   )
 }

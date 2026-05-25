@@ -168,6 +168,32 @@ describe('PATCH /api/v1/users/:id — component', () => {
     expect(res.headers['etag']).toBe('W/"2"')
   })
 
+  it('student sets displayName via PATCH → 200, response reflects the new name', async () => {
+    const app = createApp()
+    const student = await syncStudent(app)
+
+    const res = await request(app)
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .send({ displayName: 'Alex Chen' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.displayName).toBe('Alex Chen')
+  })
+
+  it('PATCH with neither displayName nor studentProfile fields returns 422 empty_body', async () => {
+    const app = createApp()
+    const student = await syncStudent(app)
+
+    const res = await request(app)
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${student.idToken}`)
+      .send({ studentProfile: {} })
+
+    expect(res.status).toBe(422)
+    expect(res.body.error.reason).toBe('empty_body')
+  })
+
   it('attempt to change studentNumber to a new value returns 422 immutable_field', async () => {
     const app = createApp()
     const student = await syncStudent(app)

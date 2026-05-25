@@ -2,11 +2,23 @@ import { cn } from '@/lib/utils'
 
 const statusStyles = {
   pending:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
+  awaiting_placement_approval:
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
+  awaiting_contract_review:
+    'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200',
+  awaiting_contract_details:
+    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
+  awaiting_review:
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
+  awaiting_documents:
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
+  awaiting_approval:
+    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
   approved:
-    'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
+    'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200',
   changes_requested:
-    'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300',
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
   flagged:
     'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
   rejected:
@@ -25,8 +37,14 @@ const statusStyles = {
 
 const statusLabels = {
   pending: 'Pending',
+  awaiting_placement_approval: 'Awaiting Placement Approval',
+  awaiting_contract_review: 'Awaiting Contract Review',
+  awaiting_contract_details: 'Awaiting Contract Details',
+  awaiting_review: 'Awaiting Review',
+  awaiting_documents: 'Awaiting Documents',
+  awaiting_approval: 'Awaiting Approval',
   approved: 'Approved',
-  changes_requested: 'Changes requested',
+  changes_requested: 'Awaiting Documents',
   flagged: 'Flagged',
   on_track: 'On track',
   needs_attention: 'Needs attention',
@@ -40,9 +58,10 @@ export type CoordinatorStatus = keyof typeof statusStyles
 
 interface StatusBadgeProps {
   status: CoordinatorStatus
+  label?: string
 }
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ status, label }: StatusBadgeProps) {
   return (
     <span
       className={cn(
@@ -50,7 +69,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         statusStyles[status]
       )}
     >
-      {statusLabels[status]}
+      {label ?? statusLabels[status]}
     </span>
   )
 }

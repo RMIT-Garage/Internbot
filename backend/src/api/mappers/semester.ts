@@ -3,6 +3,7 @@ import type { SemesterResult } from '../../application/queries/get-semester'
 import type {
   ListSemestersQuery,
   SemesterListResult,
+  SemesterListItem,
 } from '../../application/queries/list-semesters'
 import type { CreateSemesterCommand } from '../../application/commands/create-semester'
 import type { UpdateSemesterCommand } from '../../application/commands/update-semester'
@@ -224,13 +225,15 @@ function dateToIso(d: Date | undefined): string | null {
 }
 
 export function toSemesterResponse(result: SemesterResult): SemesterResponse {
-  return semesterToResponse(result.semester)
+  return semesterToResponse(result.semester, result.kpis)
 }
 
 export function toSemesterListResponse(
   result: SemesterListResult & { cursor: SemesterListCursor | null }
 ): SemesterListResponse {
-  const items = result.items.map(semesterToResponse)
+  const items = result.items.map((item: SemesterListItem) =>
+    semesterToResponse(item.semester, item.kpis)
+  )
   let nextPageToken: string | null = null
   if (result.cursor) {
     nextPageToken = encodePageToken({
@@ -242,7 +245,10 @@ export function toSemesterListResponse(
   return { items, nextPageToken }
 }
 
-function semesterToResponse(s: Semester): SemesterResponse {
+function semesterToResponse(
+  s: Semester,
+  kpis: { enrolledStudentCount: number; openOfferCount: number }
+): SemesterResponse {
   return {
     id: s.id,
     semesterCode: s.semesterCode,
@@ -253,6 +259,8 @@ function semesterToResponse(s: Semester): SemesterResponse {
     enrolmentCloseAt: dateToIso(s.enrolmentCloseAt),
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
+    enrolledStudentCount: kpis.enrolledStudentCount,
+    openOfferCount: kpis.openOfferCount,
   }
 }
 

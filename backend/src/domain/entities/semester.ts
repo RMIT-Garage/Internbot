@@ -199,10 +199,8 @@ export class Semester {
   }
 }
 
-function isAllowedTransition(from: SemesterStatus, to: SemesterTransitionTarget): boolean {
-  if (from === 'draft' && (to === 'active' || to === 'archived')) return true
-  if (from === 'active' && to === 'archived') return true
-  return false
+function isAllowedTransition(_from: SemesterStatus, _to: SemesterTransitionTarget): boolean {
+  return true // coordinators may move semesters to any status freely
 }
 
 function timeEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -211,4 +209,4 @@ function timeEquals(a: Date | undefined, b: Date | undefined): boolean {
   return a.getTime() === b.getTime()
 }
 
-export const SEMESTER_SCHEMA_VERSION = 1 as const
+export const SEMESTER_SCHEMA_VERSION = 2 as const
