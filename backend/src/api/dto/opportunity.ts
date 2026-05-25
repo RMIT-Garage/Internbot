@@ -77,6 +77,7 @@ export const opportunityResponseSchema = z
     submittedByUserId: z.string().nullable(),
     verifiedByUserId: z.string().nullable(),
     verifiedAt: z.string().datetime().nullable(),
+    verificationComment: z.string().nullable(),
     attachmentUploadPathPrefix: z.string().meta({
       example: 'opportunities/opp_042/attachments/',
     }),

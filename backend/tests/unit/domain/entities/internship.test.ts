@@ -28,6 +28,7 @@ function internship(status: InternshipStatus = 'applied'): Internship {
     version: 1,
     userId: 'usr_student',
     opportunityId: 'opp_001',
+    semesterId: 'sem_001',
     offerDate: undefined,
     startDate: undefined,
     endDate: undefined,
@@ -48,6 +49,7 @@ describe('Internship', () => {
       id: 'int_001',
       userId: 'usr_student',
       opportunityId: 'opp_001',
+      semesterId: 'sem_001',
       activityId: 'act_apply',
       now: NOW,
     })
@@ -262,6 +264,7 @@ function internshipWithAttachments(
       version: 1,
       userId: 'usr_student',
       opportunityId: 'opp_001',
+      semesterId: 'sem_001',
       offerDate: undefined,
       startDate: undefined,
       endDate: undefined,

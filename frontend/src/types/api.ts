@@ -99,7 +99,12 @@ export interface OpportunityListResponse {
   nextPageToken: string | null
 }
 
-export type SemesterStatus = 'draft' | 'active' | 'archived'
+export type SemesterStatus =
+  | 'draft'
+  | 'enrollment_open'
+  | 'placement_running'
+  | 'reporting'
+  | 'archived'
 
 export interface SemesterResponse {
   id: string
@@ -111,11 +116,37 @@ export interface SemesterResponse {
   enrolmentCloseAt: string | null
   createdAt: string
   updatedAt: string
+  enrolledStudentCount: number
+  openOfferCount: number
 }
 
 export interface SemesterListResponse {
   items: SemesterResponse[]
   nextPageToken: string | null
+}
+
+export type SemesterStudentPlacementStatus =
+  | 'no_applications'
+  | 'browsing'
+  | 'offer_in_review'
+  | 'offer_changes_requested'
+  | 'offer_approved'
+  | 'all_rejected'
+
+export interface SemesterStudentItem {
+  userId: string
+  displayName: string | null
+  studentNumber: string | null
+  programCode: string | null
+  semesterSelectedAt: string | null
+  placementStatus: SemesterStudentPlacementStatus
+  internshipCount: number
+}
+
+export interface SemesterStudentListResponse {
+  items: SemesterStudentItem[]
+  nextPageToken: string | null
+  totalCount: number
 }
 
 export interface NotificationResponse {

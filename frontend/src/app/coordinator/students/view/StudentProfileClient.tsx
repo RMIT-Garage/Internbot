@@ -30,6 +30,7 @@ import type { InternshipListItemResponse } from '@/types/api'
 interface StudentProfile {
   id: string
   name: string
+  displayName?: string
   email?: string
   course: string
   semester: string
@@ -62,14 +63,17 @@ export function StudentProfileClient() {
               getInternshipStudentKey(item) === studentId
           )
       let studentDisplay: string | undefined
+      let displayName: string | undefined
       if (canFilterByUserId) {
         try {
-          studentDisplay = formatStudentDisplay(await getUser(studentId))
+          const user = await getUser(studentId)
+          studentDisplay = formatStudentDisplay(user)
+          displayName = user.displayName ?? undefined
         } catch {
-          studentDisplay = undefined
+          // both stay undefined
         }
       }
-      return buildProfile(studentId, profileInternships, recordId, studentDisplay)
+      return buildProfile(studentId, profileInternships, recordId, studentDisplay, displayName)
     },
     findFallbackProfile(studentId, rowId),
     `student-profile:${studentId}:${recordId}:${rowId}`,
@@ -115,13 +119,6 @@ export function StudentProfileClient() {
     (item) => internshipSourceLabel(item) === 'Self-Sourced'
   ).length
   const coordinatorPublishedCount = profile.internships.length - selfSourcedCount
-  const needsFollowUp = profile.internships.some(
-    (item) =>
-      item.status === 'offer_pending_review' ||
-      item.status === 'offer_changes_requested' ||
-      item.status === 'rejected'
-  )
-  const placementSummaries = buildPlacementStatusSummary(profile.internships)
   const latestUpdate = profile.latestActivity
     ? formatDate(profile.latestActivity)
     : 'No updates yet'
@@ -130,7 +127,7 @@ export function StudentProfileClient() {
     <div className="space-y-6">
       <CoordinatorPageHeader
         eyebrow="Student Profile"
-        title={profile.name}
+        title={profile.displayName ?? profile.name}
         description="Coordinator view of internship records, review history, and available workflow context."
         actions={
           <>
@@ -174,12 +171,18 @@ export function StudentProfileClient() {
                 <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
                   Student Details
                 </p>
-                <h2 className="mt-2 text-xl font-bold text-slate-950">{profile.name}</h2>
+                <h2 className="mt-2 text-xl font-bold text-slate-950">
+                  {profile.displayName ?? profile.name}
+                </h2>
+                {profile.displayName && profile.displayName !== profile.name && (
+                  <p className="mt-0.5 text-sm text-slate-500">{profile.name}</p>
+                )}
               </div>
               <StatusBadge status={profile.status} />
             </div>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
               {[
+                ['Name', profile.displayName],
                 ['Student ID', profile.name],
                 ['Email', profile.email],
                 ['Course/program', profile.course],
@@ -292,41 +295,6 @@ export function StudentProfileClient() {
               ))}
             </dl>
           </SurfaceCard>
-
-          <SurfaceCard className="p-5">
-            <h2 className="font-bold text-slate-950">Placement Status Summary</h2>
-            <div className="mt-4 space-y-2">
-              {placementSummaries.length > 0 ? (
-                placementSummaries.map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"
-                  >
-                    <span className="text-sm font-semibold text-slate-700">{item.label}</span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-950 ring-1 ring-slate-200">
-                      {item.count}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-500">No active placement workflow yet.</p>
-              )}
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-5">
-            <h2 className="font-bold text-slate-950">Follow-up</h2>
-            <div
-              className={[
-                'mt-4 rounded-xl p-3 text-sm font-semibold',
-                needsFollowUp ? 'bg-amber-50 text-amber-900' : 'bg-emerald-50 text-emerald-900',
-              ].join(' ')}
-            >
-              {needsFollowUp
-                ? 'Coordinator follow-up is recommended for this student.'
-                : 'No immediate coordinator follow-up needed.'}
-            </div>
-          </SurfaceCard>
         </aside>
       </div>
     </div>
@@ -364,7 +332,8 @@ function buildProfile(
   studentId: string,
   internships: InternshipListItemResponse[],
   selectedRecordId: string,
-  studentDisplay?: string
+  studentDisplay?: string,
+  displayName?: string
 ): StudentProfile | null {
   if (internships.length === 0) return null
   const sorted = [...internships].sort((a, b) => {
@@ -381,6 +350,7 @@ function buildProfile(
   return {
     id: profileStudentId,
     name: studentDisplay ?? formatStudentDisplay({ studentId: profileStudentId }),
+    displayName,
     email: undefined,
     course: courses.size > 1 ? 'Multiple programs' : (latest.studentProgramCode ?? 'To confirm'),
     semester: 'Current semester',
@@ -400,6 +370,7 @@ function findFallbackProfile(studentId: string, rowId: string): StudentProfile |
   return {
     id: student.studentId,
     name: formatStudentDisplay(student),
+    displayName: student.name,
     email: student.email,
     course: student.course,
     semester: student.semester,
@@ -446,17 +417,6 @@ function internshipTableStageLabel(item: InternshipListItemResponse) {
 function isPlacementApprovalStage(item: InternshipListItemResponse) {
   const status = String(item.status)
   return status === 'pending' || status === 'awaiting_review' || status === 'awaiting_approval'
-}
-
-function buildPlacementStatusSummary(internships: InternshipListItemResponse[]) {
-  const counts = new Map<string, number>()
-
-  internships.forEach((item) => {
-    const label = internshipTableStageLabel(item)
-    counts.set(label, (counts.get(label) ?? 0) + 1)
-  })
-
-  return Array.from(counts.entries()).map(([label, count]) => ({ label, count }))
 }
 
 function normalizeReturnTo(value: string | null) {

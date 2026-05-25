@@ -34,6 +34,7 @@ export interface OpportunityProps {
   readonly submittedByUserId: string | undefined
   readonly verifiedByUserId: string | undefined
   readonly verifiedAt: Date | undefined
+  readonly verificationComment?: string
   readonly createdAt: Date
   readonly updatedAt: Date
 }
@@ -118,6 +119,9 @@ export class Opportunity {
   }
   get verifiedAt(): Date | undefined {
     return this.#props.verifiedAt
+  }
+  get verificationComment(): string | undefined {
+    return this.#props.verificationComment
   }
   get createdAt(): Date {
     return this.#props.createdAt
@@ -269,6 +273,7 @@ export class Opportunity {
       status: to,
       verifiedByUserId: actorUserId,
       verifiedAt: now,
+      verificationComment: comment,
     }
     const verification = OpportunityVerification.create({
       from,

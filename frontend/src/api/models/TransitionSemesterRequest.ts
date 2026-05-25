@@ -11,7 +11,9 @@ export type TransitionSemesterRequest = {
 }
 export namespace TransitionSemesterRequest {
   export enum to {
-    ACTIVE = 'active',
+    ENROLLMENT_OPEN = 'enrollment_open',
+    PLACEMENT_RUNNING = 'placement_running',
+    REPORTING = 'reporting',
     ARCHIVED = 'archived',
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api/client'
 import type { TicketListItemResponse } from '@/api/models/TicketListItemResponse'
 import type { TicketResponse } from '@/api/models/TicketResponse'
@@ -8,10 +8,11 @@ import type { TicketListResponse } from '@/api/models/TicketListResponse'
 
 export type { TicketListItemResponse, TicketResponse }
 
-export function useTickets() {
+export function useTickets(refreshTrigger?: number) {
   const [tickets, setTickets] = useState<TicketListItemResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const prevTriggerRef = useRef(refreshTrigger)
 
   const fetchTickets = useCallback(async () => {
     setLoading(true)
@@ -30,16 +31,12 @@ export function useTickets() {
     fetchTickets()
   }, [fetchTickets])
 
-  const fetchTicketDetail = useCallback(
-    async (ticketId: string): Promise<TicketResponse | null> => {
-      try {
-        return await apiFetch<TicketResponse>(`/api/v1/tickets/${ticketId}`)
-      } catch {
-        return null
-      }
-    },
-    []
-  )
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger !== prevTriggerRef.current) {
+      prevTriggerRef.current = refreshTrigger
+      fetchTickets()
+    }
+  }, [refreshTrigger, fetchTickets])
 
-  return { tickets, loading, error, refresh: fetchTickets, fetchTicketDetail }
+  return { tickets, loading, error, refresh: fetchTickets }
 }

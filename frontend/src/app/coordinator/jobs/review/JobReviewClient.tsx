@@ -27,7 +27,7 @@ import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import { getOpportunity, getOpportunityAttachment, getUser } from '@/lib/coordinator/api'
 import { mapOpportunityToSelfSourcedJob } from '@/lib/coordinator/apiMappers'
 import { type ApprovalStatus, type SelfSourcedJob } from '@/lib/coordinator/mockData'
-import { getReviewBackHref } from '@/lib/coordinator/reviewRouting'
+import { getReviewBackHref, SELF_SOURCED_REVIEW_CONTEXT } from '@/lib/coordinator/reviewRouting'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
 import type { OpportunityAttachmentResponse, OpportunityStatus } from '@/types/api'
@@ -35,6 +35,7 @@ import type { OpportunityAttachmentResponse, OpportunityStatus } from '@/types/a
 export function JobReviewClient() {
   const searchParams = useSearchParams()
   const id = searchParams.get('id')
+  const context = searchParams.get('context')
   const backHref = getReviewBackHref(searchParams, '/coordinator/opportunities?tab=self-sourced')
   const [job, setJob] = useState<SelfSourcedJob | null>(null)
   const [loading, setLoading] = useState(Boolean(id))
@@ -139,7 +140,11 @@ export function JobReviewClient() {
   }
 
   const isSuitabilityApprovalReview =
-    backendStatus === 'pending_verification' || job.status === 'awaiting_placement_approval'
+    context === SELF_SOURCED_REVIEW_CONTEXT ||
+    backendStatus === 'pending_verification' ||
+    job.status === 'awaiting_placement_approval'
+
+  const canSuitabilityReview = backendStatus === 'pending_verification'
 
   if (isSuitabilityApprovalReview) {
     return (
@@ -149,6 +154,7 @@ export function JobReviewClient() {
         backHref={backHref}
         attachments={attachments}
         attachmentError={attachmentError}
+        canReview={canSuitabilityReview}
         onAttachmentOpen={async (attachment, mode) => {
           setAttachmentError(null)
           try {
@@ -287,6 +293,7 @@ function SuitabilityApprovalReview({
   backHref,
   attachments,
   attachmentError,
+  canReview,
   onAttachmentOpen,
   onDecisionSuccess,
   onAlreadyReviewed,
@@ -296,6 +303,7 @@ function SuitabilityApprovalReview({
   backHref: string
   attachments: OpportunityAttachmentResponse[]
   attachmentError: string | null
+  canReview: boolean
   onAttachmentOpen: (
     attachment: OpportunityAttachmentResponse,
     mode: 'view' | 'download'
@@ -306,7 +314,7 @@ function SuitabilityApprovalReview({
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Self-Sourced Review"
+        eyebrow="Self-Sourced Opportunity Review"
         title={job.jobTitle}
         description={`Submitted by: ${studentOwnerLabel}. Employer: ${job.company}.`}
         actions={<BackLink href={backHref}>Back to queue</BackLink>}
@@ -378,7 +386,7 @@ function SuitabilityApprovalReview({
               id={job.id}
               kind="job"
               defaultNotes={job.notes.join('\n')}
-              canReview
+              canReview={canReview}
               reviewedStatus={job.status}
               backHref={backHref}
               onSuccess={onDecisionSuccess}

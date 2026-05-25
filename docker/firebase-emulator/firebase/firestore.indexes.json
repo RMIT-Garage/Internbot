@@ -240,6 +240,26 @@
       "collectionGroup": "internships",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "semesterId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "studentProfile.semesterId", "order": "ASCENDING" },
+        {
+          "fieldPath": "studentProfile.semesterSelectedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "internships",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "opportunityId", "order": "ASCENDING" }
       ]

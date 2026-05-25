@@ -113,7 +113,7 @@ async function createActiveSemester(): Promise<string> {
     },
   })
   trackDoc('semesters', id)
-  await transition.handle({ actor, semesterId: id, to: 'active', comment: undefined })
+  await transition.handle({ actor, semesterId: id, to: 'enrollment_open', comment: undefined })
   return id
 }
 

@@ -2,10 +2,12 @@ import type { RequestActor } from '../actor'
 import type { TicketQueryService } from '../ports/queries/ticket-query-service'
 import type { AuthorizationService } from '../ports/authorization-service'
 import type { Ticket } from '../../domain/entities/ticket'
+import type { TicketReply } from '../../domain/value-objects/ticket-reply'
 import { NotFoundError } from '../../domain/errors'
 
 export interface TicketResult {
   readonly ticket: Ticket
+  readonly replies: readonly TicketReply[]
 }
 
 export interface GetTicketQuery {
@@ -24,11 +26,11 @@ export class GetTicketQueryHandler {
     // 403 `no_platform_user` rather than leaking 404 / existence info.
     this.authz.requirePlatformUser(q.actor)
 
-    const ticket = await this.ticketQueries.findById(q.ticketId)
-    if (!ticket) throw new NotFoundError('Ticket', q.ticketId)
+    const result = await this.ticketQueries.findById(q.ticketId)
+    if (!result) throw new NotFoundError('Ticket', q.ticketId)
 
-    this.authz.requireSelfOrRole(q.actor, ticket.userId, 'coordinator', 'ticket_not_owner')
+    this.authz.requireSelfOrRole(q.actor, result.ticket.userId, 'coordinator', 'ticket_not_owner')
 
-    return { ticket }
+    return { ticket: result.ticket, replies: result.replies }
   }
 }

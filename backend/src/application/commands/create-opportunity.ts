@@ -46,7 +46,11 @@ export class CreateOpportunityCommandHandler {
         platformUser.role === 'student' ? 'custom' : requiredCoordinatorType(cmd.payload.type)
 
       const semester = await ctx.semesters.findById(semesterId)
-      if (!semester || semester.status !== 'active') {
+      const semesterIsRunning =
+        semester?.status === 'enrollment_open' ||
+        semester?.status === 'placement_running' ||
+        semester?.status === 'reporting'
+      if (!semester || !semesterIsRunning) {
         throw new ConflictError('Referenced semester is not active', 'semester_not_active')
       }
 

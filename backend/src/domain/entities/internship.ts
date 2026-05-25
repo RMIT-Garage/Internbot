@@ -24,6 +24,7 @@ export interface InternshipProps {
   readonly version: number
   readonly userId: string
   readonly opportunityId: string
+  readonly semesterId: string
   readonly offerDate: Date | undefined
   readonly startDate: Date | undefined
   readonly endDate: Date | undefined
@@ -77,6 +78,7 @@ export class Internship {
     id: string
     userId: string
     opportunityId: string
+    semesterId: string
     activityId: string
     now: Date
   }): Internship {
@@ -85,6 +87,7 @@ export class Internship {
       version: 0,
       userId: props.userId,
       opportunityId: props.opportunityId,
+      semesterId: props.semesterId,
       offerDate: undefined,
       startDate: undefined,
       endDate: undefined,
@@ -110,6 +113,7 @@ export class Internship {
   static create(props: InternshipProps): Internship {
     validateRequiredText('userId', props.userId)
     validateRequiredText('opportunityId', props.opportunityId)
+    validateRequiredText('semesterId', props.semesterId)
     validateOfferDates(props)
     return new Internship(props)
   }
@@ -129,6 +133,9 @@ export class Internship {
   }
   get opportunityId(): string {
     return this.#props.opportunityId
+  }
+  get semesterId(): string {
+    return this.#props.semesterId
   }
   get offerDate(): Date | undefined {
     return this.#props.offerDate

@@ -36,7 +36,7 @@ export default function StudentSemestersPage() {
         setLoading(true)
 
         const [semesterRes, user] = await Promise.all([
-          SemestersService.listSemesters(['active']),
+          SemestersService.listSemesters(['enrollment_open']),
           UsersService.getMyProfile(),
         ])
 

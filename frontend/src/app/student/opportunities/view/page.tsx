@@ -83,6 +83,9 @@ function OpportunityDetailContent() {
     if (!opportunity) return
     setApplyError(null)
     setApplying(true)
+    if (opportunity.sourceUrl) {
+      window.open(opportunity.sourceUrl, '_blank', 'noopener,noreferrer')
+    }
     try {
       const internship = await InternshipsService.createInternship({ opportunityId: id })
       router.push(`/student/applications/view?id=${internship.id}`)

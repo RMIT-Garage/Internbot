@@ -95,7 +95,7 @@ async function seedActiveSemester(
   await transition.handle({
     actor: coord,
     semesterId: id,
-    to: 'active',
+    to: 'enrollment_open',
     comment: undefined,
   })
   return { id }

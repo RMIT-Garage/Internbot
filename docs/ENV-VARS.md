@@ -127,9 +127,9 @@ Canonical dev onboarding:
 
 ## Variables reference
 
-| Variable          | Category          | Where          | Notes                                                                                                                                                                                                        |
-| ----------------- | ----------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `RAG_SERVICE_URL` | Non-secret config | `backend/.env` | Base URL of the interbotRAG service. Local dev default: `http://127.0.0.1:5001/internbotrag/australia-southeast1/api`. Production: deployed interbotRAG Cloud Function URL. Used by the advisor proxy route. |
+| Variable          | Category          | Where          | Notes                                                                                                                                                                        |
+| ----------------- | ----------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RAG_SERVICE_URL` | Non-secret config | `backend/.env` | Base URL of the interbotRAG service. Always `https://australia-southeast1-internbotrag.cloudfunctions.net/api` (both local and production). Used by the advisor proxy route. |
 
 ## Adding a new variable
 

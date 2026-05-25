@@ -59,16 +59,13 @@ export class SelectSemesterCommandHandler {
       const semester = await uow.semesters.findById(cmd.payload.semesterId)
       if (!semester) throw new NotFoundError('Semester', cmd.payload.semesterId)
 
-      if (semester.status !== 'active') {
+      if (semester.status !== 'enrollment_open') {
         throw new ConflictError(
           `Cannot select semester with status '${semester.status}'`,
           'semester_not_active'
         )
       }
       const now = new Date()
-      if (!semester.isEnrolmentOpen(now)) {
-        throw new ConflictError('Semester enrolment window is closed', 'enrolment_window_closed')
-      }
 
       user.selectSemester(cmd.payload.semesterId, now)
 

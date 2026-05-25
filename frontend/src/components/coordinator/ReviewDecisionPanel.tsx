@@ -29,12 +29,17 @@ interface ReviewDecisionPanelProps {
 const notesRequiredMessage = 'Reviewer notes are required for reject or request changes.'
 
 export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
-  const { id, kind, canReview, reviewedStatus, backHref, onSuccess, onAlreadyReviewed } = props
+  const {
+    id,
+    kind,
+    defaultNotes,
+    canReview,
+    reviewedStatus,
+    backHref,
+    onSuccess,
+    onAlreadyReviewed,
+  } = props
   const [notes, setNotes] = useState('')
-  const [commentDecision, setCommentDecision] = useState<Exclude<
-    ReviewDecision,
-    'approved'
-  > | null>(null)
   const [submitting, setSubmitting] = useState<ReviewDecision | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -46,7 +51,6 @@ export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
     setSuccess(null)
     if ((decision === 'rejected' || decision === 'changes_requested') && !trimmedNotes) {
       setError(notesRequiredMessage)
-      setCommentDecision(decision)
       return
     }
 
@@ -70,9 +74,7 @@ export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
       }
       const message = decisionMessage(decision, kind)
       setSuccess(message)
-      if (decision === 'rejected' || decision === 'changes_requested') {
-        setCommentDecision(null)
-      }
+      setNotes('')
       onSuccess?.(decision, trimmedNotes)
       toast.success('Decision sent to the workflow API.')
     } catch (error) {
@@ -119,6 +121,14 @@ export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
           </Link>
         </div>
       )}
+      {isReadOnly && defaultNotes && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+            Coordinator notes
+          </p>
+          <p className="mt-2 text-sm whitespace-pre-wrap text-slate-700">{defaultNotes}</p>
+        </div>
+      )}
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
           {error}
@@ -129,8 +139,8 @@ export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
           {success}
         </div>
       )}
-      {canReview && commentDecision && (
-        <div className="mt-4 space-y-3">
+      {canReview && (
+        <div className="mt-4 space-y-4">
           <label className="grid gap-2 text-xs font-bold tracking-wide text-slate-500 uppercase">
             Coordinator comment
             <textarea
@@ -138,82 +148,35 @@ export function ReviewDecisionPanel(props: ReviewDecisionPanelProps) {
               onChange={(event) => setNotes(event.target.value)}
               disabled={isSubmitting}
               rows={kind === 'contract' ? 5 : 4}
-              placeholder={
-                commentDecision === 'rejected'
-                  ? 'Enter the rejection reason for the student record.'
-                  : 'Enter the changes required before this placement can proceed.'
-              }
+              placeholder="Add a note or comment (required when requesting changes or rejecting)."
               className="w-full rounded-xl border border-slate-200 p-3 text-sm font-medium tracking-normal text-slate-900 normal-case outline-none focus:border-red-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
             />
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:grid-cols-3">
             <DecisionButton
-              pending={submitting === commentDecision}
+              pending={submitting === 'approved'}
               disabled={isSubmitting}
-              onClick={() => submit(commentDecision)}
-              className={
-                commentDecision === 'rejected'
-                  ? 'border-red-200 text-red-700 hover:bg-red-50'
-                  : undefined
-              }
+              onClick={() => submit('approved')}
+              className="border-slate-950 bg-slate-950 text-white hover:bg-black"
             >
-              {commentDecision === 'rejected' ? (
-                <>
-                  <X className="h-4 w-4" /> Submit rejection
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="h-4 w-4" /> Submit changes
-                </>
-              )}
+              <Check className="h-4 w-4" /> Approve
             </DecisionButton>
-            <button
-              type="button"
+            <DecisionButton
+              pending={submitting === 'changes_requested'}
               disabled={isSubmitting}
-              onClick={() => {
-                setCommentDecision(null)
-                setError(null)
-              }}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => submit('changes_requested')}
             >
-              Cancel
-            </button>
+              <RotateCcw className="h-4 w-4" /> Request Changes
+            </DecisionButton>
+            <DecisionButton
+              pending={submitting === 'rejected'}
+              disabled={isSubmitting}
+              onClick={() => submit('rejected')}
+              className="border-red-200 text-red-700 hover:bg-red-50"
+            >
+              <X className="h-4 w-4" /> Reject
+            </DecisionButton>
           </div>
-        </div>
-      )}
-      {canReview && !commentDecision && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <DecisionButton
-            pending={submitting === 'approved'}
-            disabled={isSubmitting}
-            onClick={() => submit('approved')}
-            className="border-slate-950 bg-slate-950 text-white hover:bg-black"
-          >
-            <Check className="h-4 w-4" /> Approve
-          </DecisionButton>
-          <DecisionButton
-            pending={submitting === 'changes_requested'}
-            disabled={isSubmitting}
-            onClick={() => {
-              setNotes('')
-              setError(null)
-              setCommentDecision('changes_requested')
-            }}
-          >
-            <RotateCcw className="h-4 w-4" /> Request Changes
-          </DecisionButton>
-          <DecisionButton
-            pending={submitting === 'rejected'}
-            disabled={isSubmitting}
-            onClick={() => {
-              setNotes('')
-              setError(null)
-              setCommentDecision('rejected')
-            }}
-            className="border-red-200 text-red-700 hover:bg-red-50"
-          >
-            <X className="h-4 w-4" /> Reject
-          </DecisionButton>
         </div>
       )}
     </>

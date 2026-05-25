@@ -4,7 +4,7 @@ import { SemesterTransition } from '../../../../src/domain/value-objects/semeste
 describe('SemesterTransition.create', () => {
   const baseProps = {
     from: 'draft' as const,
-    to: 'active' as const,
+    to: 'enrollment_open' as const,
     actorUserId: 'usr_coord',
     comment: undefined,
     createdAt: new Date('2026-01-15T00:00:00Z'),
@@ -13,7 +13,7 @@ describe('SemesterTransition.create', () => {
   it('builds a valid transition record', () => {
     const t = SemesterTransition.create(baseProps)
     expect(t.from).toBe('draft')
-    expect(t.to).toBe('active')
+    expect(t.to).toBe('enrollment_open')
     expect(t.actorUserId).toBe('usr_coord')
     expect(t.comment).toBeUndefined()
   })

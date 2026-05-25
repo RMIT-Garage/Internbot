@@ -24,7 +24,7 @@ export class SemestersService {
    * @throws ApiError
    */
   public static listSemesters(
-    status?: Array<'draft' | 'active' | 'archived'>,
+    status?: Array<'draft' | 'enrollment_open' | 'placement_running' | 'reporting' | 'archived'>,
     semesterCode?: string,
     courseCode?: string,
     limit?: number,

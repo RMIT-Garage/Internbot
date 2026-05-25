@@ -8,6 +8,7 @@ import {
   CalendarDays,
   GraduationCap,
   LayoutDashboard,
+  MessageSquare,
   ScrollText,
   Users,
 } from 'lucide-react'
@@ -32,6 +33,7 @@ export const navItems = [
     sections: ['Active Placements', 'Contract Review', 'Final Approval'],
   },
   { href: '/coordinator/students', label: 'Students', icon: Users },
+  { href: '/coordinator/tickets', label: 'Tickets', icon: MessageSquare },
   { href: '/coordinator/semesters', label: 'Semesters', icon: CalendarDays },
   { href: '/coordinator/notifications', label: 'Notifications', icon: Bell },
 ]

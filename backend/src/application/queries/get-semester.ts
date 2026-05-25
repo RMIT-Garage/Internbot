@@ -1,11 +1,12 @@
 import type { RequestActor } from '../actor'
-import type { SemesterQueryService } from '../ports/queries/semester-query-service'
+import type { SemesterQueryService, SemesterKPIs } from '../ports/queries/semester-query-service'
 import type { AuthorizationService } from '../ports/authorization-service'
 import type { Semester } from '../../domain/entities/semester'
 import { NotFoundError } from '../../domain/errors'
 
 export interface SemesterResult {
   semester: Semester
+  kpis: SemesterKPIs
 }
 
 /**
@@ -30,6 +31,7 @@ export class GetSemesterQueryHandler {
 
     const semester = await this.semesterQueries.findById(q.semesterId)
     if (!semester) throw new NotFoundError('Semester', q.semesterId)
-    return { semester }
+    const kpis = await this.semesterQueries.getKPIs(q.semesterId)
+    return { semester, kpis }
   }
 }
