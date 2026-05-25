@@ -84,7 +84,7 @@ export function MessageBodyRenderer({ content, contentType, contentBlocks }: Pro
     )
   }
 
-  if (contentType === 'markdown' || (contentType !== 'plain' && looksLikeMarkdown(content))) {
+  if (contentType === 'markdown' || looksLikeMarkdown(content)) {
     return <MarkdownBody text={content} />
   }
 
