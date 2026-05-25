@@ -199,12 +199,8 @@ export class Semester {
   }
 }
 
-function isAllowedTransition(from: SemesterStatus, to: SemesterTransitionTarget): boolean {
-  if (from === 'draft' && (to === 'enrollment_open' || to === 'archived')) return true
-  if (from === 'enrollment_open' && (to === 'placement_running' || to === 'archived')) return true
-  if (from === 'placement_running' && (to === 'reporting' || to === 'archived')) return true
-  if (from === 'reporting' && to === 'archived') return true
-  return false
+function isAllowedTransition(_from: SemesterStatus, _to: SemesterTransitionTarget): boolean {
+  return true // coordinators may move semesters to any status freely
 }
 
 function timeEquals(a: Date | undefined, b: Date | undefined): boolean {
