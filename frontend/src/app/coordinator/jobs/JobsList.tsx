@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CheckCircle2, X } from 'lucide-react'
+import { X } from 'lucide-react'
+import { WorkflowStepper, type WorkflowStepItem } from '@/components/coordinator/WorkflowStepper'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { Pagination } from '@/components/coordinator/Pagination'
 import { SurfaceCard } from '@/components/coordinator/Premium'
@@ -20,7 +21,7 @@ import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
-import { formatDate } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 type WorkflowStageId =
   | 'submitted'
@@ -516,14 +517,20 @@ function PlacementQueueRow({
   const completed = job.status === 'approved' || job.status === 'rejected'
   const studentLabel = placementStudentLabel(job, studentLabels)
 
+  const statusLine = completed
+    ? `${job.status === 'approved' ? 'Approved' : 'Rejected'} ${formatDate(job.submissionDate)}`
+    : waitingDays === 0
+      ? 'Submitted today'
+      : `Waiting ${waitingDays} day${waitingDays === 1 ? '' : 's'}`
+
   return (
     <div
       className={[
-        'grid gap-4 px-5 py-4 xl:grid-cols-[minmax(260px,1.05fr)_minmax(180px,0.65fr)_minmax(380px,1.25fr)_auto] xl:items-center',
+        'flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6',
         actionRequired ? 'bg-red-50/35' : 'bg-white',
       ].join(' ')}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 lg:max-w-[26%] lg:flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate font-bold text-slate-950">{job.jobTitle}</p>
           <StatusBadge status={job.status} />
@@ -531,7 +538,7 @@ function PlacementQueueRow({
         <p className="mt-1 text-sm text-slate-500">{studentLabel}</p>
       </div>
 
-      <div className="grid gap-2 text-sm">
+      <div className="grid shrink-0 gap-2 text-sm lg:max-w-[14rem]">
         <div>
           <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Program</p>
           <p className="mt-1 font-semibold text-slate-800">{job.course || 'Program pending'}</p>
@@ -542,22 +549,23 @@ function PlacementQueueRow({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <ProcessingTracker job={job} />
-        <div className="text-xs font-semibold text-slate-500">
-          <span className={actionRequired ? 'text-red-800' : undefined}>
-            {completed
-              ? `${job.status === 'approved' ? 'Approved' : 'Rejected'} ${formatDate(job.submissionDate)}`
-              : waitingDays === 0
-                ? 'Submitted today'
-                : `Waiting ${waitingDays} day${waitingDays === 1 ? '' : 's'}`}
-          </span>
+      <div className="min-w-0 lg:max-w-[42%] lg:flex-[1.35]">
+        <div className="rounded-xl bg-slate-50 px-3 py-3">
+          <ProcessingTracker job={job} />
+          <p
+            className={cn(
+              'mt-2 text-xs font-semibold',
+              actionRequired ? 'text-red-800' : 'text-slate-500'
+            )}
+          >
+            {statusLine}
+          </p>
         </div>
       </div>
 
       <Link
         href={reviewHref}
-        className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-black"
+        className="inline-flex h-10 shrink-0 items-center justify-center self-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-black lg:self-center"
       >
         {completed ? 'View' : 'Review'}
       </Link>
@@ -576,7 +584,7 @@ function placementStudentLabel(job: PlacementCase, studentLabels: Record<string,
 }
 
 function ProcessingTracker({ job }: { job: SelfSourcedJob }) {
-  const steps = [
+  const labels = [
     'Placement Confirmed',
     'Documents Submitted',
     'Contract Review',
@@ -584,68 +592,25 @@ function ProcessingTracker({ job }: { job: SelfSourcedJob }) {
     job.status === 'rejected' ? 'Rejected' : 'Approved',
   ]
   const currentIndex = getProcessingStepIndex(job)
-  const isRejected = job.status === 'rejected'
+  const completedBeforeCurrent =
+    job.status === 'approved' ? labels.length : Math.max(0, currentIndex)
 
-  return (
-    <div className="overflow-x-auto rounded-xl bg-slate-50 px-3 py-3">
-      <div className="grid min-w-[520px] grid-cols-5 items-start gap-x-5">
-        {steps.map((step, index) => {
-          const complete = index < currentIndex || job.status === 'approved'
-          const current = index === currentIndex
-          const connectorComplete = index < currentIndex || job.status === 'approved'
-          return (
-            <div
-              key={step}
-              className="relative flex min-w-0 flex-col items-center gap-2 text-center"
-            >
-              {index > 0 && (
-                <div
-                  className={[
-                    'absolute top-3 right-[calc(50%+17px)] left-[-20px] h-0.5',
-                    connectorComplete ? 'bg-slate-950' : 'bg-slate-200',
-                  ].join(' ')}
-                />
-              )}
-              {index < steps.length - 1 && (
-                <div
-                  className={[
-                    'absolute top-3 right-[-20px] left-[calc(50%+17px)] h-0.5',
-                    connectorComplete ? 'bg-slate-950' : 'bg-slate-200',
-                  ].join(' ')}
-                />
-              )}
-              <span
-                className={[
-                  'relative z-10 flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-bold',
-                  isRejected && current
-                    ? 'border-red-700 bg-red-700 text-white'
-                    : complete
-                      ? 'border-slate-950 bg-slate-950 text-white'
-                      : current
-                        ? 'border-red-700 bg-white text-red-700 ring-2 ring-red-100'
-                        : 'border-slate-300 bg-white text-slate-400',
-                ].join(' ')}
-              >
-                {complete ? (
-                  <CheckCircle2 className="h-3 w-3" />
-                ) : current ? (
-                  <span className="h-2 w-2 rounded-full bg-current" />
-                ) : null}
-              </span>
-              <span
-                className={[
-                  'max-w-[86px] text-center text-[10px] leading-3 font-bold whitespace-normal',
-                  current || complete ? 'text-slate-950' : 'text-slate-400',
-                ].join(' ')}
-              >
-                {step}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+  const stepItems: WorkflowStepItem[] = labels.map((label, index) => {
+    const id = `step-${index}`
+    const current = index === currentIndex
+    if (job.status === 'rejected' && current) {
+      return { id, label, state: 'rejected' as const }
+    }
+    if (index < completedBeforeCurrent) {
+      return { id, label, state: 'complete' as const }
+    }
+    if (current) {
+      return { id, label, state: 'current' as const }
+    }
+    return { id, label, state: 'upcoming' as const }
+  })
+
+  return <WorkflowStepper steps={stepItems} variant="compact" />
 }
 
 function getCurrentStageId(job: SelfSourcedJob): WorkflowStageId {

@@ -131,6 +131,43 @@ describe('/api/v1/advisor/chat — component', () => {
     expect(res.status).toBe(401)
   })
 
+  it('preserves RAG sources when upstream returns FAQ structured data', async () => {
+    mockFetch(200, {
+      reply: '{"answer":"ignored"}',
+      feature: 'faq-rag',
+      structuredData: {
+        type: 'faq',
+        data: {
+          answer: 'You need 48 credit points to be eligible.',
+          sources: [],
+          confidence: 0.9,
+          answered_from_context: true,
+        },
+      },
+      sources: [
+        {
+          title: 'Internship Policy',
+          section: 'Eligibility',
+          sourceUrl:
+            'https://www.rmit.edu.au/students/careers-opportunities/internships-work-experience-wil',
+          excerpt: 'Students must have completed 48 credit points.',
+        },
+      ],
+      webSources: [],
+    })
+
+    const res = await request(createApp())
+      .post('/api/v1/advisor/chat')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ userInput: 'What are the eligibility requirements?' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.reply).toBe('You need 48 credit points to be eligible.')
+    expect(res.body.sources).toHaveLength(1)
+    expect(res.body.sources[0].excerpt).toContain('48 credit points')
+    expect(res.body.structuredData).toBeUndefined()
+  })
+
   it('returns 502 when upstream returns a non-2xx status', async () => {
     mockFetch(500, { error: 'Internal Server Error' })
 

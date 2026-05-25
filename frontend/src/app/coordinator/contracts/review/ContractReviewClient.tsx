@@ -3,17 +3,9 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import {
-  CheckCircle2,
-  Circle,
-  CircleDot,
-  Download,
-  ExternalLink,
-  FileText,
-  MessageSquareText,
-  Paperclip,
-} from 'lucide-react'
+import { Download, ExternalLink, FileText, MessageSquareText, Paperclip } from 'lucide-react'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
+import { WorkflowStepper, buildWorkflowStepItems } from '@/components/coordinator/WorkflowStepper'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import {
   ReviewDecisionPanel,
@@ -428,56 +420,13 @@ function CaseHeader({
 function WorkflowProgress({ status }: { status: ApprovalStatus }) {
   const steps = getWorkflowSteps(status)
   const currentIndex = steps.findIndex((step) => step.current)
+  const completedBeforeCurrent = status === 'approved' ? steps.length : Math.max(0, currentIndex)
 
   return (
-    <div className="mt-6 grid grid-cols-[repeat(5,minmax(0,1fr))]">
-      {steps.map((step, index) => {
-        const complete = index < currentIndex || status === 'approved'
-        const rejected = step.id === 'rejected' && step.current
-        const nextComplete = index + 1 < currentIndex || status === 'approved'
-        return (
-          <div key={step.id} className="relative flex flex-col items-center gap-2 text-center">
-            {index > 0 && (
-              <div
-                className={[
-                  'absolute top-3 right-1/2 left-0 h-0.5 -translate-y-1/2',
-                  complete ? 'bg-slate-950' : 'bg-slate-200',
-                ].join(' ')}
-              />
-            )}
-            {index < steps.length - 1 && (
-              <div
-                className={[
-                  'absolute top-3 right-0 left-1/2 h-0.5 -translate-y-1/2',
-                  nextComplete ? 'bg-slate-950' : 'bg-slate-200',
-                ].join(' ')}
-              />
-            )}
-            <span
-              className={[
-                'relative z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-white',
-                rejected
-                  ? 'border-red-700 bg-red-700 text-white'
-                  : complete
-                    ? 'border-slate-950 bg-slate-950 text-white'
-                    : step.current
-                      ? 'border-red-700 text-red-700 ring-2 ring-red-100'
-                      : 'border-slate-300 text-slate-400',
-              ].join(' ')}
-            >
-              {complete ? (
-                <CheckCircle2 className="h-3 w-3" />
-              ) : step.current ? (
-                <CircleDot className="h-3 w-3" />
-              ) : (
-                <Circle className="h-3 w-3" />
-              )}
-            </span>
-            <span className="text-[11px] font-bold text-slate-700">{step.label}</span>
-          </div>
-        )
-      })}
-    </div>
+    <WorkflowStepper
+      className="mt-6"
+      steps={buildWorkflowStepItems(steps, completedBeforeCurrent)}
+    />
   )
 }
 
