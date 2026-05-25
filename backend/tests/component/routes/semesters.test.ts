@@ -290,7 +290,7 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
     expect(record['actorUserId']).toBe(coordinator.platformUserId)
   })
 
-  it('archived → enrollment_open → 409 invalid_state_transition', async () => {
+  it('archived → enrollment_open → 201 (free-form transitions allowed)', async () => {
     const app = createApp()
     const coordinator = await makeCoordinator()
     const { id } = await createDraftSemester(app, coordinator)
@@ -306,8 +306,8 @@ describe('POST /api/v1/semesters/:id/transitions — component', () => {
       .set('Authorization', `Bearer ${coordinator.idToken}`)
       .send({ to: 'enrollment_open' })
 
-    expect(res.status).toBe(409)
-    expect(res.body.error.reason).toBe('invalid_state_transition')
+    expect(res.status).toBe(201)
+    expect(res.body.status).toBe('enrollment_open')
   })
 
   it('stale If-Match → 412 etag_mismatch', async () => {
