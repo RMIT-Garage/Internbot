@@ -142,8 +142,9 @@ export default function SemesterStudentsClient() {
                     'Enrolled At',
                     'Placement Status',
                     'Applications',
-                  ].map((head) => (
-                    <th key={head} className="px-5 py-3">
+                    '',
+                  ].map((head, i) => (
+                    <th key={i} className="px-5 py-3">
                       {head}
                     </th>
                   ))}
@@ -152,7 +153,7 @@ export default function SemesterStudentsClient() {
               <tbody className="divide-y divide-slate-100">
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                    <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
                       No students found.
                     </td>
                   </tr>
@@ -179,6 +180,14 @@ export default function SemesterStudentsClient() {
                         {PLACEMENT_STATUS_LABELS[student.placementStatus]}
                       </td>
                       <td className="px-5 py-4 text-slate-900">{student.internshipCount}</td>
+                      <td className="px-5 py-4 text-right">
+                        <Link
+                          href={`/coordinator/students/view?id=${student.userId}`}
+                          className="text-sm font-bold text-red-700 hover:text-red-800"
+                        >
+                          View Profile
+                        </Link>
+                      </td>
                     </tr>
                   ))
                 )}
