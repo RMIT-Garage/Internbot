@@ -8,6 +8,23 @@ const advisorChatRequestSchema = z.object({
   useWebSearch: z.boolean().optional(),
 })
 
+function normalizeFaqResponse(data: Record<string, unknown>): Record<string, unknown> {
+  const structured = data.structuredData as
+    | { type: string; data: Record<string, unknown> }
+    | undefined
+  if (structured?.type === 'faq' && typeof structured.data?.answer === 'string') {
+    return {
+      ...data,
+      reply: structured.data.answer,
+      contentType: 'plain',
+      contentBlocks: undefined,
+      sources: [],
+      webSources: [],
+    }
+  }
+  return data
+}
+
 export function createAdvisorRouter(): ExpressRouter {
   const router: ExpressRouter = Router()
 
@@ -59,8 +76,8 @@ export function createAdvisorRouter(): ExpressRouter {
         return
       }
 
-      const data: unknown = await upstream.json()
-      res.status(200).json(data)
+      const data = (await upstream.json()) as Record<string, unknown>
+      res.status(200).json(normalizeFaqResponse(data))
     } catch (err) {
       next(err)
     }
