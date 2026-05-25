@@ -2,6 +2,7 @@ import { Router, type Router as ExpressRouter } from 'express'
 import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { ApiError } from '../errors'
+import { normalizeFaqChatResponse } from '../utils/normalize-faq-chat-response'
 
 const attachmentSchema = z
   .object({
@@ -21,23 +22,6 @@ const checkerRequestSchema = z.object({
   userInput: z.string().min(1).max(10000),
   attachment: attachmentSchema,
 })
-
-function normalizeFaqResponse(data: Record<string, unknown>): Record<string, unknown> {
-  const structured = data.structuredData as
-    | { type: string; data: Record<string, unknown> }
-    | undefined
-  if (structured?.type === 'faq' && typeof structured.data?.answer === 'string') {
-    return {
-      ...data,
-      reply: structured.data.answer,
-      contentType: 'plain',
-      contentBlocks: undefined,
-      sources: [],
-      webSources: [],
-    }
-  }
-  return data
-}
 
 async function proxyCheckerToRag(
   feature: 'job-checker' | 'contract-checker',
@@ -131,7 +115,7 @@ export function createAdvisorRouter(): ExpressRouter {
       }
 
       const data = (await upstream.json()) as Record<string, unknown>
-      res.status(200).json(normalizeFaqResponse(data))
+      res.status(200).json(normalizeFaqChatResponse(data))
     } catch (err) {
       next(err)
     }

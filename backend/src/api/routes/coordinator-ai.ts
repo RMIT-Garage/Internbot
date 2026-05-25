@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import type { AuthorizationService } from '../../application/ports/authorization-service'
 import { ApiError } from '../errors'
+import { normalizeFaqChatResponse } from '../utils/normalize-faq-chat-response'
 
 const chatRequestSchema = z.object({
   userInput: z.string().min(1).max(2000),
@@ -27,23 +28,6 @@ const checkerRequestSchema = z.object({
     })
     .optional(),
 })
-
-function normalizeFaqResponse(data: Record<string, unknown>): Record<string, unknown> {
-  const structured = data.structuredData as
-    | { type: string; data: Record<string, unknown> }
-    | undefined
-  if (structured?.type === 'faq' && typeof structured.data?.answer === 'string') {
-    return {
-      ...data,
-      reply: structured.data.answer,
-      contentType: 'plain',
-      contentBlocks: undefined,
-      sources: [],
-      webSources: [],
-    }
-  }
-  return data
-}
 
 export interface CoordinatorAiRouterDeps {
   authz: AuthorizationService
@@ -88,7 +72,7 @@ export function createCoordinatorAiRouter(deps: CoordinatorAiRouterDeps): Expres
     }
 
     const data = (await upstream.json()) as Record<string, unknown>
-    res.status(200).json(feature === 'faq-rag' ? normalizeFaqResponse(data) : data)
+    res.status(200).json(feature === 'faq-rag' ? normalizeFaqChatResponse(data) : data)
   }
 
   router.post('/chat', async (req: Request, res: Response, next: NextFunction) => {
