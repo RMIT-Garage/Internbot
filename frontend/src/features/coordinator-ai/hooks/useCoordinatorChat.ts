@@ -81,5 +81,7 @@ export function useCoordinatorChat() {
     }
   }
 
-  return { messages, isLoading, sendMessage, chatEndRef }
+  const clearMessages = () => setMessages([INITIAL_MESSAGE])
+
+  return { messages, isLoading, sendMessage, clearMessages, chatEndRef }
 }
