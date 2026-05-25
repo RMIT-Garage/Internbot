@@ -107,23 +107,26 @@ export function mapInternshipToContractApproval(
 }
 
 export function mapSemesterToInventory(semester: SemesterResponse) {
+  const effectiveStatus =
+    (semester.status as string) === 'active' ? 'enrollment_open' : semester.status
+
   const badgeStatus =
-    semester.status === 'enrollment_open' ||
-    semester.status === 'placement_running' ||
-    semester.status === 'reporting'
+    effectiveStatus === 'enrollment_open' ||
+    effectiveStatus === 'placement_running' ||
+    effectiveStatus === 'reporting'
       ? 'active'
-      : semester.status === 'draft'
+      : effectiveStatus === 'draft'
         ? 'pending'
         : 'archived'
 
   const phase =
-    semester.status === 'enrollment_open'
+    effectiveStatus === 'enrollment_open'
       ? 'Enrollment Open'
-      : semester.status === 'placement_running'
+      : effectiveStatus === 'placement_running'
         ? 'Placement Running'
-        : semester.status === 'reporting'
+        : effectiveStatus === 'reporting'
           ? 'Reporting'
-          : semester.status === 'draft'
+          : effectiveStatus === 'draft'
             ? 'Setup'
             : 'Archived'
 
