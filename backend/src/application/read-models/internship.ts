@@ -69,11 +69,12 @@ export async function buildInternshipReadModel(
   deps: InternshipReadModelDeps,
   internship: Internship
 ): Promise<InternshipReadModel> {
+  const internshipSemesterId = internship.semesterId || undefined
   const [student, opportunity, attachments, semester] = await Promise.all([
     deps.users.findById(internship.userId),
     deps.opportunities.findById(internship.opportunityId),
     deps.internships.listAttachments(internship.id),
-    deps.semesters.findById(internship.semesterId),
+    internshipSemesterId ? deps.semesters.findById(internshipSemesterId) : Promise.resolve(null),
   ])
 
   if (!student || !student.isStudent()) throw new NotFoundError('User', internship.userId)
@@ -86,8 +87,8 @@ export async function buildInternshipReadModel(
     opportunityJobTitle: opportunity.jobTitle,
     opportunityType: opportunity.type,
     opportunitySourceUrl: opportunity.sourceUrl,
-    semesterId: internship.semesterId,
-    semesterDisplayName: semester?.displayName ?? internship.semesterId,
+    semesterId: internshipSemesterId ?? opportunity.semesterId,
+    semesterDisplayName: semester?.displayName ?? opportunity.semesterId,
     semesterCode: semester?.semesterCode ?? '',
     attachments,
   }

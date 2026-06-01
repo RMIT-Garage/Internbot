@@ -1,10 +1,11 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { CoordinatorTopbar } from './CoordinatorTopbar'
 import { CoordinatorSidebar } from './CoordinatorSidebar'
 import { CoordinatorSemesterProvider } from '@/lib/coordinator/semesterContext'
 
-export function CoordinatorShell({ children }: { children: any }) {
+export function CoordinatorShell({ children }: { children: ReactNode }) {
   return (
     <CoordinatorSemesterProvider>
       <div className="flex h-screen overflow-hidden bg-white text-slate-950">
