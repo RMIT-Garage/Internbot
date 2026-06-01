@@ -15,6 +15,7 @@ interface SemesterContextBarProps {
   loading?: boolean
   semester: SemesterResponse | null
   workflow?: UserWorkflowResponse | null
+  placementSemesterLabel?: string | null
   canChangeSemester?: boolean
   className?: string
 }
@@ -23,6 +24,7 @@ export function SemesterContextBar({
   loading = false,
   semester,
   workflow,
+  placementSemesterLabel = null,
   canChangeSemester = true,
   className = '',
 }: SemesterContextBarProps) {
@@ -71,6 +73,19 @@ export function SemesterContextBar({
                 {semester.semesterCode && (
                   <span className="text-xs text-slate-500">{semester.semesterCode}</span>
                 )}
+              </div>
+            </>
+          ) : placementSemesterLabel && workflow?.internshipStatus === 'offer_approved' ? (
+            <>
+              <p className="truncate text-sm font-semibold text-slate-950">
+                {placementSemesterLabel}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${CHIP_TONE_CLASSES[chip.tone]}`}
+                >
+                  {chip.label}
+                </span>
               </div>
             </>
           ) : (

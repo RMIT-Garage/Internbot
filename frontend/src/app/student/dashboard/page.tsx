@@ -38,6 +38,12 @@ import type {
 } from '@/lib/api/openapi-client'
 import type { UserWorkflowResponse } from '@/api/models/UserWorkflowResponse'
 import { deriveStudentDashboardStatus } from '@/lib/semester/display'
+import {
+  filterInternshipsForDashboard,
+  findApprovedInternship,
+  placementSemesterLabelFromInternship,
+  resolveEffectiveSemesterId,
+} from '@/lib/student/semesterContext'
 
 // ── Profile-incomplete dashboard ─────────────────────────────────────────────
 
@@ -215,6 +221,9 @@ export default function StudentDashboardPage() {
   const [semester, setSemester] = useState<SemesterResponse | null>(null)
   const [workflow, setWorkflow] = useState<UserWorkflowResponse | null>(null)
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
+  const [approvedPlacement, setApprovedPlacement] = useState<InternshipListItemResponse | null>(
+    null
+  )
   const [notifications, setNotifications] = useState<NotificationResponse[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -244,22 +253,26 @@ export default function StudentDashboardPage() {
             profileRes.studentProfile?.profileStatus === 'complete')
 
         if (isComplete) {
-          const semesterId =
+          const profileSemesterId =
             profileRes.role === 'student' ? profileRes.studentProfile?.semesterId : null
-          const [internshipsRes, workflowRes, semesterRes] = await Promise.all([
+          const [internshipsRes, workflowRes] = await Promise.all([
             InternshipsService.listInternships(),
             UsersService.getMyWorkflow().catch(() => null),
-            semesterId ? SemestersService.getSemester(semesterId).catch(() => null) : Promise.resolve(null),
           ])
+          const allInternships = internshipsRes.items
+          const effectiveSemesterId = resolveEffectiveSemesterId(profileSemesterId, allInternships)
+          const semesterRes = effectiveSemesterId
+            ? await SemestersService.getSemester(effectiveSemesterId).catch(() => null)
+            : null
           setWorkflow(workflowRes)
           setSemester(semesterRes)
-          const scoped = semesterId
-            ? internshipsRes.items.filter((item) => item.semesterId === semesterId)
-            : internshipsRes.items
-          setInternships(scoped)
+          const approved = findApprovedInternship(allInternships)
+          setApprovedPlacement(approved)
+          setInternships(filterInternshipsForDashboard(allInternships, effectiveSemesterId))
         } else {
           setWorkflow(null)
           setSemester(null)
+          setApprovedPlacement(null)
           setInternships([])
         }
       } catch (err: unknown) {
@@ -280,7 +293,8 @@ export default function StudentDashboardPage() {
   const applied = internships.filter((i) => i.status === 'applied').length
   const pendingReview = internships.filter((i) => i.status === 'offer_pending_review').length
   const approved = internships.filter((i) => i.status === 'offer_approved').length
-  const approvedInternship = internships.find((i) => i.status === 'offer_approved') ?? null
+  const approvedInternship = approvedPlacement
+  const placementSemesterLabel = placementSemesterLabelFromInternship(approvedPlacement)
   const flagged = internships.filter((i) =>
     ['offer_changes_requested', 'rejected'].includes(i.status)
   ).length
@@ -292,6 +306,7 @@ export default function StudentDashboardPage() {
     currentWorkflowStep: workflowStep,
     appliedCount: applied,
     pendingReviewCount: pendingReview,
+    placementSemesterLabel,
   })
 
   function internshipStatusToBadge(status: string): StudentStatus {
@@ -395,6 +410,7 @@ export default function StudentDashboardPage() {
         currentWorkflowStep={workflowStep}
         appliedCount={applied}
         pendingReviewCount={pendingReview}
+        placementSemesterLabel={placementSemesterLabel}
       />
 
       {approvedInternship && (

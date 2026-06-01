@@ -1,5 +1,5 @@
 import type { OpportunityResponse } from '@/types/api'
-import { isSelfSourcedOpportunityResponse } from '@/lib/coordinator/apiMappers'
+import { needsPlacementSuitabilityReview } from '@/lib/coordinator/apiMappers'
 
 export type OpportunityType = 'pre_approved' | 'custom'
 export type WorkMode = 'onsite' | 'hybrid' | 'remote'
@@ -66,9 +66,10 @@ export function canEditManagedOpportunity(input: {
   statusRaw: string
 }) {
   if (
-    isSelfSourcedOpportunityResponse({
+    needsPlacementSuitabilityReview({
       type: input.type as OpportunityType,
       submittedByUserId: input.submittedByUserId ?? null,
+      status: input.statusRaw as OpportunityResponse['status'],
     })
   ) {
     return false

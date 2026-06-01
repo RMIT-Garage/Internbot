@@ -6,7 +6,10 @@ import { Skeleton } from '@/components/ui/ContentSkeleton'
 import {
   CHIP_TONE_CLASSES,
   deriveStudentDashboardStatus,
+  formatSemesterEnrolmentWindow,
   formatSemesterLabel,
+  formatSemesterShort,
+  semesterEnrolmentStateLabel,
 } from '@/lib/semester/display'
 import type { SemesterResponse } from '@/types/api'
 import type { UserWorkflowResponse } from '@/api/models/UserWorkflowResponse'
@@ -19,6 +22,7 @@ interface StudentDashboardStatusCardProps {
   currentWorkflowStep?: CurrentWorkflowStep | string | null
   appliedCount?: number
   pendingReviewCount?: number
+  placementSemesterLabel?: string | null
 }
 
 export function StudentDashboardStatusCard({
@@ -28,6 +32,7 @@ export function StudentDashboardStatusCard({
   currentWorkflowStep,
   appliedCount = 0,
   pendingReviewCount = 0,
+  placementSemesterLabel = null,
 }: StudentDashboardStatusCardProps) {
   if (loading) {
     return (
@@ -49,7 +54,10 @@ export function StudentDashboardStatusCard({
     currentWorkflowStep,
     appliedCount,
     pendingReviewCount,
+    placementSemesterLabel,
   })
+
+  const isPlacementConfirmed = workflow?.internshipStatus === 'offer_approved'
 
   const toneBorder =
     status.tone === 'success'
@@ -79,11 +87,24 @@ export function StudentDashboardStatusCard({
               </span>
             </div>
             {semester ? (
-              <p className="mt-1 text-sm font-semibold text-slate-950">
-                {formatSemesterLabel(semester)}
-              </p>
+              <>
+                <p className="mt-1 text-base font-bold text-slate-950">{semester.displayName}</p>
+                <p className="text-sm text-slate-600">{formatSemesterShort(semester)}</p>
+              </>
+            ) : placementSemesterLabel ? (
+              <p className="mt-1 text-base font-bold text-slate-950">{placementSemesterLabel}</p>
             ) : (
               <p className="mt-1 text-sm font-semibold text-slate-950">No semester selected</p>
+            )}
+            {isPlacementConfirmed && workflow?.semesterEnrolmentState && (
+              <p className="mt-2 text-sm font-medium text-emerald-800">
+                {semesterEnrolmentStateLabel(workflow.semesterEnrolmentState)}
+              </p>
+            )}
+            {semester && isPlacementConfirmed && (
+              <p className="mt-1 text-xs text-slate-500">
+                {formatSemesterEnrolmentWindow(semester)}
+              </p>
             )}
             <h2 className="mt-2 text-lg font-bold text-slate-950">{status.headline}</h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{status.detail}</p>

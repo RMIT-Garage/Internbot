@@ -2,13 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles } from 'lucide-react'
+import { CalendarDays, Sparkles } from 'lucide-react'
 
 import { SemestersService, UsersService } from '@/lib/api/openapi-client'
 import type { SemesterResponse } from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
+import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { useAuthContext } from '@/providers/AuthProvider'
+import {
+  formatSemesterEnrolmentWindow,
+  formatSemesterLabel,
+  studentSemesterPhaseLabel,
+} from '@/lib/semester/display'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -29,14 +35,13 @@ export default function StudentSemestersPage() {
 
   const { refreshProfile } = useAuthContext()
 
-  // 1. Load semesters + user profile
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
 
         const [semesterRes, user] = await Promise.all([
-          SemestersService.listSemesters(['enrollment_open']),
+          SemestersService.listSemesters(['enrollment_open'], undefined, undefined, 100),
           UsersService.getMyProfile(),
         ])
 
@@ -52,10 +57,9 @@ export default function StudentSemestersPage() {
       }
     }
 
-    loadData()
+    void loadData()
   }, [])
 
-  // 2. Confirm selection
   const confirmSelection = async () => {
     if (!selectedSemester) {
       setError('Please select a semester first')
@@ -81,135 +85,151 @@ export default function StudentSemestersPage() {
     }
   }
 
+  const selected = semesters.find((s) => s.id === selectedSemester) ?? null
+
   if (loading) {
     return (
-      <main
-        className="min-h-screen bg-linear-to-b from-slate-50 to-white p-10"
-        aria-busy="true"
-        aria-live="polite"
-      >
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading semesters…</span>
-        <div className="mx-auto max-w-6xl space-y-8">
-          <div>
-            <Skeleton className="h-10 w-72 bg-slate-200" />
-            <Skeleton className="mt-3 h-4 w-96" />
-          </div>
-          <Skeleton className="h-14 w-full rounded-2xl bg-red-100" />
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex justify-between">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-6 w-6" />
-                </div>
-                <Skeleton className="mt-4 h-6 w-32 bg-slate-200" />
-                <Skeleton className="mt-2 h-3 w-24" />
-                <Skeleton className="mt-3 h-3 w-40" />
-              </div>
-            ))}
-          </div>
+        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-14 w-full rounded-2xl" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-40 rounded-2xl" />
+          ))}
         </div>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-linear-to-b from-slate-50 to-white p-10">
-      <div className="mx-auto grid max-w-6xl grid-cols-12 gap-10">
-        {/* LEFT */}
-        <div className="col-span-8 space-y-8">
-          {/* Header */}
-          <div>
-            <h1 className="text-4xl font-bold text-slate-900">Select Your Semester</h1>
-            <p className="mt-2 text-slate-500">
-              Choose an active semester to begin your internship workflow.
-            </p>
-          </div>
+    <div className="space-y-6">
+      <CoordinatorPageHeader
+        eyebrow="Enrollment"
+        title="Select your semester"
+        description="Choose the teaching period and course offering you are enrolling in for internship credit. Only semesters with open enrollment are listed."
+      />
 
-          {/* AI hint */}
-          <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4">
-            <Sparkles className="h-5 w-5 text-red-600" />
-            <p className="text-sm text-red-700">
-              Only <b>active semesters</b> are eligible for enrollment.
-            </p>
-          </div>
+      <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+        <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+        <p className="text-sm leading-6 text-red-800">
+          Pick the semester that matches your program intake. You will browse opportunities and
+          submit applications for this semester only.
+        </p>
+      </div>
 
-          {/* Error / Success */}
-          {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-          {success && (
-            <div className="rounded-xl bg-green-50 p-3 text-sm text-green-600">{success}</div>
+      {success && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {success}
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
+          <SurfaceCard className="overflow-hidden p-0">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-950">Available semesters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Same offerings coordinators manage — name, course code, and enrollment window.
+              </p>
+            </div>
+
+            {semesters.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-slate-500">
+                No semesters are open for enrollment right now. Check back later or contact your
+                coordinator.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {semesters.map((sem) => {
+                  const isSelected = selectedSemester === sem.id
+                  return (
+                    <button
+                      key={sem.id}
+                      type="button"
+                      onClick={() => setSelectedSemester(sem.id)}
+                      className={[
+                        'flex w-full items-start gap-4 px-5 py-4 text-left transition',
+                        isSelected ? 'bg-red-50/80' : 'hover:bg-slate-50',
+                      ].join(' ')}
+                    >
+                      <div
+                        className={[
+                          'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
+                          isSelected ? 'border-red-600 bg-red-600' : 'border-slate-300 bg-white',
+                        ].join(' ')}
+                      >
+                        {isSelected && (
+                          <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                            {studentSemesterPhaseLabel(sem.status)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-base font-bold text-slate-950">{sem.displayName}</p>
+                        <p className="mt-0.5 text-sm text-slate-600">
+                          {sem.semesterCode} · {sem.courseCode}
+                        </p>
+                        <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                          <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+                          {formatSemesterEnrolmentWindow(sem)}
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </SurfaceCard>
+        </div>
+
+        <SurfaceCard className="sticky top-6 p-5 xl:self-start">
+          <h3 className="text-base font-bold text-slate-950">Your selection</h3>
+          {selected ? (
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="text-xs font-bold tracking-wide text-slate-400 uppercase">Semester</p>
+                <p className="mt-1 font-semibold text-slate-950">{selected.displayName}</p>
+                <p className="text-sm text-slate-600">
+                  {selected.semesterCode} · {selected.courseCode}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-bold tracking-wide text-slate-400 uppercase">
+                  Enrollment window
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  {formatSemesterEnrolmentWindow(selected)}
+                </p>
+              </div>
+              <p className="text-sm text-slate-500">{formatSemesterLabel(selected)}</p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-500">Select a semester from the list.</p>
           )}
 
-          {/* Semester List */}
-          <div className="grid grid-cols-2 gap-6">
-            {semesters.map((sem) => {
-              const isSelected = selectedSemester === sem.id
-
-              return (
-                <div
-                  key={sem.id}
-                  onClick={() => setSelectedSemester(sem.id)}
-                  className={`cursor-pointer rounded-3xl border p-6 transition ${
-                    isSelected
-                      ? 'border-red-500 bg-red-50 shadow-lg'
-                      : 'border-slate-200 bg-white hover:shadow-md'
-                  }`}
-                >
-                  <div className="flex justify-between">
-                    <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
-                      {sem.status}
-                    </span>
-
-                    <div
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        isSelected ? 'border-red-500 bg-red-500' : 'border-slate-300'
-                      }`}
-                    />
-                  </div>
-
-                  <h3 className="mt-4 text-xl font-bold text-slate-900">
-                    {sem.semesterCode ?? 'Semester'}
-                  </h3>
-
-                  <p className="text-sm text-slate-500">{sem.courseCode}</p>
-
-                  {sem.enrolmentOpenAt && (
-                    <p className="mt-2 text-xs text-slate-400">
-                      Opens: {new Date(sem.enrolmentOpenAt).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* RIGHT SIDEBAR */}
-        <div className="col-span-4 space-y-6">
-          <div className="sticky top-10 rounded-3xl border bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold">Selection</h3>
-
-            <p className="mt-4 text-sm text-slate-500">Selected Semester:</p>
-
-            <p className="font-semibold text-slate-900">
-              {semesters.find((s) => s.id === selectedSemester)?.semesterCode ?? 'None selected'}
-            </p>
-
-            <button
-              onClick={confirmSelection}
-              disabled={submitting}
-              className="mt-6 w-full rounded-2xl bg-red-600 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {submitting ? 'Saving...' : 'Confirm Selection'}
-            </button>
-
-            <p className="mt-3 text-[11px] text-slate-400">
-              This will lock your semester selection.
-            </p>
-          </div>
-        </div>
+          <button
+            type="button"
+            onClick={() => void confirmSelection()}
+            disabled={submitting || !selectedSemester}
+            className="mt-6 w-full rounded-xl bg-red-600 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? 'Saving…' : 'Confirm and continue'}
+          </button>
+          <p className="mt-3 text-xs leading-5 text-slate-400">
+            This sets your active semester for browsing opportunities and applications.
+          </p>
+        </SurfaceCard>
       </div>
-    </main>
+    </div>
   )
 }

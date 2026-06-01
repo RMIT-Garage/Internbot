@@ -13,6 +13,7 @@ import {
   MapPin,
   MessageSquareText,
   Paperclip,
+  Archive,
   PenLine,
   User,
 } from 'lucide-react'
@@ -28,11 +29,12 @@ import {
   getOpportunityAttachment,
   getUser,
   listSemesters,
+  transitionOpportunity,
   updateOpportunity,
 } from '@/lib/coordinator/api'
 import {
-  isSelfSourcedOpportunityResponse,
   mapOpportunityToSelfSourcedJob,
+  needsPlacementSuitabilityReview,
   opportunityReviewEyebrow,
   opportunitySourceTypeLabel,
 } from '@/lib/coordinator/apiMappers'
@@ -63,7 +65,7 @@ import type {
 export function JobReviewClient() {
   const searchParams = useSearchParams()
   const id = searchParams.get('id')
-  const backHref = getReviewBackHref(searchParams, '/coordinator/opportunities?tab=self-sourced')
+  const backHref = getReviewBackHref(searchParams, '/coordinator/opportunities')
   const [job, setJob] = useState<SelfSourcedJob | null>(null)
   const [opportunityRecord, setOpportunityRecord] = useState<OpportunityResponse | null>(null)
   const [semesterLabels, setSemesterLabels] = useState<Record<string, string>>({})
@@ -87,6 +89,7 @@ export function JobReviewClient() {
     location: '',
   })
   const [saving, setSaving] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const jobCheck = useJobCheck(checkerInput)
 
   useEffect(() => {
@@ -128,7 +131,7 @@ export function JobReviewClient() {
         const jobData = { ...mappedJob, studentName: ownerLabel, studentId: ownerLabel }
         setJob(jobData)
         setAttachments(opportunity.attachments)
-        if (!isSelfSourcedOpportunityResponse(opportunity)) {
+        if (!needsPlacementSuitabilityReview(opportunity)) {
           if (active) setCheckerInput(null)
           return
         }
@@ -226,12 +229,9 @@ export function JobReviewClient() {
     setBackendStatus(decisionToJobBackendStatus(decision))
   }
 
-  const isSelfSourcedReview = opportunityRecord
-    ? isSelfSourcedOpportunityResponse(opportunityRecord)
+  const isSuitabilityApprovalReview = opportunityRecord
+    ? needsPlacementSuitabilityReview(opportunityRecord)
     : false
-  const isSuitabilityApprovalReview =
-    isSelfSourcedReview &&
-    (backendStatus === 'pending_verification' || job.status === 'awaiting_placement_approval')
 
   const reviewEyebrow = opportunityRecord
     ? opportunityReviewEyebrow(
@@ -242,7 +242,9 @@ export function JobReviewClient() {
 
   const canSuitabilityReview = backendStatus === 'pending_verification'
   const canEdit =
-    opportunityRecord !== null && canEditManagedOpportunity(opportunityResponseToEditTarget(opportunityRecord))
+    opportunityRecord !== null &&
+    canEditManagedOpportunity(opportunityResponseToEditTarget(opportunityRecord))
+  const canArchive = backendStatus === 'published' || backendStatus === 'draft'
 
   const handleOpenEdit = () => {
     if (!opportunityRecord) return
@@ -250,7 +252,10 @@ export function JobReviewClient() {
     setEditOpen(true)
   }
 
-  const handleUpdateOpportunity = async (event: FormEvent<HTMLFormElement>, opportunityId: string) => {
+  const handleUpdateOpportunity = async (
+    event: FormEvent<HTMLFormElement>,
+    opportunityId: string
+  ) => {
     event.preventDefault()
     if (!editForm.title.trim() || !editForm.company.trim() || !editForm.semesterId) {
       toast.error('Job title, employer, and semester are required.')
@@ -288,6 +293,34 @@ export function JobReviewClient() {
     }
   }
 
+  const handleArchive = async () => {
+    if (!opportunityRecord) return
+    if (
+      !window.confirm(
+        'Archive this opportunity? Students will no longer see it on the opportunity board.'
+      )
+    ) {
+      return
+    }
+    setArchiving(true)
+    try {
+      const updated = await transitionOpportunity({ id: opportunityRecord.id }, 'archived')
+      setOpportunityRecord(updated)
+      setBackendStatus(updated.status)
+      setJob({
+        ...mapOpportunityToSelfSourcedJob(updated, semesterLabels),
+        studentName: studentOwnerLabel,
+        studentId: studentOwnerLabel,
+      })
+      setAttachments(updated.attachments)
+      toast.success('Opportunity archived.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to archive opportunity.')
+    } finally {
+      setArchiving(false)
+    }
+  }
+
   if (isSuitabilityApprovalReview) {
     return (
       <SuitabilityApprovalReview
@@ -322,7 +355,9 @@ export function JobReviewClient() {
   const listingDescription =
     opportunityRecord?.type === 'pre_approved'
       ? `CareerHub listing for ${job.company}.`
-      : `Coordinator-published listing for ${job.company}.`
+      : opportunityRecord?.status === 'published'
+        ? `Published listing for ${job.company} — edit details or archive when the role is no longer active.`
+        : `Coordinator listing for ${job.company}.`
 
   return (
     <div className="space-y-6">
@@ -340,6 +375,17 @@ export function JobReviewClient() {
               >
                 <PenLine className="h-4 w-4" />
                 Edit opportunity
+              </button>
+            )}
+            {canArchive && (
+              <button
+                type="button"
+                onClick={() => void handleArchive()}
+                disabled={archiving}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                <Archive className="h-4 w-4" />
+                {archiving ? 'Archiving…' : 'Archive'}
               </button>
             )}
             <BackLink href={backHref}>Back to opportunities</BackLink>
@@ -368,7 +414,10 @@ export function JobReviewClient() {
           ].map(([Icon, label, value]) => {
             const DetailIcon = Icon as typeof User
             return (
-              <div key={label as string} className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+              <div
+                key={label as string}
+                className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4"
+              >
                 <DetailIcon className="h-4 w-4 text-red-700" />
                 <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
                   {label as string}

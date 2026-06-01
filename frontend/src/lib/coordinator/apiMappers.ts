@@ -56,30 +56,49 @@ function isExplicitlyFlaggedStatus(status: string) {
   ].includes(status)
 }
 
-export function isSelfSourcedOpportunityResponse(
+/** Student originally submitted this custom opportunity (may now be published). */
+export function hasStudentSubmitter(
   opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId'>
 ) {
   return opportunity.type === 'custom' && Boolean(opportunity.submittedByUserId)
 }
 
-export function opportunitySourceTypeLabel(
-  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId'>
+/** Awaiting coordinator suitability review — not a published listing detail view. */
+export function needsPlacementSuitabilityReview(
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId' | 'status'>
 ) {
-  if (isSelfSourcedOpportunityResponse(opportunity)) return 'Self-Sourced'
+  return hasStudentSubmitter(opportunity) && opportunity.status === 'pending_verification'
+}
+
+/** @deprecated Use {@link needsPlacementSuitabilityReview} or {@link hasStudentSubmitter}. */
+export function isSelfSourcedOpportunityResponse(
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId' | 'status'>
+) {
+  return needsPlacementSuitabilityReview(opportunity)
+}
+
+export function opportunitySourceTypeLabel(
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId' | 'status'>
+) {
+  if (needsPlacementSuitabilityReview(opportunity)) return 'Self-Sourced (pending review)'
+  if (hasStudentSubmitter(opportunity) && opportunity.status === 'published') {
+    return 'Verified student listing'
+  }
   if (opportunity.type === 'pre_approved') return 'CareerHub'
   return 'Coordinator Published'
 }
 
 export function opportunityReviewEyebrow(
-  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId'>,
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId' | 'status'>,
   mode: 'suitability' | 'detail' = 'detail'
 ) {
-  if (isSelfSourcedOpportunityResponse(opportunity)) {
-    return mode === 'suitability'
-      ? 'Self-Sourced Opportunity Review'
-      : 'Self-Sourced Opportunity'
+  if (needsPlacementSuitabilityReview(opportunity)) {
+    return mode === 'suitability' ? 'Self-Sourced Opportunity Review' : 'Self-Sourced Opportunity'
   }
   if (opportunity.type === 'pre_approved') return 'CareerHub Opportunity'
+  if (opportunity.status === 'published') return 'Published Opportunity'
+  if (opportunity.status === 'draft') return 'Draft Opportunity'
+  if (opportunity.status === 'archived') return 'Archived Opportunity'
   return 'Coordinator Opportunity'
 }
 

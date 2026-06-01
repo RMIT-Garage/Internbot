@@ -48,6 +48,46 @@ export function formatSemesterLabel(
     : semester.displayName
 }
 
+function formatShortDate(value: string, includeYear = false) {
+  return new Intl.DateTimeFormat('en-AU', {
+    month: 'short',
+    day: 'numeric',
+    ...(includeYear ? { year: 'numeric' } : {}),
+  }).format(new Date(value))
+}
+
+export function formatSemesterEnrolmentWindow(
+  semester: Pick<SemesterResponse, 'enrolmentOpenAt' | 'enrolmentCloseAt'>
+) {
+  if (semester.enrolmentOpenAt && semester.enrolmentCloseAt) {
+    return `${formatShortDate(semester.enrolmentOpenAt)} – ${formatShortDate(semester.enrolmentCloseAt)}`
+  }
+  if (semester.enrolmentOpenAt) {
+    return `Opens ${formatShortDate(semester.enrolmentOpenAt, true)}`
+  }
+  if (semester.enrolmentCloseAt) {
+    return `Closes ${formatShortDate(semester.enrolmentCloseAt, true)}`
+  }
+  return 'Enrollment window pending'
+}
+
+export function semesterEnrolmentStateLabel(
+  state: SemesterEnrolmentState | string | null | undefined
+): string {
+  if (state === 'enrolled') return 'Enrolled in internship course'
+  if (state === 'window_closed') return 'Enrolled — placement period active'
+  if (state === 'not_enrolled') return 'Not enrolled'
+  return 'Enrollment status unknown'
+}
+
+export function studentSemesterPhaseLabel(status: SemesterStatus | string) {
+  if (status === 'enrollment_open') return 'Enrollment open'
+  if (status === 'placement_running') return 'Placements in progress'
+  if (status === 'reporting') return 'Reporting'
+  if (status === 'draft') return 'Setup'
+  return semesterStatusLabel(status)
+}
+
 export function formatSemesterShort(
   semester: Pick<SemesterResponse, 'displayName' | 'semesterCode' | 'courseCode'>
 ) {
@@ -150,6 +190,8 @@ export function deriveStudentDashboardStatus(input: {
   currentWorkflowStep?: CurrentWorkflowStep | string | null
   appliedCount?: number
   pendingReviewCount?: number
+  /** Fallback when profile semester fetch fails but placement has semester fields. */
+  placementSemesterLabel?: string | null
 }): {
   headline: string
   detail: string
@@ -159,18 +201,26 @@ export function deriveStudentDashboardStatus(input: {
   const { semester, workflow, appliedCount = 0, pendingReviewCount = 0 } = input
   const step = workflow?.currentWorkflowStep ?? input.currentWorkflowStep ?? 'profile'
   const internshipStatus = workflow?.internshipStatus
-  const semesterLabel = semester ? formatSemesterLabel(semester) : 'your selected semester'
+  const semesterLabel = semester
+    ? formatSemesterLabel(semester)
+    : (input.placementSemesterLabel ?? 'your selected semester')
   const chip = deriveStudentSemesterChip({
     semester,
     semesterEnrolmentState: workflow?.semesterEnrolmentState,
     internshipStatus,
   })
 
-  if (internshipStatus === 'offer_approved' && semester) {
-    const course = semester.courseCode ? ` (${semester.courseCode})` : ''
+  if (internshipStatus === 'offer_approved') {
+    const course = semester?.courseCode ? ` (${semester.courseCode})` : ''
+    const enrolmentNote =
+      workflow?.semesterEnrolmentState === 'window_closed'
+        ? ' The enrollment window has closed; your coordinator is running placements for this period.'
+        : workflow?.semesterEnrolmentState === 'enrolled'
+          ? ' You are enrolled in the internship course for this teaching period.'
+          : ''
     return {
       headline: 'Enrolled for this semester',
-      detail: `Your placement is confirmed for ${semesterLabel}${course}. You are enrolled in the internship course for this teaching period and do not need to submit additional applications.`,
+      detail: `Your placement is confirmed for ${semesterLabel}${course}.${enrolmentNote} You do not need to submit additional applications.`,
       tone: 'success',
       chipLabel: chip.label,
     }

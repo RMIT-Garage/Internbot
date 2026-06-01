@@ -32,6 +32,7 @@ import type {
   SemesterResponse,
 } from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
+import { formatSemesterEnrolmentWindow, studentSemesterPhaseLabel } from '@/lib/semester/display'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -350,7 +351,7 @@ export default function StudentOpportunitiesPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         sem.status === 'enrollment_open'
                           ? 'bg-green-50 text-green-700'
                           : sem.status === 'placement_running' || sem.status === 'reporting'
@@ -358,7 +359,7 @@ export default function StudentOpportunitiesPage() {
                             : 'bg-gray-100 text-gray-500'
                       }`}
                     >
-                      {sem.status.replace(/_/g, ' ')}
+                      {studentSemesterPhaseLabel(sem.status)}
                     </span>
                     <div
                       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
@@ -368,23 +369,15 @@ export default function StudentOpportunitiesPage() {
                       {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
                     </div>
                   </div>
-                  <p className="mt-4 text-lg font-bold text-gray-900">
-                    {sem.semesterCode ?? 'Semester'}
+                  <p className="mt-4 text-lg font-bold text-gray-900">{sem.displayName}</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    {sem.semesterCode}
+                    {sem.courseCode ? ` · ${sem.courseCode}` : ''}
                   </p>
-                  {sem.courseCode && (
-                    <p className="mt-0.5 text-sm text-gray-500">{sem.courseCode}</p>
-                  )}
-                  {sem.enrolmentOpenAt && (
-                    <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      Opens{' '}
-                      {new Date(sem.enrolmentOpenAt).toLocaleDateString('en-AU', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  )}
+                  <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {formatSemesterEnrolmentWindow(sem)}
+                  </p>
                 </button>
               )
             })}
@@ -439,9 +432,7 @@ export default function StudentOpportunitiesPage() {
   )
   const selfSourcedPending = [...backendPending, ...localFallback]
   const currentSemester = semesters.find((s) => s.id === semesterId)
-  const approvedInternship = internshipsForSemester.find(
-    (i) => i.status === 'offer_approved'
-  )
+  const approvedInternship = internshipsForSemester.find((i) => i.status === 'offer_approved')
   const hasApprovedPlacement = Boolean(approvedInternship)
   const appliedCount = internshipsForSemester.length
 

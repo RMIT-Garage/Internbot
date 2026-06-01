@@ -48,6 +48,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               loading={studentSemesterCtx.loading}
               semester={studentSemesterCtx.semester}
               workflow={studentSemesterCtx.workflow}
+              placementSemesterLabel={studentSemesterCtx.placementSemesterLabel}
               canChangeSemester={studentSemesterCtx.canChangeSemester}
               className="mb-6"
             />
