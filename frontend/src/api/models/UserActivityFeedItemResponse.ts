@@ -20,6 +20,7 @@ export type UserActivityFeedItemResponse = {
     | 'offer_changes_requested'
     | 'offer_approved'
     | 'rejected'
+    | 'withdrawn'
     | 'draft'
     | 'pending_verification'
     | 'published'
@@ -31,6 +32,7 @@ export type UserActivityFeedItemResponse = {
     | 'offer_changes_requested'
     | 'offer_approved'
     | 'rejected'
+    | 'withdrawn'
     | 'draft'
     | 'pending_verification'
     | 'published'
@@ -52,6 +54,7 @@ export namespace UserActivityFeedItemResponse {
     REQUEST_CHANGES = 'request_changes',
     REJECT = 'reject',
     EDIT = 'edit',
+    WITHDRAW = 'withdraw',
     TRANSITION = 'transition',
     VERIFICATION = 'verification',
   }

@@ -17,6 +17,7 @@ export type InternshipStatus =
   | 'offer_changes_requested'
   | 'offer_approved'
   | 'rejected'
+  | 'withdrawn'
 
 export interface InternshipAttachmentResponse {
   id: string

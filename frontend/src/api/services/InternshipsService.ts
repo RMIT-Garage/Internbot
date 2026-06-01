@@ -31,7 +31,12 @@ export class InternshipsService {
    */
   public static listInternships(
     status?: Array<
-      'applied' | 'offer_pending_review' | 'offer_changes_requested' | 'offer_approved' | 'rejected'
+      | 'applied'
+      | 'offer_pending_review'
+      | 'offer_changes_requested'
+      | 'offer_approved'
+      | 'rejected'
+      | 'withdrawn'
     >,
     opportunityId?: string,
     userId?: string,
@@ -282,32 +287,6 @@ export class InternshipsService {
    * @returns InternshipResponse Decision recorded.
    * @throws ApiError
    */
-  /**
-   * Withdraw an internship application
-   * Student-owner only. Allowed from applied, offer_pending_review, or offer_changes_requested.
-   * @param id Platform internship id.
-   * @param ifMatch Opt-in optimistic concurrency — the current ETag from a prior GET.
-   * @returns InternshipResponse Updated internship with withdrawn status.
-   * @throws ApiError
-   */
-  public static withdrawInternship(
-    id: string,
-    ifMatch?: string
-  ): CancelablePromise<InternshipResponse> {
-    return __request(OpenAPI, {
-      method: 'POST',
-      url: '/api/v1/internships/{id}/withdrawals',
-      path: { id },
-      headers: { 'if-match': ifMatch },
-      errors: {
-        403: `Caller is not the student owner.`,
-        404: `No internship exists with the supplied id.`,
-        409: `Application cannot be withdrawn in its current state.`,
-        412: `Stale \`If-Match\`.`,
-      },
-    })
-  }
-
   public static decideInternshipOffer(
     id: string,
     requestBody: DecideInternshipOfferRequest,
@@ -330,6 +309,35 @@ export class InternshipsService {
         409: `Internship is not pending offer review.`,
         412: `Stale \`If-Match\`.`,
         422: `Missing comment for changes_requested or rejected decisions.`,
+      },
+    })
+  }
+  /**
+   * Withdraw an internship application
+   * Student-owner only. Transitions applied, offer_pending_review, or offer_changes_requested to withdrawn.
+   * @param id Platform internship id.
+   * @param ifMatch Opt-in optimistic concurrency — the current ETag from a prior GET.
+   * @returns InternshipResponse Application withdrawn.
+   * @throws ApiError
+   */
+  public static withdrawInternship(
+    id: string,
+    ifMatch?: string
+  ): CancelablePromise<InternshipResponse> {
+    return __request(OpenAPI, {
+      method: 'POST',
+      url: '/api/v1/internships/{id}/withdrawals',
+      path: {
+        id: id,
+      },
+      headers: {
+        'if-match': ifMatch,
+      },
+      errors: {
+        403: `Caller is not the student owner.`,
+        404: `No internship exists with the supplied id.`,
+        409: `Application cannot be withdrawn in its current state.`,
+        412: `Stale \`If-Match\`.`,
       },
     })
   }

@@ -32,5 +32,6 @@ export namespace InternshipListItemResponse {
     OFFER_CHANGES_REQUESTED = 'offer_changes_requested',
     OFFER_APPROVED = 'offer_approved',
     REJECTED = 'rejected',
+    WITHDRAWN = 'withdrawn',
   }
 }

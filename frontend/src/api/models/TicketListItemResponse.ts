@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Support ticket list item — body is omitted from list responses.
+ * Support ticket list item — body and replies are omitted from list responses.
  */
 export type TicketListItemResponse = {
   id: string

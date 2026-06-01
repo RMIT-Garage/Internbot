@@ -22,6 +22,7 @@ export namespace InternshipActivityResponse {
     REQUEST_CHANGES = 'request_changes',
     REJECT = 'reject',
     EDIT = 'edit',
+    WITHDRAW = 'withdraw',
   }
   export enum authorRole {
     STUDENT = 'student',
