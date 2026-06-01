@@ -518,6 +518,14 @@ export function internshipUpdatedAt(internship: InternshipListItemResponse | Int
   )
 }
 
+/** Student has uploaded and submitted offer documents (not merely applied to the opportunity). */
+export function hasInternshipOfferDocumentsSubmitted(
+  internship: Pick<InternshipListItemResponse, 'status' | 'lastSubmittedAt'>
+): boolean {
+  if (internship.lastSubmittedAt) return true
+  return internship.status !== 'applied'
+}
+
 function sortInternshipsByActivity<T extends InternshipListItemResponse | InternshipResponse>(
   internships: T[]
 ) {

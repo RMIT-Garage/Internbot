@@ -4,8 +4,6 @@ import Link from 'next/link'
 import { Bell, LogOut, Search, User } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { CoordinatorSemesterSwitcher } from './CoordinatorSemesterSwitcher'
-
 export function CoordinatorTopbar() {
   const router = useRouter()
   const { user, signOut } = useAuth()
@@ -18,8 +16,7 @@ export function CoordinatorTopbar() {
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur xl:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <CoordinatorSemesterSwitcher />
-        <div className="hidden h-10 w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 transition focus-within:border-red-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-red-100 md:flex">
+        <div className="flex h-10 w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 transition focus-within:border-red-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-red-100">
           <Search className="h-4 w-4" />
           Search students, submissions, employers
         </div>

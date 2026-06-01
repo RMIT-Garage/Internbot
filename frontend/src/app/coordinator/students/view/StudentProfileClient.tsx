@@ -18,10 +18,12 @@ import {
   getInternshipStudentId,
   getInternshipStudentKey,
   hasBackendStudentId,
+  hasInternshipOfferDocumentsSubmitted,
   internshipSourceLabel,
   internshipStageLabel,
   internshipUpdatedAt,
 } from '@/lib/coordinator/apiMappers'
+import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
@@ -280,12 +282,20 @@ export function StudentProfileClient() {
                           {formatDate(internshipUpdatedAt(item))}
                         </td>
                         <td className="px-4 py-4">
-                          <Link
-                            href={`/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`}
-                            className="text-sm font-bold text-red-700 hover:text-red-800"
-                          >
-                            Open review
-                          </Link>
+                          {hasInternshipOfferDocumentsSubmitted(item) ? (
+                            <Link
+                              href={withReviewReturn(
+                                `/coordinator/contracts/review?id=${encodeURIComponent(item.id)}`,
+                                returnTo,
+                                { context: PLACEMENT_PROCESSING_CONTEXT }
+                              )}
+                              className="text-sm font-bold text-red-700 hover:text-red-800"
+                            >
+                              View details
+                            </Link>
+                          ) : (
+                            <span className="text-sm text-slate-400">Awaiting documents</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -513,7 +523,10 @@ function isPlacementApprovalStage(item: InternshipListItemResponse) {
 
 function normalizeReturnTo(value: string | null) {
   if (!value) return '/coordinator/students'
-  if (value.startsWith('/coordinator/students') || value.startsWith('/coordinator/semesters/')) {
+  if (
+    value.startsWith('/coordinator/students') ||
+    value.startsWith('/coordinator/semesters/students')
+  ) {
     return value
   }
   return '/coordinator/students'

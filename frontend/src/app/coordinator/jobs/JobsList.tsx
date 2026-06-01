@@ -17,7 +17,7 @@ import {
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { getUser, listInternships } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
-import { useCoordinatorSemesterContext } from '@/lib/coordinator/semesterContext'
+import { useCoordinatorSemesterOptions } from '@/lib/coordinator/semesterContext'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
@@ -132,13 +132,12 @@ function removeFilterHref(searchParams: URLSearchParams, name: string) {
 
 export function JobsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
-  const { semesterId: selectedSemesterId, semesters: semesterOptions, semesterLabels } =
-    useCoordinatorSemesterContext()
+  const { semesters: semesterOptions, semesterLabels } = useCoordinatorSemesterOptions()
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const stage = params.get('stage') ?? undefined
   const status = params.get('status') ?? undefined
-  const semester = params.get('semester') ?? selectedSemesterId ?? undefined
+  const semester = params.get('semester') ?? undefined
   const course = params.get('course') ?? undefined
   const action = params.get('action') ?? undefined
   const outcome = params.get('outcome') ?? undefined
@@ -317,28 +316,45 @@ function PipelineFilters({
       method="get"
       className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <div className="grid gap-3 lg:grid-cols-5">
-        <label className="grid gap-1 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12">
+        <label className="grid min-w-0 gap-1 sm:col-span-2 xl:col-span-5">
           <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">Search</span>
           <input
             name="search"
             defaultValue={search}
             placeholder="Student, employer, or role"
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+            className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
           />
         </label>
-        <FilterSelect name="stage" label="Stage" value={stage} options={stageOptions} />
         <FilterSelect
+          className="min-w-0 xl:col-span-2"
+          name="stage"
+          label="Stage"
+          value={stage}
+          options={stageOptions}
+        />
+        <FilterSelect
+          className="min-w-0 xl:col-span-2"
           name="semester"
           label="Semester"
           value={semester}
           options={[{ label: 'All semesters', value: 'all' }, ...semesterOptions]}
         />
-        <CourseKeywordFilter value={course} options={courseOptions} />
+        <CourseKeywordFilter
+          className="min-w-0 sm:col-span-2 xl:col-span-3"
+          value={course}
+          options={courseOptions}
+        />
       </div>
-      <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_auto] lg:items-end">
-        <FilterSelect name="sort" label="Sort" value={sort} options={sortOptions} />
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <FilterSelect
+          className="min-w-0 flex-1 sm:max-w-md sm:min-w-[220px]"
+          name="sort"
+          label="Sort"
+          value={sort}
+          options={sortOptions}
+        />
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="submit"
             className="h-10 rounded-xl bg-red-700 px-4 text-sm font-bold text-white transition-colors hover:bg-red-800"
@@ -357,7 +373,7 @@ function PipelineFilters({
         <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-800">
           More filters
         </summary>
-        <div className="grid gap-3 border-t border-slate-200 p-4 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-3">
           <FilterSelect name="status" label="Status" value={status} options={statusOptions} />
           <FilterSelect name="action" label="Action state" value={action} options={actionOptions} />
           <FilterSelect name="outcome" label="Outcome" value={outcome} options={outcomeOptions} />
@@ -389,19 +405,21 @@ function FilterSelect({
   label,
   value,
   options,
+  className,
 }: {
   name: string
   label: string
   value?: string
   options: Array<{ label: string; value: string }>
+  className?: string
 }) {
   return (
-    <label className="grid gap-1">
+    <label className={cn('grid min-w-0 gap-1', className)}>
       <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">{label}</span>
       <select
         name={name}
         defaultValue={value ?? 'all'}
-        className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+        className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -413,18 +431,26 @@ function FilterSelect({
   )
 }
 
-function CourseKeywordFilter({ value, options }: { value?: string; options: string[] }) {
+function CourseKeywordFilter({
+  value,
+  options,
+  className,
+}: {
+  value?: string
+  options: string[]
+  className?: string
+}) {
   return (
-    <label className="grid gap-1">
+    <label className={cn('grid min-w-0 gap-1', className)}>
       <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">
-        Course, Program, or Subject
+        Course or program
       </span>
       <input
         name="course"
         defaultValue={value === 'all' ? '' : value}
         list="placement-course-options"
-        placeholder="All courses/programs/subjects"
-        className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+        placeholder="All courses or programs"
+        className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
       />
       <datalist id="placement-course-options">
         {options.map((option) => (

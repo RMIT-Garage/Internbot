@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CalendarDays, Sparkles } from 'lucide-react'
 
 import { SemestersService, UsersService } from '@/lib/api/openapi-client'
-import type { SemesterResponse } from '@/lib/api/openapi-client'
+import type { SemesterResponse } from '@/types/api'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
@@ -15,6 +15,10 @@ import {
   formatSemesterLabel,
   studentSemesterPhaseLabel,
 } from '@/lib/semester/display'
+import {
+  STUDENT_SEMESTER_LIST_STATUSES,
+  filterEnrollableSemesters,
+} from '@/lib/semester/studentSemesters'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -41,11 +45,16 @@ export default function StudentSemestersPage() {
         setLoading(true)
 
         const [semesterRes, user] = await Promise.all([
-          SemestersService.listSemesters(['enrollment_open'], undefined, undefined, 100),
+          SemestersService.listSemesters(
+            [...STUDENT_SEMESTER_LIST_STATUSES],
+            undefined,
+            undefined,
+            100
+          ),
           UsersService.getMyProfile(),
         ])
 
-        setSemesters(semesterRes.items)
+        setSemesters(filterEnrollableSemesters(semesterRes.items as SemesterResponse[]))
 
         if (user.role === 'student') {
           setSelectedSemester(user.studentProfile?.semesterId ?? null)

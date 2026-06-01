@@ -112,7 +112,7 @@ export function resolveSemesterLabel(
   return labelMap[semesterId] ?? semesterId
 }
 
-function isEnrolmentWindowOpen(
+export function isEnrolmentWindowOpen(
   semester: Pick<SemesterResponse, 'enrolmentOpenAt' | 'enrolmentCloseAt'>,
   now = new Date()
 ) {

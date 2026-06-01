@@ -20,7 +20,7 @@ const firestoreTimestamp = z.instanceof(Timestamp)
 // 'enrollment_open' in mapStorageToSemester). Stored docs with 'active' are
 // transparently rehydrated as 'enrollment_open'; the next save writes the new
 // value. Run scripts/migrate-semester-status.ts after deploy to close the
-// list-query gap for filter=enrollment_open.
+// list-query gap for filter=enrollment_open (see expandStoredStatusFilter).
 const storedStatusSchema = z.union([z.enum(semesterStatusValues), z.literal('active')])
 
 export const semesterStorageSchema = z.object({

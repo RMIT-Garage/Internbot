@@ -23,7 +23,7 @@ import {
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { getUser, listInternships } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
-import { useCoordinatorSemesterContext } from '@/lib/coordinator/semesterContext'
+import { useCoordinatorSemesterOptions } from '@/lib/coordinator/semesterContext'
 import {
   compareByDate,
   matchesParam,
@@ -74,12 +74,11 @@ function contractStudentLabel(contract: ContractApproval, studentLabels: Record<
 
 export function ContractsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
-  const { semesterId: selectedSemesterId, semesters: semesterOptions, semesterLabels } =
-    useCoordinatorSemesterContext()
+  const { semesters: semesterOptions, semesterLabels } = useCoordinatorSemesterOptions()
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const status = params.get('status') ?? undefined
-  const semester = params.get('semester') ?? selectedSemesterId ?? undefined
+  const semester = params.get('semester') ?? undefined
   const course = params.get('course') ?? undefined
   const search = params.get('search')?.toLowerCase()
   const sort = params.get('sort') ?? 'date'

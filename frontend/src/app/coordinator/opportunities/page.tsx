@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Eye,
   FileText,
+  MoreVertical,
   PenLine,
   Plus,
   Search,
@@ -35,7 +36,7 @@ import {
   transitionOpportunity,
   updateOpportunity,
 } from '@/lib/coordinator/api'
-import { formatDate } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import {
   OPPORTUNITY_SELF_SOURCED_TAB,
   opportunityReviewHref,
@@ -862,11 +863,21 @@ function OpportunityFiltersBar({
   )
 }
 
-const PUBLISHED_TABLE_GRID =
-  'grid grid-cols-1 gap-3 border-b border-slate-100 px-5 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.95fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_auto] lg:items-center lg:gap-x-4 lg:gap-y-0'
+const PUBLISHED_TABLE_COLUMNS =
+  'lg:grid-cols-[minmax(0,1.45fr)_6.5rem_minmax(0,1.15fr)_minmax(0,1.2fr)_2.75rem_minmax(0,7.5rem)_6.75rem]'
 
-const PUBLISHED_TABLE_HEAD =
-  'hidden border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.95fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_auto] lg:items-center lg:gap-x-4'
+const PUBLISHED_TABLE_GRID = [
+  'grid grid-cols-1 gap-3 border-b border-slate-100 px-5 py-4 last:border-b-0',
+  PUBLISHED_TABLE_COLUMNS,
+  'lg:items-center lg:gap-x-4 lg:gap-y-0',
+].join(' ')
+
+const PUBLISHED_TABLE_HEAD = [
+  'hidden border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase',
+  'lg:grid',
+  PUBLISHED_TABLE_COLUMNS,
+  'lg:items-center lg:gap-x-4',
+].join(' ')
 
 function PublishedOpportunitySection({
   rows,
@@ -933,20 +944,20 @@ function PublishedOpportunitySection({
       </div>
       <SurfaceCard className="overflow-hidden p-0">
         <div className={PUBLISHED_TABLE_HEAD}>
-          <span>Opportunity</span>
-          <span>Source</span>
-          <span>Semester</span>
-          <span>Status</span>
+          <span className="text-left">Opportunity</span>
+          <span className="text-left">Source</span>
+          <span className="text-left">Semester</span>
+          <span className="text-left">Status</span>
           <span className="text-center">Apps</span>
-          <span>Student owner</span>
-          <span className="text-right">Actions</span>
+          <span className="text-left">Student owner</span>
+          <span className="text-left">Actions</span>
         </div>
         {rows.length === 0 ? (
           <EmptyState message={emptyMessage} />
         ) : (
           rows.map((row) => (
             <div key={row.id} className={PUBLISHED_TABLE_GRID}>
-              <div className="min-w-0">
+              <div className="min-w-0 text-left">
                 <p className="truncate text-sm font-bold text-slate-950">{row.title}</p>
                 <p className="mt-0.5 truncate text-xs text-slate-500">{row.company}</p>
                 <div className="mt-2 flex flex-wrap gap-2 lg:hidden">
@@ -954,40 +965,28 @@ function PublishedOpportunitySection({
                   <StatePill row={row} />
                 </div>
               </div>
-              <div className="lg:flex lg:items-center">
+              <div className="flex items-center justify-start">
                 <SourceTypeBadge row={row} />
               </div>
-              <p className="truncate text-sm text-slate-600" title={row.semesterLabel}>
+              <p
+                className="min-w-0 truncate text-left text-sm text-slate-600"
+                title={row.semesterLabel}
+              >
                 {row.semesterLabel}
               </p>
-              <div className="hidden lg:block">
+              <div className="hidden items-center justify-start lg:flex">
                 <StatePill row={row} />
               </div>
-              <p className="text-sm font-bold text-slate-950 lg:text-center">{row.applications}</p>
+              <p className="text-center text-sm font-bold text-slate-950 tabular-nums">
+                {row.applications}
+              </p>
               <StudentOwnerCell row={row} studentLabels={studentLabels} />
-              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-                <IconAction
-                  href={opportunityReviewHref(row.id, '/coordinator/opportunities', row)}
-                  label="View"
-                  icon={Eye}
-                />
-                {!isArchived(row) && (
-                  <>
-                    {canEditManagedOpportunity(row) && (
-                      <IconButton label="Edit" icon={PenLine} onClick={() => onEdit(row)} />
-                    )}
-                    <IconButton
-                      label={transitioningId === row.id ? 'Archiving' : 'Archive'}
-                      icon={Archive}
-                      disabled={transitioningId === row.id}
-                      onClick={() => onTransition(row, 'archived')}
-                    />
-                  </>
-                )}
-                {isArchived(row) && (
-                  <span className="text-xs font-medium text-slate-500">Archived</span>
-                )}
-              </div>
+              <PublishedOpportunityRowActions
+                row={row}
+                transitioningId={transitioningId}
+                onEdit={onEdit}
+                onTransition={onTransition}
+              />
             </div>
           ))
         )}
@@ -1176,6 +1175,93 @@ function SourceTypeBadge({ row }: { row: OpportunityRow }) {
   )
 }
 
+function PublishedOpportunityRowActions({
+  row,
+  transitioningId,
+  onEdit,
+  onTransition,
+}: {
+  row: OpportunityRow
+  transitioningId: string | null
+  onEdit: (opportunity: OpportunityRow) => void
+  onTransition: (opportunity: OpportunityRow, to: 'archived') => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const archived = isArchived(row)
+  const canEdit = canEditManagedOpportunity(row)
+  const archiving = transitioningId === row.id
+  const showMenu = !archived
+
+  return (
+    <div className="relative flex items-center justify-start gap-1">
+      <IconAction
+        href={opportunityReviewHref(row.id, '/coordinator/opportunities', row)}
+        label="View"
+        icon={Eye}
+      />
+      {archived ? (
+        <span className="text-xs font-medium text-slate-500">Archived</span>
+      ) : (
+        showMenu && (
+          <>
+            <button
+              type="button"
+              aria-label="More actions"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:border-red-200 hover:bg-red-50"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-10 cursor-default"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute top-full right-0 z-20 mt-1 min-w-[9.5rem] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                >
+                  {canEdit && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        onEdit(row)
+                        setMenuOpen(false)
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <PenLine className="h-4 w-4 text-slate-500" />
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={archiving}
+                    onClick={() => {
+                      onTransition(row, 'archived')
+                      setMenuOpen(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Archive className="h-4 w-4 text-slate-500" />
+                    {archiving ? 'Archiving…' : 'Archive'}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )
+      )}
+    </div>
+  )
+}
+
 function StudentOwnerCell({
   row,
   studentLabels,
@@ -1184,7 +1270,7 @@ function StudentOwnerCell({
   studentLabels: Record<string, string>
 }) {
   return (
-    <div className="text-sm">
+    <div className="min-w-0 text-left text-sm">
       <p
         className={[
           'font-semibold',
@@ -1338,43 +1424,26 @@ function IconAction({
   href,
   label,
   icon: Icon,
+  compact = false,
 }: {
   href: string
   label: string
   icon: typeof Eye
+  compact?: boolean
 }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50"
+      className={cn(
+        'inline-flex h-8 items-center rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50',
+        compact ? 'w-8 justify-center px-0' : 'gap-1 px-2.5'
+      )}
+      title={compact ? label : undefined}
+      aria-label={compact ? label : undefined}
     >
       <Icon className="h-3.5 w-3.5" />
-      {label}
+      {!compact && label}
     </Link>
-  )
-}
-
-function IconButton({
-  label,
-  icon: Icon,
-  disabled,
-  onClick,
-}: {
-  label: string
-  icon: typeof Eye
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </button>
   )
 }
 
@@ -1457,10 +1526,7 @@ function isDraftStatus(status: OpportunityStatus | string) {
   return String(status).toLowerCase() === 'draft'
 }
 
-function mergeOpportunityItems(
-  preferredItem: OpportunityResponse,
-  items: OpportunityResponse[]
-) {
+function mergeOpportunityItems(preferredItem: OpportunityResponse, items: OpportunityResponse[]) {
   return [preferredItem, ...items.filter((item) => item.id !== preferredItem.id)]
 }
 
