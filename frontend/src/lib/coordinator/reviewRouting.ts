@@ -2,6 +2,37 @@ export const OPPORTUNITY_SELF_SOURCED_TAB = 'self-sourced'
 export const SELF_SOURCED_REVIEW_CONTEXT = 'self-sourced-review'
 export const PLACEMENT_PROCESSING_CONTEXT = 'placement-processing'
 
+export function isSelfSourcedOpportunityRecord(input: {
+  type: string
+  submittedByUserId?: string | null
+}) {
+  const type = String(input.type).toLowerCase()
+  return (type === 'custom' || type === 'self_sourced') && Boolean(input.submittedByUserId)
+}
+
+export function opportunityReviewHrefOptions(input: {
+  type: string
+  submittedByUserId?: string | null
+}) {
+  if (isSelfSourcedOpportunityRecord(input)) {
+    return { tab: OPPORTUNITY_SELF_SOURCED_TAB, context: SELF_SOURCED_REVIEW_CONTEXT }
+  }
+  return {}
+}
+
+export function opportunityReviewHref(
+  opportunityId: string,
+  returnTo: string,
+  input: { type: string; submittedByUserId?: string | null }
+) {
+  const options = opportunityReviewHrefOptions(input)
+  return withReviewReturn(
+    `/coordinator/jobs/review?id=${encodeURIComponent(opportunityId)}`,
+    returnTo,
+    options
+  )
+}
+
 export function withReviewReturn(
   href: string,
   returnTo: string,

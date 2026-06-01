@@ -56,6 +56,33 @@ function isExplicitlyFlaggedStatus(status: string) {
   ].includes(status)
 }
 
+export function isSelfSourcedOpportunityResponse(
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId'>
+) {
+  return opportunity.type === 'custom' && Boolean(opportunity.submittedByUserId)
+}
+
+export function opportunitySourceTypeLabel(
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId'>
+) {
+  if (isSelfSourcedOpportunityResponse(opportunity)) return 'Self-Sourced'
+  if (opportunity.type === 'pre_approved') return 'CareerHub'
+  return 'Coordinator Published'
+}
+
+export function opportunityReviewEyebrow(
+  opportunity: Pick<OpportunityResponse, 'type' | 'submittedByUserId'>,
+  mode: 'suitability' | 'detail' = 'detail'
+) {
+  if (isSelfSourcedOpportunityResponse(opportunity)) {
+    return mode === 'suitability'
+      ? 'Self-Sourced Opportunity Review'
+      : 'Self-Sourced Opportunity'
+  }
+  if (opportunity.type === 'pre_approved') return 'CareerHub Opportunity'
+  return 'Coordinator Opportunity'
+}
+
 export function mapOpportunityToSelfSourcedJob(
   opportunity: OpportunityResponse,
   semesterLabels: Record<string, string> = {}
@@ -66,6 +93,7 @@ export function mapOpportunityToSelfSourcedJob(
     studentId: formatStudentDisplayFromIds(opportunity.submittedByUserId),
     course: 'Program pending',
     semester: resolveSemesterLabel(opportunity.semesterId, semesterLabels),
+    semesterId: opportunity.semesterId,
     jobTitle: opportunity.jobTitle,
     company: opportunity.employerName,
     submissionDate: opportunity.updatedAt ?? opportunity.createdAt,

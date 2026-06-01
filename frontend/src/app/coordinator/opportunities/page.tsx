@@ -15,6 +15,14 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
+import {
+  OpportunityEditModal,
+  openEditFormForTarget,
+} from '@/components/coordinator/OpportunityEditModal'
+import {
+  canEditManagedOpportunity,
+  type OpportunityEditFormState,
+} from '@/components/coordinator/opportunityEdit'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { opportunities } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
@@ -30,10 +38,10 @@ import {
 import { formatDate } from '@/lib/utils'
 import {
   OPPORTUNITY_SELF_SOURCED_TAB,
-  SELF_SOURCED_REVIEW_CONTEXT,
-  withReviewReturn,
+  opportunityReviewHref,
 } from '@/lib/coordinator/reviewRouting'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
+import { buildSemesterLabelMap, formatSemesterLabel } from '@/lib/semester/display'
 import type { OpportunityResponse, OpportunityStatus, SemesterResponse } from '@/types/api'
 
 type WorkMode = 'onsite' | 'hybrid' | 'remote'
@@ -163,18 +171,20 @@ export default function CoordinatorOpportunitiesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [transitioningId, setTransitioningId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<OpportunityRow | null>(null)
   const [publishingView, setPublishingView] = useState<PublishingView>('active')
   const [activeTab, setActiveTab] = useState<OpportunityTab>('published')
   const [filters, setFilters] = useState<OpportunityFilters>(initialFilters)
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<OpportunityEditFormState>({
     title: '',
     company: '',
     semesterId: '',
     descriptionText: '',
     sourceUrl: '',
-    type: 'custom' as OpportunityType,
+    type: 'custom',
+    workMode: 'hybrid',
+    location: '',
   })
   const [createForm, setCreateForm] = useState({
     semesterId: '',
@@ -189,7 +199,7 @@ export default function CoordinatorOpportunitiesPage() {
 
   const semestersResource = useCoordinatorApiResource(
     async () => {
-      const response = await listSemesters({ limit: 100, status: 'active' })
+      const response = await listSemesters({ limit: 100 })
       return response.items
     },
     [] as SemesterResponse[],
@@ -197,32 +207,61 @@ export default function CoordinatorOpportunitiesPage() {
     { emptyData: [], enabled: !authLoading }
   )
 
-  const semesterLabels = useMemo(() => {
-    return new Map(semestersResource.data.map((semester) => [semester.id, semester.displayName]))
-  }, [semestersResource.data])
+  const semesterLabelMap = useMemo(
+    () => buildSemesterLabelMap(semestersResource.data),
+    [semestersResource.data]
+  )
+
+  const semesterLabels = useMemo(
+    () => new Map(Object.entries(semesterLabelMap)),
+    [semesterLabelMap]
+  )
 
   const semesterCourseLabels = useMemo(() => {
     return new Map(semestersResource.data.map((semester) => [semester.id, semester.courseCode]))
   }, [semestersResource.data])
 
   const {
-    data: opportunityRows,
+    data: apiOpportunities,
     loading,
     error,
     source,
-    setData,
+    setData: setApiOpportunities,
     reload,
   } = useCoordinatorApiResource(
     async () => {
       const response = await listOpportunities({ limit: 100, sort: '-createdAt' })
-      return response.items.map((item) =>
-        mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
-      )
+      return response.items
     },
-    opportunities.map((item) => mapMockOpportunityRow(item, semesterLabels, semesterCourseLabels)),
-    `opportunities-${semestersResource.data.length}`,
+    [] as OpportunityResponse[],
+    'opportunities',
     { emptyData: [] }
   )
+
+  const opportunityRows = useMemo(() => {
+    if (source === 'api' && !error) {
+      return apiOpportunities.map((item) =>
+        mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
+      )
+    }
+    return opportunities.map((item) =>
+      mapMockOpportunityRow(item, semesterLabels, semesterCourseLabels)
+    )
+  }, [apiOpportunities, error, semesterCourseLabels, semesterLabels, source])
+
+  const semesterFilterOptions = useMemo(() => {
+    const options = semestersResource.data.map((semester) => ({
+      value: semester.id,
+      label: formatSemesterLabel(semester),
+    }))
+    const knownIds = new Set(options.map((option) => option.value))
+    for (const row of opportunityRows) {
+      if (!row.semesterId || knownIds.has(row.semesterId)) continue
+      options.push({ value: row.semesterId, label: row.semesterLabel })
+      knownIds.add(row.semesterId)
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label))
+  }, [opportunityRows, semestersResource.data])
 
   const filteredRows = useMemo(
     () =>
@@ -376,7 +415,8 @@ export default function CoordinatorOpportunitiesPage() {
 
       <OpportunityFiltersBar
         filters={filters}
-        semesters={semestersResource.data}
+        semesterOptions={semesterFilterOptions}
+        semesterLabelMap={semesterLabelMap}
         totalCount={opportunityRows.length}
         shownCount={filteredRows.length}
         hasFilters={hasFilters}
@@ -396,36 +436,33 @@ export default function CoordinatorOpportunitiesPage() {
           rows={publishedRows}
           view={publishingView}
           counts={publishingCounts}
-          editingId={editingId}
-          editForm={editForm}
-          semesters={semestersResource.data}
           studentLabels={studentLabels}
-          saving={saving}
           transitioningId={transitioningId}
           onViewChange={setPublishingView}
-          onEditStart={startEdit}
-          onEditChange={setEditForm}
-          onEditCancel={() => setEditingId(null)}
-          onUpdate={handleUpdateOpportunity}
+          onEdit={openEditModal}
           onTransition={handleTransitionOpportunity}
         />
       ) : (
         <SelfSourcedReviewSection rows={selfSourcedRows} studentLabels={studentLabels} />
       )}
+
+      <OpportunityEditModal
+        open={Boolean(editTarget)}
+        target={editTarget}
+        form={editForm}
+        semesters={semestersResource.data}
+        saving={saving}
+        onFormChange={setEditForm}
+        onClose={() => setEditTarget(null)}
+        onSubmit={handleUpdateOpportunity}
+      />
     </div>
   )
 
-  function startEdit(opportunity: OpportunityRow) {
-    if (!canEditPublishedOpportunity(opportunity)) return
-    setEditingId(opportunity.id)
-    setEditForm({
-      title: opportunity.title,
-      company: opportunity.company,
-      semesterId: opportunity.semesterId,
-      descriptionText: opportunity.descriptionText,
-      sourceUrl: opportunity.sourceUrl ?? '',
-      type: opportunity.type,
-    })
+  function openEditModal(opportunity: OpportunityRow) {
+    if (!canEditManagedOpportunity(opportunity)) return
+    setEditTarget(opportunity)
+    setEditForm(openEditFormForTarget(opportunity))
   }
 
   function handleTabChange(tab: OpportunityTab) {
@@ -464,7 +501,10 @@ export default function CoordinatorOpportunitiesPage() {
           ? await transitionOpportunity({ id: created.id }, 'published')
           : created
       const createdRow = mapOpportunityRow(publishedCreated, semesterLabels, semesterCourseLabels)
-      setData([createdRow, ...opportunityRows.filter((row) => row.id !== createdRow.id)])
+      setApiOpportunities([
+        publishedCreated,
+        ...apiOpportunities.filter((item) => item.id !== publishedCreated.id),
+      ])
       setShowCreate(false)
       setCreateForm({
         semesterId: '',
@@ -482,12 +522,12 @@ export default function CoordinatorOpportunitiesPage() {
       toast.success('Opportunity created.')
       try {
         const refreshed = await listOpportunities({ limit: 100, sort: '-createdAt' })
-        const refreshedRows = refreshed.items.map((item) =>
-          mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
-        )
-        setData(mergeOpportunityRows(createdRow, refreshedRows))
+        setApiOpportunities(mergeOpportunityItems(publishedCreated, refreshed.items))
       } catch {
-        setData([createdRow, ...opportunityRows.filter((row) => row.id !== createdRow.id)])
+        setApiOpportunities([
+          publishedCreated,
+          ...apiOpportunities.filter((item) => item.id !== publishedCreated.id),
+        ])
       }
     } catch (err) {
       toast.error(formatOpportunityError(err, createForm.type))
@@ -517,23 +557,17 @@ export default function CoordinatorOpportunitiesPage() {
           employerName: editForm.company.trim(),
           semesterId: editForm.semesterId,
           descriptionText: editForm.descriptionText.trim() || undefined,
+          workMode: editForm.workMode,
+          location: editForm.location.trim() || null,
           sourceUrl: editForm.sourceUrl.trim() || null,
         }
       )
-      setData(
-        opportunityRows.map((row) =>
-          row.id === id ? mapOpportunityRow(updated, semesterLabels, semesterCourseLabels) : row
-        )
-      )
-      setEditingId(null)
+      setApiOpportunities(upsertOpportunityItem(apiOpportunities, updated))
+      setEditTarget(null)
       toast.success('Opportunity updated.')
       try {
         const refreshed = await listOpportunities({ limit: 100, sort: '-createdAt' })
-        setData(
-          refreshed.items.map((item) =>
-            mapOpportunityRow(item, semesterLabels, semesterCourseLabels)
-          )
-        )
+        setApiOpportunities(refreshed.items)
       } catch {
         reload()
       }
@@ -549,13 +583,7 @@ export default function CoordinatorOpportunitiesPage() {
     setTransitioningId(opportunity.id)
     try {
       const updated = await transitionOpportunity({ id: opportunity.id }, to)
-      setData(
-        opportunityRows.map((row) =>
-          row.id === opportunity.id
-            ? mapOpportunityRow(updated, semesterLabels, semesterCourseLabels)
-            : row
-        )
-      )
+      setApiOpportunities(upsertOpportunityItem(apiOpportunities, updated))
       toast.success('Opportunity archived.')
     } catch (err) {
       const fallbackMessage = 'Opportunity transition unavailable.'
@@ -719,7 +747,8 @@ function CreateOpportunityPanel({
 
 function OpportunityFiltersBar({
   filters,
-  semesters,
+  semesterOptions,
+  semesterLabelMap,
   totalCount,
   shownCount,
   hasFilters,
@@ -727,7 +756,8 @@ function OpportunityFiltersBar({
   onClear,
 }: {
   filters: OpportunityFilters
-  semesters: SemesterResponse[]
+  semesterOptions: Array<{ value: string; label: string }>
+  semesterLabelMap: Record<string, string>
   totalCount: number
   shownCount: number
   hasFilters: boolean
@@ -768,10 +798,7 @@ function OpportunityFiltersBar({
           label="Semester"
           value={filters.semesterId}
           onChange={(value) => onChange({ ...filters, semesterId: value })}
-          options={[
-            { value: 'all', label: 'All semesters' },
-            ...semesters.map((semester) => ({ value: semester.id, label: semester.displayName })),
-          ]}
+          options={[{ value: 'all', label: 'All semesters' }, ...semesterOptions]}
         />
         <TextInput
           label="Program/course"
@@ -819,7 +846,7 @@ function OpportunityFiltersBar({
       </div>
       {hasFilters && (
         <div className="flex flex-wrap gap-2">
-          {filterChips(filters).map((chip) => (
+          {filterChips(filters, semesterLabelMap).map((chip) => (
             <button
               key={chip.key}
               type="button"
@@ -835,51 +862,29 @@ function OpportunityFiltersBar({
   )
 }
 
+const PUBLISHED_TABLE_GRID =
+  'grid grid-cols-1 gap-3 border-b border-slate-100 px-5 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.95fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_auto] lg:items-center lg:gap-x-4 lg:gap-y-0'
+
+const PUBLISHED_TABLE_HEAD =
+  'hidden border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.95fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_auto] lg:items-center lg:gap-x-4'
+
 function PublishedOpportunitySection({
   rows,
   view,
   counts,
-  editingId,
-  editForm,
-  semesters,
   studentLabels,
-  saving,
   transitioningId,
   onViewChange,
-  onEditStart,
-  onEditChange,
-  onEditCancel,
-  onUpdate,
+  onEdit,
   onTransition,
 }: {
   rows: OpportunityRow[]
   view: PublishingView
   counts: Record<PublishingView, number>
-  editingId: string | null
-  editForm: {
-    title: string
-    company: string
-    semesterId: string
-    descriptionText: string
-    sourceUrl: string
-    type: OpportunityType
-  }
-  semesters: SemesterResponse[]
   studentLabels: Record<string, string>
-  saving: boolean
   transitioningId: string | null
   onViewChange: (view: PublishingView) => void
-  onEditStart: (opportunity: OpportunityRow) => void
-  onEditChange: (form: {
-    title: string
-    company: string
-    semesterId: string
-    descriptionText: string
-    sourceUrl: string
-    type: OpportunityType
-  }) => void
-  onEditCancel: () => void
-  onUpdate: (event: FormEvent<HTMLFormElement>, id: string) => void
+  onEdit: (opportunity: OpportunityRow) => void
   onTransition: (opportunity: OpportunityRow, to: 'archived') => void
 }) {
   const emptyMessage =
@@ -926,146 +931,64 @@ function PublishedOpportunitySection({
           ))}
         </div>
       </div>
-      <SurfaceCard className="overflow-hidden">
-        <div className="grid grid-cols-[1.25fr_0.95fr_0.95fr_0.85fr_0.9fr_0.85fr_0.55fr_1fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-xl:hidden">
-          <span>Role</span>
-          <span>Student</span>
-          <span>Employer</span>
-          <span>Source type</span>
+      <SurfaceCard className="overflow-hidden p-0">
+        <div className={PUBLISHED_TABLE_HEAD}>
+          <span>Opportunity</span>
+          <span>Source</span>
           <span>Semester</span>
-          <span>Published status</span>
-          <span>Applicants</span>
-          <span>Actions</span>
+          <span>Status</span>
+          <span className="text-center">Apps</span>
+          <span>Student owner</span>
+          <span className="text-right">Actions</span>
         </div>
         {rows.length === 0 ? (
           <EmptyState message={emptyMessage} />
         ) : (
           rows.map((row) => (
-            <form
-              key={row.id}
-              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 xl:grid-cols-[1.25fr_0.95fr_0.95fr_0.85fr_0.9fr_0.85fr_0.55fr_1fr] xl:items-center"
-              onSubmit={(event) => onUpdate(event, row.id)}
-            >
-              {editingId === row.id ? (
-                <div className="grid gap-3 xl:col-span-8 xl:grid-cols-[1.2fr_1fr_1fr_0.9fr_1.4fr_auto] xl:items-start">
-                  <input
-                    value={editForm.title}
-                    onChange={(event) => onEditChange({ ...editForm, title: event.target.value })}
-                    placeholder="Role title"
-                    className="h-9 rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:border-red-500"
-                  />
-                  <input
-                    value={editForm.company}
-                    onChange={(event) => onEditChange({ ...editForm, company: event.target.value })}
-                    placeholder="Employer"
-                    className="h-9 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-red-500"
-                  />
-                  <input
-                    value={editForm.sourceUrl}
-                    onChange={(event) =>
-                      onEditChange({ ...editForm, sourceUrl: event.target.value })
-                    }
-                    placeholder="Job listing or careers link"
-                    className={[
-                      'h-9 rounded-xl border px-3 text-sm outline-none focus:border-red-500',
-                      getSourceUrlError(editForm.type, editForm.sourceUrl)
-                        ? 'border-red-300 bg-red-50/40'
-                        : 'border-slate-200',
-                    ].join(' ')}
-                  />
-                  <select
-                    value={editForm.semesterId}
-                    onChange={(event) =>
-                      onEditChange({ ...editForm, semesterId: event.target.value })
-                    }
-                    className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-red-500"
-                  >
-                    {semesters.map((semester) => (
-                      <option key={semester.id} value={semester.id}>
-                        {semester.displayName}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={editForm.descriptionText}
-                    onChange={(event) =>
-                      onEditChange({ ...editForm, descriptionText: event.target.value })
-                    }
-                    placeholder="Description"
-                    className="min-h-20 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-500"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="inline-flex h-9 items-center rounded-lg bg-slate-950 px-3 text-xs font-bold text-white disabled:opacity-60"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onEditCancel}
-                      className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <p className="font-bold text-slate-950">{row.title}</p>
-                    <p className="mt-1 text-xs text-slate-500 xl:hidden">{row.company}</p>
-                    <p className="mt-1 text-xs text-slate-500 xl:hidden">
-                      Student: {studentOwnerLabel(row, studentLabels)}
-                    </p>
-                  </div>
-                </>
-              )}
-              {editingId !== row.id && (
-                <>
-                  <StudentOwnerCell row={row} studentLabels={studentLabels} />
-                  <p className="text-sm font-medium text-slate-700 max-xl:hidden">{row.company}</p>
+            <div key={row.id} className={PUBLISHED_TABLE_GRID}>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-950">{row.title}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{row.company}</p>
+                <div className="mt-2 flex flex-wrap gap-2 lg:hidden">
                   <SourceTypeBadge row={row} />
-                  <p className="text-sm text-slate-600">{row.semesterLabel}</p>
                   <StatePill row={row} />
-                  <p className="text-sm font-bold text-slate-950">{row.applications}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <IconAction
-                      href={withReviewReturn(
-                        `/coordinator/jobs/review?id=${encodeURIComponent(row.id)}`,
-                        '/coordinator/opportunities',
-                        { tab: OPPORTUNITY_SELF_SOURCED_TAB, context: SELF_SOURCED_REVIEW_CONTEXT }
-                      )}
-                      label="View"
-                      icon={Eye}
+                </div>
+              </div>
+              <div className="lg:flex lg:items-center">
+                <SourceTypeBadge row={row} />
+              </div>
+              <p className="truncate text-sm text-slate-600" title={row.semesterLabel}>
+                {row.semesterLabel}
+              </p>
+              <div className="hidden lg:block">
+                <StatePill row={row} />
+              </div>
+              <p className="text-sm font-bold text-slate-950 lg:text-center">{row.applications}</p>
+              <StudentOwnerCell row={row} studentLabels={studentLabels} />
+              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                <IconAction
+                  href={opportunityReviewHref(row.id, '/coordinator/opportunities', row)}
+                  label="View"
+                  icon={Eye}
+                />
+                {!isArchived(row) && (
+                  <>
+                    {canEditManagedOpportunity(row) && (
+                      <IconButton label="Edit" icon={PenLine} onClick={() => onEdit(row)} />
+                    )}
+                    <IconButton
+                      label={transitioningId === row.id ? 'Archiving' : 'Archive'}
+                      icon={Archive}
+                      disabled={transitioningId === row.id}
+                      onClick={() => onTransition(row, 'archived')}
                     />
-                    {!isArchived(row) && (
-                      <>
-                        {canEditPublishedOpportunity(row) && (
-                          <IconButton
-                            label="Edit"
-                            icon={PenLine}
-                            onClick={() => onEditStart(row)}
-                          />
-                        )}
-                        <IconButton
-                          label={transitioningId === row.id ? 'Archiving' : 'Archive'}
-                          icon={Archive}
-                          disabled={transitioningId === row.id}
-                          onClick={() => onTransition(row, 'archived')}
-                        />
-                      </>
-                    )}
-                    {isArchived(row) && (
-                      <span className="inline-flex min-h-8 items-center rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-1 text-xs leading-4 font-semibold text-slate-500">
-                        This opportunity has been archived and is no longer active.
-                      </span>
-                    )}
-                  </div>
-                </>
-              )}
-            </form>
+                  </>
+                )}
+                {isArchived(row) && (
+                  <span className="text-xs font-medium text-slate-500">Archived</span>
+                )}
+              </div>
+            </div>
           ))
         )}
       </SurfaceCard>
@@ -1086,15 +1009,16 @@ function SelfSourcedReviewSection({
         title="Self-Sourced Placement Reviews"
         description="Position descriptions submitted by students for internship suitability approval. Placement documents remain locked until approval."
       />
-      <SurfaceCard className="overflow-hidden">
-        <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.7fr_0.9fr_1.2fr_0.6fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase max-2xl:hidden">
+      <SurfaceCard className="overflow-hidden p-0">
+        <div className="hidden border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold tracking-wide text-slate-500 uppercase xl:grid xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_minmax(0,1.1fr)_auto] xl:items-center xl:gap-x-4">
           <span>Role</span>
           <span>Student</span>
           <span>Employer</span>
-          <span>Applicants</span>
+          <span>Semester</span>
+          <span className="text-center">Apps</span>
           <span>Submitted</span>
           <span>Status</span>
-          <span>Action</span>
+          <span className="text-right">Action</span>
         </div>
         {rows.length === 0 ? (
           <EmptyState message="No self-sourced placement verification records match the current filters." />
@@ -1102,32 +1026,33 @@ function SelfSourcedReviewSection({
           rows.map((row) => (
             <div
               key={row.id}
-              className="grid gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 2xl:grid-cols-[1.2fr_0.9fr_0.9fr_0.7fr_0.9fr_1.2fr_0.6fr] 2xl:items-center"
+              className="grid grid-cols-1 gap-3 border-b border-slate-100 px-5 py-4 last:border-b-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_minmax(0,1.1fr)_auto] xl:items-center xl:gap-x-4"
             >
-              <div>
-                <p className="font-bold text-slate-950">{row.title}</p>
-                <p className="mt-1 text-xs text-slate-500">{row.courseLabel}</p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-950">{row.title}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{row.courseLabel}</p>
               </div>
-              <p className="text-sm font-medium text-slate-700">
+              <p className="truncate text-sm font-medium text-slate-700">
                 {studentOwnerLabel(row, studentLabels)}
               </p>
-              <p className="text-sm text-slate-600">{row.company}</p>
-              <p className="text-sm font-bold text-slate-950">{row.applications}</p>
+              <p className="truncate text-sm text-slate-600">{row.company}</p>
+              <p className="truncate text-sm text-slate-600" title={row.semesterLabel}>
+                {row.semesterLabel}
+              </p>
+              <p className="text-sm font-bold text-slate-950 xl:text-center">{row.applications}</p>
               <p className="text-sm text-slate-600">{formatDate(row.createdAt)}</p>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <IntakeTracker status={row.statusRaw} />
                 <StatePill row={row} />
               </div>
-              <Link
-                href={withReviewReturn(
-                  `/coordinator/jobs/review?id=${encodeURIComponent(row.id)}`,
-                  '/coordinator/opportunities',
-                  { tab: OPPORTUNITY_SELF_SOURCED_TAB, context: SELF_SOURCED_REVIEW_CONTEXT }
-                )}
-                className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-black"
-              >
-                Review
-              </Link>
+              <div className="flex xl:justify-end">
+                <Link
+                  href={opportunityReviewHref(row.id, '/coordinator/opportunities', row)}
+                  className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-4 text-xs font-bold text-white transition hover:bg-black"
+                >
+                  Review
+                </Link>
+              </div>
             </div>
           ))
         )}
@@ -1518,10 +1443,6 @@ function isCareerHubOpportunity(row: OpportunityRow) {
   return type === 'pre_approved' || type === 'university'
 }
 
-function canEditPublishedOpportunity(row: OpportunityRow) {
-  return !isArchived(row) && !isSelfSourcedOpportunity(row) && !isCareerHubOpportunity(row)
-}
-
 function isArchived(row: OpportunityRow) {
   const status = String(row.statusRaw).toLowerCase()
   return status === 'archived' || status === 'unpublished_archived'
@@ -1536,8 +1457,17 @@ function isDraftStatus(status: OpportunityStatus | string) {
   return String(status).toLowerCase() === 'draft'
 }
 
-function mergeOpportunityRows(preferredRow: OpportunityRow, rows: OpportunityRow[]) {
-  return [preferredRow, ...rows.filter((row) => row.id !== preferredRow.id)]
+function mergeOpportunityItems(
+  preferredItem: OpportunityResponse,
+  items: OpportunityResponse[]
+) {
+  return [preferredItem, ...items.filter((item) => item.id !== preferredItem.id)]
+}
+
+function upsertOpportunityItem(items: OpportunityResponse[], updated: OpportunityResponse) {
+  const exists = items.some((item) => item.id === updated.id)
+  if (!exists) return [updated, ...items]
+  return items.map((item) => (item.id === updated.id ? updated : item))
 }
 
 function sortRows(rows: OpportunityRow[], sort: SortOption) {
@@ -1566,7 +1496,7 @@ function dateValue(value: string) {
   return new Date(value).getTime()
 }
 
-function filterChips(filters: OpportunityFilters) {
+function filterChips(filters: OpportunityFilters, semesterLabelMap: Record<string, string>) {
   const chips: Array<{ key: keyof OpportunityFilters; label: string }> = []
   if (filters.search) chips.push({ key: 'search', label: `Search: ${filters.search}` })
   if (filters.quickStatus !== 'all') {
@@ -1575,7 +1505,12 @@ function filterChips(filters: OpportunityFilters) {
       label: `State: ${opportunityStatusFilterLabel(filters.quickStatus)}`,
     })
   }
-  if (filters.semesterId !== 'all') chips.push({ key: 'semesterId', label: 'Semester selected' })
+  if (filters.semesterId !== 'all') {
+    chips.push({
+      key: 'semesterId',
+      label: `Semester: ${semesterLabelMap[filters.semesterId] ?? filters.semesterId}`,
+    })
+  }
   if (filters.course) chips.push({ key: 'course', label: `Program/course: ${filters.course}` })
   if (filters.employer) chips.push({ key: 'employer', label: `Employer: ${filters.employer}` })
   if (filters.student) chips.push({ key: 'student', label: `Student: ${filters.student}` })

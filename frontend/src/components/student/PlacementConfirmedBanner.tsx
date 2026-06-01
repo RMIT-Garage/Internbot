@@ -21,12 +21,13 @@ export function PlacementConfirmedBanner({ internship, semester }: PlacementConf
       <div className="flex items-start gap-3">
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-emerald-900">Placement confirmed</p>
+          <p className="text-sm font-bold text-emerald-900">Enrolled for this semester</p>
           <p className="mt-1 text-sm leading-6 text-emerald-800">
-            You&apos;re approved for{' '}
+            Your placement is confirmed — you are enrolled in the internship course for{' '}
+            <span className="font-semibold">{semesterLabel}</span>. You will complete your credit
+            with{' '}
             <span className="font-semibold">{internship.opportunityJobTitle}</span> at{' '}
-            <span className="font-semibold">{internship.opportunityEmployerName}</span> for{' '}
-            <span className="font-semibold">{semesterLabel}</span>.
+            <span className="font-semibold">{internship.opportunityEmployerName}</span>.
           </p>
           <Link
             href={`/student/applications/view?id=${internship.id}`}
