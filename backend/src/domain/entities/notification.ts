@@ -175,6 +175,43 @@ export class Notification {
     })
   }
 
+  static forSemesterPhaseChange(props: {
+    id: string
+    userId: string
+    semesterDisplayName: string
+    toStatus: string
+    now: Date
+  }): Notification {
+    const closedForNewApplications =
+      props.toStatus === 'placement_running' ||
+      props.toStatus === 'reporting' ||
+      props.toStatus === 'archived'
+
+    const title =
+      props.toStatus === 'archived' ? 'Semester archived' : 'Enrollment closed for your semester'
+
+    const body = closedForNewApplications
+      ? `${props.semesterDisplayName} is no longer open for new applications. Check your dashboard and applications for next steps.`
+      : `${props.semesterDisplayName} has been updated by your coordinator.`
+
+    return Notification.create({
+      id: props.id,
+      version: 0,
+      userId: props.userId,
+      type: 'semester_phase_changed',
+      title,
+      body,
+      relatedInternshipId: undefined,
+      relatedOpportunityId: undefined,
+      relatedTicketId: undefined,
+      emailDeliveryStatus: undefined,
+      emailDeliveredAt: undefined,
+      readAt: undefined,
+      createdAt: props.now,
+      updatedAt: props.now,
+    })
+  }
+
   static forTicketTransition(props: {
     id: string
     userId: string

@@ -206,7 +206,11 @@ describe('ListSemestersQueryHandler — integration', () => {
     })
     trackDoc('semesters', id)
 
-    const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
+    const transition = new TransitionSemesterCommandHandler(
+      uow,
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    )
     await transition.handle({
       actor: actorFor('coordinator'),
       semesterId: id,

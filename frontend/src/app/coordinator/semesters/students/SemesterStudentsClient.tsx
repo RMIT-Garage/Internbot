@@ -5,7 +5,11 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
+import {
+  CoordinatorPageHeader,
+  SurfaceCard,
+  SurfaceCardHeader,
+} from '@/components/coordinator/Premium'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { listSemesterStudents } from '@/lib/coordinator/api'
 import type { SemesterStudentItem, SemesterStudentPlacementStatus } from '@/types/api'
@@ -139,7 +143,7 @@ export default function SemesterStudentsClient() {
         />
       </div>
 
-      <SurfaceCard className="p-5">
+      <SurfaceCard className="p-4">
         <div className="flex flex-wrap gap-3">
           <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
             Placement Status
@@ -206,12 +210,12 @@ export default function SemesterStudentsClient() {
                 ) : (
                   students.map((student) => (
                     <tr key={student.userId} className="hover:bg-slate-50">
-                      <td className="px-5 py-4 font-medium text-slate-900">
+                      <td className="px-5 py-3 font-medium text-slate-900">
                         {student.displayName ?? student.userId}
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{student.studentNumber ?? '—'}</td>
-                      <td className="px-5 py-4 text-slate-600">{student.programCode ?? '—'}</td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-3 text-slate-600">{student.studentNumber ?? '—'}</td>
+                      <td className="px-5 py-3 text-slate-600">{student.programCode ?? '—'}</td>
+                      <td className="px-5 py-3 text-slate-600">
                         {student.semesterSelectedAt
                           ? new Intl.DateTimeFormat('en-AU', {
                               month: 'short',
@@ -221,12 +225,12 @@ export default function SemesterStudentsClient() {
                           : '—'}
                       </td>
                       <td
-                        className={`px-5 py-4 ${PLACEMENT_STATUS_COLORS[student.placementStatus]}`}
+                        className={`px-5 py-3 ${PLACEMENT_STATUS_COLORS[student.placementStatus]}`}
                       >
                         {PLACEMENT_STATUS_LABELS[student.placementStatus]}
                       </td>
-                      <td className="px-5 py-4 text-slate-900">{student.internshipCount}</td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-3 text-slate-900">{student.internshipCount}</td>
+                      <td className="px-5 py-3 text-right">
                         <Link
                           href={semesterStudentProfileHref(student, returnTo)}
                           className="text-sm font-bold text-red-700 hover:text-red-800"
@@ -241,7 +245,7 @@ export default function SemesterStudentsClient() {
             </table>
           </div>
           {nextPageToken && (
-            <div className="border-t border-slate-200 px-5 py-4">
+            <div className="border-t border-slate-200 px-5 py-3">
               <button
                 type="button"
                 onClick={loadMore}

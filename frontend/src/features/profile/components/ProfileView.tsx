@@ -1,11 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, GraduationCap, PenLine, ShieldCheck } from 'lucide-react'
+import { StudentSemesterSelection } from '@/components/student/StudentSemesterSelection'
+import { SemesterEnrollmentBanner } from '@/components/student/SemesterEnrollmentBanner'
 import type { StudentUser, UpdateProfilePayload } from '../types'
 import { ProfileEditForm } from './ProfileEditForm'
 import { AnalyticsStrip, CoordinatorPageHeader, SurfaceCard } from '@/components/student/Premium'
+import { InternshipsService, SemestersService, UsersService } from '@/lib/api/openapi-client'
+import type { InternshipListItemResponse, SemesterResponse } from '@/lib/api/openapi-client'
+import type { UserWorkflowResponse } from '@/api/models/UserWorkflowResponse'
 
 interface Props {
   user: StudentUser
@@ -15,7 +20,45 @@ interface Props {
 
 export function ProfileView({ user, onSave, saving }: Props) {
   const [editing, setEditing] = useState(false)
+  const [workflow, setWorkflow] = useState<UserWorkflowResponse | null>(null)
+  const [semester, setSemester] = useState<SemesterResponse | null>(null)
+  const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
+  const [openSemesterCount, setOpenSemesterCount] = useState(0)
   const { studentProfile, displayName, email } = user
+  const semesterId = studentProfile.semesterId ?? null
+
+  useEffect(() => {
+    if (studentProfile.profileStatus !== 'complete') return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const [workflowRes, intRes, openRes, semesterRes] = await Promise.all([
+          UsersService.getMyWorkflow().catch(() => null),
+          InternshipsService.listInternships(),
+          SemestersService.listSemesters(['enrollment_open']),
+          semesterId
+            ? SemestersService.getSemester(semesterId).catch(() => null)
+            : Promise.resolve(null),
+        ])
+        if (cancelled) return
+        setWorkflow(workflowRes)
+        setInternships(intRes.items)
+        setOpenSemesterCount(openRes.items.length)
+        setSemester(semesterRes)
+      } catch {
+        if (!cancelled) {
+          setWorkflow(null)
+          setInternships([])
+          setOpenSemesterCount(0)
+          setSemester(null)
+        }
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [semesterId, studentProfile.profileStatus])
   const ai = studentProfile.academicInfo
 
   const isComplete = studentProfile.profileStatus === 'complete'
@@ -88,6 +131,28 @@ export function ProfileView({ user, onSave, saving }: Props) {
             </div>
           </ProfileSection>
 
+          <ProfileSection title="Enrolled semester">
+            <p className="mb-4 text-sm leading-6 text-slate-500">
+              Your active semester for browsing opportunities and submitting new applications. You
+              can change it anytime to apply in another semester — existing applications stay tied
+              to the semester you originally applied in.
+            </p>
+            <div className="mb-4">
+              <SemesterEnrollmentBanner
+                semester={semester}
+                semesterEnrolmentState={workflow?.semesterEnrolmentState}
+                internships={internships}
+                semesterId={semesterId}
+                openSemesterCount={openSemesterCount}
+              />
+            </div>
+            <StudentSemesterSelection
+              layout="embedded"
+              initialSemesterId={semesterId}
+              confirmLabel="Update semester"
+            />
+          </ProfileSection>
+
           <div className="space-y-3">
             <h3 className="px-1 text-sm font-bold text-slate-950">Academic record</h3>
             <AnalyticsStrip
@@ -147,14 +212,17 @@ export function ProfileView({ user, onSave, saving }: Props) {
                 <div>
                   <p className="text-sm font-bold text-amber-900">Setup still required</p>
                   <p className="mt-1 text-xs leading-5 text-amber-800">
-                    Complete your academic details and semester selection to unlock opportunities.
+                    Complete your academic details and choose your semester below to unlock
+                    opportunities.
                   </p>
-                  <Link
-                    href="/student/semesters"
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-red-700 hover:text-red-800"
-                  >
-                    Continue setup →
-                  </Link>
+                  {!semesterId && (
+                    <Link
+                      href="/onboarding/semester"
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-red-700 hover:text-red-800"
+                    >
+                      Finish profile setup →
+                    </Link>
+                  )}
                 </div>
               </div>
             )}

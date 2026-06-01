@@ -6,6 +6,7 @@ export const notificationTypeValues = [
   'new_ticket',
   'ticket_reply',
   'ticket_transition',
+  'semester_phase_changed',
 ] as const
 export type NotificationType = (typeof notificationTypeValues)[number]
 

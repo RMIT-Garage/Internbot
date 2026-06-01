@@ -15,6 +15,7 @@ import {
   KPIStatCard,
   PillButton,
   SurfaceCard,
+  SurfaceCardHeader,
 } from '@/components/coordinator/Premium'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge, type CoordinatorStatus } from '@/components/coordinator/StatusBadge'
@@ -378,23 +379,21 @@ function DashboardHeader() {
 function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
   return (
     <SurfaceCard className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">Needs Attention</h2>
-          <p className="text-sm text-slate-500">Coordinator actions waiting in the workflow.</p>
-        </div>
-        <Clock3 className="h-5 w-5 text-red-700" />
-      </div>
+      <SurfaceCardHeader
+        title="Needs Attention"
+        description="Coordinator actions waiting in the workflow."
+        action={<Clock3 className="h-4 w-4 text-red-700" aria-hidden />}
+      />
       <div className="divide-y divide-slate-100">
         {items.length === 0 && (
-          <div className="px-5 py-10 text-center text-sm text-slate-500">
+          <div className="px-5 py-8 text-center text-sm text-slate-500">
             No coordinator actions waiting.
           </div>
         )}
         {items.map((item) => (
           <div
             key={item.id}
-            className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+            className="grid gap-3 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
           >
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -422,27 +421,23 @@ function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
 
 function PipelineSnapshot({ stages }: { stages: PipelineStage[] }) {
   return (
-    <SurfaceCard className="p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">Placement Processing</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Post-offer document, contract, and final approval distribution.
-          </p>
-        </div>
-        <BriefcaseBusiness className="h-5 w-5 text-red-700" />
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <SurfaceCard className="overflow-hidden">
+      <SurfaceCardHeader
+        title="Placement Processing"
+        description="Post-offer document, contract, and final approval distribution."
+        action={<BriefcaseBusiness className="h-4 w-4 text-red-700" aria-hidden />}
+      />
+      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
         {stages.map((stage) => (
           <Link
             key={stage.label}
             href={stage.href}
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-red-200 hover:bg-white"
+            className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-red-200 hover:bg-white"
           >
-            <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+            <p className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">
               {stage.label}
             </p>
-            <p className="mt-3 text-3xl font-bold text-slate-950">{stage.count}</p>
+            <p className="mt-1 text-xl leading-tight font-bold text-slate-950">{stage.count}</p>
           </Link>
         ))}
       </div>
@@ -461,24 +456,24 @@ function RecentActivity({
   }>
 }) {
   return (
-    <SurfaceCard className="p-5">
-      <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
-      <div className="mt-4">
+    <SurfaceCard className="overflow-hidden">
+      <SurfaceCardHeader title="Recent Activity" />
+      <div className="p-4">
         {items.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {items.map((item, index) => (
               <div
                 key={`${item.title}-${item.time}-${index}`}
-                className="rounded-xl bg-slate-50 p-4"
+                className="rounded-xl bg-slate-50 p-3"
               >
-                <p className="text-sm font-bold text-slate-950">{item.title}</p>
-                <p className="mt-1 text-sm leading-5 text-slate-600">{item.description}</p>
-                <p className="mt-2 text-xs font-semibold text-slate-400">{item.time}</p>
+                <p className="text-sm font-semibold text-slate-950">{item.title}</p>
+                <p className="mt-0.5 text-sm leading-5 text-slate-600">{item.description}</p>
+                <p className="mt-1 text-xs font-medium text-slate-400">{item.time}</p>
               </div>
             ))}
           </div>
         ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
             No recent activity yet.
           </p>
         )}
@@ -491,22 +486,20 @@ function SemesterSnapshot({ semesters }: { semesters: SemesterResponse[] }) {
   const visibleSemesters = semesters.slice(0, 3)
 
   return (
-    <SurfaceCard className="p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">Semester Snapshot</h2>
-          <p className="mt-1 text-sm text-slate-500">Active and recent intake windows.</p>
-        </div>
-        <CalendarDays className="h-5 w-5 text-red-700" />
-      </div>
-      <div className="mt-4 space-y-3">
+    <SurfaceCard className="overflow-hidden">
+      <SurfaceCardHeader
+        title="Semester Snapshot"
+        description="Active and recent intake windows."
+        action={<CalendarDays className="h-4 w-4 text-red-700" aria-hidden />}
+      />
+      <div className="space-y-2 p-4">
         {visibleSemesters.length === 0 && (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
             No semester records available.
           </p>
         )}
         {visibleSemesters.map((semester) => (
-          <div key={semester.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div key={semester.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-bold text-slate-950">{semester.displayName}</p>
               <StatusBadge

@@ -18,15 +18,27 @@ import { useAuth } from '@/hooks/useAuth'
 import { SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
-import { OpportunitiesService, InternshipsService } from '@/lib/api/openapi-client'
-import type { OpportunityResponse, InternshipListItemResponse } from '@/lib/api/openapi-client'
+import {
+  OpportunitiesService,
+  InternshipsService,
+  SemestersService,
+  UsersService,
+} from '@/lib/api/openapi-client'
+import type {
+  OpportunityResponse,
+  InternshipListItemResponse,
+  SemesterResponse,
+} from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
+import { canApplyToNewOpportunities } from '@/lib/student/semesterEnrollmentBanner'
 
 const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
   duplicate_application: 'You have already applied to this opportunity.',
   student_has_no_selected_semester: 'You must select a semester before applying.',
   opportunity_not_published: 'This opportunity is no longer accepting applications.',
   opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
+  semester_not_active:
+    'Your selected semester is not open for new applications. Update your semester from Profile or check My applications.',
 }
 
 function internshipStatusToBadge(status: InternshipListItemResponse.status): StudentStatus {
@@ -48,6 +60,9 @@ function OpportunityDetailContent() {
 
   const [opportunity, setOpportunity] = useState<OpportunityResponse | null>(null)
   const [myInternship, setMyInternship] = useState<InternshipListItemResponse | null>(null)
+  const [semester, setSemester] = useState<SemesterResponse | null>(null)
+  const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
+  const [profileSemesterId, setProfileSemesterId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,12 +74,22 @@ function OpportunityDetailContent() {
     const load = async () => {
       try {
         setLoading(true)
-        const [opp, intRes] = await Promise.all([
+        const [opp, intRes, profile] = await Promise.all([
           OpportunitiesService.getOpportunity(id),
           InternshipsService.listInternships(),
+          UsersService.getMyProfile(),
         ])
         setOpportunity(opp)
+        setInternships(intRes.items)
         setMyInternship(intRes.items.find((i) => i.opportunityId === id) ?? null)
+        const selectedSemesterId =
+          profile.role === 'student' ? (profile.studentProfile?.semesterId ?? null) : null
+        setProfileSemesterId(selectedSemesterId)
+        const semesterRes =
+          selectedSemesterId != null
+            ? await SemestersService.getSemester(selectedSemesterId).catch(() => null)
+            : null
+        setSemester(semesterRes)
       } catch (err) {
         const reason = getApiErrorReason(err)
         if (reason === 'opportunity_not_visible') {
@@ -134,6 +159,17 @@ function OpportunityDetailContent() {
       </div>
     )
   }
+
+  const canApply =
+    opportunity != null &&
+    !myInternship &&
+    opportunity.status === 'published' &&
+    canApplyToNewOpportunities({
+      semester,
+      internships,
+      semesterId: profileSemesterId,
+    }) &&
+    opportunity.semesterId === profileSemesterId
 
   if (error || !opportunity) {
     return (
@@ -272,17 +308,33 @@ function OpportunityDetailContent() {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleApply}
-                  disabled={applying}
-                  className="w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
-                >
-                  {applying ? 'Submitting…' : 'Apply Now'}
-                </button>
-                <p className="text-center text-[11px] text-gray-400">
-                  You&apos;ll be redirected to your application after submitting.
-                </p>
+                {canApply ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleApply}
+                      disabled={applying}
+                      className="w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {applying ? 'Submitting…' : 'Apply Now'}
+                    </button>
+                    <p className="text-center text-[11px] text-gray-400">
+                      You&apos;ll be redirected to your application after submitting.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-center text-xs leading-5 text-amber-800">
+                    New applications are closed for your selected semester.{' '}
+                    <Link href="/student/profile" className="font-bold underline">
+                      Update semester
+                    </Link>{' '}
+                    or view{' '}
+                    <Link href="/student/applications" className="font-bold underline">
+                      My applications
+                    </Link>
+                    .
+                  </p>
+                )}
               </div>
             )}
           </SurfaceCard>

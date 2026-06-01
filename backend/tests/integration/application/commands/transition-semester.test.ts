@@ -45,7 +45,8 @@ async function seedSemester(status: SemesterStatus = 'draft'): Promise<{ id: str
   if (status !== 'draft') {
     const transition = new TransitionSemesterCommandHandler(
       new FirestoreUnitOfWork(),
-      defaultAuthorizationService
+      defaultAuthorizationService,
+      firestoreIdGenerator
     )
     await transition.handle({
       actor: actorFor('coordinator'),
@@ -73,7 +74,8 @@ describe('TransitionSemesterCommandHandler — integration', () => {
     const { id } = await seedSemester('draft')
     const handler = new TransitionSemesterCommandHandler(
       new FirestoreUnitOfWork(),
-      defaultAuthorizationService
+      defaultAuthorizationService,
+      firestoreIdGenerator
     )
     const get = new GetSemesterQueryHandler(
       firestoreSemesterQueryService,
@@ -124,7 +126,8 @@ describe('TransitionSemesterCommandHandler — integration', () => {
 
     const handler = new TransitionSemesterCommandHandler(
       new FirestoreUnitOfWork(),
-      defaultAuthorizationService
+      defaultAuthorizationService,
+      firestoreIdGenerator
     )
     await handler.handle({
       actor: actorFor('coordinator'),
@@ -147,7 +150,8 @@ describe('TransitionSemesterCommandHandler — integration', () => {
     const { id } = await seedSemester('draft')
     const handler = new TransitionSemesterCommandHandler(
       new FirestoreUnitOfWork(),
-      defaultAuthorizationService
+      defaultAuthorizationService,
+      firestoreIdGenerator
     )
     await expect(
       handler.handle({

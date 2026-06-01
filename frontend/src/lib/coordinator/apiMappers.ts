@@ -23,6 +23,7 @@ import {
 } from './reviewRouting'
 import { formatStudentDisplayFromIds } from './studentDisplay'
 import { resolveSemesterLabel } from '@/lib/semester/display'
+import type { SemesterStudentItem, SemesterStudentPlacementStatus } from '@/types/api'
 
 export function internshipStatusToApprovalStatus(status: string): ApprovalStatus {
   if (status === 'applied') return 'awaiting_contract_details'
@@ -132,8 +133,27 @@ export function mapOpportunityToSelfSourcedJob(
   }
 }
 
+function internshipSemesterLabel(
+  internship: InternshipListItemResponse | InternshipResponse,
+  semesterLabels: Record<string, string> = {}
+): string {
+  const denormalized =
+    internship.semesterDisplayName && internship.semesterDisplayName !== internship.semesterId
+      ? internship.semesterDisplayName
+      : internship.semesterCode && internship.semesterCode !== internship.semesterId
+        ? internship.semesterCode
+        : undefined
+
+  return resolveSemesterLabel(
+    internship.semesterId,
+    semesterLabels,
+    denormalized ?? 'Semester pending'
+  )
+}
+
 export function mapInternshipToContractApproval(
-  internship: InternshipListItemResponse | InternshipResponse
+  internship: InternshipListItemResponse | InternshipResponse,
+  semesterLabels: Record<string, string> = {}
 ): ContractApproval {
   return {
     id: internship.id,
@@ -141,7 +161,7 @@ export function mapInternshipToContractApproval(
     studentId: formatStudentDisplayFromIds(undefined, internship.userId),
     studentUserId: internship.userId,
     course: internship.studentProgramCode ?? 'Program pending',
-    semester: internship.semesterDisplayName || internship.semesterCode || 'Semester pending',
+    semester: internshipSemesterLabel(internship, semesterLabels),
     semesterId: internship.semesterId,
     submissionDate: internship.lastSubmittedAt ?? internship.createdAt,
     status: internshipStatusToApprovalStatus(internship.status),
@@ -440,8 +460,90 @@ function humanizeActivityState(value: string, source: 'self_sourced' | 'coordina
   return humanizeWorkflowState(value)
 }
 
+function placementStatusToOverall(status: SemesterStudentPlacementStatus): StudentOverallStatus {
+  if (status === 'offer_approved') return 'approved'
+  if (status === 'offer_changes_requested' || status === 'all_rejected') return 'needs_attention'
+  if (status === 'no_applications') return 'inactive'
+  return 'on_track'
+}
+
+function mergeCoordinatorStudentRows(
+  enrolled: CoordinatorStudent,
+  fromInternship: CoordinatorStudent
+): CoordinatorStudent {
+  const internshipCount = Math.max(
+    enrolled.internshipCount ?? 0,
+    fromInternship.internshipCount ?? 0
+  )
+  const enrolledAudit = enrolled.lastAudit ? Date.parse(enrolled.lastAudit) : 0
+  const internshipAudit = fromInternship.lastAudit ? Date.parse(fromInternship.lastAudit) : 0
+  const useInternshipAudit = internshipAudit > enrolledAudit
+
+  return {
+    ...enrolled,
+    course: fromInternship.course !== 'Program pending' ? fromInternship.course : enrolled.course,
+    semester:
+      fromInternship.semester !== 'Semester pending' ? fromInternship.semester : enrolled.semester,
+    semesterId: fromInternship.semesterId ?? enrolled.semesterId,
+    overallStatus:
+      fromInternship.overallStatus === 'approved' || enrolled.overallStatus === 'approved'
+        ? 'approved'
+        : fromInternship.overallStatus === 'needs_attention' ||
+            enrolled.overallStatus === 'needs_attention'
+          ? 'needs_attention'
+          : enrolled.overallStatus,
+    placementStatus: fromInternship.placementStatus ?? enrolled.placementStatus,
+    lastAudit: useInternshipAudit ? fromInternship.lastAudit : enrolled.lastAudit,
+    internshipCount,
+    recordId: fromInternship.recordId ?? enrolled.recordId,
+  }
+}
+
+/** Students enrolled per semester (profile semesterId), merged with internship-derived rows. */
+export function deriveCoordinatorStudentDirectory(
+  enrollmentsBySemester: Array<{ semesterId: string; students: SemesterStudentItem[] }>,
+  internships: Array<InternshipListItemResponse | InternshipResponse>,
+  semesterLabels: Record<string, string> = {}
+): CoordinatorStudent[] {
+  const byUserId = new Map<string, CoordinatorStudent>()
+
+  for (const { semesterId, students } of enrollmentsBySemester) {
+    for (const student of students) {
+      byUserId.set(student.userId, {
+        rowId: `user:${student.userId}`,
+        id: student.userId,
+        name: student.displayName ?? student.studentNumber ?? student.userId,
+        studentId: student.studentNumber ?? student.userId,
+        course: student.programCode ?? 'Program pending',
+        semester: resolveSemesterLabel(semesterId, semesterLabels),
+        semesterId,
+        overallStatus: placementStatusToOverall(student.placementStatus),
+        email: '',
+        year: 'Current',
+        placementStatus: student.placementStatus,
+        lastAudit: student.semesterSelectedAt ?? undefined,
+        internshipCount: student.internshipCount,
+      })
+    }
+  }
+
+  for (const row of deriveStudentsFromInternships(internships, semesterLabels)) {
+    if (row.id.startsWith('record:')) {
+      byUserId.set(row.rowId, row)
+      continue
+    }
+    const existing = byUserId.get(row.id)
+    byUserId.set(row.id, existing ? mergeCoordinatorStudentRows(existing, row) : row)
+  }
+
+  return [...byUserId.values()].sort(
+    (a, b) => Date.parse(b.lastAudit ?? '') - Date.parse(a.lastAudit ?? '')
+  )
+}
+
 export function deriveStudentsFromInternships(
-  internships: Array<InternshipListItemResponse | InternshipResponse>
+  internships: Array<InternshipListItemResponse | InternshipResponse>,
+  semesterLabels: Record<string, string> = {}
 ): CoordinatorStudent[] {
   const grouped = new Map<string, Array<InternshipListItemResponse | InternshipResponse>>()
 
@@ -466,7 +568,7 @@ export function deriveStudentsFromInternships(
         studentId: displayStudent,
         course:
           courses.size > 1 ? 'Multiple programs' : (latest.studentProgramCode ?? 'Program pending'),
-        semester: latest.semesterDisplayName || latest.semesterCode || 'Semester pending',
+        semester: internshipSemesterLabel(latest, semesterLabels),
         semesterId: latest.semesterId,
         overallStatus: aggregateStudentStatus(sorted.map((item) => item.status)),
         email: '',

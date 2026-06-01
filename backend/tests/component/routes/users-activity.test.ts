@@ -93,7 +93,11 @@ async function createActiveSemester(): Promise<string> {
     defaultAuthorizationService,
     firestoreIdGenerator
   )
-  const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
+  const transition = new TransitionSemesterCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const actor = {
     firebaseUid: `fb_${randomUUID()}`,
     email: 'coord@rmit.edu.au',

@@ -950,6 +950,7 @@ Failure cases:
 - `409` student does not have a selected semester (`studentProfile.semesterId` is null)
 - `409` opportunity is not `published`
 - `409` opportunity's `semesterId` does not match the student's enrolled semester
+- `409` student's enrolled semester is not `enrollment_open` (`semester_not_active`) — new applications are only accepted while the semester is open for enrollment
 - `409` student has already applied to this opportunity (duplicate application)
 
 Side effects:
@@ -1428,6 +1429,7 @@ Side effects:
 - writes an activity record: `{ type: "transition", from, to, actorUserId, comment?, createdAt }`
 - updates `updatedAt` to server timestamp
 - rotates the semester's `ETag`
+- when the semester leaves `enrollment_open` for `placement_running`, or when it transitions to `archived`, creates a `semester_phase_changed` in-app notification for each student with `studentProfile.semesterId` equal to this semester (see section 7.8)
 
 ### 7.6 Semester Selection
 
@@ -1581,13 +1583,14 @@ Notes:
 
 Notification types:
 
-| Type                   | Recipient              | Trigger                                                        |
-| ---------------------- | ---------------------- | -------------------------------------------------------------- |
-| `offer_decision`       | Student                | Coordinator approves, rejects, or requests changes on an offer |
-| `opportunity_verified` | Student                | Coordinator verifies a student-submitted custom opportunity    |
-| `opportunity_rejected` | Student                | Coordinator rejects a student-submitted custom opportunity     |
-| `new_application`      | Coordinator            | A student applies to an opportunity                            |
-| `ticket_reply`         | Student or Coordinator | A reply is added to a ticket                                   |
+| Type                     | Recipient              | Trigger                                                                            |
+| ------------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| `offer_decision`         | Student                | Coordinator approves, rejects, or requests changes on an offer                     |
+| `opportunity_verified`   | Student                | Coordinator verifies a student-submitted custom opportunity                        |
+| `opportunity_rejected`   | Student                | Coordinator rejects a student-submitted custom opportunity                         |
+| `new_application`        | Coordinator            | A student applies to an opportunity                                                |
+| `semester_phase_changed` | Student                | Coordinator moves the student's enrolled semester out of enrollment or archives it |
+| `ticket_reply`           | Student or Coordinator | A reply is added to a ticket                                                       |
 
 Failure cases:
 

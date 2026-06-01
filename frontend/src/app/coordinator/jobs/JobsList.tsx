@@ -7,7 +7,7 @@ import { X } from 'lucide-react'
 import { WorkflowStepper, type WorkflowStepItem } from '@/components/coordinator/WorkflowStepper'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { Pagination } from '@/components/coordinator/Pagination'
-import { SurfaceCard } from '@/components/coordinator/Premium'
+import { SurfaceCard, SurfaceCardHeader } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import {
   contractApprovals,
@@ -15,8 +15,9 @@ import {
   type SelfSourcedJob,
 } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { getUser, listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships, listSemesters } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
+import { buildSemesterLabelMap, resolveSemesterLabel } from '@/lib/semester/display'
 import { useCoordinatorSemesterOptions } from '@/lib/coordinator/semesterContext'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
@@ -161,15 +162,19 @@ export function JobsList() {
           '[coordinator/jobs] backend filters: full placement verification list; UI filters/search/sort/page are client-side'
         )
       }
-      const internshipResponse = await listInternships({
-        limit: 100,
-        sort: '-lastSubmittedAt',
-      })
+      const [semesterRes, internshipResponse] = await Promise.all([
+        listSemesters({ limit: 100 }),
+        listInternships({
+          limit: 100,
+          sort: '-lastSubmittedAt',
+        }),
+      ])
+      const labelMap = buildSemesterLabelMap(semesterRes.items)
 
       return internshipResponse.items
         .filter((internship) => internship.status !== 'applied')
         .map((internship): PlacementCase => {
-          const mapped = mapInternshipToContractApproval(internship)
+          const mapped = mapInternshipToContractApproval(internship, labelMap)
           return contractApprovalToPlacementCase(mapped)
         })
     },
@@ -235,7 +240,13 @@ export function JobsList() {
     .sort((a, b) => compareQueueItems(a, b, sort, studentLabels))
 
   const paged = paginate(filteredJobs, page, 8)
-  const activeFilters = getActiveFilters(params)
+  const activeFilters = getActiveFilters(params, [
+    { label: 'All semesters', value: 'all' },
+    ...semesterOptions.map((item) => ({
+      label: semesterLabels[item.id] ?? item.displayName,
+      value: item.id,
+    })),
+  ])
   const courseOptions = buildCourseFilterOptions(jobs)
 
   return (
@@ -274,6 +285,7 @@ export function JobsList() {
         totalCount={jobs.length}
         returnTo={currentJobsHref}
         studentLabels={studentLabels}
+        semesterLabels={semesterLabels}
       />
       <Pagination
         page={paged.page}
@@ -495,27 +507,24 @@ function PlacementQueue({
   totalCount,
   returnTo,
   studentLabels,
+  semesterLabels,
 }: {
   rows: PlacementCase[]
   visibleCount: number
   totalCount: number
   returnTo: string
   studentLabels: Record<string, string>
+  semesterLabels: Record<string, string>
 }) {
   return (
     <SurfaceCard className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">Active Placements</h2>
-          <p className="text-sm text-slate-500">
-            Showing {visibleCount} of {totalCount} post-offer placement{' '}
-            {totalCount === 1 ? 'record' : 'records'}.
-          </p>
-        </div>
-      </div>
+      <SurfaceCardHeader
+        title="Active Placements"
+        description={`Showing ${visibleCount} of ${totalCount} post-offer placement ${totalCount === 1 ? 'record' : 'records'}.`}
+      />
       <div className="divide-y divide-slate-100">
         {rows.length === 0 && (
-          <div className="px-5 py-10 text-center text-sm text-slate-500">
+          <div className="px-5 py-8 text-center text-sm text-slate-500">
             No confirmed placements match these filters.
           </div>
         )}
@@ -525,6 +534,7 @@ function PlacementQueue({
             job={job}
             returnTo={returnTo}
             studentLabels={studentLabels}
+            semesterLabels={semesterLabels}
           />
         ))}
       </div>
@@ -536,10 +546,12 @@ function PlacementQueueRow({
   job,
   returnTo,
   studentLabels,
+  semesterLabels,
 }: {
   job: PlacementCase
   returnTo: string
   studentLabels: Record<string, string>
+  semesterLabels: Record<string, string>
 }) {
   const reviewHref = withReviewReturn(job.reviewHref, returnTo, {
     context: PLACEMENT_PROCESSING_CONTEXT,
@@ -558,7 +570,7 @@ function PlacementQueueRow({
   return (
     <div
       className={[
-        'flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6',
+        'flex flex-col gap-3 px-5 py-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4',
         actionRequired ? 'bg-red-50/35' : 'bg-white',
       ].join(' ')}
     >
@@ -577,7 +589,9 @@ function PlacementQueueRow({
         </div>
         <div>
           <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Semester</p>
-          <p className="mt-1 font-semibold text-slate-800">{job.semester || 'Not supplied'}</p>
+          <p className="mt-1 font-semibold text-slate-800">
+            {placementSemesterLabel(job, semesterLabels)}
+          </p>
         </div>
       </div>
 
@@ -603,6 +617,13 @@ function PlacementQueueRow({
       </Link>
     </div>
   )
+}
+
+function placementSemesterLabel(job: PlacementCase, semesterLabels: Record<string, string>) {
+  const label = resolveSemesterLabel(job.semesterId, semesterLabels, job.semester)
+  if (label && label !== job.semesterId) return label
+  if (job.semester && job.semester !== job.semesterId) return job.semester
+  return 'Not supplied'
 }
 
 function placementStudentLabel(job: PlacementCase, studentLabels: Record<string, string>) {
@@ -841,12 +862,19 @@ function normalizeForSearch(value: string) {
   return value.trim().toLowerCase()
 }
 
-function getActiveFilters(params: URLSearchParams) {
+function getActiveFilters(
+  params: URLSearchParams,
+  semesterOptions: Array<{ label: string; value: string }> = []
+) {
   const filters: Array<{ key: string; label: string; value: string }> = []
-  const definitions = [
+  const definitions: Array<{
+    key: string
+    label: string
+    options?: Array<{ label: string; value: string }>
+  }> = [
     { key: 'search', label: 'Search' },
     { key: 'stage', label: 'Stage', options: stageOptions },
-    { key: 'semester', label: 'Semester' },
+    { key: 'semester', label: 'Semester', options: semesterOptions },
     { key: 'course', label: 'Course/Program' },
     { key: 'status', label: 'Status', options: statusOptions },
     { key: 'action', label: 'Action', options: actionOptions },

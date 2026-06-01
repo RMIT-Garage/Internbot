@@ -20,6 +20,7 @@ import {
 
 import { CoordinatorPageHeader, PillButton, SurfaceCard } from '@/components/student/Premium'
 import { PlacementConfirmedBanner } from '@/components/student/PlacementConfirmedBanner'
+import { SemesterEnrollmentBanner } from '@/components/student/SemesterEnrollmentBanner'
 import { StudentDashboardStatusCard } from '@/components/student/StudentDashboardStatusCard'
 
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
@@ -58,6 +59,7 @@ function IncompleteProfileDashboard({
     { label: 'Personal details', href: '/onboarding/personal' },
     { label: 'Academic info', href: '/onboarding/academic' },
     { label: 'Credit selection', href: '/onboarding/credits' },
+    { label: 'Semester', href: '/onboarding/semester' },
     { label: 'Review & submit', href: '/onboarding/review' },
   ]
 
@@ -221,6 +223,8 @@ export default function StudentDashboardPage() {
   const [semester, setSemester] = useState<SemesterResponse | null>(null)
   const [workflow, setWorkflow] = useState<UserWorkflowResponse | null>(null)
   const [internships, setInternships] = useState<InternshipListItemResponse[]>([])
+  const [allInternships, setAllInternships] = useState<InternshipListItemResponse[]>([])
+  const [openSemesterCount, setOpenSemesterCount] = useState(0)
   const [approvedPlacement, setApprovedPlacement] = useState<InternshipListItemResponse | null>(
     null
   )
@@ -255,24 +259,29 @@ export default function StudentDashboardPage() {
         if (isComplete) {
           const profileSemesterId =
             profileRes.role === 'student' ? profileRes.studentProfile?.semesterId : null
-          const [internshipsRes, workflowRes] = await Promise.all([
+          const [internshipsRes, workflowRes, openSemestersRes] = await Promise.all([
             InternshipsService.listInternships(),
             UsersService.getMyWorkflow().catch(() => null),
+            SemestersService.listSemesters(['enrollment_open']),
           ])
-          const allInternships = internshipsRes.items
-          const effectiveSemesterId = resolveEffectiveSemesterId(profileSemesterId, allInternships)
+          const internshipItems = internshipsRes.items
+          const effectiveSemesterId = resolveEffectiveSemesterId(profileSemesterId, internshipItems)
           const semesterRes = effectiveSemesterId
             ? await SemestersService.getSemester(effectiveSemesterId).catch(() => null)
             : null
           setWorkflow(workflowRes)
           setSemester(semesterRes)
-          const approved = findApprovedInternship(allInternships)
+          setOpenSemesterCount(openSemestersRes.items.length)
+          const approved = findApprovedInternship(internshipItems)
           setApprovedPlacement(approved)
-          setInternships(filterInternshipsForDashboard(allInternships, effectiveSemesterId))
+          setAllInternships(internshipItems)
+          setInternships(filterInternshipsForDashboard(internshipItems, effectiveSemesterId))
         } else {
           setWorkflow(null)
           setSemester(null)
           setApprovedPlacement(null)
+          setAllInternships([])
+          setOpenSemesterCount(0)
           setInternships([])
         }
       } catch (err: unknown) {
@@ -299,6 +308,8 @@ export default function StudentDashboardPage() {
     ['offer_changes_requested', 'rejected'].includes(i.status)
   ).length
 
+  const profileSemesterId =
+    user?.role === 'student' ? (user.studentProfile?.semesterId ?? null) : null
   const workflowStep = workflow?.currentWorkflowStep ?? user?.currentWorkflowStep ?? 'profile'
   const dashboardStatus = deriveStudentDashboardStatus({
     semester,
@@ -390,7 +401,9 @@ export default function StudentDashboardPage() {
       <CoordinatorPageHeader
         eyebrow="Student Hub"
         title="My Dashboard"
-        description={dashboardStatus.detail}
+        description={
+          workflow?.internshipStatus === 'offer_approved' ? undefined : dashboardStatus.detail
+        }
         actions={
           <>
             <PillButton href="/student/applications" variant="secondary">
@@ -416,6 +429,14 @@ export default function StudentDashboardPage() {
       {approvedInternship && (
         <PlacementConfirmedBanner internship={approvedInternship} semester={semester} />
       )}
+
+      <SemesterEnrollmentBanner
+        semester={semester}
+        semesterEnrolmentState={workflow?.semesterEnrolmentState}
+        internships={allInternships}
+        semesterId={profileSemesterId}
+        openSemesterCount={openSemesterCount}
+      />
 
       {/* KPI ROW */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

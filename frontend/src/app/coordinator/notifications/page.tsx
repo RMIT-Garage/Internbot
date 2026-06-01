@@ -127,7 +127,7 @@ export default function CoordinatorNotificationsPage() {
         </div>
         <div className="divide-y divide-slate-100">
           {resource.data.items.length === 0 && (
-            <div className="px-5 py-10 text-center text-sm text-slate-500">
+            <div className="px-5 py-8 text-center text-sm text-slate-500">
               {resource.source === 'api'
                 ? 'Backend connected, but no records exist yet.'
                 : 'No notifications to show.'}
@@ -137,7 +137,7 @@ export default function CoordinatorNotificationsPage() {
             <div
               key={`${notification.id}-${index}`}
               className={[
-                'flex gap-4 px-5 py-4 transition-all duration-200 ease-out',
+                'flex gap-3 px-5 py-3 transition-all duration-200 ease-out',
                 notification.unread
                   ? 'border-l-4 border-l-red-700 bg-red-50/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] hover:bg-red-50'
                   : 'border-l-4 border-l-transparent bg-white opacity-85 hover:bg-slate-50 hover:opacity-100',

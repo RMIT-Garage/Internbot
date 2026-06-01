@@ -36,7 +36,11 @@ async function activeSemester(): Promise<string> {
     defaultAuthorizationService,
     firestoreIdGenerator
   )
-  const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
+  const transition = new TransitionSemesterCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const actor = actorFor('coordinator')
   const { id } = await create.handle({
     actor,

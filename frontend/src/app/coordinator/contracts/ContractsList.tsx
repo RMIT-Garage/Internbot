@@ -21,8 +21,9 @@ import {
   type ContractApproval,
 } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { getUser, listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships, listSemesters } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
+import { buildSemesterLabelMap } from '@/lib/semester/display'
 import { useCoordinatorSemesterOptions } from '@/lib/coordinator/semesterContext'
 import {
   compareByDate,
@@ -97,12 +98,16 @@ export function ContractsList() {
           '[coordinator/contracts] backend filters: status=offer_pending_review; UI filters/search/sort/page are client-side'
         )
       }
-      const response = await listInternships({
-        limit: 100,
-        status: 'offer_pending_review',
-        sort: '-lastSubmittedAt',
-      })
-      return response.items.map(mapInternshipToContractApproval)
+      const [semesterRes, response] = await Promise.all([
+        listSemesters({ limit: 100 }),
+        listInternships({
+          limit: 100,
+          status: 'offer_pending_review',
+          sort: '-lastSubmittedAt',
+        }),
+      ])
+      const semesterLabels = buildSemesterLabelMap(semesterRes.items)
+      return response.items.map((item) => mapInternshipToContractApproval(item, semesterLabels))
     },
     contractApprovals,
     'contracts',

@@ -20,6 +20,9 @@ import { SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { PlacementConfirmedBanner } from '@/components/student/PlacementConfirmedBanner'
+import { SemesterEnrollmentBanner } from '@/components/student/SemesterEnrollmentBanner'
+import { canApplyToNewOpportunities } from '@/lib/student/semesterEnrollmentBanner'
+import type { UserWorkflowResponse } from '@/api/models/UserWorkflowResponse'
 import {
   OpportunitiesService,
   InternshipsService,
@@ -57,6 +60,7 @@ interface OpportunityRowProps {
   myInternship: InternshipListItemResponse | undefined
   alreadyApplied: boolean
   placementConfirmed: boolean
+  canApplyNew: boolean
 }
 
 function OpportunityRow({
@@ -64,6 +68,7 @@ function OpportunityRow({
   myInternship,
   alreadyApplied,
   placementConfirmed,
+  canApplyNew,
 }: OpportunityRowProps) {
   return (
     <div className="grid grid-cols-[1fr_150px_110px] items-center gap-6 px-5 py-4 transition hover:bg-gray-50">
@@ -111,13 +116,20 @@ function OpportunityRow({
             <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
               Placement confirmed
             </span>
-          ) : (
+          ) : canApplyNew ? (
             <Link
               href={`/student/opportunities/view?id=${opportunity.id}`}
               className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700"
             >
               Apply
             </Link>
+          ) : (
+            <span
+              className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"
+              title="Enrollment is closed for your selected semester"
+            >
+              Enrollment closed
+            </span>
           )
         ) : (
           <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
@@ -169,16 +181,19 @@ export default function StudentOpportunitiesPage() {
 
   const [pendingSubmissions, setPendingSubmissions] = useState<OpportunityResponse[]>([])
   const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
+  const [workflow, setWorkflow] = useState<UserWorkflowResponse | null>(null)
 
   useEffect(() => {
     if (authLoading || !user) return
     const loadSemesters = async () => {
       try {
         setLoadingSemesters(true)
-        const [semesterRes, profile] = await Promise.all([
+        const [semesterRes, profile, workflowRes] = await Promise.all([
           SemestersService.listSemesters(['enrollment_open', 'placement_running', 'reporting']),
           UsersService.getMyProfile(),
+          UsersService.getMyWorkflow().catch(() => null),
         ])
+        setWorkflow(workflowRes)
         setSemesters(semesterRes.items)
         if (profile.role === 'student') {
           const savedSemesterId = profile.studentProfile?.semesterId ?? null
@@ -392,8 +407,8 @@ export default function StudentOpportunitiesPage() {
             <>
               {isNonEnrollable && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                  This semester&apos;s enrollment period has ended. You can still browse and apply
-                  for opportunities.
+                  This semester is not open for new enrollment. Choose a semester with enrollment
+                  open, or continue existing applications from My applications.
                 </div>
               )}
               <button
@@ -435,12 +450,19 @@ export default function StudentOpportunitiesPage() {
   const approvedInternship = internshipsForSemester.find((i) => i.status === 'offer_approved')
   const hasApprovedPlacement = Boolean(approvedInternship)
   const appliedCount = internshipsForSemester.length
+  const openSemesterCount = semesters.filter((s) => s.status === 'enrollment_open').length
+  const canApplyNew = canApplyToNewOpportunities({
+    semester: currentSemester,
+    internships,
+    semesterId,
+  })
 
   const rowProps = (o: OpportunityResponse) => ({
     opportunity: o,
     myInternship: internshipsForSemester.find((i) => i.opportunityId === o.id),
     alreadyApplied: appliedOpportunityIds.has(o.id),
     placementConfirmed: hasApprovedPlacement,
+    canApplyNew,
   })
 
   return (
@@ -470,7 +492,6 @@ export default function StudentOpportunitiesPage() {
           <button
             type="button"
             onClick={() => router.push('/student/opportunities?change=1')}
-            disabled={hasApprovedPlacement}
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -482,6 +503,14 @@ export default function StudentOpportunitiesPage() {
       {hasApprovedPlacement && approvedInternship && currentSemester && (
         <PlacementConfirmedBanner internship={approvedInternship} semester={currentSemester} />
       )}
+
+      <SemesterEnrollmentBanner
+        semester={currentSemester ?? null}
+        semesterEnrolmentState={workflow?.semesterEnrolmentState}
+        internships={internships}
+        semesterId={semesterId}
+        openSemesterCount={openSemesterCount}
+      />
 
       {/* KPI strip */}
       <div className="grid gap-3 sm:grid-cols-3">

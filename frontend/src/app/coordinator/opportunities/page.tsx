@@ -376,7 +376,7 @@ export default function CoordinatorOpportunitiesPage() {
         />
       )}
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <KPIStatCard
           title="Published listings"
           value={activePostingCount}
@@ -636,7 +636,7 @@ function CreateOpportunityPanel({
   return (
     <SurfaceCard className="p-5">
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-slate-950">
+        <h2 className="text-base font-bold text-slate-950">
           Create Coordinator Published opportunity
         </h2>
         <p className="mt-1 text-sm text-slate-500">
@@ -1288,7 +1288,7 @@ function StudentOwnerCell({
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-950">{title}</h2>
+      <h2 className="text-base font-bold text-slate-950">{title}</h2>
       <p className="mt-1 text-sm text-slate-500">{description}</p>
     </div>
   )

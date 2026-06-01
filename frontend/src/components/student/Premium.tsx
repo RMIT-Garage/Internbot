@@ -16,10 +16,10 @@ export function CoordinatorPageHeader({
   actions,
 }: CoordinatorPageHeaderProps) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="pointer-events-none absolute top-0 right-0 h-28 w-72 rounded-bl-full bg-gradient-to-l from-red-50 via-slate-50 to-transparent" />
-      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+      <div className="relative flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between lg:items-center">
+        <div className="min-w-0 flex-1">
           {eyebrow && (
             <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">{eyebrow}</p>
           )}
@@ -30,7 +30,11 @@ export function CoordinatorPageHeader({
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
           )}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end md:ml-auto">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -67,6 +67,17 @@ export class CreateInternshipCommandHandler {
         )
       }
 
+      const semester = await ctx.semesters.findById(semesterId)
+      if (!semester) {
+        throw new ConflictError('Referenced semester is not active', 'semester_not_active')
+      }
+      if (semester.status !== 'enrollment_open') {
+        throw new ConflictError(
+          'Cannot apply while this semester is not open for enrollment',
+          'semester_not_active'
+        )
+      }
+
       // All cross-aggregate reads finish before any write — Firestore
       // transactions require reads-before-writes. Coordinators are loaded
       // inside the txn so the recipient set is strongly consistent with

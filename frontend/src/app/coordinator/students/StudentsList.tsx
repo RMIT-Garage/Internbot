@@ -8,8 +8,14 @@ import { Pagination } from '@/components/coordinator/Pagination'
 import { coordinatorStudents, courses, type CoordinatorStudent } from '@/lib/coordinator/mockData'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { getUser, listInternships } from '@/lib/coordinator/api'
-import { deriveStudentsFromInternships } from '@/lib/coordinator/apiMappers'
+import {
+  getUser,
+  listInternships,
+  listSemesterStudents,
+  listSemesters,
+} from '@/lib/coordinator/api'
+import { deriveCoordinatorStudentDirectory } from '@/lib/coordinator/apiMappers'
+import { buildSemesterLabelMap } from '@/lib/semester/display'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { useCoordinatorSemesterOptions } from '@/lib/coordinator/semesterContext'
 
@@ -53,8 +59,22 @@ export function StudentsList() {
           '[coordinator/students] backend filters: none; directory filters/search/page are client-side'
         )
       }
-      const response = await listInternships({ limit: 100 })
-      return deriveStudentsFromInternships(response.items)
+      const [semesterRes, internshipRes] = await Promise.all([
+        listSemesters({ limit: 100 }),
+        listInternships({ limit: 100 }),
+      ])
+      const semesterLabels = buildSemesterLabelMap(semesterRes.items)
+      const enrollmentsBySemester = await Promise.all(
+        semesterRes.items.map(async (semester) => {
+          const page = await listSemesterStudents(semester.id, { limit: 100 })
+          return { semesterId: semester.id, students: page.items }
+        })
+      )
+      return deriveCoordinatorStudentDirectory(
+        enrollmentsBySemester,
+        internshipRes.items,
+        semesterLabels
+      )
     },
     coordinatorStudents,
     'students',
@@ -191,19 +211,19 @@ export function StudentsList() {
             </colgroup>
             <thead className="sticky top-0 bg-slate-50 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
               <tr>
-                <th scope="col" className="px-4 py-3">
+                <th scope="col" className="px-5 py-3">
                   Student
                 </th>
-                <th scope="col" className="px-4 py-3">
+                <th scope="col" className="px-5 py-3">
                   Program/Course
                 </th>
-                <th scope="col" className="px-4 py-3">
+                <th scope="col" className="px-5 py-3">
                   Internships
                 </th>
-                <th scope="col" className="px-4 py-3">
+                <th scope="col" className="px-5 py-3">
                   Semester
                 </th>
-                <th scope="col" className="px-4 py-3">
+                <th scope="col" className="px-5 py-3">
                   Action
                 </th>
               </tr>
@@ -228,7 +248,7 @@ export function StudentsList() {
                     }}
                     className="cursor-pointer transition hover:bg-slate-50/80 focus:bg-slate-50 focus:ring-2 focus:ring-red-700 focus:outline-none focus:ring-inset"
                   >
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <div>
                         {studentName && studentName !== studentDisplay ? (
                           <>
@@ -245,7 +265,7 @@ export function StudentsList() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <div>
                         <p className="font-semibold text-slate-800">{student.course}</p>
                         {isRealStudentValue(student.year) && (
@@ -253,7 +273,7 @@ export function StudentsList() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <StudentMetaBadge
                         label={`${student.internshipCount ?? 0} ${
                           (student.internshipCount ?? 0) === 1 ? 'record' : 'records'
@@ -261,9 +281,11 @@ export function StudentsList() {
                       />
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-slate-600">
-                      {student.semester}
+                      {student.semesterId
+                        ? (semesterLabels[student.semesterId] ?? student.semester)
+                        : student.semester}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <span className="text-sm font-bold text-red-700">View profile</span>
                     </td>
                   </tr>
@@ -271,7 +293,7 @@ export function StudentsList() {
               })}
               {paged.rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-zinc-500">
+                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-500">
                     No students match these filters.
                   </td>
                 </tr>

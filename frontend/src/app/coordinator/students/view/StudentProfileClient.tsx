@@ -9,6 +9,7 @@ import {
   KPIStatCard,
   PillButton,
   SurfaceCard,
+  SurfaceCardHeader,
 } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import type { CoordinatorStatus } from '@/components/coordinator/StatusBadge'
@@ -164,7 +165,7 @@ export function StudentProfileClient() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3">
         <KPIStatCard
           title="Internship records"
           value={profile.internships.length}
@@ -190,13 +191,13 @@ export function StudentProfileClient() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          <SurfaceCard className="p-5">
+          <SurfaceCard className="p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">
                   Student Details
                 </p>
-                <h2 className="mt-2 text-xl font-bold text-slate-950">
+                <h2 className="mt-2 text-lg font-bold text-slate-950">
                   {profile.displayName ?? profile.name}
                 </h2>
                 {profile.displayName && profile.displayName !== profile.name && (
@@ -205,7 +206,7 @@ export function StudentProfileClient() {
               </div>
               <StatusBadge status={profile.status} />
             </div>
-            <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
               {[
                 ['Name', profile.displayName],
                 ['Student ID', profile.name],
@@ -220,7 +221,7 @@ export function StudentProfileClient() {
               ]
                 .filter(([, value]) => isRealProfileValue(value))
                 .map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-slate-50 p-4">
+                  <div key={label} className="rounded-xl bg-slate-50 p-3">
                     <dt className="text-xs font-bold tracking-wide text-slate-500 uppercase">
                       {label}
                     </dt>
@@ -231,15 +232,13 @@ export function StudentProfileClient() {
           </SurfaceCard>
 
           <SurfaceCard className="overflow-hidden">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-lg font-bold text-slate-950">Internships and Applications</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Current WIL records, source, status, and review path for this student.
-              </p>
-            </div>
+            <SurfaceCardHeader
+              title="Internships and Applications"
+              description="Current WIL records, source, status, and review path for this student."
+            />
             <div className="overflow-x-auto">
               {profile.internships.length === 0 && (
-                <div className="px-5 py-10 text-center text-sm text-slate-500">
+                <div className="px-5 py-8 text-center text-sm text-slate-500">
                   No internships or applications recorded for this student.
                 </div>
               )}

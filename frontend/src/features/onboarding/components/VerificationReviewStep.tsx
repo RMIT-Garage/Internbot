@@ -1,10 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { PencilLine, UserCircle2 } from 'lucide-react'
+import { SemestersService, UsersService } from '@/lib/api/openapi-client'
+import { ONBOARDING_PENDING_SEMESTER_KEY } from '@/components/student/StudentSemesterSelection'
 import type { StudentUser, UpdateProfilePayload } from '@/features/profile/types'
+import { formatSemesterLabel } from '@/lib/semester/display'
+import type { SemesterResponse } from '@/types/api'
 import { SurfaceCard } from '@/components/student/Premium'
 import {
   OnboardingAlert,
@@ -19,17 +23,45 @@ interface Props {
   saving: boolean
 }
 
+function resolvePendingSemesterId(profileSemesterId: string | null | undefined): string | null {
+  if (profileSemesterId) return profileSemesterId
+  if (typeof window === 'undefined') return null
+  return sessionStorage.getItem(ONBOARDING_PENDING_SEMESTER_KEY)
+}
+
 export function VerificationReviewStep({ user, onSave, saving }: Props) {
   const router = useRouter()
   const [isConfirmed, setIsConfirmed] = useState(false)
+  const [pendingSemester, setPendingSemester] = useState<SemesterResponse | null>(null)
 
   const { displayName, email, studentProfile } = user
   const ai = studentProfile.academicInfo
+  const pendingSemesterId = resolvePendingSemesterId(studentProfile.semesterId)
+
+  useEffect(() => {
+    if (!pendingSemesterId) return
+    let active = true
+    void SemestersService.getSemester(pendingSemesterId)
+      .then((sem) => {
+        if (active) setPendingSemester(sem as SemesterResponse)
+      })
+      .catch(() => {
+        if (active) setPendingSemester(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [pendingSemesterId])
+
+  const semesterForReview =
+    pendingSemesterId && pendingSemester?.id === pendingSemesterId ? pendingSemester : null
+
+  const hasSemesterSelection = Boolean(pendingSemesterId)
 
   const missingFields = [
     !displayName ? 'Student name' : null,
     !studentProfile.phone ? 'Phone number' : null,
-    !studentProfile.semesterId ? 'Semester selection' : null,
+    !hasSemesterSelection ? 'Semester selection' : null,
     !studentProfile.academicInfo ? 'Academic information' : null,
   ].filter((field): field is string => Boolean(field))
 
@@ -46,6 +78,18 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
 
     if (!ai) {
       toast.error('Academic information is missing. Please complete the previous steps.')
+      return
+    }
+
+    const semesterToSave =
+      pendingSemesterId ??
+      (typeof window !== 'undefined'
+        ? sessionStorage.getItem(ONBOARDING_PENDING_SEMESTER_KEY)
+        : null)
+
+    if (!semesterToSave) {
+      toast.error('Please select a semester before completing your profile.')
+      router.push('/onboarding/semester')
       return
     }
 
@@ -67,6 +111,12 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
           },
         },
       })
+
+      await UsersService.putMySemesterSelection({ semesterId: semesterToSave })
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(ONBOARDING_PENDING_SEMESTER_KEY)
+      }
+
       toast.success('Profile completed successfully!')
       router.push('/student/dashboard')
     } catch {
@@ -78,7 +128,7 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
     <OnboardingPageFrame currentStep="review" maxWidth="xl">
       <OnboardingStepper currentStep="review" />
       <OnboardingStepHeader
-        eyebrow="Step 4 — Review"
+        eyebrow="Step 5 — Review"
         title="Verification & review"
         description="Review your details before submitting. Ensure everything matches your official RMIT records."
       />
@@ -153,6 +203,19 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
         </div>
       </ReviewCard>
 
+      <ReviewCard title="Semester" onEdit={() => router.push('/onboarding/semester')}>
+        <DetailRow
+          label="Enrolled semester"
+          value={
+            semesterForReview
+              ? formatSemesterLabel(semesterForReview)
+              : hasSemesterSelection
+                ? 'Selected'
+                : 'Not selected — choose a semester before completing'
+          }
+        />
+      </ReviewCard>
+
       <SurfaceCard className="p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <label className="flex cursor-pointer gap-3">
@@ -171,7 +234,7 @@ export function VerificationReviewStep({ user, onSave, saving }: Props) {
           <div className="flex shrink-0 gap-3">
             <button
               type="button"
-              onClick={() => router.push('/onboarding/credits')}
+              onClick={() => router.push('/onboarding/semester')}
               className="h-11 rounded-xl border border-slate-200 px-6 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
             >
               Back
