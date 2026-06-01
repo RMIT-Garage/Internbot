@@ -65,7 +65,12 @@ export function canEditManagedOpportunity(input: {
   submittedByUserId?: string | null
   statusRaw: string
 }) {
-  if (isSelfSourcedOpportunityResponse({ type: input.type as OpportunityType, submittedByUserId: input.submittedByUserId })) {
+  if (
+    isSelfSourcedOpportunityResponse({
+      type: input.type as OpportunityType,
+      submittedByUserId: input.submittedByUserId ?? null,
+    })
+  ) {
     return false
   }
   const status = String(input.statusRaw).toLowerCase()
