@@ -58,11 +58,16 @@ export class TransitionSemesterCommandHandler {
       const fromStatus = semester.status
       const now = new Date()
 
+      // Firestore transactions: all reads before writes.
+      const notifyStudents = shouldNotifyEnrolledStudents(fromStatus, cmd.to)
+      const studentIds = notifyStudents
+        ? await ctx.users.listStudentIdsBySemesterId(cmd.semesterId)
+        : []
+
       semester.applyTransition(cmd.to, platformUser.id, cmd.comment, now)
       await ctx.semesters.save(semester)
 
-      if (shouldNotifyEnrolledStudents(fromStatus, cmd.to)) {
-        const studentIds = await ctx.users.listStudentIdsBySemesterId(cmd.semesterId)
+      if (notifyStudents) {
         for (const userId of studentIds) {
           await ctx.notifications.save(
             Notification.forSemesterPhaseChange({
