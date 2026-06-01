@@ -13,12 +13,20 @@ export const INTERNSHIP_STATUS_LABELS: Record<string, string> = {
   all_rejected: 'No active applications',
 }
 
-export const WORKFLOW_STEP_LABELS: Record<string, string> = {
+const WORKFLOW_STEP_LABELS_MAP = {
   profile: 'Complete your profile',
   semester_selection: 'Select your semester',
   opportunity_browsing: 'Browse and apply',
   offer_stage: 'Offer in progress',
   completed: 'Enrolled for semester',
+} as const
+
+export const WORKFLOW_STEP_LABELS: Record<string, string> = WORKFLOW_STEP_LABELS_MAP
+
+export function workflowStepLabel(step: string): string {
+  return (
+    WORKFLOW_STEP_LABELS_MAP[step as keyof typeof WORKFLOW_STEP_LABELS_MAP] ?? 'Internship workflow'
+  )
 }
 
 export const SEMESTER_STATUS_LABELS: Record<string, string> = {
@@ -32,17 +40,19 @@ export const SEMESTER_STATUS_LABELS: Record<string, string> = {
 
 type ChipTone = 'neutral' | 'warning' | 'success' | 'muted' | 'active'
 
-export function formatSemesterLabel(semester: Pick<SemesterResponse, 'displayName' | 'courseCode'>) {
+export function formatSemesterLabel(
+  semester: Pick<SemesterResponse, 'displayName' | 'courseCode'>
+) {
   return semester.courseCode
     ? `${semester.displayName} (${semester.courseCode})`
     : semester.displayName
 }
 
-export function formatSemesterShort(semester: Pick<SemesterResponse, 'displayName' | 'semesterCode' | 'courseCode'>) {
+export function formatSemesterShort(
+  semester: Pick<SemesterResponse, 'displayName' | 'semesterCode' | 'courseCode'>
+) {
   const code = semester.semesterCode
-  return code && semester.courseCode
-    ? `${code} · ${semester.courseCode}`
-    : semester.displayName
+  return code && semester.courseCode ? `${code} · ${semester.courseCode}` : semester.displayName
 }
 
 export function semesterStatusLabel(status: SemesterStatus | string) {
@@ -204,7 +214,8 @@ export function deriveStudentDashboardStatus(input: {
   if (step === 'semester_selection' || !semester) {
     return {
       headline: 'Select your semester',
-      detail: 'Choose the teaching period you are enrolling in for internship credit before browsing opportunities.',
+      detail:
+        'Choose the teaching period you are enrolling in for internship credit before browsing opportunities.',
       tone: 'warning',
       chipLabel: chip.label,
     }
@@ -212,7 +223,7 @@ export function deriveStudentDashboardStatus(input: {
 
   if (step === 'profile') {
     return {
-      headline: WORKFLOW_STEP_LABELS.profile,
+      headline: workflowStepLabel('profile'),
       detail: 'Finish your profile to unlock semester selection and applications.',
       tone: 'warning',
       chipLabel: chip.label,
@@ -220,7 +231,7 @@ export function deriveStudentDashboardStatus(input: {
   }
 
   return {
-    headline: WORKFLOW_STEP_LABELS[step] ?? 'Internship workflow',
+    headline: workflowStepLabel(step),
     detail: workflowSummaryForStep(step, semesterLabel),
     tone: chip.tone,
     chipLabel: chip.label,
