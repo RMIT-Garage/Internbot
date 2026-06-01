@@ -38,6 +38,14 @@ export function hasApprovedPlacementInSemester(
   return internshipsForSemester(internships, semesterId).some((i) => i.status === 'offer_approved')
 }
 
+export function findApprovedPlacement(internships: readonly InternshipListItemResponse[]) {
+  return internships.find((i) => i.status === 'offer_approved') ?? null
+}
+
+export function hasAnyApprovedPlacement(internships: readonly InternshipListItemResponse[]) {
+  return findApprovedPlacement(internships) != null
+}
+
 export function canApplyToNewOpportunities(input: {
   semester: SemesterResponse | null | undefined
   internships: readonly InternshipListItemResponse[]
@@ -46,8 +54,42 @@ export function canApplyToNewOpportunities(input: {
   const { semester, internships, semesterId } = input
   if (!semester || !semesterId) return false
   if (semester.status !== 'enrollment_open') return false
-  if (hasApprovedPlacementInSemester(internships, semesterId)) return false
+  if (hasAnyApprovedPlacement(internships)) return false
   return true
+}
+
+export type ApplyBlockReason =
+  | 'ok'
+  | 'not_published'
+  | 'no_profile_semester'
+  | 'semester_mismatch'
+  | 'enrollment_closed'
+  | 'placement_confirmed'
+
+export function getApplyBlockReason(input: {
+  opportunity: Pick<{ status: string; semesterId: string }, 'status' | 'semesterId'>
+  profileSemesterId: string | null | undefined
+  enrolledSemester: SemesterResponse | null | undefined
+  internships: readonly InternshipListItemResponse[]
+}): ApplyBlockReason {
+  const { opportunity, profileSemesterId, enrolledSemester, internships } = input
+  if (opportunity.status !== 'published') return 'not_published'
+  if (!profileSemesterId) return 'no_profile_semester'
+  if (opportunity.semesterId !== profileSemesterId) return 'semester_mismatch'
+  if (hasAnyApprovedPlacement(internships)) return 'placement_confirmed'
+  if (!enrolledSemester || enrolledSemester.status !== 'enrollment_open') {
+    return 'enrollment_closed'
+  }
+  return 'ok'
+}
+
+export function canApplyToOpportunity(input: {
+  opportunity: Pick<{ status: string; semesterId: string }, 'status' | 'semesterId'>
+  profileSemesterId: string | null | undefined
+  enrolledSemester: SemesterResponse | null | undefined
+  internships: readonly InternshipListItemResponse[]
+}): boolean {
+  return getApplyBlockReason(input) === 'ok'
 }
 
 export function deriveSemesterEnrollmentBanner(input: {

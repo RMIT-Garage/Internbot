@@ -14,8 +14,7 @@ import { ConflictError, NotFoundError, PreconditionFailedError } from '../../dom
  *     a coordinator can't probe student ids by status code.
  *   - Validates a 3-step chain inside the transaction:
  *       1. target user exists, has role `student`, profile is `complete`
- *       2. referenced semester exists and is `active`
- *       3. enrolment window is open at `now`
+ *       2. referenced semester exists and has `status: enrollment_open`
  *
  * Strict CQRS: returns `{ id }` only — the route runs `GetUserQueryHandler`
  * for the response body so the wire shape matches `GET /users/:id`.

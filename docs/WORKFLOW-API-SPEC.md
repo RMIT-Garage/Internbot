@@ -950,7 +950,7 @@ Failure cases:
 - `409` student does not have a selected semester (`studentProfile.semesterId` is null)
 - `409` opportunity is not `published`
 - `409` opportunity's `semesterId` does not match the student's enrolled semester
-- `409` student's enrolled semester is not `enrollment_open` (`semester_not_active`) — new applications are only accepted while the semester is open for enrollment
+- `409` student's enrolled semester is not `enrollment_open` (`semester_not_active`)
 - `409` student has already applied to this opportunity (duplicate application)
 
 Side effects:
@@ -1444,10 +1444,9 @@ Auth: Student owner (`{id} == caller.id` and `caller.role == student`). Coordina
 Rule: Semester selection does not use a review workflow. The backend validates:
 
 1. `users/{id}.studentProfile.profileStatus == complete`
-2. the referenced `semesters/{id}` document exists and has `status: active`
-3. if the semester record has `enrolmentOpenAt` and/or `enrolmentCloseAt` set, the current server time is within that window (inclusive of open, exclusive of close)
+2. the referenced `semesters/{id}` document exists and has `status: enrollment_open`
 
-If all three pass, the backend updates `users/{id}.studentProfile` directly.
+If both pass, the backend updates `users/{id}.studentProfile` directly. Enrolment window dates (`enrolmentOpenAt` / `enrolmentCloseAt`) are informational for display; they do **not** gate semester selection or new applications in v1 — only semester `status` does (`enrollment_open` for select/apply).
 
 Request body:
 
@@ -1463,8 +1462,7 @@ Failure cases:
 - `403` caller is a student and `{id} != caller.id`
 - `404` no user exists with the referenced `id`, or the user has `role: coordinator` (semester-selection sub-resource does not exist for coordinator users), or the referenced `semesterId` does not exist
 - `409` student profile is not complete (`profileStatus != complete`)
-- `409` referenced semester has `status != active`
-- `409` current time is outside the semester's enrolment window (`enrolmentOpenAt` / `enrolmentCloseAt`)
+- `409` referenced semester has `status != enrollment_open` (`semester_not_active`)
 - `422` `semesterId` missing or malformed
 
 Side effects:

@@ -147,9 +147,25 @@ export function ProfileView({ user, onSave, saving }: Props) {
               />
             </div>
             <StudentSemesterSelection
-              layout="embedded"
+              presentation="modal"
+              semesterListMode="all-listed"
               initialSemesterId={semesterId}
-              confirmLabel="Update semester"
+              confirmLabel="Save semester"
+              changeSemesterLabel="Change semester"
+              onSaved={(newSemesterId) => {
+                void (async () => {
+                  const [workflowRes, intRes, openRes, semesterRes] = await Promise.all([
+                    UsersService.getMyWorkflow().catch(() => null),
+                    InternshipsService.listInternships(),
+                    SemestersService.listSemesters(['enrollment_open']),
+                    SemestersService.getSemester(newSemesterId).catch(() => null),
+                  ])
+                  setWorkflow(workflowRes)
+                  setInternships(intRes.items)
+                  setOpenSemesterCount(openRes.items.length)
+                  setSemester(semesterRes)
+                })()
+              }}
             />
           </ProfileSection>
 

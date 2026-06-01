@@ -30,7 +30,12 @@ import type {
   SemesterResponse,
 } from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
-import { canApplyToNewOpportunities } from '@/lib/student/semesterEnrollmentBanner'
+import {
+  canApplyToOpportunity,
+  findApprovedPlacement,
+  getApplyBlockReason,
+  type ApplyBlockReason,
+} from '@/lib/student/semesterEnrollmentBanner'
 
 const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
   duplicate_application: 'You have already applied to this opportunity.',
@@ -39,6 +44,57 @@ const APPLY_CONFLICT_MESSAGES: Record<string, string> = {
   opportunity_semester_mismatch: 'This opportunity is not part of your selected semester.',
   semester_not_active:
     'Your selected semester is not open for new applications. Update your semester from Profile or check My applications.',
+}
+
+function applyBlockedMessage(reason: ApplyBlockReason): string | null {
+  switch (reason) {
+    case 'ok':
+      return null
+    case 'semester_mismatch':
+      return 'This role is not in your enrolled semester. Update your profile semester to apply here.'
+    case 'no_profile_semester':
+      return 'Select an enrolled semester on your profile before applying.'
+    case 'placement_confirmed':
+      return 'You already have a confirmed placement elsewhere, so you cannot start a new application for this role.'
+    case 'enrollment_closed':
+      return 'Your enrolled semester is not open for new applications. Update your semester from Profile or check My applications.'
+    case 'not_published':
+      return 'This opportunity is not accepting applications.'
+    default:
+      return null
+  }
+}
+
+function applySidebarStatus(
+  reason: ApplyBlockReason,
+  canApply: boolean
+): { headline: string; detail?: string } {
+  if (canApply) {
+    return { headline: 'Open for applications' }
+  }
+  switch (reason) {
+    case 'placement_confirmed':
+      return {
+        headline: "Can't apply",
+        detail: 'You have a confirmed placement in another semester',
+      }
+    case 'semester_mismatch':
+      return {
+        headline: "Can't apply",
+        detail: 'Not in your enrolled semester',
+      }
+    case 'enrollment_closed':
+      return {
+        headline: "Can't apply",
+        detail: 'Enrollment closed on your profile',
+      }
+    case 'no_profile_semester':
+      return { headline: "Can't apply", detail: 'No semester on your profile' }
+    case 'not_published':
+      return { headline: 'Closed', detail: 'Not accepting applications' }
+    default:
+      return { headline: 'View only' }
+  }
 }
 
 function internshipStatusToBadge(status: InternshipListItemResponse.status): StudentStatus {
@@ -160,16 +216,29 @@ function OpportunityDetailContent() {
     )
   }
 
+  const applyBlockReason =
+    opportunity != null && !myInternship
+      ? getApplyBlockReason({
+          opportunity,
+          profileSemesterId,
+          enrolledSemester: semester,
+          internships,
+        })
+      : 'not_published'
+
   const canApply =
     opportunity != null &&
     !myInternship &&
-    opportunity.status === 'published' &&
-    canApplyToNewOpportunities({
-      semester,
+    canApplyToOpportunity({
+      opportunity,
+      profileSemesterId,
+      enrolledSemester: semester,
       internships,
-      semesterId: profileSemesterId,
-    }) &&
-    opportunity.semesterId === profileSemesterId
+    })
+
+  const applyBlockedText = applyBlockedMessage(applyBlockReason)
+  const approvedPlacement = findApprovedPlacement(internships)
+  const sidebarStatus = applySidebarStatus(applyBlockReason, canApply)
 
   if (error || !opportunity) {
     return (
@@ -297,9 +366,24 @@ function OpportunityDetailContent() {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <p className="text-xs font-bold tracking-wide text-gray-500 uppercase">Status</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">Open for applications</p>
+                <div
+                  className={`rounded-xl border p-3 ${
+                    canApply ? 'border-gray-100 bg-gray-50' : 'border-amber-200 bg-amber-50'
+                  }`}
+                >
+                  <p className="text-xs font-bold tracking-wide text-gray-500 uppercase">
+                    This role
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      canApply ? 'text-gray-900' : 'text-amber-950'
+                    }`}
+                  >
+                    {sidebarStatus.headline}
+                  </p>
+                  {sidebarStatus.detail && (
+                    <p className="mt-1 text-xs text-amber-800/90">{sidebarStatus.detail}</p>
+                  )}
                 </div>
 
                 {applyError && (
@@ -323,17 +407,36 @@ function OpportunityDetailContent() {
                     </p>
                   </>
                 ) : (
-                  <p className="text-center text-xs leading-5 text-amber-800">
-                    New applications are closed for your selected semester.{' '}
-                    <Link href="/student/profile" className="font-bold underline">
-                      Update semester
-                    </Link>{' '}
-                    or view{' '}
-                    <Link href="/student/applications" className="font-bold underline">
-                      My applications
-                    </Link>
-                    .
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-center text-xs leading-5 text-amber-800">
+                      {applyBlockedText ?? 'You cannot apply to this role right now.'}
+                    </p>
+                    {applyBlockReason === 'semester_mismatch' && (
+                      <Link
+                        href="/student/profile"
+                        className="flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Update enrolled semester
+                      </Link>
+                    )}
+                    {applyBlockReason === 'placement_confirmed' && approvedPlacement && (
+                      <Link
+                        href={`/student/applications/view?id=${approvedPlacement.id}`}
+                        className="block text-center text-xs font-bold text-red-700 underline hover:text-red-800"
+                      >
+                        View your confirmed placement
+                      </Link>
+                    )}
+                    {(applyBlockReason === 'enrollment_closed' ||
+                      applyBlockReason === 'semester_mismatch') && (
+                      <Link
+                        href="/student/applications"
+                        className="flex w-full items-center justify-center text-xs font-bold text-red-700 underline"
+                      >
+                        My applications
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
             )}
