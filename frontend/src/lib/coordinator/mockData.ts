@@ -40,6 +40,7 @@ export interface SelfSourcedJob {
   studentId: string
   course: string
   semester: string
+  semesterId?: string
   jobTitle: string
   company: string
   submissionDate: string
