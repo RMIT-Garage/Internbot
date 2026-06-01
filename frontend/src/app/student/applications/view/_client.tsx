@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Circle,
   Clock,
+  CalendarDays,
   FileText,
   MapPin,
   Monitor,
@@ -307,6 +308,11 @@ function JobDetailsCard({
             <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
               <FileText className="h-3.5 w-3.5 text-gray-400" />
               {OPPORTUNITY_TYPE_LABELS[internship.opportunityType] ?? internship.opportunityType}
+            </div>
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+              <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
+              {internship.semesterDisplayName}
+              {internship.semesterCode ? ` · ${internship.semesterCode}` : ''}
             </div>
           </div>
 

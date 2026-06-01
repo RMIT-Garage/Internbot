@@ -1091,6 +1091,9 @@ Success response:
       "opportunityEmployerName": "Example Pty Ltd",
       "opportunityJobTitle": "Software Intern",
       "opportunityType": "pre_approved",
+      "semesterId": "sem_2026_s1_inte2710",
+      "semesterDisplayName": "Semester 1 2026",
+      "semesterCode": "2026-S1",
       "status": "offer_pending_review",
       "lastSubmittedAt": "2026-04-05T03:14:12Z",
       "createdAt": "2026-04-04T09:00:00Z"
@@ -1104,6 +1107,7 @@ Notes:
 
 - `studentProgramCode` is denormalized from `users/{id}.studentProfile.programCode` at query time so coordinators can spot program mismatches at a glance.
 - `opportunityEmployerName`, `opportunityJobTitle`, and `opportunityType` are denormalized from the linked opportunity at query time for display convenience.
+- `semesterId`, `semesterDisplayName`, and `semesterCode` are denormalized from the internship's linked semester at query time to support dashboard/list semester context without extra client joins.
 - `nextPageToken` is `null` when no more results exist.
 - Filtering by a `userId` or `opportunityId` that does not exist returns an empty `items` array, not `404`.
 
@@ -1136,6 +1140,9 @@ Success response:
   "opportunityJobTitle": "Software Intern",
   "opportunityType": "pre_approved",
   "opportunitySourceUrl": "https://careerhub.rmit.edu.au/jobs/12345",
+  "semesterId": "sem_2026_s1_inte2710",
+  "semesterDisplayName": "Semester 1 2026",
+  "semesterCode": "2026-S1",
   "status": "offer_pending_review",
   "version": 1,
   "coordinatorDecision": null,

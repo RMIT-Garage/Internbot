@@ -6,6 +6,7 @@ import { NotFoundError } from '../../domain/errors'
 import type { UserQueryService } from '../ports/queries/user-query-service'
 import type { OpportunityQueryService } from '../ports/queries/opportunity-query-service'
 import type { InternshipQueryService } from '../ports/queries/internship-query-service'
+import type { SemesterQueryService } from '../ports/queries/semester-query-service'
 
 /* ──────────────────────────────────────────────────────────────────────── */
 /* Query input / output models                                              */
@@ -46,6 +47,9 @@ export interface InternshipReadModel {
   opportunityJobTitle: string
   opportunityType: OpportunityType
   opportunitySourceUrl: string | undefined
+  semesterId: string
+  semesterDisplayName: string
+  semesterCode: string
   attachments: readonly InternshipAttachment[]
 }
 
@@ -58,16 +62,18 @@ export interface InternshipReadModelDeps {
   users: UserQueryService
   opportunities: OpportunityQueryService
   internships: InternshipQueryService
+  semesters: SemesterQueryService
 }
 
 export async function buildInternshipReadModel(
   deps: InternshipReadModelDeps,
   internship: Internship
 ): Promise<InternshipReadModel> {
-  const [student, opportunity, attachments] = await Promise.all([
+  const [student, opportunity, attachments, semester] = await Promise.all([
     deps.users.findById(internship.userId),
     deps.opportunities.findById(internship.opportunityId),
     deps.internships.listAttachments(internship.id),
+    deps.semesters.findById(internship.semesterId),
   ])
 
   if (!student || !student.isStudent()) throw new NotFoundError('User', internship.userId)
@@ -80,6 +86,9 @@ export async function buildInternshipReadModel(
     opportunityJobTitle: opportunity.jobTitle,
     opportunityType: opportunity.type,
     opportunitySourceUrl: opportunity.sourceUrl,
+    semesterId: internship.semesterId,
+    semesterDisplayName: semester?.displayName ?? internship.semesterId,
+    semesterCode: semester?.semesterCode ?? '',
     attachments,
   }
 }

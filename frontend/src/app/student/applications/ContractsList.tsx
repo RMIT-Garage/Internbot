@@ -296,8 +296,9 @@ export function ContractsList() {
       ) : (
         <SurfaceCard className="overflow-hidden p-0">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_120px_90px_140px_24px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          <div className="grid grid-cols-[1fr_160px_120px_90px_140px_24px] items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             <span>Opportunity</span>
+            <span>Semester</span>
             <span className="text-center">Type</span>
             <span>Applied</span>
             <span>Status</span>
@@ -308,7 +309,7 @@ export function ContractsList() {
             <Link
               key={i.id}
               href={`/student/applications/view?id=${i.id}`}
-              className={`grid grid-cols-[1fr_120px_90px_140px_24px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+              className={`grid grid-cols-[1fr_160px_120px_90px_140px_24px] items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
             >
               {/* Opportunity info */}
               <div className="min-w-0">
@@ -317,6 +318,14 @@ export function ContractsList() {
                 </p>
                 <p className="truncate text-xs text-gray-500">{i.opportunityEmployerName}</p>
               </div>
+
+              {/* Semester */}
+              <span
+                className="shrink-0 truncate text-xs text-gray-500"
+                title={i.semesterDisplayName}
+              >
+                {i.semesterDisplayName}
+              </span>
 
               {/* Type */}
               <div className="flex justify-center">

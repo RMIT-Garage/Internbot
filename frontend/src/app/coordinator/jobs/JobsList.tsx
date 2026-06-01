@@ -11,13 +11,13 @@ import { SurfaceCard } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import {
   contractApprovals,
-  semesters,
   type ContractApproval,
   type SelfSourcedJob,
 } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { getUser, listInternships } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
+import { useCoordinatorSemesterContext } from '@/lib/coordinator/semesterContext'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
@@ -44,6 +44,7 @@ function contractApprovalToPlacementCase(contract: ContractApproval): PlacementC
     studentId: contract.studentId,
     course: contract.course,
     semester: contract.semester,
+    semesterId: contract.semesterId,
     jobTitle: contract.documentName,
     company: contract.placementHost,
     submissionDate: contract.submissionDate,
@@ -131,11 +132,13 @@ function removeFilterHref(searchParams: URLSearchParams, name: string) {
 
 export function JobsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
+  const { semesterId: selectedSemesterId, semesters: semesterOptions, semesterLabels } =
+    useCoordinatorSemesterContext()
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const stage = params.get('stage') ?? undefined
   const status = params.get('status') ?? undefined
-  const semester = params.get('semester') ?? undefined
+  const semester = params.get('semester') ?? selectedSemesterId ?? undefined
   const course = params.get('course') ?? undefined
   const action = params.get('action') ?? undefined
   const outcome = params.get('outcome') ?? undefined
@@ -212,7 +215,7 @@ export function JobsList() {
   const filteredJobs = jobs
     .filter((job) => matchesParam(getCurrentStageId(job), stage))
     .filter((job) => matchesParam(job.status, status))
-    .filter((job) => matchesParam(job.semester, semester))
+    .filter((job) => (semester && semester !== 'all' ? job.semesterId === semester : true))
     .filter((job) => matchesCourseFilter(job, course))
     .filter((job) => matchesActionFilter(job, action))
     .filter((job) => matchesOutcomeFilter(job, outcome))
@@ -252,6 +255,10 @@ export function JobsList() {
         search={searchValue}
         stage={stage}
         semester={semester}
+        semesterOptions={semesterOptions.map((item) => ({
+          label: semesterLabels[item.id] ?? item.displayName,
+          value: item.id,
+        }))}
         course={course}
         courseOptions={courseOptions}
         sort={sort}
@@ -282,6 +289,7 @@ function PipelineFilters({
   search,
   stage,
   semester,
+  semesterOptions,
   course,
   courseOptions,
   sort,
@@ -294,6 +302,7 @@ function PipelineFilters({
   search?: string
   stage?: string
   semester?: string
+  semesterOptions: Array<{ label: string; value: string }>
   course?: string
   courseOptions: string[]
   sort: string
@@ -323,10 +332,7 @@ function PipelineFilters({
           name="semester"
           label="Semester"
           value={semester}
-          options={[
-            { label: 'All semesters', value: 'all' },
-            ...semesters.map((item) => ({ label: item, value: item })),
-          ]}
+          options={[{ label: 'All semesters', value: 'all' }, ...semesterOptions]}
         />
         <CourseKeywordFilter value={course} options={courseOptions} />
       </div>

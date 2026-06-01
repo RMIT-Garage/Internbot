@@ -34,6 +34,9 @@ export interface InternshipListItemResponse {
   opportunityJobTitle: string
   opportunityType: 'pre_approved' | 'custom'
   opportunitySourceUrl: string | null
+  semesterId: string
+  semesterDisplayName: string
+  semesterCode: string
   status: InternshipStatus
   lastSubmittedAt: string | null
   createdAt: string

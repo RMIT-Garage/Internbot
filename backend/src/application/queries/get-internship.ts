@@ -2,6 +2,7 @@ import type { RequestActor } from '../actor'
 import type { InternshipQueryService } from '../ports/queries/internship-query-service'
 import type { OpportunityQueryService } from '../ports/queries/opportunity-query-service'
 import type { UserQueryService } from '../ports/queries/user-query-service'
+import type { SemesterQueryService } from '../ports/queries/semester-query-service'
 import type { AuthorizationService } from '../ports/authorization-service'
 import type { InternshipReadModel } from '../read-models/internship'
 import { NotFoundError } from '../../domain/errors'
@@ -19,6 +20,7 @@ export class GetInternshipQueryHandler {
     private readonly internshipQueries: InternshipQueryService,
     private readonly opportunityQueries: OpportunityQueryService,
     private readonly userQueries: UserQueryService,
+    private readonly semesterQueries: SemesterQueryService,
     private readonly authz: AuthorizationService
   ) {}
 
@@ -33,6 +35,7 @@ export class GetInternshipQueryHandler {
         users: this.userQueries,
         opportunities: this.opportunityQueries,
         internships: this.internshipQueries,
+        semesters: this.semesterQueries,
       },
       internship
     )

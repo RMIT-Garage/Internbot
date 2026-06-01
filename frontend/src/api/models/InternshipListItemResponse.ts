@@ -14,6 +14,9 @@ export type InternshipListItemResponse = {
   opportunityJobTitle: string
   opportunityType: InternshipListItemResponse.opportunityType
   opportunitySourceUrl: string | null
+  semesterId: string
+  semesterDisplayName: string
+  semesterCode: string
   status: InternshipListItemResponse.status
   lastSubmittedAt: string | null
   createdAt: string

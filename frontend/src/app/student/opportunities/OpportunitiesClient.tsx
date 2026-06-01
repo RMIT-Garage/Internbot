@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { PlacementConfirmedBanner } from '@/components/student/PlacementConfirmedBanner'
 import {
   OpportunitiesService,
   InternshipsService,
@@ -54,9 +55,15 @@ interface OpportunityRowProps {
   opportunity: OpportunityResponse
   myInternship: InternshipListItemResponse | undefined
   alreadyApplied: boolean
+  placementConfirmed: boolean
 }
 
-function OpportunityRow({ opportunity, myInternship, alreadyApplied }: OpportunityRowProps) {
+function OpportunityRow({
+  opportunity,
+  myInternship,
+  alreadyApplied,
+  placementConfirmed,
+}: OpportunityRowProps) {
   return (
     <div className="grid grid-cols-[1fr_150px_110px] items-center gap-6 px-5 py-4 transition hover:bg-gray-50">
       {/* Opportunity info */}
@@ -99,12 +106,18 @@ function OpportunityRow({ opportunity, myInternship, alreadyApplied }: Opportuni
             View <ArrowRight className="h-3 w-3" />
           </Link>
         ) : opportunity.status === 'published' ? (
-          <Link
-            href={`/student/opportunities/view?id=${opportunity.id}`}
-            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700"
-          >
-            Apply
-          </Link>
+          placementConfirmed ? (
+            <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+              Placement confirmed
+            </span>
+          ) : (
+            <Link
+              href={`/student/opportunities/view?id=${opportunity.id}`}
+              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700"
+            >
+              Apply
+            </Link>
+          )
         ) : (
           <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
             Closed
@@ -408,7 +421,8 @@ export default function StudentOpportunitiesPage() {
   }
 
   // ── Opportunities list ─────────────────────────────────────────────────────
-  const appliedOpportunityIds = new Set(internships.map((i) => i.opportunityId))
+  const internshipsForSemester = internships.filter((i) => i.semesterId === semesterId)
+  const appliedOpportunityIds = new Set(internshipsForSemester.map((i) => i.opportunityId))
   const preApproved = opportunities.filter((o) => o.type === 'pre_approved')
   const selfSourcedApproved = opportunities.filter(
     (o) => o.type === 'custom' && o.status === 'published'
@@ -425,12 +439,17 @@ export default function StudentOpportunitiesPage() {
   )
   const selfSourcedPending = [...backendPending, ...localFallback]
   const currentSemester = semesters.find((s) => s.id === semesterId)
-  const appliedCount = internships.length
+  const approvedInternship = internshipsForSemester.find(
+    (i) => i.status === 'offer_approved'
+  )
+  const hasApprovedPlacement = Boolean(approvedInternship)
+  const appliedCount = internshipsForSemester.length
 
   const rowProps = (o: OpportunityResponse) => ({
     opportunity: o,
-    myInternship: internships.find((i) => i.opportunityId === o.id),
+    myInternship: internshipsForSemester.find((i) => i.opportunityId === o.id),
     alreadyApplied: appliedOpportunityIds.has(o.id),
+    placementConfirmed: hasApprovedPlacement,
   })
 
   return (
@@ -460,6 +479,7 @@ export default function StudentOpportunitiesPage() {
           <button
             type="button"
             onClick={() => router.push('/student/opportunities?change=1')}
+            disabled={hasApprovedPlacement}
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -467,6 +487,10 @@ export default function StudentOpportunitiesPage() {
           </button>
         </div>
       </div>
+
+      {hasApprovedPlacement && approvedInternship && currentSemester && (
+        <PlacementConfirmedBanner internship={approvedInternship} semester={currentSemester} />
+      )}
 
       {/* KPI strip */}
       <div className="grid gap-3 sm:grid-cols-3">

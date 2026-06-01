@@ -8,7 +8,6 @@ import { Pagination } from '@/components/coordinator/Pagination'
 import {
   coordinatorStudents,
   courses,
-  semesters,
   type CoordinatorStudent,
 } from '@/lib/coordinator/mockData'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
@@ -16,6 +15,7 @@ import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { getUser, listInternships } from '@/lib/coordinator/api'
 import { deriveStudentsFromInternships } from '@/lib/coordinator/apiMappers'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
+import { useCoordinatorSemesterContext } from '@/lib/coordinator/semesterContext'
 
 const statusOptions = [
   { label: 'All statuses', value: 'all' },
@@ -34,12 +34,14 @@ function pageHref(searchParams: URLSearchParams, page: number) {
 export function StudentsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
   const [studentNames, setStudentNames] = useState<Record<string, string>>({})
+  const { semesterId: selectedSemesterId, semesters: semesterOptions, semesterLabels } =
+    useCoordinatorSemesterContext()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const status = params.get('status') ?? undefined
-  const semester = params.get('semester') ?? undefined
+  const semester = params.get('semester') ?? selectedSemesterId ?? undefined
   const course = params.get('course') ?? undefined
   const searchValue = params.get('search') ?? undefined
   const normalizedSearch = searchValue?.toLowerCase()
@@ -112,7 +114,7 @@ export function StudentsList() {
   const stableStudents = ensureUniqueStudentRows(students)
   const filteredStudents = stableStudents
     .filter((student) => matchesParam(student.overallStatus, status))
-    .filter((student) => matchesParam(student.semester, semester))
+    .filter((student) => (semester && semester !== 'all' ? student.semesterId === semester : true))
     .filter((student) => matchesParam(student.course, course))
     .filter((student) => {
       if (!normalizedSearch) {
@@ -163,7 +165,10 @@ export function StudentsList() {
             value: semester,
             options: [
               { label: 'All semesters', value: 'all' },
-              ...semesters.map((item) => ({ label: item, value: item })),
+              ...semesterOptions.map((item) => ({
+                label: semesterLabels[item.id] ?? item.displayName,
+                value: item.id,
+              })),
             ],
           },
           { name: 'status', label: 'Status', value: status, options: statusOptions },

@@ -19,6 +19,7 @@ import {
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { StatusBadge, type CoordinatorStatus } from '@/components/coordinator/StatusBadge'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
+import { useCoordinatorSemesterContext } from '@/lib/coordinator/semesterContext'
 import {
   getUser,
   listInternships,
@@ -127,6 +128,7 @@ const emptyDashboard: DashboardData = {
 }
 
 export default function CoordinatorDashboardPage() {
+  const { semesterId: selectedSemesterId, selectedSemester } = useCoordinatorSemesterContext()
   const dashboardResource = useCoordinatorApiResource(
     async () => {
       const [
@@ -157,37 +159,64 @@ export default function CoordinatorDashboardPage() {
           : { items: [] as NotificationResponse[], nextPageToken: null, unreadCount: 0 }
       const activity = activityResult.status === 'fulfilled' ? activityResult.value.items : []
       const semesters = semestersResult.status === 'fulfilled' ? semestersResult.value.items : []
-      const internshipMap = new Map(internships.map((item) => [item.id, item]))
-      const opportunityMap = new Map(opportunities.map((item) => [item.id, item]))
+      const scopedInternships =
+        selectedSemesterId && selectedSemesterId !== 'all'
+          ? internships.filter((item) => item.semesterId === selectedSemesterId)
+          : internships
+      const scopedOpportunities =
+        selectedSemesterId && selectedSemesterId !== 'all'
+          ? opportunities.filter((item) => item.semesterId === selectedSemesterId)
+          : opportunities
 
-      const customOpportunities = opportunities.filter((item) => item.type === 'custom')
+      const internshipMap = new Map(scopedInternships.map((item) => [item.id, item]))
+      const opportunityMap = new Map(scopedOpportunities.map((item) => [item.id, item]))
+      const scopedInternshipIds = new Set(scopedInternships.map((item) => item.id))
+      const scopedOpportunityIds = new Set(scopedOpportunities.map((item) => item.id))
+      const scopedActivity =
+        selectedSemesterId && selectedSemesterId !== 'all'
+          ? activity.filter((item) => {
+              if (item.internshipId) return scopedInternshipIds.has(item.internshipId)
+              if (item.opportunityId) return scopedOpportunityIds.has(item.opportunityId)
+              return true
+            })
+          : activity
+      const scopedNotifications =
+        selectedSemesterId && selectedSemesterId !== 'all'
+          ? notifications.items.filter((item) => {
+              if (item.relatedInternshipId) return scopedInternshipIds.has(item.relatedInternshipId)
+              if (item.relatedOpportunityId) return scopedOpportunityIds.has(item.relatedOpportunityId)
+              return true
+            })
+          : notifications.items
+
+      const customOpportunities = scopedOpportunities.filter((item) => item.type === 'custom')
       const pendingReviews = customOpportunities.filter(
         (item) => item.status === 'pending_verification'
       )
-      const contractVerifications = internships.filter(
+      const contractVerifications = scopedInternships.filter(
         (item) => item.status === 'offer_pending_review'
       )
-      const activeOpportunities = opportunities.filter((item) => item.status === 'published')
+      const activeOpportunities = scopedOpportunities.filter((item) => item.status === 'published')
       const studentsInProgress = new Set(
-        internships
+        scopedInternships
           .filter((item) => item.status !== 'offer_approved' && item.status !== 'rejected')
           .map((item) => item.userId)
       ).size
-      const notificationsUnread = notifications.unreadCount
-      const changesRequested = internships.filter(
+      const notificationsUnread = scopedNotifications.filter((item) => !item.readAt).length
+      const changesRequested = scopedInternships.filter(
         (item) => item.status === 'offer_changes_requested'
       )
-      const rejectedInternships = internships.filter((item) => item.status === 'rejected')
+      const rejectedInternships = scopedInternships.filter((item) => item.status === 'rejected')
       const studentLabelEntries = await Promise.all(
         Array.from(
           new Set(
             [
               ...pendingReviews.map((item) => item.submittedByUserId),
               ...contractVerifications.map((item) => item.userId),
-              ...activity.map((item) =>
+              ...scopedActivity.map((item) =>
                 item.internshipId ? internshipMap.get(item.internshipId)?.userId : null
               ),
-              ...activity.map((item) =>
+              ...scopedActivity.map((item) =>
                 item.opportunityId
                   ? opportunityMap.get(item.opportunityId)?.submittedByUserId
                   : null
@@ -244,7 +273,7 @@ export default function CoordinatorDashboardPage() {
         attention: buildAttentionQueue(
           pendingReviews,
           contractVerifications,
-          notifications.items,
+          scopedNotifications,
           studentLabels
         ),
         pipeline: [
@@ -265,7 +294,7 @@ export default function CoordinatorDashboardPage() {
           },
           {
             label: 'Approved',
-            count: internships.filter((item) => item.status === 'offer_approved').length,
+            count: scopedInternships.filter((item) => item.status === 'offer_approved').length,
             href: '/coordinator/jobs?stage=approved',
           },
           {
@@ -279,7 +308,7 @@ export default function CoordinatorDashboardPage() {
             href: '/coordinator/jobs?status=awaiting_documents',
           },
         ],
-        recent: activity.map((item) =>
+        recent: scopedActivity.map((item) =>
           mapActivity(item, {
             internships: internshipMap,
             opportunities: opportunityMap,
@@ -313,7 +342,7 @@ export default function CoordinatorDashboardPage() {
   if (dashboardResource.loading) {
     return (
       <div className="space-y-6">
-        <DashboardHeader />
+        <DashboardHeader selectedSemesterLabel={selectedSemester?.displayName} />
         <CoordinatorContentSkeleton title="Loading coordinator dashboard..." />
       </div>
     )
@@ -321,7 +350,7 @@ export default function CoordinatorDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader />
+      <DashboardHeader selectedSemesterLabel={selectedSemester?.displayName} />
 
       {(dashboardResource.error || dashboard.warnings.length > 0) && (
         <SurfaceCard className="p-4">
@@ -364,12 +393,16 @@ export default function CoordinatorDashboardPage() {
   )
 }
 
-function DashboardHeader() {
+function DashboardHeader({ selectedSemesterLabel }: { selectedSemesterLabel?: string }) {
   return (
     <CoordinatorPageHeader
       eyebrow="Placement Operations"
       title="Coordinator Dashboard"
-      description="Placement operations, approvals, and semester workflow overview."
+      description={
+        selectedSemesterLabel
+          ? `Placement operations and workflow overview for ${selectedSemesterLabel}.`
+          : 'Placement operations, approvals, and semester workflow overview.'
+      }
       actions={<PillButton href="/coordinator/contracts">Verify contracts</PillButton>}
     />
   )

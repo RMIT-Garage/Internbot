@@ -23,6 +23,7 @@ import {
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
 import { getUser, listInternships } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
+import { useCoordinatorSemesterContext } from '@/lib/coordinator/semesterContext'
 import {
   compareByDate,
   matchesParam,
@@ -73,10 +74,12 @@ function contractStudentLabel(contract: ContractApproval, studentLabels: Record<
 
 export function ContractsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
+  const { semesterId: selectedSemesterId, semesters: semesterOptions, semesterLabels } =
+    useCoordinatorSemesterContext()
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const status = params.get('status') ?? undefined
-  const semester = params.get('semester') ?? undefined
+  const semester = params.get('semester') ?? selectedSemesterId ?? undefined
   const course = params.get('course') ?? undefined
   const search = params.get('search')?.toLowerCase()
   const sort = params.get('sort') ?? 'date'
@@ -142,7 +145,9 @@ export function ContractsList() {
 
   const filteredContracts = contracts
     .filter((contract) => matchesParam(contract.status, status))
-    .filter((contract) => matchesParam(contract.semester, semester))
+    .filter((contract) =>
+      semester && semester !== 'all' ? contract.semesterId === semester : true
+    )
     .filter((contract) => matchesParam(contract.course, course))
     .filter((contract) => {
       if (!search) return true
@@ -276,7 +281,10 @@ export function ContractsList() {
             value: semester,
             options: [
               { label: 'All semesters', value: 'all' },
-              ...semesters.map((item) => ({ label: item, value: item })),
+              ...semesterOptions.map((item) => ({
+                label: semesterLabels[item.id] ?? item.displayName,
+                value: item.id,
+              })),
             ],
           },
           {

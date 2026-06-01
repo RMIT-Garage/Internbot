@@ -7,11 +7,14 @@ import { StudentTopbar } from '@/components/student/StudentTopbar'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useAuth } from '@/hooks/useAuth'
 import { isCoordinatorRole } from '@/lib/coordinator/auth'
+import { SemesterContextBar } from '@/components/student/SemesterContextBar'
+import { useStudentSemesterContext } from '@/hooks/useStudentSemesterContext'
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
   const { ready } = useRequireAuth()
   const { profile } = useAuth()
   const router = useRouter()
+  const studentSemesterCtx = useStudentSemesterContext({ includeWorkflow: true })
 
   // Coordinators landing on /student/* get routed back to their own dashboard.
   useEffect(() => {
@@ -39,7 +42,18 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
         <StudentTopbar />
 
         {/* PAGE CONTENT */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          {profile?.role === 'student' && (
+            <SemesterContextBar
+              loading={studentSemesterCtx.loading}
+              semester={studentSemesterCtx.semester}
+              workflow={studentSemesterCtx.workflow}
+              canChangeSemester={studentSemesterCtx.canChangeSemester}
+              className="mb-6"
+            />
+          )}
+          {children}
+        </main>
       </div>
     </div>
   )

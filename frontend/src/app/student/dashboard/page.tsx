@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 
 import { CoordinatorPageHeader, PillButton, SurfaceCard } from '@/components/student/Premium'
+import { PlacementConfirmedBanner } from '@/components/student/PlacementConfirmedBanner'
 
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
@@ -253,11 +254,19 @@ export default function StudentDashboardPage() {
   const applied = internships.filter((i) => i.status === 'applied').length
   const pendingReview = internships.filter((i) => i.status === 'offer_pending_review').length
   const approved = internships.filter((i) => i.status === 'offer_approved').length
+  const approvedInternship = internships.find((i) => i.status === 'offer_approved') ?? null
   const flagged = internships.filter((i) =>
     ['offer_changes_requested', 'rejected'].includes(i.status)
   ).length
 
   const workflowStep = user?.currentWorkflowStep ?? 'profile'
+  const workflowSummary: Record<string, string> = {
+    profile: 'Complete your profile to continue the internship workflow.',
+    semester_selection: 'Select your semester to unlock opportunities.',
+    opportunity_browsing: 'Browse and apply for internships in your selected semester.',
+    offer_stage: 'Your offer is in progress. Keep documents and dates up to date.',
+    completed: 'Your placement is confirmed for this semester.',
+  }
 
   function internshipStatusToBadge(status: string): StudentStatus {
     const map: Record<string, StudentStatus> = {
@@ -340,16 +349,27 @@ export default function StudentDashboardPage() {
       <CoordinatorPageHeader
         eyebrow="Student Hub"
         title="My Dashboard"
-        description="Track your internship applications and opportunities."
+        description={
+          approvedInternship
+            ? 'Placement confirmed. Track your approved internship and any follow-up actions.'
+            : (workflowSummary[workflowStep] ??
+              'Track your internship applications and opportunities.')
+        }
         actions={
           <>
             <PillButton href="/student/applications" variant="secondary">
               My applications
             </PillButton>
-            <PillButton href="/student/opportunities">Browse opportunities</PillButton>
+            <PillButton href="/student/opportunities">
+              {approvedInternship ? 'View opportunities' : 'Browse opportunities'}
+            </PillButton>
           </>
         }
       />
+
+      {approvedInternship && (
+        <PlacementConfirmedBanner internship={approvedInternship} />
+      )}
 
       {/* KPI ROW */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

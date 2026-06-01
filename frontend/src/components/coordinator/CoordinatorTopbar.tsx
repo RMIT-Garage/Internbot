@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Bell, LogOut, Search, User } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { CoordinatorSemesterSwitcher } from './CoordinatorSemesterSwitcher'
 
 export function CoordinatorTopbar() {
   const router = useRouter()
@@ -17,7 +18,8 @@ export function CoordinatorTopbar() {
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur xl:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="hidden h-10 w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 md:flex">
+        <CoordinatorSemesterSwitcher />
+        <div className="hidden h-10 w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 transition focus-within:border-red-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-red-100 md:flex">
           <Search className="h-4 w-4" />
           Search students, submissions, employers
         </div>
@@ -31,15 +33,20 @@ export function CoordinatorTopbar() {
           <Bell className="h-4 w-4" />
           <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600" />
         </Link>
-        <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 md:flex">
+        <Link
+          href="/coordinator/profile"
+          className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 transition hover:bg-slate-50 md:flex"
+        >
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
             <User className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-900">Coordinator</p>
+            <p className="truncate text-xs font-semibold text-slate-900">
+              {user?.displayName?.split(' ')[0] ?? 'Coordinator'}
+            </p>
             <p className="truncate text-[11px] text-slate-500">{user?.email ?? 'Staff portal'}</p>
           </div>
-        </div>
+        </Link>
         <button
           type="button"
           onClick={handleSignOut}

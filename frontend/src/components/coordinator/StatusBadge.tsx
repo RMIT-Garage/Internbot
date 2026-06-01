@@ -1,38 +1,22 @@
 import { cn } from '@/lib/utils'
 
 const statusStyles = {
-  pending:
-    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
-  awaiting_placement_approval:
-    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
-  awaiting_contract_review:
-    'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200',
-  awaiting_contract_details:
-    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
-  awaiting_review:
-    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
-  awaiting_documents:
-    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
-  awaiting_approval:
-    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
-  approved:
-    'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200',
-  changes_requested:
-    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
-  flagged:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
-  rejected:
-    'border-red-300 bg-white text-red-800 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-200',
-  on_track:
-    'border-slate-300 bg-slate-50 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
-  needs_attention:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200',
-  inactive:
-    'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
-  active:
-    'border-slate-300 bg-white text-slate-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100',
-  archived:
-    'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',
+  pending: 'border-red-200 bg-red-50 text-red-700',
+  awaiting_placement_approval: 'border-red-200 bg-red-50 text-red-700',
+  awaiting_contract_review: 'border-black/20 bg-black/5 text-black/70',
+  awaiting_contract_details: 'border-black/20 bg-black/5 text-black/70',
+  awaiting_review: 'border-red-200 bg-red-50 text-red-700',
+  awaiting_documents: 'border-red-600 bg-red-600 text-white',
+  awaiting_approval: 'border-black/20 bg-black/5 text-black/70',
+  approved: 'border-black bg-black text-white',
+  changes_requested: 'border-red-600 bg-red-600 text-white',
+  flagged: 'border-red-200 bg-red-50 text-red-700',
+  rejected: 'border-red-200 bg-white text-red-600',
+  on_track: 'border-black/20 bg-black/5 text-black/70',
+  needs_attention: 'border-red-200 bg-red-50 text-red-700',
+  inactive: 'border-gray-200 bg-gray-50 text-gray-400',
+  active: 'border-black bg-black text-white',
+  archived: 'border-gray-200 bg-gray-50 text-gray-400',
 }
 
 const statusLabels = {

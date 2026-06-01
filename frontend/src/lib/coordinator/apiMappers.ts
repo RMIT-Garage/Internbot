@@ -22,6 +22,7 @@ import {
   withReviewReturn,
 } from './reviewRouting'
 import { formatStudentDisplayFromIds } from './studentDisplay'
+import { resolveSemesterLabel } from '@/lib/semester/display'
 
 export function internshipStatusToApprovalStatus(status: string): ApprovalStatus {
   if (status === 'applied') return 'awaiting_contract_details'
@@ -55,13 +56,16 @@ function isExplicitlyFlaggedStatus(status: string) {
   ].includes(status)
 }
 
-export function mapOpportunityToSelfSourcedJob(opportunity: OpportunityResponse): SelfSourcedJob {
+export function mapOpportunityToSelfSourcedJob(
+  opportunity: OpportunityResponse,
+  semesterLabels: Record<string, string> = {}
+): SelfSourcedJob {
   return {
     id: opportunity.id,
     studentName: formatStudentDisplayFromIds(opportunity.submittedByUserId),
     studentId: formatStudentDisplayFromIds(opportunity.submittedByUserId),
     course: 'Program pending',
-    semester: opportunity.semesterId,
+    semester: resolveSemesterLabel(opportunity.semesterId, semesterLabels),
     jobTitle: opportunity.jobTitle,
     company: opportunity.employerName,
     submissionDate: opportunity.updatedAt ?? opportunity.createdAt,
@@ -90,7 +94,8 @@ export function mapInternshipToContractApproval(
     studentId: formatStudentDisplayFromIds(undefined, internship.userId),
     studentUserId: internship.userId,
     course: internship.studentProgramCode ?? 'Program pending',
-    semester: 'Current semester',
+    semester: internship.semesterDisplayName || internship.semesterCode || 'Semester pending',
+    semesterId: internship.semesterId,
     submissionDate: internship.lastSubmittedAt ?? internship.createdAt,
     status: internshipStatusToApprovalStatus(internship.status),
     documentName: `${internship.opportunityJobTitle} offer submission`,
@@ -414,7 +419,8 @@ export function deriveStudentsFromInternships(
         studentId: displayStudent,
         course:
           courses.size > 1 ? 'Multiple programs' : (latest.studentProgramCode ?? 'Program pending'),
-        semester: 'Current semester',
+        semester: latest.semesterDisplayName || latest.semesterCode || 'Semester pending',
+        semesterId: latest.semesterId,
         overallStatus: aggregateStudentStatus(sorted.map((item) => item.status)),
         email: '',
         year: 'Current',
