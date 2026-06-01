@@ -30,12 +30,12 @@ export function CoordinatorTopbar() {
           <Bell className="h-4 w-4" />
           <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600" />
         </Link>
-        <Link
-          href="/coordinator/profile"
-          className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 transition hover:bg-slate-50 md:flex"
+        <div
+          className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 md:flex"
+          aria-label="Signed in coordinator"
         >
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
-            <User className="h-3.5 w-3.5" />
+            <User className="h-3.5 w-3.5" aria-hidden />
           </div>
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-slate-900">
@@ -43,7 +43,7 @@ export function CoordinatorTopbar() {
             </p>
             <p className="truncate text-[11px] text-slate-500">{user?.email ?? 'Staff portal'}</p>
           </div>
-        </Link>
+        </div>
         <button
           type="button"
           onClick={handleSignOut}
