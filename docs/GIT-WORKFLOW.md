@@ -1,8 +1,6 @@
 # Git Workflow
 
-This project uses **Gitflow** + **Jira** (project `IC` — Internbot-Capstone). All branch management is automated via Claude Code skills.
-
-Every feature, fix, or chore is tracked by a Jira ticket (`IC-*`). The ticket key appears in the branch name, commit trailer, and PR title so Atlassian's GitHub integration can auto-link and auto-transition.
+This project uses **Gitflow**. Branch management can be automated via Claude Code skills (`/git-feature`, `/git-hotfix`, `/git-release`).
 
 ## Branch Structure
 
@@ -18,13 +16,13 @@ hotfix/*     ← urgent production fixes (branched from main)
 
 ## Branch Naming
 
-| Type    | Pattern                      | Example                          |
-| ------- | ---------------------------- | -------------------------------- |
-| Feature | `feature/IC-XX-{kebab-case}` | `feature/IC-57-phase-1-identity` |
-| Hotfix  | `hotfix/IC-XX-{kebab-case}`  | `hotfix/IC-91-auth-token-expiry` |
-| Release | `release/{semver}`           | `release/1.3.0`                  |
+| Type    | Pattern                | Example                    |
+| ------- | ---------------------- | -------------------------- |
+| Feature | `feature/{kebab-case}` | `feature/phase-1-identity` |
+| Hotfix  | `hotfix/{kebab-case}`  | `hotfix/auth-token-expiry` |
+| Release | `release/{semver}`     | `release/1.3.0`            |
 
-Feature and hotfix branches always carry the Jira ticket key. Release branches are versioned, not ticket-scoped.
+Release branches are versioned, not feature-scoped.
 
 ## Workflow
 
@@ -46,33 +44,25 @@ Feature and hotfix branches always carry the Jira ticket key. Release branches a
 /git-release → creates release/* → version bump → PR to main → merge → tag → back-merge to develop
 ```
 
-## Commit Messages (Conventional Commits + Jira)
+## Commit Messages (Conventional Commits)
 
-The `commit-msg` hook enforces Conventional Commits. We additionally add a Jira trailer on the last line of the message body so every commit links to its ticket.
+The `commit-msg` hook enforces [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <description>
 
 <body — optional paragraph>
-
-IC-XX
 ```
 
 Examples:
 
 ```
 feat(auth): implement POST /auth/sync
-
-IC-57
 ```
 
 ```
 fix(auth): handle token expiry on refresh
-
-Closes IC-91
 ```
-
-`IC-XX` alone adds a reference; `Closes IC-XX` both references and transitions the ticket to Done when the PR merges (Atlassian GitHub integration).
 
 **Types:** `feat` · `fix` · `docs` · `style` · `refactor` · `test` · `chore` · `build` · `ci` · `perf` · `revert`
 
@@ -81,89 +71,50 @@ Closes IC-91
 PR title format:
 
 ```
-[IC-XX] <type>: <summary>
+<type>: <summary>
 ```
 
-PR body must include a `Jira` section with `Refs IC-XX` (or `Closes IC-XX`):
+Or with scope:
+
+```
+feat(semesters): add transition endpoint
+```
+
+PR body template:
 
 ```markdown
 ## Summary
 
 - …
 
-## Jira
-
-- Refs IC-57
-
 ## Test plan
 
 - [ ] …
 ```
 
-The `[IC-XX]` prefix is what Atlassian's GitHub app reads for the auto-link in the Jira ticket's development panel.
+## Overlapping work
 
-## Overlapping tickets
+### One PR touches multiple areas
 
-Real work doesn't always map one PR to one ticket. Four common overlap cases and how we handle them:
+- Use a clear **Summary** listing what changed.
+- Split unrelated changes into separate PRs when possible.
 
-### 1. One PR contributes to multiple tickets
+### One feature needs multiple PRs
 
-Example: a backend phase PR that partially implements several frontend `US-*` stories.
+- **Preferred:** scaffold PR first, then routes, then tests — each PR small and reviewable.
+- Mark early PRs as **Draft** until dependencies merge.
 
-- **PR title**: use the primary ticket as `[IC-XX]` (the one the PR is _most_ about — usually the backend phase Story itself).
-- **PR body** — list all tickets in the `Jira` section:
+### Interdependent PRs
 
-  ```markdown
-  ## Jira
+- Do not merge a PR that depends on unmerged work unless it can stub or mock the dependency.
+- Call out blockers in the PR description (`Depends on #123`).
+- Rebase onto latest `develop` after the blocker merges.
 
-  - Closes IC-57 # primary — this PR fully delivers this ticket
-  - Refs IC-26, IC-27 # contributes partial work; these stay open
-  ```
+### Two in-flight PRs touch the same code
 
-- **Commit message** — multiple trailers, one per line (Atlassian picks up all):
-
-  ```
-  feat(backend): implement Phase 1
-
-  IC-57
-  IC-26
-  IC-27
-  ```
-
-### 2. One ticket needs multiple PRs
-
-Example: a large story that takes a scaffold PR, a routes PR, and a tests PR.
-
-- **Preferred**: break the ticket into sub-tasks in Jira first (one per PR). Each PR then references its sub-task (`IC-XX-1`, `IC-XX-2`, …) with `Closes`; the parent ticket auto-completes when all sub-tasks are done.
-- **Alternative**: all PRs `Refs IC-XX`; the last one uses `Closes IC-XX`. Earlier PRs use `Refs` so the ticket doesn't transition to Done prematurely.
-
-### 3. Interdependent tickets
-
-Example: Phase 2 backend blocks Phase 2 frontend; or Phase 5 requires Phase 4 to be merged first.
-
-- **Model the dependency in Jira**, not in the PR. Use issue links:
-  - `is blocked by` — A can't start until B merges (frontend frequently blocked by backend)
-  - `blocks` — reverse of above (set from the blocker side)
-  - `relates to` — informational, no enforcement
-- The PR body should call out the dependency in its `Jira` section:
-
-  ```markdown
-  ## Jira
-
-  - Closes IC-58
-  - Depends on IC-57 (merged)
-  ```
-
-- Do not open a PR for a ticket whose blockers are still `To Do` unless the work can stub / mock the missing piece. If you do, mark the PR as **Draft** until the blocker merges.
-
-### 4. Two in-flight PRs touch overlapping code
-
-Git-level, not Jira-level. Normal PR discipline:
-
-- Whoever merges first wins. The later PR rebases onto the updated `develop` and resolves the conflict.
-- If both PRs genuinely need the same edit, extract the shared change into its own tiny prep-PR first, merge it, then both downstream PRs rebase on it.
-- Talk to the other author. Coordination beats merge-conflict resolution every time.
-- Never "claim" a file by committing to `develop` out-of-band. Shared code lives behind PRs.
+- Whoever merges first wins; the other PR rebases and resolves conflicts.
+- Extract shared changes into a small prep PR if both need the same edit.
+- Never push directly to `develop` or `main` — use PRs.
 
 ## Merge Strategy
 
@@ -194,10 +145,10 @@ This is **only needed when something edits main outside of a develop → main re
 Promote `develop` → `main` on a **regular cadence**, not on accumulation. Pick one and stick with it:
 
 - **Phase-based**: every completed phase in `WORKFLOW-API-IMPLEMENTATION-PLAN.md` → release.
-- **Time-based**: every Sunday → release whatever is on develop.
+- **Time-based**: every week → release whatever is on develop.
 - **Count-based**: every 5–10 squash-merges on develop → release.
 
-Solo-dev GitFlow only works when releases are _frequent and small_. Letting develop accumulate 30+ commits before a release is the failure mode that produces enormous merge conflicts and stale Dependabot configs.
+Solo-dev GitFlow only works when releases are _frequent and small_. Letting develop accumulate 30+ commits before a release produces large merge conflicts and stale Dependabot configs.
 
 ## Dependabot
 
@@ -208,7 +159,7 @@ Dependabot reads `.github/dependabot.yml` from `main` only — that's a GitHub c
 - **Version updates** (→ `develop`) — squash, like any feature PR.
 - **Security updates** (→ `main`) — treat as a hotfix: merge with `--no-ff`, then back-merge `main → develop`. Don't squash; that strips ancestry and re-creates the merge-base problem the strategy table exists to prevent.
 
-Edit `.github/dependabot.yml` on `develop` like any other file. The new config activates when the next `develop` → `main` release lands. The cadence rule above is what keeps that lag short — letting it sit for 30+ commits is what produced the stale-config / wrong-target-branch problem we hit at the IC-58 release.
+Edit `.github/dependabot.yml` on `develop` like any other file. The new config activates when the next `develop` → `main` release lands. The cadence rule above keeps that lag short — letting it sit for 30+ commits is what produced the stale-config / wrong-target-branch problem on an earlier release.
 
 If a different file ever needs to be read from `main` only (`CODEOWNERS`, CodeQL default config, etc.), the same lag applies and the same cadence rule fixes it. Don't bypass cadence by branching from main for one-off config edits — that creates a divergent main that develop never gets, defeating the whole pattern.
 

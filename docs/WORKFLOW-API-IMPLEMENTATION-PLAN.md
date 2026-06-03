@@ -2,7 +2,6 @@
 
 Implementation roadmap for [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
 
-- **Jira epic:** `IC-56` (Backend Workflow API v1). Each phase gets its own child Story (`IC-57` … created as each phase starts) with frozen Scope / Success criteria / Bug-finding cases copied from this file.
 - **Cadence:** one backend PR per phase, merged to `develop` behind feature branches per [GIT-WORKFLOW.md](./GIT-WORKFLOW.md). **Parallel vertical-slice delivery** — once a backend phase merges, backend Phase N+1 starts immediately while frontend implements the unblocked `US-*` stories against the freshly-merged API. Frontend and backend run concurrently; `develop` accumulates both as they land. Both halves of Phase N must be merged before we consider that phase "demoable."
 - **Out of scope (v1):** AI endpoints (`/ai-reviews`, `/faq`) and email delivery on notifications. Structural hooks remain so both can be added later without migrations.
 - **Global definition of done (every backend phase):**
@@ -13,7 +12,7 @@ Implementation roadmap for [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
     - **Component (API) tests** against Firestore + Firebase Auth emulators — **one `it(...)` per Success-criteria bullet and per Bug-finding bullet**. Component tests are the definitive contract check for routes, wire DTOs, and mappers.
   - No new `eslint-disable` comments
   - Docs updated for any deviation from the spec
-  - PR title carries `[IC-XX]` prefix and commits carry an `IC-XX` trailer
+  - PR follows [GIT-WORKFLOW.md](./GIT-WORKFLOW.md) (Conventional Commits, squash to `develop`)
 
 ## How to edit this file
 
@@ -41,10 +40,9 @@ This is a sprint-contract file, not a status log. Two rules:
 ## Phase 1 — Identity + shared foundations
 
 **Status:** done
-**Jira:** [IC-57](https://internbot.atlassian.net/browse/IC-57)
 **Backend PR:** [#18](https://github.com/giatinhuynh/Internbot/pull/18) (merged as `a067ac9`) + [#19](https://github.com/giatinhuynh/Internbot/pull/19) (lefthook follow-up, merged as `0912be2`)
 **Frontend follow-up PR:** _pending (can start once backend merges to develop — runs in parallel with Phase 2 backend)_
-**Unblocks frontend stories:** [IC-26](https://internbot.atlassian.net/browse/IC-26) US-003 Firestore schema + Cloud Functions scaffold (primary), [IC-27](https://internbot.atlassian.net/browse/IC-27) US-004 Next.js role-aware routing, [IC-52](https://internbot.atlassian.net/browse/IC-52) US-025 Profile Settings page. `IC-57` has "blocks" links to all three in Jira.
+**Unblocks frontend:** US-003 Firestore schema + Cloud Functions scaffold (primary), US-004 Next.js role-aware routing, US-025 Profile Settings page.
 
 ### Notes
 
@@ -100,7 +98,6 @@ _(append terse status notes here during implementation)_
 ## Phase 2 — Semesters
 
 **Status:** done
-**Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58)
 **PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26))
 
 ### Scope
@@ -139,8 +136,7 @@ _(append terse status notes here during implementation)_
 ## Phase 3 — Student enrolment + workflow
 
 **Status:** done
-**Jira:** [IC-58](https://internbot.atlassian.net/browse/IC-58) (bundled with Phase 2)
-**PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26))
+**PR:** [#24](https://github.com/giatinhuynh/Internbot/pull/24) (merged as `27ef60d` on 2026-04-28; reached main via release PR [#26](https://github.com/giatinhuynh/Internbot/pull/26); bundled with Phase 2)
 
 ### Scope
 

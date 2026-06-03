@@ -230,12 +230,12 @@ Rule of thumb for `400` vs `422`: `400` means "I can't parse or recognize this r
 
 #### Actions as plural-noun sub-resources
 
-This spec follows the **reify-as-noun** pattern shipped by [GitHub](https://docs.github.com/en/rest), [Twitter/X v2](https://developer.twitter.com/en/docs/twitter-api), and [Jira](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/) for workflow apps:
+This spec follows the **reify-as-noun** pattern shipped by [GitHub](https://docs.github.com/en/rest) and [Twitter/X v2](https://developer.twitter.com/en/docs/twitter-api) for workflow apps:
 
 - **Standard methods** act on resources: `GET /internships`, `POST /internships`, `PATCH /internships/{id}`, `GET /internships/{id}`.
 - **Action methods** reify the action as a plural-noun sub-resource and `POST` to it:
   - `POST /internships/{id}/offer-submissions` — creates an offer-submission record
-  - `POST /internships/{id}/decisions` — creates a decision record (matches Jira's `POST /issue/{id}/transitions`)
+  - `POST /internships/{id}/decisions` — creates a decision record (workflow transition as a stored noun)
   - `POST /opportunities/{id}/verifications` — creates a verification record (student-submission review path)
   - `POST /opportunities/{id}/transitions` — creates a transition record (coordinator publish/archive)
   - `POST /semesters/{id}/transitions` — creates a transition record (semester activate/archive)
@@ -247,7 +247,7 @@ This spec follows the **reify-as-noun** pattern shipped by [GitHub](https://docs
 
 Why this pattern (and not Stripe-style `/capture` verbs or Google-style `:verify` custom methods):
 
-- The domain is workflow + audit records — every coordinator decision, student submission, comment, and verification produces an activity entry. That shape matches GitHub PRs, Twitter likes, and Jira transitions, where reify-as-noun is semantically honest.
+- The domain is workflow + audit records — every coordinator decision, student submission, comment, and verification produces an activity entry. That shape matches GitHub PRs and Twitter likes, where reify-as-noun is semantically honest.
 - No Express routing friction (colon-in-path escaping is not needed).
 - Standard OpenAPI tooling generates clean clients.
 - `DELETE /internships/{id}/decisions/{decisionId}` would be a natural undo path if v2 ever adds one.
@@ -880,7 +880,7 @@ Side effects:
 
 Purpose: Coordinator verifies a student-submitted custom opportunity, creating a verification record that transitions the opportunity from `pending_verification` to `published` or `rejected`. Only applicable to opportunities with `status: pending_verification`.
 
-Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the verification is itself a stored record (coordinator identity + timestamp + decision) — reifying the action as a noun matches the pattern used by GitHub (`/dispatches`, `/merges`), Twitter (`/likes`, `/retweets`), and Jira (`/transitions`) for workflow apps. Submitting the same verification twice must fail with `409` because the opportunity has already moved out of its reviewable state. See the parallel pattern at `POST /internships/{id}/decisions` (section 7.7).
+Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the verification is itself a stored record (coordinator identity + timestamp + decision) — reifying the action as a noun matches the pattern used by GitHub (`/dispatches`, `/merges`) and Twitter (`/likes`, `/retweets`) for workflow apps. Submitting the same verification twice must fail with `409` because the opportunity has already moved out of its reviewable state. See the parallel pattern at `POST /internships/{id}/decisions` (section 7.7).
 
 Auth: Coordinator
 
@@ -1492,7 +1492,7 @@ There is no dedicated coordinator collection URL — role-based filtering happen
 
 Purpose: Submit a coordinator decision for an internship's offer — approve, reject, or request changes. The decision is reified as an activity entry in `internships/{id}/activity` (with `type: approve_offer`, `request_changes`, or `reject`) and reflected on the internship's `coordinatorDecision` field. Only applicable to the offer review stage.
 
-Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the decision is a stored record with a reviewer, timestamp, and outcome — the plural-noun reification matches Jira's workflow-transition pattern (`POST /issue/{id}/transitions`). Submitting the same decision twice must fail with `409` because the internship has already moved out of its reviewable state.
+Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the decision is a stored record with a reviewer, timestamp, and outcome — the plural-noun reification matches common workflow-transition APIs. Submitting the same decision twice must fail with `409` because the internship has already moved out of its reviewable state.
 
 Auth: Coordinator
 

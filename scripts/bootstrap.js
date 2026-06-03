@@ -51,7 +51,7 @@ function copyEnvIfMissing(relExample, relTarget) {
   console.log(`  (new)  ${relTarget} ← ${relExample}`)
 }
 
-console.log('\n=== Garage boilerplate: bootstrap (first-time local setup) ===\n')
+console.log('\n=== Internbot: bootstrap (first-time local setup) ===\n')
 
 if (!dockerOk()) {
   err('Docker is not running. Start Docker Desktop (or the Docker daemon), then run: pnpm run bootstrap')

@@ -3,29 +3,36 @@
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Browser                                  │
-│  Next.js 16 (React 19) — static export (SPA)                    │
-│  ├── App Router (client components only, no SSR)                │
-│  ├── Firebase Auth (client-side session, ID token in memory)    │
-│  └── Firestore (real-time subscriptions in client components)   │
-└────────────────────┬────────────────────────────────────────────┘
-                     │ HTTPS
-         ┌───────────┴──────────────┐
-         │                          │
-         ▼                          ▼
-┌─────────────────┐      ┌─────────────────────┐
-│  Firebase        │      │  Cloud Functions v2  │
-│  Hosting         │      │  (Express fat-lambda)│
-│  (static assets) │      │  /api/*              │
-└─────────────────┘      └─────────┬───────────┘
-                                   │ Admin SDK
-                         ┌─────────▼───────────┐
-                         │     Firebase         │
-                         │  ├── Auth            │
-                         │  ├── Firestore       │
-                         │  └── Storage         │
-                         └─────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Browser — Next.js 16 static SPA (frontend/)                              │
+│  ├── Firebase Auth only (ID token; no Firestore/Storage client SDK)      │
+│  └── apiFetch('/api/v1/...') + Authorization: Bearer <token>             │
+└───────────────────────────────┬──────────────────────────────────────────┘
+                                │ HTTPS
+                                ▼
+                   ┌────────────────────────────┐
+                   │  Firebase Hosting          │
+                   │  static assets + rewrite   │
+                   │  /api/** → Cloud Function  │
+                   └─────────────┬──────────────┘
+                                 ▼
+                   ┌────────────────────────────┐
+                   │  Cloud Functions v2 `api`  │
+                   │  Express (backend/)        │
+                   └─────────────┬──────────────┘
+                                 │ Admin SDK
+                   ┌─────────────▼──────────────┐
+                   │  Firebase                   │
+                   │  ├── Auth                   │
+                   │  ├── Firestore              │
+                   │  └── Storage                │
+                   └─────────────┬──────────────┘
+                                 │ HTTP (advisor routes)
+                                 ▼
+                   ┌────────────────────────────┐
+                   │  interbotRAG (separate     │
+                   │  repo / deploy) — optional │
+                   └────────────────────────────┘
 ```
 
 ## Request Patterns
@@ -47,9 +54,10 @@
 ### Authentication Flow
 
 1. User submits credentials → Firebase Auth signs in (client SDK)
-2. `onAuthStateChanged` fires → `AuthProvider` sets `user`, syncs profile doc
-3. Subsequent `apiFetch` calls attach `Authorization: Bearer <idToken>`
-4. Client-side route guards (`useRequireAuth`) handle redirects for unauthed users
+2. `onAuthStateChanged` fires → `AuthProvider` sets `user`
+3. Client calls `GET /api/v1/users/me` — backend JIT-creates the platform user for verified students
+4. Subsequent `apiFetch` calls attach `Authorization: Bearer <idToken>`
+5. Client-side route guards (`useRequireAuth`) handle redirects for unauthed users
 
 ## Security Model
 

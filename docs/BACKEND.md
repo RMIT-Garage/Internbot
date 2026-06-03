@@ -2,7 +2,7 @@
 
 > Canonical reference for backend conventions. `backend/CLAUDE.md` is a
 > thin rule sheet; this file is the deep dive. Spec-level behaviour lives
-> in [docs/WORKFLOW-API-SPEC.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/WORKFLOW-API-SPEC.md).
+> in [WORKFLOW-API-SPEC.md](./WORKFLOW-API-SPEC.md).
 
 ---
 
@@ -285,7 +285,7 @@ async handle(cmd: GetUserQuery): Promise<UserResult> {
 
 ## Error handling
 
-Full rules: [docs/ERROR-HANDLING.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/ERROR-HANDLING.md).
+Full rules: [ERROR-HANDLING.md](./ERROR-HANDLING.md).
 
 Summary:
 
@@ -374,7 +374,7 @@ Use the `/add-route` Claude Code skill. The CQRS cascade typically produces:
 7. `api/routes/index.ts` — mount new router
 8. If new aggregate: domain entity / VOs / repository port + infra schema / mapper / repo impl + UoW extension
 
-Tests via the `test-writer` agent — one `it(…)` per bullet in the governing phase of [docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/WORKFLOW-API-IMPLEMENTATION-PLAN.md).
+Tests via the `test-writer` agent — one `it(…)` per bullet in the governing phase of [WORKFLOW-API-IMPLEMENTATION-PLAN.md](./WORKFLOW-API-IMPLEMENTATION-PLAN.md).
 
 ---
 
@@ -398,7 +398,7 @@ The architecture test fails if `api/routes/` imports `firebase-admin` directly.
 
 ## API conventions (wire-level)
 
-The **normative** contract lives in [docs/WORKFLOW-API-SPEC.md §7.0](/Users/nhatdongdang/Documents/Code/Internbot/docs/WORKFLOW-API-SPEC.md). This section summarises what Express + middleware + routes must enforce. When the spec and this section disagree, the spec wins.
+The **normative** contract lives in [WORKFLOW-API-SPEC.md §7.0](./WORKFLOW-API-SPEC.md). This section summarises what Express + middleware + routes must enforce. When the spec and this section disagree, the spec wins.
 
 ### Base
 
@@ -441,7 +441,7 @@ The **normative** contract lives in [docs/WORKFLOW-API-SPEC.md §7.0](/Users/nha
 
 ### Action endpoints
 
-Non-CRUD actions use plural-noun sub-resources (GitHub/Twitter/Jira pattern), not `:verb` custom methods or verb paths:
+Non-CRUD actions use plural-noun sub-resources (GitHub/Twitter pattern), not `:verb` custom methods or verb paths:
 
 - `POST /internships/{id}/offer-submissions`
 - `POST /internships/{id}/decisions`
@@ -463,7 +463,7 @@ Non-CRUD actions use plural-noun sub-resources (GitHub/Twitter/Jira pattern), no
 
 - Allowed request headers: `Authorization`, `Content-Type`, `If-Match`
 - Exposed response headers: `ETag`, `Location`, `Retry-After`
-- Allowed origins: env-configured (see [docs/ENV-VARS.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/ENV-VARS.md))
+- Allowed origins: env-configured (see [ENV-VARS.md](./ENV-VARS.md))
 
 ### Soft-delete
 
@@ -473,7 +473,7 @@ No endpoint accepts `DELETE` in v1. Resources retire through status transitions 
 
 ## Testing
 
-Three tiers + architecture checks. Canonical reference: [docs/TESTING.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/TESTING.md).
+Three tiers + architecture checks. Canonical reference: [TESTING.md](./TESTING.md).
 
 | Tier         | Folder                                     | Emulator                      | Contents                                                                                                                |
 | ------------ | ------------------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
