@@ -1,0 +1,96 @@
+{
+  "datasetVersion": "foundation-v1.0.0",
+  "feature": "contract-checker",
+  "promptVersion": "v1.0.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "CC-FOUND-001",
+      "feature": "contract-checker",
+      "name": "Pass - clear IT award and full compliance",
+      "input": {
+        "text": "Contract between BrightCode Pty Ltd and Priya Nair for Junior Software Developer under Professional Employees Award (IT stream). Placement is 260 hours over 8 weeks. Supervisor: Michael Lee, michael.lee@brightcode.com, +61 400 123 999. Student and employer names match submission. Duties include backend API development, testing and code reviews. Start date is in 3 weeks. Signed by both parties."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      }
+    },
+    {
+      "id": "CC-FOUND-002",
+      "feature": "contract-checker",
+      "name": "Fail - unrelated award classification",
+      "input": {
+        "text": "Intern agreement under Hospitality Industry (General) Award 2020 for role 'Venue Operations Assistant'. 300 hours, supervisor details provided, signed."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_AWARD_CLASSIFICATION"],
+        "concerns": [
+          "Award classification appears unrelated to IT/computing internship requirements."
+        ]
+      }
+    },
+    {
+      "id": "CC-FOUND-003",
+      "feature": "contract-checker",
+      "name": "Fail - hours not sufficient",
+      "input": {
+        "text": "Contract for Junior QA Intern under IT award. Placement states 120 total hours over 4 weeks. Supervisor is named with email. Signed by student and employer."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_2_MINIMUM_HOURS"],
+        "concerns": [
+          "Documented hours are below the required internship threshold."
+        ]
+      }
+    },
+    {
+      "id": "CC-FOUND-004",
+      "feature": "contract-checker",
+      "name": "Fail - missing named supervisor contact",
+      "input": {
+        "text": "Agreement under IT award for 240 hours. Supervisor listed as 'Engineering Team' without person name or contact details. Technical duties are valid and contract is signed."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_3_NAMED_SUPERVISOR"],
+        "concerns": [
+          "A specific supervisor identity and contact details are not provided."
+        ]
+      }
+    },
+    {
+      "id": "CC-FOUND-005",
+      "feature": "contract-checker",
+      "name": "Fail - non-technical duties in tech company",
+      "input": {
+        "text": "Contract with ByteWave Technologies under IT award, 260 hours, supervisor provided. Role tasks are mostly front-desk support, calendar management, document filing and visitor handling. Signed and date-valid."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_5_SUBSTANTIVE_TECHNICAL_WORK"],
+        "concerns": [
+          "Role duties are primarily administrative and not substantively technical."
+        ]
+      }
+    },
+    {
+      "id": "CC-FOUND-006",
+      "feature": "contract-checker",
+      "name": "Fail - unsigned contract",
+      "input": {
+        "text": "IT internship contract for 240 hours with named supervisor and technical duties, but signature blocks for both student and employer are blank."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_6_CONTRACT_VALIDITY"],
+        "concerns": [
+          "Contract is not fully executed/signed by required parties."
+        ]
+      }
+    }
+  ]
+}

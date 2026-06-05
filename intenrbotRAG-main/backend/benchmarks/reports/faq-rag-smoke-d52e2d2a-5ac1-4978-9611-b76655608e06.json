@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "runId": "d52e2d2a-5ac1-4978-9611-b76655608e06",
+    "mode": "smoke",
+    "feature": "faq-rag",
+    "provider": "fixture-provider",
+    "model": "gemini-2.0-flash-lite",
+    "promptVersion": "v1.0.0",
+    "promptPath": "/Users/shinya/Documents/GitHub/interbotRAG/backend/benchmarks/prompts/faq-rag/v1.0.0.txt",
+    "startedAtIso": "2026-04-16T08:12:39.116Z",
+    "finishedAtIso": "2026-04-16T08:12:39.122Z",
+    "usedFixtureResponses": true
+  },
+  "executions": [
+    {
+      "caseId": "FAQ-SMOKE-002",
+      "name": "Unanswerable question should refuse",
+      "feature": "faq-rag",
+      "expected": {
+        "answeredFromContext": false,
+        "refusalMessage": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "requiredSources": []
+      },
+      "rawResponse": "{\"answer\":\"I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.\",\"sources\":[],\"confidence\":0,\"answered_from_context\":false}",
+      "parsedResponse": {
+        "answer": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "sources": [],
+        "confidence": 0,
+        "answered_from_context": false
+      },
+      "parseSuccess": true,
+      "latencyMs": 0
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 1,
+    "answered_from_context_accuracy": 1,
+    "refusal_rate_unanswerable": 1,
+    "citation_presence_rate": 0,
+    "citation_support_rate": 0,
+    "usage_coverage_rate": 0,
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_tokens": 0,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "cost_coverage_rate": 0,
+    "total_cost_usd": 0,
+    "avg_cost_usd_per_call": 0
+  },
+  "minThresholds": {
+    "parse_success_rate": 1,
+    "answered_from_context_accuracy": 0.8,
+    "refusal_rate_unanswerable": 0.8,
+    "citation_presence_rate": 0.8,
+    "usage_coverage_rate": 0
+  },
+  "maxThresholds": {},
+  "pass": false
+}

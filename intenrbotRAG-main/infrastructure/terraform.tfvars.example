@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in values
+# terraform.tfvars is gitignored — never commit it
+
+project_id         = "my-project-123"  # Replace with your Firebase project ID
+region             = "australia-southeast1"
+firestore_location = "australia-southeast2"

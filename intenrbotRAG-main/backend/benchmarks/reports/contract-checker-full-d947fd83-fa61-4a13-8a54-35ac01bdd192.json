@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "runId": "d947fd83-fa61-4a13-8a54-35ac01bdd192",
+    "mode": "full",
+    "feature": "contract-checker",
+    "provider": "google-gemini",
+    "model": "gemini-2.0-flash-lite",
+    "promptVersion": "v1.0.0",
+    "promptPath": "/Users/shinya/Documents/GitHub/interbotRAG/backend/benchmarks/prompts/contract-checker/v1.0.0.txt",
+    "startedAtIso": "2026-04-16T07:43:22.935Z",
+    "finishedAtIso": "2026-04-16T07:43:22.987Z",
+    "usedFixtureResponses": false
+  },
+  "executions": [
+    {
+      "caseId": "CC-FULL-001",
+      "name": "Compliant contract",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 46,
+      "error": "fetch failed"
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 0,
+    "decision_accuracy": 0,
+    "precision_yes": 0,
+    "recall_yes": 0,
+    "f1_yes": 0,
+    "concern_match_rate": 0,
+    "latency_ms_avg": 46,
+    "usage_coverage_rate": 0,
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_tokens": 0,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "cost_coverage_rate": 0,
+    "total_cost_usd": 0,
+    "avg_cost_usd_per_call": 0
+  },
+  "minThresholds": {
+    "parse_success_rate": 0.99,
+    "decision_accuracy": 0.85,
+    "precision_yes": 0.9,
+    "recall_yes": 0.8,
+    "usage_coverage_rate": 1
+  },
+  "maxThresholds": {
+    "avg_cost_usd_per_call": 0.05
+  },
+  "pass": false
+}

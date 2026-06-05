@@ -1,0 +1,30 @@
+services:
+  firebase-emulators:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile
+    ports:
+      - "4000:4000"  # Emulator UI
+      - "5001:5001"  # Cloud Functions
+      - "8080:8080"  # Firestore
+      - "9099:9099"  # Authentication
+      - "9199:9199"  # Storage
+    volumes:
+      - firebase-emulator-data:/workspace/.emulator-data
+      # Use repo files at runtime (rules + indexes live under firebase/)
+      - ./firebase.json:/workspace/firebase.json:ro
+      - ./.firebaserc:/workspace/.firebaserc:ro
+      - ./firebase:/workspace/firebase:ro
+    env_file:
+      - backend/.env
+    environment:
+      - GCLOUD_PROJECT=internbotrag
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  firebase-emulator-data:

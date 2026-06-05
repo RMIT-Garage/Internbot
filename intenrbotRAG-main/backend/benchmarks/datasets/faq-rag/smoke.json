@@ -1,0 +1,63 @@
+{
+  "datasetVersion": "v1.0.0",
+  "feature": "faq-rag",
+  "promptVersion": "v1.0.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "FAQ-SMOKE-001",
+      "feature": "faq-rag",
+      "name": "Answerable policy question",
+      "input": {
+        "question": "How many internship hours are required for WIL?",
+        "retrievedChunks": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Minimum Hours",
+            "text": "Students must complete at least 240 hours of approved placement work."
+          }
+        ]
+      },
+      "expected": {
+        "answeredFromContext": true,
+        "requiredSources": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Minimum Hours"
+          }
+        ]
+      },
+      "fixtureResponse": {
+        "answer": "You need at least 240 hours of approved internship placement work. [Source: RMIT WIL Internship Policy, Minimum Hours]",
+        "sources": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Minimum Hours"
+          }
+        ],
+        "confidence": 0.95,
+        "answered_from_context": true
+      }
+    },
+    {
+      "id": "FAQ-SMOKE-002",
+      "feature": "faq-rag",
+      "name": "Unanswerable question should refuse",
+      "input": {
+        "question": "Will policy change next year for international students?",
+        "retrievedChunks": []
+      },
+      "expected": {
+        "answeredFromContext": false,
+        "refusalMessage": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "requiredSources": []
+      },
+      "fixtureResponse": {
+        "answer": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "sources": [],
+        "confidence": 0,
+        "answered_from_context": false
+      }
+    }
+  ]
+}

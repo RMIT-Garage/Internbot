@@ -1,0 +1,162 @@
+{
+  "datasetVersion": "v1.1.0",
+  "feature": "job-checker",
+  "promptVersion": "v1.1.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "JC-FULL-001",
+      "feature": "job-checker",
+      "name": "Eligible paid software internship",
+      "input": {
+        "text": "Paid software engineering internship, 6 months full-time, supervised by senior engineer, with established company."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "fixtureResponse": {
+        "scratchpad": "All rules pass.",
+        "decision": "Yes",
+        "confidence": 0.94,
+        "concerns": [],
+        "summary": "Eligible role."
+      }
+    },
+    {
+      "id": "JC-FULL-002",
+      "feature": "job-checker",
+      "name": "Too short and unpaid without agreement",
+      "input": {
+        "text": "Two-week unpaid startup project with no formal WIL agreement."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_2_MINIMUM_DURATION", "RULE_4_PAID_OR_FORMAL"],
+        "concerns": ["Duration below 240 hours.", "Unpaid role has no formal placement agreement."]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule2 and Rule4 fail.",
+        "decision": "No",
+        "confidence": 0.98,
+        "concerns": ["Duration below 240 hours.", "Unpaid role has no formal placement agreement."],
+        "summary": "Ineligible due to duration and structure failures."
+      }
+    },
+    {
+      "id": "JC-FULL-003",
+      "feature": "job-checker",
+      "name": "Missing employer legitimacy info",
+      "input": {
+        "text": "Freelance contractor role, technical tasks mentioned but no employer details provided."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_5_LEGITIMATE_EMPLOYER"],
+        "concerns": ["Employer legitimacy information is missing."]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule5 fails due to missing employer information.",
+        "decision": "No",
+        "confidence": 0.9,
+        "concerns": ["Employer legitimacy information is missing."],
+        "summary": "Ineligible because employer legitimacy cannot be verified."
+      }
+    },
+    {
+      "id": "JC-FULL-004",
+      "feature": "job-checker",
+      "name": "Technical title but mostly sales duties",
+      "input": {
+        "text": "Role: Junior Solutions Consultant Intern. Daily duties are lead generation, sales demos, CRM updates, and proposal follow-up. Limited mention of coding or engineering tasks."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_TECHNICAL_ALIGNMENT"],
+        "concerns": [
+          "RULE_1_TECHNICAL_ALIGNMENT: Role content is primarily sales/consulting rather than technical engineering work."
+        ]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 fail due to mainly sales duties. Rule2 unclear/pass. Rule3 unclear. Rule4 unclear. Rule5 pass/unclear.",
+        "decision": "No",
+        "confidence": 0.93,
+        "concerns": [
+          "RULE_1_TECHNICAL_ALIGNMENT: Role content is primarily sales/consulting rather than technical engineering work."
+        ],
+        "summary": "Role is ineligible because work is not substantively technical."
+      }
+    },
+    {
+      "id": "JC-FULL-005",
+      "feature": "job-checker",
+      "name": "Unpaid but formal WIL-style structure",
+      "input": {
+        "text": "12-week unpaid cybersecurity internship under formal university placement agreement. Employer provides named SOC supervisor, structured tasks (SIEM triage, incident notes), and documented hours."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 pass. Rule3 pass. Rule4 pass because formal placement agreement exists. Rule5 pass.",
+        "decision": "Yes",
+        "confidence": 0.89,
+        "concerns": [],
+        "summary": "Role is eligible as a formal supervised technical placement."
+      }
+    },
+    {
+      "id": "JC-FULL-006",
+      "feature": "job-checker",
+      "name": "No supervisor and no concrete employer identity",
+      "input": {
+        "text": "Remote 'AI Internship' posted by Global Talent Hub. Duties are vaguely listed as 'assist with AI tasks'. No legal employer details, no website, no ABN, no named supervisor."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_3_SUPERVISION_STRUCTURE", "RULE_5_LEGITIMATE_EMPLOYER"],
+        "concerns": [
+          "RULE_3_SUPERVISION_STRUCTURE: No clear technical supervisor is identified.",
+          "RULE_5_LEGITIMATE_EMPLOYER: Employer legitimacy cannot be verified from provided details."
+        ]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 unclear. Rule2 unclear. Rule3 fail no supervisor. Rule4 unclear. Rule5 fail no verifiable employer info.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": [
+          "RULE_3_SUPERVISION_STRUCTURE: No clear technical supervisor is identified.",
+          "RULE_5_LEGITIMATE_EMPLOYER: Employer legitimacy cannot be verified from provided details."
+        ],
+        "summary": "Role is ineligible due to missing supervision and unverifiable employer context."
+      }
+    },
+    {
+      "id": "JC-FULL-007",
+      "feature": "job-checker",
+      "name": "Strong engineering role but too short",
+      "input": {
+        "text": "Paid backend engineering internship with clear supervisor and valid company details, but duration is one week (around 30 total hours)."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_2_MIN_DURATION_OR_HOURS"],
+        "concerns": [
+          "RULE_2_MIN_DURATION_OR_HOURS: Placement duration/hours are insufficient for internship outcomes."
+        ]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 fail due to very short duration. Rule3 pass. Rule4 pass. Rule5 pass.",
+        "decision": "No",
+        "confidence": 0.94,
+        "concerns": [
+          "RULE_2_MIN_DURATION_OR_HOURS: Placement duration/hours are insufficient for internship outcomes."
+        ],
+        "summary": "Role is ineligible because duration is below minimum practical threshold."
+      }
+    }
+  ]
+}

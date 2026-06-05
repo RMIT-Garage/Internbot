@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "runId": "8295589c-c9cf-4ff3-afb2-fbdfc2f70faa",
+    "mode": "smoke",
+    "feature": "contract-checker",
+    "provider": "fixture-provider",
+    "model": "gemini-2.0-flash-lite",
+    "promptVersion": "v1.0.0",
+    "promptPath": "/Users/shinya/Documents/GitHub/interbotRAG/backend/benchmarks/prompts/contract-checker/v1.0.0.txt",
+    "startedAtIso": "2026-04-15T15:24:27.409Z",
+    "finishedAtIso": "2026-04-15T15:24:27.416Z",
+    "usedFixtureResponses": true
+  },
+  "executions": [
+    {
+      "caseId": "CC-SMOKE-001",
+      "name": "Clearly compliant contract",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "rawResponse": "{\"scratchpad\":\"Rule1 pass. Rule2 pass. Rule3 pass. Rule4 pass. Rule5 pass. Rule6 pass.\",\"decision\":\"Yes\",\"confidence\":0.97,\"concerns\":[],\"summary\":\"Contract is compliant across all rules.\"}",
+      "parsedResponse": {
+        "scratchpad": "Rule1 pass. Rule2 pass. Rule3 pass. Rule4 pass. Rule5 pass. Rule6 pass.",
+        "decision": "Yes",
+        "confidence": 0.97,
+        "concerns": [],
+        "summary": "Contract is compliant across all rules."
+      },
+      "parseSuccess": true,
+      "latencyMs": 0
+    },
+    {
+      "caseId": "CC-SMOKE-002",
+      "name": "Healthcare award should fail",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_AWARD_CLASSIFICATION"],
+        "concerns": ["Award classification is healthcare, not IT or engineering."]
+      },
+      "rawResponse": "{\"scratchpad\":\"Rule1 fails because Health Professionals Award is not IT/engineering.\",\"decision\":\"No\",\"confidence\":0.99,\"concerns\":[\"Award classification is healthcare, not IT or engineering.\"],\"summary\":\"Contract fails award classification rule.\"}",
+      "parsedResponse": {
+        "scratchpad": "Rule1 fails because Health Professionals Award is not IT/engineering.",
+        "decision": "No",
+        "confidence": 0.99,
+        "concerns": ["Award classification is healthcare, not IT or engineering."],
+        "summary": "Contract fails award classification rule."
+      },
+      "parseSuccess": true,
+      "latencyMs": 0
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 1,
+    "decision_accuracy": 1,
+    "precision_yes": 1,
+    "recall_yes": 1,
+    "f1_yes": 1,
+    "concern_match_rate": 1,
+    "latency_ms_avg": 0
+  },
+  "thresholds": {
+    "parse_success_rate": 1,
+    "decision_accuracy": 0.8,
+    "precision_yes": 0.8,
+    "recall_yes": 0.8
+  },
+  "pass": true
+}

@@ -1,0 +1,26 @@
+node_modules
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
+.env.production
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Supabase CLI (link metadata; may include connection hints)
+supabase/.temp
+
+.firebase
+
+# Backend build outputs
+backend/lib/
+backend/dist/
+backend/*.tsbuildinfo
+
+# Monorepo uses pnpm; a root npm lockfile confuses Firebase webframeworks Cloud Build (npm ci).
+/package-lock.json

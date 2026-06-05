@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "runId": "1ff09ece-95f5-4240-9227-6fbba64e6e3b",
+    "mode": "smoke",
+    "feature": "job-checker",
+    "provider": "fixture-provider",
+    "model": "gemini-2.0-flash-lite",
+    "promptVersion": "v1.0.0",
+    "promptPath": "/Users/shinya/Documents/GitHub/interbotRAG/backend/benchmarks/prompts/job-checker/v1.0.0.txt",
+    "startedAtIso": "2026-04-16T08:10:43.522Z",
+    "finishedAtIso": "2026-04-16T08:10:43.535Z",
+    "usedFixtureResponses": true
+  },
+  "executions": [
+    {
+      "caseId": "JC-SMOKE-001",
+      "name": "Eligible technical role",
+      "feature": "job-checker",
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "rawResponse": "{\"scratchpad\":\"All five eligibility rules pass.\",\"decision\":\"Yes\",\"confidence\":0.96,\"concerns\":[],\"summary\":\"Role is eligible for WIL internship.\"}",
+      "parsedResponse": {
+        "scratchpad": "All five eligibility rules pass.",
+        "decision": "Yes",
+        "confidence": 0.96,
+        "concerns": [],
+        "summary": "Role is eligible for WIL internship."
+      },
+      "parseSuccess": true,
+      "latencyMs": 1
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 1,
+    "decision_accuracy": 1,
+    "precision_yes": 1,
+    "recall_yes": 1,
+    "f1_yes": 1,
+    "concern_match_rate": 1,
+    "latency_ms_avg": 1,
+    "usage_coverage_rate": 0,
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_tokens": 0,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "cost_coverage_rate": 0,
+    "total_cost_usd": 0,
+    "avg_cost_usd_per_call": 0
+  },
+  "minThresholds": {
+    "parse_success_rate": 1,
+    "decision_accuracy": 0.8,
+    "precision_yes": 0.8,
+    "recall_yes": 0.8
+  },
+  "maxThresholds": {},
+  "pass": true
+}
