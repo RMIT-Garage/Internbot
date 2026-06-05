@@ -18,6 +18,14 @@ export type AcademicInfoResponse = {
    */
   gpa: number
   currentStudyLoad: AcademicInfoResponse.currentStudyLoad
+  /**
+   * Self-attested completed course codes. Always present (empty array when none recorded).
+   */
+  completedCourses: Array<string>
+  /**
+   * Derived current year level from creditUnitsEarned on a 96-CP/year load, clamped to [1, 4]. Not persisted.
+   */
+  yearLevel: number
   notes?: string
   /**
    * Set once at first profile-complete transition; not rewritten on subsequent edits.

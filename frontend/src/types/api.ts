@@ -17,6 +17,7 @@ export type InternshipStatus =
   | 'offer_changes_requested'
   | 'offer_approved'
   | 'rejected'
+  | 'withdrawn'
 
 export interface InternshipAttachmentResponse {
   id: string
@@ -34,6 +35,9 @@ export interface InternshipListItemResponse {
   opportunityJobTitle: string
   opportunityType: 'pre_approved' | 'custom'
   opportunitySourceUrl: string | null
+  semesterId: string
+  semesterDisplayName: string
+  semesterCode: string
   status: InternshipStatus
   lastSubmittedAt: string | null
   createdAt: string

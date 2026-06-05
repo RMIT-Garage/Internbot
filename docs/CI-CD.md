@@ -65,7 +65,7 @@ All cloud auth uses **OIDC + Workload Identity Federation**. No service account 
 - `infrastructure/envs/dev.tfvars`, `infrastructure/envs/prod.tfvars` — non-secret env config
 - Workflow files with hardcoded deploy targets — stable, non-secret, self-documenting
 
-See [ENV-VARS.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/ENV-VARS.md) for the full classification matrix.
+See [ENV-VARS.md](./ENV-VARS.md) for the full classification matrix.
 
 ## GitHub repo variables and secrets
 

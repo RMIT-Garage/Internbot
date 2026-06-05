@@ -77,7 +77,11 @@ async function activeSemester(): Promise<string> {
     defaultAuthorizationService,
     firestoreIdGenerator
   )
-  const transition = new TransitionSemesterCommandHandler(uow, defaultAuthorizationService)
+  const transition = new TransitionSemesterCommandHandler(
+    uow,
+    defaultAuthorizationService,
+    firestoreIdGenerator
+  )
   const actor = actorFor('coordinator')
   const { id } = await create.handle({
     actor,
@@ -194,6 +198,36 @@ describe('Internship commands — integration', () => {
     expect(internship.data()?.['version']).toBe(1)
     expect(activity.docs.map((doc) => doc.data()['type'])).toContain('apply')
     expect(notifications.docs.some((doc) => doc.data()['userId'] === coordinatorId)).toBe(true)
+  })
+
+  it('apply when semester is placement_running → semester_not_active', async () => {
+    const semesterId = await activeSemester()
+    const uow = new FirestoreUnitOfWork()
+    const transition = new TransitionSemesterCommandHandler(
+      uow,
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    )
+    await transition.handle({
+      actor: actorFor('coordinator'),
+      semesterId,
+      to: 'placement_running',
+      comment: undefined,
+    })
+    const studentId = `usr_student_${randomUUID()}`
+    await seedUser('student', studentId, semesterId)
+    const opportunityId = await publishedOpportunity(semesterId)
+
+    await expect(
+      new CreateInternshipCommandHandler(
+        uow,
+        defaultAuthorizationService,
+        firestoreIdGenerator
+      ).handle({
+        actor: actorFor('student', studentId),
+        payload: { opportunityId },
+      })
+    ).rejects.toMatchObject({ reason: 'semester_not_active' })
   })
 
   it('student duplicate application for same opportunity → duplicate_application', async () => {

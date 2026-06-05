@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
+import {
+  CoordinatorPageHeader,
+  SurfaceCard,
+  SurfaceCardHeader,
+} from '@/components/coordinator/Premium'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { listSemesterStudents } from '@/lib/coordinator/api'
 import type { SemesterStudentItem, SemesterStudentPlacementStatus } from '@/types/api'
@@ -17,6 +21,11 @@ const PLACEMENT_STATUS_LABELS: Record<SemesterStudentPlacementStatus, string> = 
   offer_changes_requested: 'Changes Requested',
   offer_approved: 'Offer Approved',
   all_rejected: 'All Rejected',
+}
+
+function semesterStudentsHref(semesterId: string) {
+  const params = new URLSearchParams({ semesterId })
+  return `/coordinator/semesters/students?${params.toString()}`
 }
 
 function semesterStudentProfileHref(student: SemesterStudentItem, returnTo: string) {
@@ -39,10 +48,9 @@ const PLACEMENT_STATUS_COLORS: Record<SemesterStudentPlacementStatus, string> = 
 }
 
 export default function SemesterStudentsClient() {
-  // useParams() returns the build-time '_' placeholder in static export.
-  // Parse the real semester ID directly from the live browser URL instead.
-  const pathname = usePathname()
-  const semesterId = pathname.split('/').at(-2) ?? ''
+  const searchParams = useSearchParams()
+  const semesterId = searchParams.get('semesterId')?.trim() ?? ''
+  const returnTo = semesterId ? semesterStudentsHref(semesterId) : '/coordinator/semesters'
   const [students, setStudents] = useState<SemesterStudentItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
@@ -52,6 +60,14 @@ export default function SemesterStudentsClient() {
   const [filterProgram, setFilterProgram] = useState('')
 
   useEffect(() => {
+    if (!semesterId) {
+      setLoading(false)
+      setStudents([])
+      setTotalCount(0)
+      setNextPageToken(null)
+      return
+    }
+
     setLoading(true)
     const query: Record<string, string> = {}
     if (filterStatus) query['placementStatus'] = filterStatus
@@ -70,7 +86,7 @@ export default function SemesterStudentsClient() {
   }, [semesterId, filterStatus, filterProgram])
 
   async function loadMore() {
-    if (!nextPageToken) return
+    if (!nextPageToken || !semesterId) return
     setLoadingMore(true)
     const query: Record<string, string> = { pageToken: nextPageToken }
     if (filterStatus) query['placementStatus'] = filterStatus
@@ -84,6 +100,30 @@ export default function SemesterStudentsClient() {
     } finally {
       setLoadingMore(false)
     }
+  }
+
+  if (!semesterId) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/coordinator/semesters"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Semesters
+        </Link>
+        <SurfaceCard className="p-8 text-center text-sm text-slate-600">
+          <p className="font-semibold text-slate-950">Semester not specified</p>
+          <p className="mt-2">Open enrolled students from a semester card on the Semesters page.</p>
+          <Link
+            href="/coordinator/semesters"
+            className="mt-4 inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800"
+          >
+            Go to Semesters
+          </Link>
+        </SurfaceCard>
+      </div>
+    )
   }
 
   return (
@@ -103,7 +143,7 @@ export default function SemesterStudentsClient() {
         />
       </div>
 
-      <SurfaceCard className="p-5">
+      <SurfaceCard className="p-4">
         <div className="flex flex-wrap gap-3">
           <label className="grid gap-1 text-xs font-bold tracking-wide text-slate-500 uppercase">
             Placement Status
@@ -170,12 +210,12 @@ export default function SemesterStudentsClient() {
                 ) : (
                   students.map((student) => (
                     <tr key={student.userId} className="hover:bg-slate-50">
-                      <td className="px-5 py-4 font-medium text-slate-900">
+                      <td className="px-5 py-3 font-medium text-slate-900">
                         {student.displayName ?? student.userId}
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{student.studentNumber ?? '—'}</td>
-                      <td className="px-5 py-4 text-slate-600">{student.programCode ?? '—'}</td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-3 text-slate-600">{student.studentNumber ?? '—'}</td>
+                      <td className="px-5 py-3 text-slate-600">{student.programCode ?? '—'}</td>
+                      <td className="px-5 py-3 text-slate-600">
                         {student.semesterSelectedAt
                           ? new Intl.DateTimeFormat('en-AU', {
                               month: 'short',
@@ -185,14 +225,14 @@ export default function SemesterStudentsClient() {
                           : '—'}
                       </td>
                       <td
-                        className={`px-5 py-4 ${PLACEMENT_STATUS_COLORS[student.placementStatus]}`}
+                        className={`px-5 py-3 ${PLACEMENT_STATUS_COLORS[student.placementStatus]}`}
                       >
                         {PLACEMENT_STATUS_LABELS[student.placementStatus]}
                       </td>
-                      <td className="px-5 py-4 text-slate-900">{student.internshipCount}</td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-3 text-slate-900">{student.internshipCount}</td>
+                      <td className="px-5 py-3 text-right">
                         <Link
-                          href={semesterStudentProfileHref(student, pathname)}
+                          href={semesterStudentProfileHref(student, returnTo)}
                           className="text-sm font-bold text-red-700 hover:text-red-800"
                         >
                           View Profile
@@ -205,7 +245,7 @@ export default function SemesterStudentsClient() {
             </table>
           </div>
           {nextPageToken && (
-            <div className="border-t border-slate-200 px-5 py-4">
+            <div className="border-t border-slate-200 px-5 py-3">
               <button
                 type="button"
                 onClick={loadMore}

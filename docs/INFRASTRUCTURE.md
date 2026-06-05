@@ -41,7 +41,7 @@ Shared defaults in `variables.tf`:
 
 CI runs `terraform plan -var-file=envs/dev.tfvars` (or `prod.tfvars`). For local dev, copy `terraform.tfvars.example` to `terraform.tfvars` and run `terraform plan` directly.
 
-See [ENV-VARS.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/ENV-VARS.md) and [CI-CD.md](/Users/nhatdongdang/Documents/Code/Internbot/docs/CI-CD.md).
+See [ENV-VARS.md](./ENV-VARS.md) and [CI-CD.md](./CI-CD.md).
 
 ## Known limitation — PR plans with tight WIF refs
 

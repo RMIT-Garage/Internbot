@@ -6,7 +6,9 @@ import { FirestoreUnitOfWork } from '../../../../src/infrastructure/firestore/fi
 import { firestoreIdGenerator } from '../../../../src/infrastructure/firestore/firestore-id-generator'
 import { firestoreSemesterQueryService } from '../../../../src/infrastructure/firestore/firestore-semester-query-service'
 import { defaultAuthorizationService } from '../../../../src/infrastructure/authorization/default-authorization-service'
-import { initEmulator, clearDocs, trackDoc } from '../../../setup.emulator'
+import { initEmulator, clearDocs, trackDoc, ALWAYS_OPEN_WINDOW } from '../../../setup.emulator'
+import { adminDb } from '../../../../src/infrastructure/config/firebase-admin'
+import { TransitionSemesterCommandHandler } from '../../../../src/application/commands/transition-semester'
 import type { RequestActor } from '../../../../src/application/actor'
 
 function actorFor(role: 'student' | 'coordinator'): RequestActor {
@@ -179,6 +181,65 @@ describe('ListSemestersQueryHandler — integration', () => {
     const ids = result.items.map((s) => s.semester.id)
     expect(ids).toContain(withWindow.id)
     expect(ids).toContain(noWindow.id)
+  })
+
+  it('includes legacy stored status active when filtering enrollment_open', async () => {
+    const courseCode = `INTE${Math.floor(Math.random() * 9000 + 1000)}`
+    const create = new CreateSemesterCommandHandler(
+      new FirestoreUnitOfWork(),
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    )
+    const uow = new FirestoreUnitOfWork()
+    const { id } = await create.handle({
+      actor: actorFor('coordinator'),
+      payload: {
+        semesterCode: `2026-S${randomUUID()
+          .slice(0, 8)
+          .replace(/[^A-Za-z0-9]/g, 'a')}`,
+        courseCode,
+        displayName: 'Legacy active',
+        status: 'draft',
+        enrolmentOpenAt: ALWAYS_OPEN_WINDOW.open,
+        enrolmentCloseAt: ALWAYS_OPEN_WINDOW.close,
+      },
+    })
+    trackDoc('semesters', id)
+
+    const transition = new TransitionSemesterCommandHandler(
+      uow,
+      defaultAuthorizationService,
+      firestoreIdGenerator
+    )
+    await transition.handle({
+      actor: actorFor('coordinator'),
+      semesterId: id,
+      to: 'enrollment_open',
+      comment: undefined,
+    })
+
+    await adminDb.collection('semesters').doc(id).update({ status: 'active' })
+
+    const handler = new ListSemestersQueryHandler(
+      firestoreSemesterQueryService,
+      defaultAuthorizationService
+    )
+    const result = await handler.handle({
+      actor: actorFor('student'),
+      filter: {
+        status: ['enrollment_open'],
+        semesterCode: undefined,
+        courseCode,
+        limit: 50,
+        sortField: 'createdAt',
+        sortDirection: 'desc',
+        cursor: undefined,
+      },
+    })
+
+    const match = result.items.find((s) => s.semester.id === id)
+    expect(match).toBeDefined()
+    expect(match!.semester.status).toBe('enrollment_open')
   })
 
   it('rejects pre-sync caller', async () => {

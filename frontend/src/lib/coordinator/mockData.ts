@@ -40,6 +40,7 @@ export interface SelfSourcedJob {
   studentId: string
   course: string
   semester: string
+  semesterId?: string
   jobTitle: string
   company: string
   submissionDate: string
@@ -62,6 +63,7 @@ export interface ContractApproval {
   studentUserId?: string
   course: string
   semester: string
+  semesterId?: string
   submissionDate: string
   status: ApprovalStatus
   documentName: string
@@ -80,6 +82,7 @@ export interface CoordinatorStudent {
   studentId: string
   course: string
   semester: string
+  semesterId?: string
   overallStatus: StudentOverallStatus
   email: string
   year?: string

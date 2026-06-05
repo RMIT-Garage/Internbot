@@ -3201,6 +3201,105 @@
         }
       }
     },
+    "/api/v1/internships/{id}/withdrawals": {
+      "post": {
+        "operationId": "withdrawInternship",
+        "summary": "Withdraw an internship application",
+        "description": "Student-owner only. Transitions applied, offer_pending_review, or offer_changes_requested to withdrawn.",
+        "tags": ["Internships"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "example": "int_042",
+              "description": "Platform internship id."
+            },
+            "required": true,
+            "description": "Platform internship id."
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "description": "Opt-in optimistic concurrency — the current ETag from a prior GET.",
+              "type": "string"
+            },
+            "description": "Opt-in optimistic concurrency — the current ETag from a prior GET."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Application withdrawn.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternshipResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not the student owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No internship exists with the supplied id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Application cannot be withdrawn in its current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale `If-Match`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "operationId": "listNotifications",
@@ -5533,6 +5632,18 @@
               }
             ]
           },
+          "semesterId": {
+            "type": "string",
+            "example": "sem_aBc123XyZ"
+          },
+          "semesterDisplayName": {
+            "type": "string",
+            "example": "Semester 1 2026"
+          },
+          "semesterCode": {
+            "type": "string",
+            "example": "2026-S1"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -5572,6 +5683,9 @@
           "opportunityJobTitle",
           "opportunityType",
           "opportunitySourceUrl",
+          "semesterId",
+          "semesterDisplayName",
+          "semesterCode",
           "status",
           "lastSubmittedAt",
           "createdAt"
@@ -5627,6 +5741,18 @@
                 "type": "null"
               }
             ]
+          },
+          "semesterId": {
+            "type": "string",
+            "example": "sem_aBc123XyZ"
+          },
+          "semesterDisplayName": {
+            "type": "string",
+            "example": "Semester 1 2026"
+          },
+          "semesterCode": {
+            "type": "string",
+            "example": "2026-S1"
           },
           "status": {
             "type": "string",
@@ -5767,6 +5893,9 @@
           "opportunityJobTitle",
           "opportunityType",
           "opportunitySourceUrl",
+          "semesterId",
+          "semesterDisplayName",
+          "semesterCode",
           "status",
           "version",
           "coordinatorDecision",
@@ -6019,7 +6148,8 @@
               "new_application",
               "new_ticket",
               "ticket_reply",
-              "ticket_transition"
+              "ticket_transition",
+              "semester_phase_changed"
             ]
           },
           "title": {

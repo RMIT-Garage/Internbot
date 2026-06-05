@@ -3,22 +3,19 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  ArrowRight,
-  Briefcase,
-  CalendarDays,
-  CheckCircle2,
-  ChevronRight,
-  MapPin,
-  RefreshCw,
-  Star,
-  Users,
-} from 'lucide-react'
+import { ArrowRight, Briefcase, ChevronRight, MapPin, RefreshCw, Star, Users } from 'lucide-react'
 
 import { useAuth } from '@/hooks/useAuth'
 import { SurfaceCard } from '@/components/student/Premium'
 import { Skeleton } from '@/components/ui/ContentSkeleton'
 import { StatusBadge, type StudentStatus } from '@/components/student/StatusBadge'
+import { PlacementConfirmedBanner } from '@/components/student/PlacementConfirmedBanner'
+import { SemesterEnrollmentBanner } from '@/components/student/SemesterEnrollmentBanner'
+import {
+  canApplyToOpportunity,
+  hasAnyApprovedPlacement,
+} from '@/lib/student/semesterEnrollmentBanner'
+import type { UserWorkflowResponse } from '@/api/models/UserWorkflowResponse'
 import {
   OpportunitiesService,
   InternshipsService,
@@ -31,6 +28,11 @@ import type {
   SemesterResponse,
 } from '@/lib/api/openapi-client'
 import { getApiErrorMessage, getApiErrorReason } from '@/lib/api/errors'
+import { canStudentSelectSemester } from '@/lib/semester/studentSemesters'
+import {
+  SemesterPickerGrid,
+  SemesterPickerGridSkeleton,
+} from '@/components/student/SemesterPickerGrid'
 
 const CONFLICT_MESSAGES: Record<string, string> = {
   profile_incomplete:
@@ -54,9 +56,17 @@ interface OpportunityRowProps {
   opportunity: OpportunityResponse
   myInternship: InternshipListItemResponse | undefined
   alreadyApplied: boolean
+  placementConfirmed: boolean
+  canApply: boolean
 }
 
-function OpportunityRow({ opportunity, myInternship, alreadyApplied }: OpportunityRowProps) {
+function OpportunityRow({
+  opportunity,
+  myInternship,
+  alreadyApplied,
+  placementConfirmed,
+  canApply,
+}: OpportunityRowProps) {
   return (
     <div className="grid grid-cols-[1fr_150px_110px] items-center gap-6 px-5 py-4 transition hover:bg-gray-50">
       {/* Opportunity info */}
@@ -99,12 +109,25 @@ function OpportunityRow({ opportunity, myInternship, alreadyApplied }: Opportuni
             View <ArrowRight className="h-3 w-3" />
           </Link>
         ) : opportunity.status === 'published' ? (
-          <Link
-            href={`/student/opportunities/view?id=${opportunity.id}`}
-            className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700"
-          >
-            Apply
-          </Link>
+          placementConfirmed ? (
+            <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+              Placement confirmed
+            </span>
+          ) : canApply ? (
+            <Link
+              href={`/student/opportunities/view?id=${opportunity.id}`}
+              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700"
+            >
+              Apply
+            </Link>
+          ) : (
+            <Link
+              href={`/student/opportunities/view?id=${opportunity.id}`}
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
+            >
+              View <ArrowRight className="h-3 w-3" />
+            </Link>
+          )
         ) : (
           <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-400">
             Closed
@@ -155,19 +178,24 @@ export default function StudentOpportunitiesPage() {
 
   const [pendingSubmissions, setPendingSubmissions] = useState<OpportunityResponse[]>([])
   const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
+  const [workflow, setWorkflow] = useState<UserWorkflowResponse | null>(null)
+  const [profileSemesterId, setProfileSemesterId] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading || !user) return
     const loadSemesters = async () => {
       try {
         setLoadingSemesters(true)
-        const [semesterRes, profile] = await Promise.all([
+        const [semesterRes, profile, workflowRes] = await Promise.all([
           SemestersService.listSemesters(['enrollment_open', 'placement_running', 'reporting']),
           UsersService.getMyProfile(),
+          UsersService.getMyWorkflow().catch(() => null),
         ])
+        setWorkflow(workflowRes)
         setSemesters(semesterRes.items)
         if (profile.role === 'student') {
           const savedSemesterId = profile.studentProfile?.semesterId ?? null
+          setProfileSemesterId(savedSemesterId)
           setSelectedSemester(savedSemesterId)
           if (savedSemesterId && !semesterId && !wantsChange) {
             router.replace(`/student/opportunities?semesterId=${savedSemesterId}`)
@@ -276,18 +304,7 @@ export default function StudentOpportunitiesPage() {
             <Skeleton className="h-7 w-48" />
             <Skeleton className="h-4 w-72" />
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <SurfaceCard key={i} className="p-6">
-                <div className="flex items-start justify-between">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                </div>
-                <Skeleton className="mt-5 h-6 w-36" />
-                <Skeleton className="mt-2 h-3 w-24" />
-              </SurfaceCard>
-            ))}
-          </div>
+          <SemesterPickerGridSkeleton />
         </div>
       )
     }
@@ -310,84 +327,22 @@ export default function StudentOpportunitiesPage() {
           </div>
         )}
 
-        {semesters.length === 0 ? (
-          <SurfaceCard className="flex flex-col items-center py-16 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-              <CalendarDays className="h-6 w-6 text-gray-400" />
-            </div>
-            <p className="mt-4 text-sm font-semibold text-gray-600">No open semesters</p>
-            <p className="mt-1 text-xs text-gray-400">
-              Please check back later or contact your coordinator.
-            </p>
-          </SurfaceCard>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {semesters.map((sem) => {
-              const isSelected = selectedSemester === sem.id
-              return (
-                <button
-                  key={sem.id}
-                  type="button"
-                  onClick={() => setSelectedSemester(sem.id)}
-                  className={`w-full rounded-2xl border p-6 text-left transition ${
-                    isSelected
-                      ? 'border-red-500 bg-red-50 shadow-sm'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
-                        sem.status === 'enrollment_open'
-                          ? 'bg-green-50 text-green-700'
-                          : sem.status === 'placement_running' || sem.status === 'reporting'
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {sem.status.replace(/_/g, ' ')}
-                    </span>
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
-                        isSelected ? 'border-red-500 bg-red-500' : 'border-gray-300'
-                      }`}
-                    >
-                      {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
-                    </div>
-                  </div>
-                  <p className="mt-4 text-lg font-bold text-gray-900">
-                    {sem.semesterCode ?? 'Semester'}
-                  </p>
-                  {sem.courseCode && (
-                    <p className="mt-0.5 text-sm text-gray-500">{sem.courseCode}</p>
-                  )}
-                  {sem.enrolmentOpenAt && (
-                    <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      Opens{' '}
-                      {new Date(sem.enrolmentOpenAt).toLocaleDateString('en-AU', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        <SemesterPickerGrid
+          semesters={semesters}
+          selectedSemesterId={selectedSemester}
+          onSelect={setSelectedSemester}
+        />
 
         {(() => {
           const selectedSem = semesters.find((s) => s.id === selectedSemester)
-          const isEnrollmentOpen = selectedSem?.status === 'enrollment_open'
-          const isNonEnrollable = selectedSem && selectedSem.status !== 'enrollment_open'
+          const isEnrollmentOpen = selectedSem != null && canStudentSelectSemester(selectedSem)
+          const isNonEnrollable = selectedSem != null && !isEnrollmentOpen
           return (
             <>
               {isNonEnrollable && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                  This semester&apos;s enrollment period has ended. You can still browse and apply
-                  for opportunities.
+                  This semester is not open for new enrollment. Choose a semester with enrollment
+                  open, or continue existing applications from My applications.
                 </div>
               )}
               <button
@@ -408,7 +363,8 @@ export default function StudentOpportunitiesPage() {
   }
 
   // ── Opportunities list ─────────────────────────────────────────────────────
-  const appliedOpportunityIds = new Set(internships.map((i) => i.opportunityId))
+  const internshipsForSemester = internships.filter((i) => i.semesterId === semesterId)
+  const appliedOpportunityIds = new Set(internshipsForSemester.map((i) => i.opportunityId))
   const preApproved = opportunities.filter((o) => o.type === 'pre_approved')
   const selfSourcedApproved = opportunities.filter(
     (o) => o.type === 'custom' && o.status === 'published'
@@ -425,12 +381,30 @@ export default function StudentOpportunitiesPage() {
   )
   const selfSourcedPending = [...backendPending, ...localFallback]
   const currentSemester = semesters.find((s) => s.id === semesterId)
-  const appliedCount = internships.length
+  const approvedInternship = profileSemesterId
+    ? internships.find((i) => i.semesterId === profileSemesterId && i.status === 'offer_approved')
+    : undefined
+  const hasApprovedPlacement = hasAnyApprovedPlacement(internships)
+  const appliedCount = internshipsForSemester.length
+  const openSemesterCount = semesters.filter((s) => s.status === 'enrollment_open').length
+  const enrolledSemester = profileSemesterId
+    ? (semesters.find((s) => s.id === profileSemesterId) ?? null)
+    : null
+  const browsingOtherSemester = Boolean(
+    profileSemesterId && semesterId && semesterId !== profileSemesterId
+  )
 
   const rowProps = (o: OpportunityResponse) => ({
     opportunity: o,
-    myInternship: internships.find((i) => i.opportunityId === o.id),
+    myInternship: internshipsForSemester.find((i) => i.opportunityId === o.id),
     alreadyApplied: appliedOpportunityIds.has(o.id),
+    placementConfirmed: hasApprovedPlacement,
+    canApply: canApplyToOpportunity({
+      opportunity: o,
+      profileSemesterId,
+      enrolledSemester,
+      internships,
+    }),
   })
 
   return (
@@ -467,6 +441,29 @@ export default function StudentOpportunitiesPage() {
           </button>
         </div>
       </div>
+
+      {hasApprovedPlacement && approvedInternship && currentSemester && (
+        <PlacementConfirmedBanner internship={approvedInternship} semester={currentSemester} />
+      )}
+
+      <SemesterEnrollmentBanner
+        semester={currentSemester ?? null}
+        semesterEnrolmentState={workflow?.semesterEnrolmentState}
+        internships={internships}
+        semesterId={semesterId}
+        openSemesterCount={openSemesterCount}
+      />
+
+      {browsingOtherSemester && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          You are browsing opportunities for a different semester than the one on your profile. You
+          can view roles here, but you can only apply when your{' '}
+          <Link href="/student/profile" className="font-bold underline">
+            enrolled semester
+          </Link>{' '}
+          matches.
+        </div>
+      )}
 
       {/* KPI strip */}
       <div className="grid gap-3 sm:grid-cols-3">

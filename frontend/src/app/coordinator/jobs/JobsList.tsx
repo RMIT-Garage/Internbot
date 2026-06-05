@@ -7,17 +7,18 @@ import { X } from 'lucide-react'
 import { WorkflowStepper, type WorkflowStepItem } from '@/components/coordinator/WorkflowStepper'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { Pagination } from '@/components/coordinator/Pagination'
-import { SurfaceCard } from '@/components/coordinator/Premium'
+import { SurfaceCard, SurfaceCardHeader } from '@/components/coordinator/Premium'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
 import {
   contractApprovals,
-  semesters,
   type ContractApproval,
   type SelfSourcedJob,
 } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
-import { getUser, listInternships } from '@/lib/coordinator/api'
+import { getUser, listInternships, listSemesters } from '@/lib/coordinator/api'
 import { mapInternshipToContractApproval } from '@/lib/coordinator/apiMappers'
+import { buildSemesterLabelMap, resolveSemesterLabel } from '@/lib/semester/display'
+import { useCoordinatorSemesterOptions } from '@/lib/coordinator/semesterContext'
 import { matchesParam, paginate } from '@/lib/coordinator/listUtils'
 import { PLACEMENT_PROCESSING_CONTEXT, withReviewReturn } from '@/lib/coordinator/reviewRouting'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
@@ -44,6 +45,7 @@ function contractApprovalToPlacementCase(contract: ContractApproval): PlacementC
     studentId: contract.studentId,
     course: contract.course,
     semester: contract.semester,
+    semesterId: contract.semesterId,
     jobTitle: contract.documentName,
     company: contract.placementHost,
     submissionDate: contract.submissionDate,
@@ -131,6 +133,7 @@ function removeFilterHref(searchParams: URLSearchParams, name: string) {
 
 export function JobsList() {
   const [studentLabels, setStudentLabels] = useState<Record<string, string>>({})
+  const { semesters: semesterOptions, semesterLabels } = useCoordinatorSemesterOptions()
   const searchParams = useSearchParams()
   const params = new URLSearchParams(searchParams)
   const stage = params.get('stage') ?? undefined
@@ -159,15 +162,19 @@ export function JobsList() {
           '[coordinator/jobs] backend filters: full placement verification list; UI filters/search/sort/page are client-side'
         )
       }
-      const internshipResponse = await listInternships({
-        limit: 100,
-        sort: '-lastSubmittedAt',
-      })
+      const [semesterRes, internshipResponse] = await Promise.all([
+        listSemesters({ limit: 100 }),
+        listInternships({
+          limit: 100,
+          sort: '-lastSubmittedAt',
+        }),
+      ])
+      const labelMap = buildSemesterLabelMap(semesterRes.items)
 
       return internshipResponse.items
         .filter((internship) => internship.status !== 'applied')
         .map((internship): PlacementCase => {
-          const mapped = mapInternshipToContractApproval(internship)
+          const mapped = mapInternshipToContractApproval(internship, labelMap)
           return contractApprovalToPlacementCase(mapped)
         })
     },
@@ -212,7 +219,7 @@ export function JobsList() {
   const filteredJobs = jobs
     .filter((job) => matchesParam(getCurrentStageId(job), stage))
     .filter((job) => matchesParam(job.status, status))
-    .filter((job) => matchesParam(job.semester, semester))
+    .filter((job) => (semester && semester !== 'all' ? job.semesterId === semester : true))
     .filter((job) => matchesCourseFilter(job, course))
     .filter((job) => matchesActionFilter(job, action))
     .filter((job) => matchesOutcomeFilter(job, outcome))
@@ -233,7 +240,13 @@ export function JobsList() {
     .sort((a, b) => compareQueueItems(a, b, sort, studentLabels))
 
   const paged = paginate(filteredJobs, page, 8)
-  const activeFilters = getActiveFilters(params)
+  const activeFilters = getActiveFilters(params, [
+    { label: 'All semesters', value: 'all' },
+    ...semesterOptions.map((item) => ({
+      label: semesterLabels[item.id] ?? item.displayName,
+      value: item.id,
+    })),
+  ])
   const courseOptions = buildCourseFilterOptions(jobs)
 
   return (
@@ -252,6 +265,10 @@ export function JobsList() {
         search={searchValue}
         stage={stage}
         semester={semester}
+        semesterOptions={semesterOptions.map((item) => ({
+          label: semesterLabels[item.id] ?? item.displayName,
+          value: item.id,
+        }))}
         course={course}
         courseOptions={courseOptions}
         sort={sort}
@@ -268,6 +285,7 @@ export function JobsList() {
         totalCount={jobs.length}
         returnTo={currentJobsHref}
         studentLabels={studentLabels}
+        semesterLabels={semesterLabels}
       />
       <Pagination
         page={paged.page}
@@ -282,6 +300,7 @@ function PipelineFilters({
   search,
   stage,
   semester,
+  semesterOptions,
   course,
   courseOptions,
   sort,
@@ -294,6 +313,7 @@ function PipelineFilters({
   search?: string
   stage?: string
   semester?: string
+  semesterOptions: Array<{ label: string; value: string }>
   course?: string
   courseOptions: string[]
   sort: string
@@ -308,31 +328,45 @@ function PipelineFilters({
       method="get"
       className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <div className="grid gap-3 lg:grid-cols-5">
-        <label className="grid gap-1 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12">
+        <label className="grid min-w-0 gap-1 sm:col-span-2 xl:col-span-5">
           <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">Search</span>
           <input
             name="search"
             defaultValue={search}
             placeholder="Student, employer, or role"
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+            className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
           />
         </label>
-        <FilterSelect name="stage" label="Stage" value={stage} options={stageOptions} />
         <FilterSelect
+          className="min-w-0 xl:col-span-2"
+          name="stage"
+          label="Stage"
+          value={stage}
+          options={stageOptions}
+        />
+        <FilterSelect
+          className="min-w-0 xl:col-span-2"
           name="semester"
           label="Semester"
           value={semester}
-          options={[
-            { label: 'All semesters', value: 'all' },
-            ...semesters.map((item) => ({ label: item, value: item })),
-          ]}
+          options={[{ label: 'All semesters', value: 'all' }, ...semesterOptions]}
         />
-        <CourseKeywordFilter value={course} options={courseOptions} />
+        <CourseKeywordFilter
+          className="min-w-0 sm:col-span-2 xl:col-span-3"
+          value={course}
+          options={courseOptions}
+        />
       </div>
-      <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_auto] lg:items-end">
-        <FilterSelect name="sort" label="Sort" value={sort} options={sortOptions} />
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <FilterSelect
+          className="min-w-0 flex-1 sm:max-w-md sm:min-w-[220px]"
+          name="sort"
+          label="Sort"
+          value={sort}
+          options={sortOptions}
+        />
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="submit"
             className="h-10 rounded-xl bg-red-700 px-4 text-sm font-bold text-white transition-colors hover:bg-red-800"
@@ -351,7 +385,7 @@ function PipelineFilters({
         <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-800">
           More filters
         </summary>
-        <div className="grid gap-3 border-t border-slate-200 p-4 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-3">
           <FilterSelect name="status" label="Status" value={status} options={statusOptions} />
           <FilterSelect name="action" label="Action state" value={action} options={actionOptions} />
           <FilterSelect name="outcome" label="Outcome" value={outcome} options={outcomeOptions} />
@@ -383,19 +417,21 @@ function FilterSelect({
   label,
   value,
   options,
+  className,
 }: {
   name: string
   label: string
   value?: string
   options: Array<{ label: string; value: string }>
+  className?: string
 }) {
   return (
-    <label className="grid gap-1">
+    <label className={cn('grid min-w-0 gap-1', className)}>
       <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">{label}</span>
       <select
         name={name}
         defaultValue={value ?? 'all'}
-        className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+        className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -407,18 +443,26 @@ function FilterSelect({
   )
 }
 
-function CourseKeywordFilter({ value, options }: { value?: string; options: string[] }) {
+function CourseKeywordFilter({
+  value,
+  options,
+  className,
+}: {
+  value?: string
+  options: string[]
+  className?: string
+}) {
   return (
-    <label className="grid gap-1">
+    <label className={cn('grid min-w-0 gap-1', className)}>
       <span className="text-xs font-bold tracking-wide text-slate-500 uppercase">
-        Course, Program, or Subject
+        Course or program
       </span>
       <input
         name="course"
         defaultValue={value === 'all' ? '' : value}
         list="placement-course-options"
-        placeholder="All courses/programs/subjects"
-        className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
+        placeholder="All courses or programs"
+        className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm transition-colors outline-none focus:border-red-500"
       />
       <datalist id="placement-course-options">
         {options.map((option) => (
@@ -463,27 +507,24 @@ function PlacementQueue({
   totalCount,
   returnTo,
   studentLabels,
+  semesterLabels,
 }: {
   rows: PlacementCase[]
   visibleCount: number
   totalCount: number
   returnTo: string
   studentLabels: Record<string, string>
+  semesterLabels: Record<string, string>
 }) {
   return (
     <SurfaceCard className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">Active Placements</h2>
-          <p className="text-sm text-slate-500">
-            Showing {visibleCount} of {totalCount} post-offer placement{' '}
-            {totalCount === 1 ? 'record' : 'records'}.
-          </p>
-        </div>
-      </div>
+      <SurfaceCardHeader
+        title="Active Placements"
+        description={`Showing ${visibleCount} of ${totalCount} post-offer placement ${totalCount === 1 ? 'record' : 'records'}.`}
+      />
       <div className="divide-y divide-slate-100">
         {rows.length === 0 && (
-          <div className="px-5 py-10 text-center text-sm text-slate-500">
+          <div className="px-5 py-8 text-center text-sm text-slate-500">
             No confirmed placements match these filters.
           </div>
         )}
@@ -493,6 +534,7 @@ function PlacementQueue({
             job={job}
             returnTo={returnTo}
             studentLabels={studentLabels}
+            semesterLabels={semesterLabels}
           />
         ))}
       </div>
@@ -504,10 +546,12 @@ function PlacementQueueRow({
   job,
   returnTo,
   studentLabels,
+  semesterLabels,
 }: {
   job: PlacementCase
   returnTo: string
   studentLabels: Record<string, string>
+  semesterLabels: Record<string, string>
 }) {
   const reviewHref = withReviewReturn(job.reviewHref, returnTo, {
     context: PLACEMENT_PROCESSING_CONTEXT,
@@ -526,7 +570,7 @@ function PlacementQueueRow({
   return (
     <div
       className={[
-        'flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6',
+        'flex flex-col gap-3 px-5 py-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4',
         actionRequired ? 'bg-red-50/35' : 'bg-white',
       ].join(' ')}
     >
@@ -545,7 +589,9 @@ function PlacementQueueRow({
         </div>
         <div>
           <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Semester</p>
-          <p className="mt-1 font-semibold text-slate-800">{job.semester || 'Not supplied'}</p>
+          <p className="mt-1 font-semibold text-slate-800">
+            {placementSemesterLabel(job, semesterLabels)}
+          </p>
         </div>
       </div>
 
@@ -571,6 +617,13 @@ function PlacementQueueRow({
       </Link>
     </div>
   )
+}
+
+function placementSemesterLabel(job: PlacementCase, semesterLabels: Record<string, string>) {
+  const label = resolveSemesterLabel(job.semesterId, semesterLabels, job.semester)
+  if (label && label !== job.semesterId) return label
+  if (job.semester && job.semester !== job.semesterId) return job.semester
+  return 'Not supplied'
 }
 
 function placementStudentLabel(job: PlacementCase, studentLabels: Record<string, string>) {
@@ -809,12 +862,19 @@ function normalizeForSearch(value: string) {
   return value.trim().toLowerCase()
 }
 
-function getActiveFilters(params: URLSearchParams) {
+function getActiveFilters(
+  params: URLSearchParams,
+  semesterOptions: Array<{ label: string; value: string }> = []
+) {
   const filters: Array<{ key: string; label: string; value: string }> = []
-  const definitions = [
+  const definitions: Array<{
+    key: string
+    label: string
+    options?: Array<{ label: string; value: string }>
+  }> = [
     { key: 'search', label: 'Search' },
     { key: 'stage', label: 'Stage', options: stageOptions },
-    { key: 'semester', label: 'Semester' },
+    { key: 'semester', label: 'Semester', options: semesterOptions },
     { key: 'course', label: 'Course/Program' },
     { key: 'status', label: 'Status', options: statusOptions },
     { key: 'action', label: 'Action', options: actionOptions },

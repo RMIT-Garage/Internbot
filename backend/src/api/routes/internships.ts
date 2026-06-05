@@ -48,6 +48,7 @@ import type { AuthorizationService } from '../../application/ports/authorization
 import type { UserQueryService } from '../../application/ports/queries/user-query-service'
 import type { OpportunityQueryService } from '../../application/ports/queries/opportunity-query-service'
 import type { InternshipQueryService } from '../../application/ports/queries/internship-query-service'
+import type { SemesterQueryService } from '../../application/ports/queries/semester-query-service'
 import { clampLimit } from '../utils/pagination'
 
 export interface InternshipsRouterDeps {
@@ -58,6 +59,7 @@ export interface InternshipsRouterDeps {
   userQueries: UserQueryService
   opportunityQueries: OpportunityQueryService
   internshipQueries: InternshipQueryService
+  semesterQueries: SemesterQueryService
   attachmentDownloadTtlMs?: number
 }
 
@@ -101,6 +103,7 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
     deps.internshipQueries,
     deps.opportunityQueries,
     deps.userQueries,
+    deps.semesterQueries,
     deps.authz
   )
   const getInternshipAttachment = new GetInternshipAttachmentQueryHandler(
@@ -113,6 +116,7 @@ export function createInternshipsRouter(deps: InternshipsRouterDeps): ExpressRou
     deps.internshipQueries,
     deps.opportunityQueries,
     deps.userQueries,
+    deps.semesterQueries,
     deps.authz
   )
 

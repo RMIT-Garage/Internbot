@@ -15,6 +15,10 @@ export type AcademicInfoRequest = {
   programStatus?: AcademicInfoRequest.programStatus
   majors?: Array<string>
   minors?: Array<string>
+  /**
+   * Self-attested completed course codes (e.g. internship prerequisites). Not verified against an academic record.
+   */
+  completedCourses?: Array<string>
   notes?: string
 }
 export namespace AcademicInfoRequest {

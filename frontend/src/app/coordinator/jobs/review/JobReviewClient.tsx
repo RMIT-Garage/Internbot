@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Building2,
@@ -10,35 +10,65 @@ import {
   Download,
   ExternalLink,
   FileText,
+  MapPin,
   MessageSquareText,
   Paperclip,
-  ShieldCheck,
+  Archive,
+  PenLine,
   User,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { CoordinatorPageHeader, SurfaceCard } from '@/components/coordinator/Premium'
-import { WorkflowStepper, buildWorkflowStepItems } from '@/components/coordinator/WorkflowStepper'
 import {
   ReviewDecisionPanel,
   type ReviewDecision,
 } from '@/components/coordinator/ReviewDecisionPanel'
 import { StatusBadge } from '@/components/coordinator/StatusBadge'
-import { getOpportunity, getOpportunityAttachment, getUser } from '@/lib/coordinator/api'
-import { mapOpportunityToSelfSourcedJob } from '@/lib/coordinator/apiMappers'
+import {
+  getOpportunity,
+  getOpportunityAttachment,
+  getUser,
+  listSemesters,
+  transitionOpportunity,
+  updateOpportunity,
+} from '@/lib/coordinator/api'
+import {
+  mapOpportunityToSelfSourcedJob,
+  needsPlacementSuitabilityReview,
+  opportunityReviewEyebrow,
+  opportunitySourceTypeLabel,
+} from '@/lib/coordinator/apiMappers'
+import {
+  OpportunityEditModal,
+  openEditFormForTarget,
+} from '@/components/coordinator/OpportunityEditModal'
+import {
+  canEditManagedOpportunity,
+  opportunityResponseToEditTarget,
+  type OpportunityEditFormState,
+} from '@/components/coordinator/opportunityEdit'
 import { type ApprovalStatus, type SelfSourcedJob } from '@/lib/coordinator/mockData'
-import { getReviewBackHref, SELF_SOURCED_REVIEW_CONTEXT } from '@/lib/coordinator/reviewRouting'
+import { getReviewBackHref } from '@/lib/coordinator/reviewRouting'
+import { buildSemesterLabelMap } from '@/lib/semester/display'
 import { useJobCheck } from '@/features/coordinator-ai/hooks/useJobCheck'
 import { CheckerResultPanel } from '@/features/coordinator-ai/components/CheckerResultPanel'
 import type { CheckerInput } from '@/features/coordinator-ai/types'
 import { STUDENT_PROFILE_PENDING, formatStudentDisplay } from '@/lib/coordinator/studentDisplay'
 import { formatDate } from '@/lib/utils'
-import type { OpportunityAttachmentResponse, OpportunityStatus } from '@/types/api'
+import type {
+  OpportunityAttachmentResponse,
+  OpportunityResponse,
+  OpportunityStatus,
+  SemesterResponse,
+} from '@/types/api'
 
 export function JobReviewClient() {
   const searchParams = useSearchParams()
   const id = searchParams.get('id')
-  const context = searchParams.get('context')
-  const backHref = getReviewBackHref(searchParams, '/coordinator/opportunities?tab=self-sourced')
+  const backHref = getReviewBackHref(searchParams, '/coordinator/opportunities')
   const [job, setJob] = useState<SelfSourcedJob | null>(null)
+  const [opportunityRecord, setOpportunityRecord] = useState<OpportunityResponse | null>(null)
+  const [semesterLabels, setSemesterLabels] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState<string | null>(null)
   const [backendStatus, setBackendStatus] = useState<OpportunityStatus | null>(null)
@@ -46,7 +76,38 @@ export function JobReviewClient() {
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [studentOwnerLabel, setStudentOwnerLabel] = useState(STUDENT_PROFILE_PENDING)
   const [checkerInput, setCheckerInput] = useState<CheckerInput | null>(null)
+  const [semesters, setSemesters] = useState<SemesterResponse[]>([])
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState<OpportunityEditFormState>({
+    title: '',
+    company: '',
+    semesterId: '',
+    descriptionText: '',
+    sourceUrl: '',
+    type: 'custom',
+    workMode: 'hybrid',
+    location: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const jobCheck = useJobCheck(checkerInput)
+
+  useEffect(() => {
+    let active = true
+    void listSemesters({ limit: 100 })
+      .then((result) => {
+        if (!active) return
+        setSemesters(result.items)
+        setSemesterLabels(buildSemesterLabelMap(result.items))
+      })
+      .catch(() => {
+        if (!active) return
+        setSemesterLabels({})
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -61,14 +122,19 @@ export function JobReviewClient() {
     getOpportunity(id)
       .then(async (opportunity) => {
         if (!active) return
+        setOpportunityRecord(opportunity)
         setBackendStatus(opportunity.status)
-        const mappedJob = mapOpportunityToSelfSourcedJob(opportunity)
+        const mappedJob = mapOpportunityToSelfSourcedJob(opportunity, semesterLabels)
         const ownerLabel = await resolveStudentOwnerLabel(opportunity.submittedByUserId)
         if (!active) return
         setStudentOwnerLabel(ownerLabel)
         const jobData = { ...mappedJob, studentName: ownerLabel, studentId: ownerLabel }
         setJob(jobData)
         setAttachments(opportunity.attachments)
+        if (!needsPlacementSuitabilityReview(opportunity)) {
+          if (active) setCheckerInput(null)
+          return
+        }
         const userInput = `Job Title: ${mappedJob.jobTitle}\nEmployer: ${mappedJob.company}\nDescription: ${mappedJob.description}\nWork Pattern: ${mappedJob.workPattern}`
         const primaryAttachment = opportunity.attachments[0]
         if (primaryAttachment) {
@@ -89,8 +155,8 @@ export function JobReviewClient() {
           } catch {
             if (active) setCheckerInput({ userInput })
           }
-        } else {
-          if (active) setCheckerInput({ userInput })
+        } else if (active) {
+          setCheckerInput({ userInput })
         }
       })
       .catch((err: unknown) => {
@@ -109,7 +175,7 @@ export function JobReviewClient() {
     return () => {
       active = false
     }
-  }, [id])
+  }, [id, semesterLabels])
 
   if (!id) {
     return (
@@ -138,14 +204,15 @@ export function JobReviewClient() {
   const refreshJob = async () => {
     const opportunity = await getOpportunity(job.id)
     const ownerLabel = await resolveStudentOwnerLabel(opportunity.submittedByUserId)
+    setOpportunityRecord(opportunity)
     setBackendStatus(opportunity.status)
     setAttachments(opportunity.attachments)
     setStudentOwnerLabel(ownerLabel)
     setJob((current) => ({
-      ...mapOpportunityToSelfSourcedJob(opportunity),
+      ...mapOpportunityToSelfSourcedJob(opportunity, semesterLabels),
       studentName: ownerLabel,
       studentId: ownerLabel,
-      notes: current?.notes ?? mapOpportunityToSelfSourcedJob(opportunity).notes,
+      notes: current?.notes ?? mapOpportunityToSelfSourcedJob(opportunity, semesterLabels).notes,
     }))
   }
 
@@ -162,12 +229,97 @@ export function JobReviewClient() {
     setBackendStatus(decisionToJobBackendStatus(decision))
   }
 
-  const isSuitabilityApprovalReview =
-    context === SELF_SOURCED_REVIEW_CONTEXT ||
-    backendStatus === 'pending_verification' ||
-    job.status === 'awaiting_placement_approval'
+  const isSuitabilityApprovalReview = opportunityRecord
+    ? needsPlacementSuitabilityReview(opportunityRecord)
+    : false
+
+  const reviewEyebrow = opportunityRecord
+    ? opportunityReviewEyebrow(
+        opportunityRecord,
+        isSuitabilityApprovalReview ? 'suitability' : 'detail'
+      )
+    : 'Opportunity Review'
 
   const canSuitabilityReview = backendStatus === 'pending_verification'
+  const canEdit =
+    opportunityRecord !== null &&
+    canEditManagedOpportunity(opportunityResponseToEditTarget(opportunityRecord))
+  const canArchive = backendStatus === 'published' || backendStatus === 'draft'
+
+  const handleOpenEdit = () => {
+    if (!opportunityRecord) return
+    setEditForm(openEditFormForTarget(opportunityResponseToEditTarget(opportunityRecord)))
+    setEditOpen(true)
+  }
+
+  const handleUpdateOpportunity = async (
+    event: FormEvent<HTMLFormElement>,
+    opportunityId: string
+  ) => {
+    event.preventDefault()
+    if (!editForm.title.trim() || !editForm.company.trim() || !editForm.semesterId) {
+      toast.error('Job title, employer, and semester are required.')
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await updateOpportunity(
+        { id: opportunityId },
+        {
+          jobTitle: editForm.title.trim(),
+          employerName: editForm.company.trim(),
+          semesterId: editForm.semesterId,
+          descriptionText: editForm.descriptionText.trim() || undefined,
+          workMode: editForm.workMode,
+          location: editForm.location.trim() || null,
+          sourceUrl: editForm.sourceUrl.trim() || null,
+        }
+      )
+      setOpportunityRecord(updated)
+      const ownerLabel = await resolveStudentOwnerLabel(updated.submittedByUserId)
+      setStudentOwnerLabel(ownerLabel)
+      setJob({
+        ...mapOpportunityToSelfSourcedJob(updated, semesterLabels),
+        studentName: ownerLabel,
+        studentId: ownerLabel,
+      })
+      setAttachments(updated.attachments)
+      setEditOpen(false)
+      toast.success('Opportunity updated.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to update opportunity.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    if (!opportunityRecord) return
+    if (
+      !window.confirm(
+        'Archive this opportunity? Students will no longer see it on the opportunity board.'
+      )
+    ) {
+      return
+    }
+    setArchiving(true)
+    try {
+      const updated = await transitionOpportunity({ id: opportunityRecord.id }, 'archived')
+      setOpportunityRecord(updated)
+      setBackendStatus(updated.status)
+      setJob({
+        ...mapOpportunityToSelfSourcedJob(updated, semesterLabels),
+        studentName: studentOwnerLabel,
+        studentId: studentOwnerLabel,
+      })
+      setAttachments(updated.attachments)
+      toast.success('Opportunity archived.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to archive opportunity.')
+    } finally {
+      setArchiving(false)
+    }
+  }
 
   if (isSuitabilityApprovalReview) {
     return (
@@ -175,6 +327,7 @@ export function JobReviewClient() {
         job={job}
         studentOwnerLabel={studentOwnerLabel}
         backHref={backHref}
+        eyebrow={reviewEyebrow}
         attachments={attachments}
         attachmentError={attachmentError}
         canReview={canSuitabilityReview}
@@ -198,124 +351,157 @@ export function JobReviewClient() {
     )
   }
 
+  const sourceLabel = opportunityRecord ? opportunitySourceTypeLabel(opportunityRecord) : ''
+  const listingDescription =
+    opportunityRecord?.type === 'pre_approved'
+      ? `CareerHub listing for ${job.company}.`
+      : opportunityRecord?.status === 'published'
+        ? `Published listing for ${job.company} — edit details or archive when the role is no longer active.`
+        : `Coordinator listing for ${job.company}.`
+
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Placement Review"
+        eyebrow={reviewEyebrow}
         title={job.jobTitle}
-        description={`Submitted by: ${studentOwnerLabel}. Employer: ${job.company}.`}
-        actions={<BackLink href={backHref}>Back to queue</BackLink>}
+        description={listingDescription}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenEdit}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <PenLine className="h-4 w-4" />
+                Edit opportunity
+              </button>
+            )}
+            {canArchive && (
+              <button
+                type="button"
+                onClick={() => void handleArchive()}
+                disabled={archiving}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                <Archive className="h-4 w-4" />
+                {archiving ? 'Archiving…' : 'Archive'}
+              </button>
+            )}
+            <BackLink href={backHref}>Back to opportunities</BackLink>
+          </div>
+        }
       />
 
-      <CaseHeader
-        title={job.jobTitle}
-        student={job.studentName}
-        studentId={job.studentId}
-        employer={job.company}
-        status={job.status}
-        submittedAt={job.submissionDate}
-        canReview={false}
-        reviewer="Coordinator queue"
-      />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
-          <SurfaceCard className="p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-slate-950">Placement Case Details</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Core record used for institutional placement assessment.
-                </p>
-              </div>
-              <StatusBadge status={job.status} />
-            </div>
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {[
-                [User, 'Student', formatStudentLine(job.studentName, job.studentId)],
-                [FileText, 'Course', job.course],
-                [Clock3, 'Semester', job.semester],
-                [Building2, 'Employer', job.company],
-                [ShieldCheck, 'Supervisor', job.supervisor],
-                [Clock3, 'Work pattern', job.workPattern],
-              ].map(([Icon, label, value]) => {
-                const DetailIcon = Icon as typeof User
-                return (
-                  <div key={label as string} className="rounded-2xl bg-slate-50 p-4">
-                    <DetailIcon className="h-4 w-4 text-red-700" />
-                    <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
-                      {label as string}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950">{value as string}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-6">
-            <h2 className="text-lg font-bold text-slate-950">Submitted Placement Details</h2>
-            <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              {job.description}
-            </p>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
-              <Paperclip className="h-5 w-5 text-red-700" />
-              Documents and Attachments
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Uploaded contracts, position descriptions, or supporting placement documents.
-            </p>
-            <AttachmentList
-              attachments={attachments}
-              error={attachmentError}
-              onOpen={async (attachment, mode) => {
-                setAttachmentError(null)
-                try {
-                  const download = await getOpportunityAttachment(job.id, attachment.id)
-                  openAttachment(download.downloadUrl, mode)
-                } catch (error) {
-                  setAttachmentError(
-                    error instanceof Error
-                      ? `Unable to open attachment: ${error.message}`
-                      : 'Unable to open attachment.'
-                  )
-                }
-              }}
-            />
-          </SurfaceCard>
+      <SurfaceCard className="p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+              {sourceLabel}
+            </span>
+            <h2 className="mt-3 text-xl font-bold text-slate-950">{job.jobTitle}</h2>
+            <p className="mt-1 text-sm text-slate-600">{job.company}</p>
+          </div>
+          {backendStatus && <PublishedStatusPill status={backendStatus} />}
         </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            [Clock3, 'Semester', job.semester],
+            [MapPin, 'Location', opportunityRecord?.location ?? 'Not supplied'],
+            [Clock3, 'Work mode', job.workPattern],
+            [FileText, 'Applications', String(opportunityRecord?.applicationCount ?? 0)],
+            [Clock3, 'Last updated', formatDate(job.submissionDate)],
+          ].map(([Icon, label, value]) => {
+            const DetailIcon = Icon as typeof User
+            return (
+              <div
+                key={label as string}
+                className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4"
+              >
+                <DetailIcon className="h-4 w-4 text-red-700" />
+                <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                  {label as string}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-950">{value as string}</p>
+              </div>
+            )
+          })}
+        </div>
+        {opportunityRecord?.sourceUrl && (
+          <a
+            href={opportunityRecord.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-red-700 hover:text-red-900"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open listing URL
+          </a>
+        )}
+      </SurfaceCard>
 
-        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <SurfaceCard className="p-6">
-            <CheckerResultPanel
-              result={jobCheck.result}
-              isLoading={jobCheck.isLoading}
-              error={jobCheck.error}
-              feature="job-checker"
-            />
-          </SurfaceCard>
-          <SurfaceCard className="p-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
-              <MessageSquareText className="h-5 w-5 text-red-700" />
-              Review Decision
-            </h2>
-            <ReviewDecisionPanel
-              id={job.id}
-              kind="job"
-              defaultNotes={job.notes.join('\n')}
-              canReview={false}
-              reviewedStatus={job.status}
-              backHref={backHref}
-              onSuccess={handleDecisionSuccess}
-              onAlreadyReviewed={refreshJob}
-            />
-          </SurfaceCard>
-        </aside>
-      </div>
+      <SurfaceCard className="p-6">
+        <h2 className="text-lg font-bold text-slate-950">Role description</h2>
+        <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+          {job.description}
+        </p>
+      </SurfaceCard>
+
+      {attachments.length > 0 && (
+        <SurfaceCard className="p-6">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
+            <Paperclip className="h-5 w-5 text-red-700" />
+            Attachments
+          </h2>
+          <AttachmentList
+            attachments={attachments}
+            error={attachmentError}
+            onOpen={async (attachment, mode) => {
+              setAttachmentError(null)
+              try {
+                const download = await getOpportunityAttachment(job.id, attachment.id)
+                openAttachment(download.downloadUrl, mode)
+              } catch (error) {
+                setAttachmentError(
+                  error instanceof Error
+                    ? `Unable to open attachment: ${error.message}`
+                    : 'Unable to open attachment.'
+                )
+              }
+            }}
+          />
+        </SurfaceCard>
+      )}
+
+      {opportunityRecord && (
+        <OpportunityEditModal
+          open={editOpen}
+          target={opportunityResponseToEditTarget(opportunityRecord)}
+          form={editForm}
+          semesters={semesters}
+          saving={saving}
+          onFormChange={setEditForm}
+          onClose={() => setEditOpen(false)}
+          onSubmit={handleUpdateOpportunity}
+        />
+      )}
     </div>
+  )
+}
+
+function PublishedStatusPill({ status }: { status: OpportunityStatus }) {
+  const label =
+    status === 'published'
+      ? 'Published'
+      : status === 'draft'
+        ? 'Draft'
+        : status === 'archived'
+          ? 'Archived'
+          : status.replace(/_/g, ' ')
+  return (
+    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 capitalize">
+      {label}
+    </span>
   )
 }
 
@@ -323,6 +509,7 @@ function SuitabilityApprovalReview({
   job,
   studentOwnerLabel,
   backHref,
+  eyebrow,
   attachments,
   attachmentError,
   canReview,
@@ -334,6 +521,7 @@ function SuitabilityApprovalReview({
   job: SelfSourcedJob
   studentOwnerLabel: string
   backHref: string
+  eyebrow: string
   attachments: OpportunityAttachmentResponse[]
   attachmentError: string | null
   canReview: boolean
@@ -352,7 +540,7 @@ function SuitabilityApprovalReview({
   return (
     <div className="space-y-6">
       <CoordinatorPageHeader
-        eyebrow="Self-Sourced Opportunity Review"
+        eyebrow={eyebrow}
         title={job.jobTitle}
         description={`Submitted by: ${studentOwnerLabel}. Employer: ${job.company}.`}
         actions={<BackLink href={backHref}>Back to queue</BackLink>}
@@ -541,111 +729,6 @@ function formatStudentLine(student: string, studentId: string) {
   return `${student} (${studentId})`
 }
 
-function CaseHeader({
-  title,
-  student,
-  studentId,
-  employer,
-  status,
-  submittedAt,
-  canReview,
-  reviewer,
-}: {
-  title: string
-  student: string
-  studentId: string
-  employer: string
-  status: ApprovalStatus
-  submittedAt: string
-  canReview: boolean
-  reviewer: string
-}) {
-  const age = getAgeDays(submittedAt)
-  return (
-    <SurfaceCard className="p-6">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={status} />
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-              {canReview ? 'Action required' : 'Decision completed'}
-            </span>
-          </div>
-          <h2 className="mt-4 text-2xl font-bold text-slate-950">{title}</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            {formatStudentLine(student, studentId)} - {employer}
-          </p>
-          <WorkflowProgress status={status} />
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
-          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">Case owner</p>
-          <p className="mt-1 font-bold text-slate-950">{reviewer}</p>
-          <p className="mt-4 text-xs font-bold tracking-wide text-slate-500 uppercase">
-            Last updated
-          </p>
-          <p className="mt-1 font-semibold text-slate-800">{formatDate(submittedAt)}</p>
-          <p className="mt-4 text-xs font-bold tracking-wide text-slate-500 uppercase">
-            Submission age
-          </p>
-          <p className="mt-1 font-semibold text-slate-800">
-            {age === 0 ? 'Confirmed today' : `${age} day${age === 1 ? '' : 's'}`}
-          </p>
-        </div>
-      </div>
-    </SurfaceCard>
-  )
-}
-
-function WorkflowProgress({ status }: { status: ApprovalStatus }) {
-  const steps = getWorkflowSteps(status)
-  const completedCount = getCompletedStepCount(status)
-
-  return <WorkflowStepper className="mt-6" steps={buildWorkflowStepItems(steps, completedCount)} />
-}
-
-function getWorkflowSteps(status: ApprovalStatus) {
-  const terminal = status === 'rejected' ? 'rejected' : 'approved'
-  let current:
-    | 'none'
-    | 'submitted'
-    | 'documents'
-    | 'review'
-    | 'verification'
-    | 'approved'
-    | 'rejected' = 'review'
-  if (status === 'changes_requested' || status === 'awaiting_documents') current = 'documents'
-  if (status === 'awaiting_contract_details') current = 'none'
-  if (status === 'awaiting_contract_review') current = 'verification'
-  if (
-    status === 'flagged' ||
-    status === 'awaiting_review' ||
-    status === 'awaiting_placement_approval' ||
-    status === 'awaiting_approval'
-  )
-    current = 'review'
-  if (status === 'approved') current = 'approved'
-  if (status === 'rejected') current = 'rejected'
-  const currentStep = current as string
-
-  return [
-    { id: 'submitted', label: 'Placement Confirmed', current: currentStep === 'submitted' },
-    { id: 'documents', label: 'Documents Submitted', current: currentStep === 'documents' },
-    { id: 'verification', label: 'Contract Review', current: currentStep === 'verification' },
-    { id: 'review', label: 'Placement Approval', current: currentStep === 'review' },
-    {
-      id: terminal,
-      label: terminal === 'approved' ? 'Approved' : 'Rejected',
-      current: currentStep === terminal,
-    },
-  ]
-}
-
-function getAgeDays(date: string) {
-  const diff = Date.now() - Date.parse(date)
-  if (!Number.isFinite(diff) || diff < 0) return 0
-  return Math.floor(diff / 86_400_000)
-}
-
 function decisionToJobBackendStatus(decision: ReviewDecision): OpportunityStatus {
   return decision === 'approved' ? 'published' : 'rejected'
 }
@@ -654,15 +737,6 @@ function decisionToStatus(decision: ReviewDecision): ApprovalStatus {
   if (decision === 'approved') return 'awaiting_contract_details'
   if (decision === 'rejected') return 'rejected'
   return 'changes_requested'
-}
-
-function getCompletedStepCount(status: ApprovalStatus) {
-  if (status === 'awaiting_contract_details') return 1
-  if (status === 'changes_requested' || status === 'awaiting_documents') return 1
-  if (status === 'awaiting_contract_review') return 2
-  if (status === 'approved') return 5
-  if (status === 'rejected') return 0
-  return 0
 }
 
 function ReviewNotice({

@@ -2,7 +2,10 @@ import type { RequestActor } from '../actor'
 import type { UnitOfWork } from '../ports/unit-of-work'
 import type { CommandMetadata } from '../command-metadata'
 import type { AuthorizationService } from '../ports/authorization-service'
+import type { IdGenerator } from '../ports/id-generator'
 import type { SemesterTransitionTarget } from '../../domain/value-objects/semester-enums'
+import type { SemesterStatus } from '../../domain/value-objects/semester-enums'
+import { Notification } from '../../domain/entities/notification'
 import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
 
 /**
@@ -17,6 +20,9 @@ import { NotFoundError, PreconditionFailedError } from '../../domain/errors'
  *   - Optimistic concurrency via `metadata.expectedVersion` (parsed from
  *     `If-Match` at the api boundary); the repository re-checks the
  *     `version` inside the transaction.
+ *
+ * When a semester leaves `enrollment_open`, enrolled students receive an
+ * in-app notification so they know new applications are closed.
  */
 export interface TransitionSemesterCommand {
   actor: RequestActor
@@ -33,7 +39,8 @@ export interface TransitionSemesterResult {
 export class TransitionSemesterCommandHandler {
   constructor(
     private readonly uow: UnitOfWork,
-    private readonly authz: AuthorizationService
+    private readonly authz: AuthorizationService,
+    private readonly idGenerator: IdGenerator
   ) {}
 
   async handle(cmd: TransitionSemesterCommand): Promise<TransitionSemesterResult> {
@@ -48,9 +55,39 @@ export class TransitionSemesterCommandHandler {
         throw new PreconditionFailedError('Resource version does not match')
       }
 
-      semester.applyTransition(cmd.to, platformUser.id, cmd.comment, new Date())
+      const fromStatus = semester.status
+      const now = new Date()
+
+      // Firestore transactions: all reads before writes.
+      const notifyStudents = shouldNotifyEnrolledStudents(fromStatus, cmd.to)
+      const studentIds = notifyStudents
+        ? await ctx.users.listStudentIdsBySemesterId(cmd.semesterId)
+        : []
+
+      semester.applyTransition(cmd.to, platformUser.id, cmd.comment, now)
       await ctx.semesters.save(semester)
+
+      if (notifyStudents) {
+        for (const userId of studentIds) {
+          await ctx.notifications.save(
+            Notification.forSemesterPhaseChange({
+              id: this.idGenerator.next(),
+              userId,
+              semesterDisplayName: semester.displayName,
+              toStatus: cmd.to,
+              now,
+            })
+          )
+        }
+      }
+
       return { id: cmd.semesterId }
     })
   }
+}
+
+function shouldNotifyEnrolledStudents(from: SemesterStatus, to: SemesterTransitionTarget): boolean {
+  if (from === 'enrollment_open' && to === 'placement_running') return true
+  if (to === 'archived') return true
+  return false
 }

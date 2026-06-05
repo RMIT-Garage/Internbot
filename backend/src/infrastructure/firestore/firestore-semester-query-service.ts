@@ -18,8 +18,18 @@ import {
 } from './firestore-semester-repository'
 import { INTERNSHIP_COLLECTION } from './firestore-internship-repository'
 import { translateFirestoreErrors } from './translate-firestore-errors'
+import type { SemesterStatus } from '../../domain/value-objects/semester-enums'
 
 const USER_COLLECTION = 'users'
+
+/** Legacy Firestore docs may still store `active`; map to `enrollment_open` on read. */
+function expandStoredStatusFilter(statuses: readonly SemesterStatus[]): string[] {
+  const expanded = new Set<string>(statuses)
+  if (expanded.has('enrollment_open')) {
+    expanded.add('active')
+  }
+  return [...expanded]
+}
 
 /**
  * Firestore impl of the read-side `SemesterQueryService`. Singleton — not
@@ -66,7 +76,7 @@ export class FirestoreSemesterQueryService implements SemesterQueryService {
         let q: Query = adminDb.collection(SEMESTER_COLLECTION)
 
         if (filter.status && filter.status.length > 0) {
-          q = q.where('status', 'in', [...filter.status])
+          q = q.where('status', 'in', expandStoredStatusFilter(filter.status))
         }
         if (filter.semesterCode !== undefined) {
           q = q.where('semesterCode', '==', filter.semesterCode)

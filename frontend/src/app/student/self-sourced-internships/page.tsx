@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, FileText, Link2, Briefcase, MapPin } from 'lucide-react'
+import { FileText, Link2, Briefcase, MapPin } from 'lucide-react'
 
 import { SurfaceCard } from '@/components/student/Premium'
 import { OpportunitiesService } from '@/lib/api/openapi-client'

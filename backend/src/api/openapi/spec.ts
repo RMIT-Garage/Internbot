@@ -41,6 +41,7 @@ import {
   submitInternshipOfferOperation,
   addInternshipCommentOperation,
   decideInternshipOfferOperation,
+  withdrawInternshipOperation,
 } from './operations/internships'
 import {
   listNotificationsOperation,
@@ -151,6 +152,7 @@ export function buildOpenapiDocument(servers: readonly OpenapiServer[] = []): Op
       },
       '/api/v1/internships/{id}/comments': { post: addInternshipCommentOperation },
       '/api/v1/internships/{id}/decisions': { post: decideInternshipOfferOperation },
+      '/api/v1/internships/{id}/withdrawals': { post: withdrawInternshipOperation },
       '/api/v1/notifications': {
         get: listNotificationsOperation,
         put: markAllNotificationsReadOperation,

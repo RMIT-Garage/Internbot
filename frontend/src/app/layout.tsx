@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: `%s | ${process.env.NEXT_PUBLIC_APP_NAME ?? 'App'}`,
     default: process.env.NEXT_PUBLIC_APP_NAME ?? 'App',
   },
-  description: 'Built on garage-boilerplate',
+  description: 'RMIT internship workflow platform for students and coordinators',
   icons: {
     icon: [
       { url: '/brand/icon.svg', type: 'image/svg+xml' },

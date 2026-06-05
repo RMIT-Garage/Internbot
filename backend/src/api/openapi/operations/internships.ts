@@ -341,6 +341,42 @@ export const addInternshipCommentOperation: ZodOpenApiOperationObject = {
   },
 }
 
+export const withdrawInternshipOperation: ZodOpenApiOperationObject = {
+  operationId: 'withdrawInternship',
+  summary: 'Withdraw an internship application',
+  description:
+    'Student-owner only. Transitions applied, offer_pending_review, or offer_changes_requested to withdrawn.',
+  tags: ['Internships'],
+  security: [{ bearerAuth: [] }],
+  requestParams: { path: internshipIdPathParams, header: ifMatchHeaderSchema },
+  responses: {
+    '201': {
+      description: 'Application withdrawn.',
+      headers: {
+        Location: { schema: { type: 'string' } },
+        ETag: { schema: { type: 'string' } },
+      },
+      content: { 'application/json': { schema: internshipResponseSchema } },
+    },
+    '403': {
+      description: 'Caller is not the student owner.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '404': {
+      description: 'No internship exists with the supplied id.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '409': {
+      description: 'Application cannot be withdrawn in its current state.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    '412': {
+      description: 'Stale `If-Match`.',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+}
+
 export const decideInternshipOfferOperation: ZodOpenApiOperationObject = {
   operationId: 'decideInternshipOffer',
   summary: 'Submit a coordinator decision for an internship offer',

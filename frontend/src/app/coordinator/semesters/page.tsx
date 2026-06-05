@@ -4,7 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Archive, CalendarDays, ClipboardCheck, Pencil, Plus, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { CoordinatorPageHeader, KPIStatCard, SurfaceCard } from '@/components/coordinator/Premium'
+import {
+  CoordinatorPageHeader,
+  KPIStatCard,
+  SurfaceCard,
+  SurfaceCardHeader,
+} from '@/components/coordinator/Premium'
 import CoordinatorContentSkeleton from '@/components/coordinator/CoordinatorContentSkeleton'
 import { semesterInventory } from '@/lib/coordinator/mockData'
 import { useCoordinatorApiResource } from '@/hooks/useCoordinatorApiResource'
@@ -185,7 +190,7 @@ export default function CoordinatorSemestersPage() {
         </SurfaceCard>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3">
         <KPIStatCard
           title="Active cohorts"
           value={String(semesters.filter((s) => s.status === 'active').length || 3)}
@@ -225,12 +230,10 @@ export default function CoordinatorSemestersPage() {
       )}
 
       <SurfaceCard className="overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="text-lg font-bold text-slate-950">Semester Inventory</h2>
-          <p className="text-sm text-slate-500">
-            Manage status, enrollment windows, and cohort settings.
-          </p>
-        </div>
+        <SurfaceCardHeader
+          title="Semester Inventory"
+          description="Manage status, enrollment windows, and cohort settings."
+        />
 
         <div className="divide-y divide-slate-100">
           {semesters.map((semester) => {
@@ -335,7 +338,7 @@ export default function CoordinatorSemestersPage() {
 
                 {/* Students */}
                 <Link
-                  href={`/coordinator/semesters/${semester.id}/students`}
+                  href={`/coordinator/semesters/students?semesterId=${encodeURIComponent(semester.id)}`}
                   className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 sm:inline-flex"
                 >
                   <Users className="h-3.5 w-3.5" />
@@ -345,7 +348,7 @@ export default function CoordinatorSemestersPage() {
                 {/* Actions */}
                 <div className="flex items-center gap-1">
                   <Link
-                    href={`/coordinator/semesters/${semester.id}/students`}
+                    href={`/coordinator/semesters/students?semesterId=${encodeURIComponent(semester.id)}`}
                     title="View students"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 sm:hidden"
                   >
@@ -396,7 +399,7 @@ export default function CoordinatorSemestersPage() {
           })}
 
           {semesters.length === 0 && !loading && (
-            <div className="px-5 py-10 text-center text-sm text-slate-400">
+            <div className="px-5 py-8 text-center text-sm text-slate-400">
               No semesters. Create one to get started.
             </div>
           )}

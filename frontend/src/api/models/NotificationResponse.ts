@@ -27,5 +27,6 @@ export namespace NotificationResponse {
     NEW_TICKET = 'new_ticket',
     TICKET_REPLY = 'ticket_reply',
     TICKET_TRANSITION = 'ticket_transition',
+    SEMESTER_PHASE_CHANGED = 'semester_phase_changed',
   }
 }

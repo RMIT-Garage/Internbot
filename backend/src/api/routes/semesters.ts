@@ -58,7 +58,11 @@ export function createSemestersRouter(deps: SemestersRouterDeps): ExpressRouter 
   const router: ExpressRouter = Router()
   const createSemester = new CreateSemesterCommandHandler(deps.uow, deps.authz, deps.idGenerator)
   const updateSemester = new UpdateSemesterCommandHandler(deps.uow, deps.authz)
-  const transitionSemester = new TransitionSemesterCommandHandler(deps.uow, deps.authz)
+  const transitionSemester = new TransitionSemesterCommandHandler(
+    deps.uow,
+    deps.authz,
+    deps.idGenerator
+  )
   const getSemester = new GetSemesterQueryHandler(deps.semesterQueries, deps.authz)
   const listSemesters = new ListSemestersQueryHandler(deps.semesterQueries, deps.authz)
   const listSemesterStudents = new ListSemesterStudentsQueryHandler(

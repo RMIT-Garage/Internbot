@@ -82,6 +82,7 @@ export function createApiRouter(deps: ApiRouterDeps): ExpressRouter {
       userQueries: deps.userQueries,
       opportunityQueries: deps.opportunityQueries,
       internshipQueries: deps.internshipQueries,
+      semesterQueries: deps.semesterQueries,
       attachmentDownloadTtlMs: deps.attachmentDownloadTtlMs,
     })
   )

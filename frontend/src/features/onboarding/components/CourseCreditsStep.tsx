@@ -108,11 +108,11 @@ export function CourseCreditsStep({ user }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => router.push('/onboarding/review')}
+              onClick={() => router.push('/onboarding/semester')}
               disabled={!allRequirementsMet}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-red-700 px-8 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Continue to review
+              Continue to semester
               <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
           </div>

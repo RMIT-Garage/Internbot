@@ -14,6 +14,9 @@ export type InternshipListItemResponse = {
   opportunityJobTitle: string
   opportunityType: InternshipListItemResponse.opportunityType
   opportunitySourceUrl: string | null
+  semesterId: string
+  semesterDisplayName: string
+  semesterCode: string
   status: InternshipListItemResponse.status
   lastSubmittedAt: string | null
   createdAt: string
@@ -29,5 +32,6 @@ export namespace InternshipListItemResponse {
     OFFER_CHANGES_REQUESTED = 'offer_changes_requested',
     OFFER_APPROVED = 'offer_approved',
     REJECTED = 'rejected',
+    WITHDRAWN = 'withdrawn',
   }
 }

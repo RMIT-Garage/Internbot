@@ -16,21 +16,23 @@ export function CoordinatorPageHeader({
   actions,
 }: CoordinatorPageHeaderProps) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="pointer-events-none absolute top-0 right-0 h-28 w-72 rounded-bl-full bg-gradient-to-l from-red-50 via-slate-50 to-transparent" />
-      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+      <div className="relative flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between lg:items-center">
+        <div className="min-w-0 flex-1">
           {eyebrow && (
             <p className="text-xs font-bold tracking-[0.18em] text-red-700 uppercase">{eyebrow}</p>
           )}
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-            {title}
-          </h1>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{title}</h1>
           {description && (
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
           )}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center md:ml-auto">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -54,6 +56,34 @@ export function SurfaceCard({ children, className }: SurfaceCardProps) {
   )
 }
 
+/** Shared list/table section header — matches student dashboard panels. */
+export function SurfaceCardHeader({
+  title,
+  description,
+  action,
+  className,
+}: {
+  title: string
+  description?: string
+  action?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4',
+        className
+      )}
+    >
+      <div className="min-w-0">
+        <h2 className="text-base font-bold text-slate-950">{title}</h2>
+        {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+      </div>
+      {action}
+    </div>
+  )
+}
+
 interface KPIStatCardProps {
   title: string
   value: string | number
@@ -71,32 +101,41 @@ export function KPIStatCard({
   tone = 'red',
   progress,
 }: KPIStatCardProps) {
-  const tones = {
-    red: 'bg-red-50 text-red-700 ring-red-100',
-    charcoal: 'bg-slate-950 text-white ring-slate-900',
-    neutral: 'bg-slate-100 text-slate-800 ring-slate-200',
+  const iconTones = {
+    red: 'bg-red-50 text-red-600',
+    charcoal: 'bg-slate-100 text-slate-600',
+    neutral: 'bg-slate-100 text-slate-500',
+  }
+
+  const valueTones = {
+    red: 'text-red-600',
+    charcoal: 'text-slate-950',
+    neutral: 'text-slate-900',
   }
 
   return (
-    <SurfaceCard className="p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/80">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-slate-500">{title}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-sm text-slate-500">{detail}</p>
-        </div>
-        <div className={cn('rounded-xl p-2.5 ring-1', tones[tone])}>
-          <Icon className="h-5 w-5" />
-        </div>
+    <SurfaceCard className="flex items-center gap-3 p-4">
+      <div
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+          iconTones[tone]
+        )}
+      >
+        <Icon className="h-4 w-4" aria-hidden />
       </div>
-      {typeof progress === 'number' && (
-        <div className="mt-5 h-2 rounded-full bg-slate-100">
-          <div
-            className="h-2 rounded-full bg-red-700"
-            style={{ width: `${Math.min(progress, 100)}%` }}
-          />
-        </div>
-      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">{title}</p>
+        <p className={cn('text-xl leading-tight font-bold', valueTones[tone])}>{value}</p>
+        <p className="text-[11px] text-slate-400">{detail}</p>
+        {typeof progress === 'number' && (
+          <div className="mt-2 h-1.5 rounded-full bg-slate-100">
+            <div
+              className="h-1.5 rounded-full bg-red-700"
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          </div>
+        )}
+      </div>
     </SurfaceCard>
   )
 }
@@ -111,26 +150,28 @@ export function AnalyticsStrip({
     tone?: 'red' | 'charcoal' | 'neutral'
   }>
 }) {
-  const toneClasses = {
-    red: 'text-red-700 bg-red-50',
-    charcoal: 'text-slate-950 bg-white ring-1 ring-slate-200',
-    neutral: 'text-slate-800 bg-slate-100',
+  const valueTones = {
+    red: 'text-red-600',
+    charcoal: 'text-slate-950',
+    neutral: 'text-slate-900',
   }
 
   return (
     <SurfaceCard className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => (
-        <div key={item.label} className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-xs font-bold tracking-wide text-slate-500 uppercase">{item.label}</p>
+        <div key={item.label} className="rounded-xl bg-slate-50 p-3">
+          <p className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">
+            {item.label}
+          </p>
           <p
             className={cn(
-              'mt-3 inline-flex rounded-xl px-3 py-1 text-2xl font-bold',
-              toneClasses[item.tone ?? 'charcoal']
+              'mt-1 text-xl leading-tight font-bold',
+              valueTones[item.tone ?? 'charcoal']
             )}
           >
             {item.value}
           </p>
-          <p className="mt-3 text-sm text-slate-500">{item.detail}</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">{item.detail}</p>
         </div>
       ))}
     </SurfaceCard>
@@ -148,12 +189,12 @@ export function TimelineFeed({
   }>
 }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {items.map((item, index) => (
         <div key={`${item.title}-${item.time}-${index}`} className="flex gap-3">
           <div
             className={cn(
-              'mt-1 h-2.5 w-2.5 rounded-full ring-4',
+              'mt-1 h-2 w-2 shrink-0 rounded-full ring-4',
               item.tone === 'charcoal' && 'bg-slate-950 ring-slate-100',
               item.tone === 'neutral' && 'bg-slate-500 ring-slate-100',
               (!item.tone || item.tone === 'red') && 'bg-red-600 ring-red-50'
@@ -161,8 +202,8 @@ export function TimelineFeed({
           />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-            <p className="mt-1 text-sm leading-5 text-slate-500">{item.description}</p>
-            <p className="mt-1 text-xs font-medium text-slate-400">{item.time}</p>
+            <p className="mt-0.5 text-sm leading-5 text-slate-500">{item.description}</p>
+            <p className="mt-0.5 text-xs font-medium text-slate-400">{item.time}</p>
           </div>
         </div>
       ))}

@@ -230,12 +230,12 @@ Rule of thumb for `400` vs `422`: `400` means "I can't parse or recognize this r
 
 #### Actions as plural-noun sub-resources
 
-This spec follows the **reify-as-noun** pattern shipped by [GitHub](https://docs.github.com/en/rest), [Twitter/X v2](https://developer.twitter.com/en/docs/twitter-api), and [Jira](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/) for workflow apps:
+This spec follows the **reify-as-noun** pattern shipped by [GitHub](https://docs.github.com/en/rest) and [Twitter/X v2](https://developer.twitter.com/en/docs/twitter-api) for workflow apps:
 
 - **Standard methods** act on resources: `GET /internships`, `POST /internships`, `PATCH /internships/{id}`, `GET /internships/{id}`.
 - **Action methods** reify the action as a plural-noun sub-resource and `POST` to it:
   - `POST /internships/{id}/offer-submissions` — creates an offer-submission record
-  - `POST /internships/{id}/decisions` — creates a decision record (matches Jira's `POST /issue/{id}/transitions`)
+  - `POST /internships/{id}/decisions` — creates a decision record (workflow transition as a stored noun)
   - `POST /opportunities/{id}/verifications` — creates a verification record (student-submission review path)
   - `POST /opportunities/{id}/transitions` — creates a transition record (coordinator publish/archive)
   - `POST /semesters/{id}/transitions` — creates a transition record (semester activate/archive)
@@ -247,7 +247,7 @@ This spec follows the **reify-as-noun** pattern shipped by [GitHub](https://docs
 
 Why this pattern (and not Stripe-style `/capture` verbs or Google-style `:verify` custom methods):
 
-- The domain is workflow + audit records — every coordinator decision, student submission, comment, and verification produces an activity entry. That shape matches GitHub PRs, Twitter likes, and Jira transitions, where reify-as-noun is semantically honest.
+- The domain is workflow + audit records — every coordinator decision, student submission, comment, and verification produces an activity entry. That shape matches GitHub PRs and Twitter likes, where reify-as-noun is semantically honest.
 - No Express routing friction (colon-in-path escaping is not needed).
 - Standard OpenAPI tooling generates clean clients.
 - `DELETE /internships/{id}/decisions/{decisionId}` would be a natural undo path if v2 ever adds one.
@@ -880,7 +880,7 @@ Side effects:
 
 Purpose: Coordinator verifies a student-submitted custom opportunity, creating a verification record that transitions the opportunity from `pending_verification` to `published` or `rejected`. Only applicable to opportunities with `status: pending_verification`.
 
-Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the verification is itself a stored record (coordinator identity + timestamp + decision) — reifying the action as a noun matches the pattern used by GitHub (`/dispatches`, `/merges`), Twitter (`/likes`, `/retweets`), and Jira (`/transitions`) for workflow apps. Submitting the same verification twice must fail with `409` because the opportunity has already moved out of its reviewable state. See the parallel pattern at `POST /internships/{id}/decisions` (section 7.7).
+Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the verification is itself a stored record (coordinator identity + timestamp + decision) — reifying the action as a noun matches the pattern used by GitHub (`/dispatches`, `/merges`) and Twitter (`/likes`, `/retweets`) for workflow apps. Submitting the same verification twice must fail with `409` because the opportunity has already moved out of its reviewable state. See the parallel pattern at `POST /internships/{id}/decisions` (section 7.7).
 
 Auth: Coordinator
 
@@ -950,6 +950,7 @@ Failure cases:
 - `409` student does not have a selected semester (`studentProfile.semesterId` is null)
 - `409` opportunity is not `published`
 - `409` opportunity's `semesterId` does not match the student's enrolled semester
+- `409` student's enrolled semester is not `enrollment_open` (`semester_not_active`)
 - `409` student has already applied to this opportunity (duplicate application)
 
 Side effects:
@@ -1091,6 +1092,9 @@ Success response:
       "opportunityEmployerName": "Example Pty Ltd",
       "opportunityJobTitle": "Software Intern",
       "opportunityType": "pre_approved",
+      "semesterId": "sem_2026_s1_inte2710",
+      "semesterDisplayName": "Semester 1 2026",
+      "semesterCode": "2026-S1",
       "status": "offer_pending_review",
       "lastSubmittedAt": "2026-04-05T03:14:12Z",
       "createdAt": "2026-04-04T09:00:00Z"
@@ -1104,6 +1108,7 @@ Notes:
 
 - `studentProgramCode` is denormalized from `users/{id}.studentProfile.programCode` at query time so coordinators can spot program mismatches at a glance.
 - `opportunityEmployerName`, `opportunityJobTitle`, and `opportunityType` are denormalized from the linked opportunity at query time for display convenience.
+- `semesterId`, `semesterDisplayName`, and `semesterCode` are denormalized from the internship's linked semester at query time to support dashboard/list semester context without extra client joins.
 - `nextPageToken` is `null` when no more results exist.
 - Filtering by a `userId` or `opportunityId` that does not exist returns an empty `items` array, not `404`.
 
@@ -1136,6 +1141,9 @@ Success response:
   "opportunityJobTitle": "Software Intern",
   "opportunityType": "pre_approved",
   "opportunitySourceUrl": "https://careerhub.rmit.edu.au/jobs/12345",
+  "semesterId": "sem_2026_s1_inte2710",
+  "semesterDisplayName": "Semester 1 2026",
+  "semesterCode": "2026-S1",
   "status": "offer_pending_review",
   "version": 1,
   "coordinatorDecision": null,
@@ -1421,6 +1429,7 @@ Side effects:
 - writes an activity record: `{ type: "transition", from, to, actorUserId, comment?, createdAt }`
 - updates `updatedAt` to server timestamp
 - rotates the semester's `ETag`
+- when the semester leaves `enrollment_open` for `placement_running`, or when it transitions to `archived`, creates a `semester_phase_changed` in-app notification for each student with `studentProfile.semesterId` equal to this semester (see section 7.8)
 
 ### 7.6 Semester Selection
 
@@ -1435,10 +1444,9 @@ Auth: Student owner (`{id} == caller.id` and `caller.role == student`). Coordina
 Rule: Semester selection does not use a review workflow. The backend validates:
 
 1. `users/{id}.studentProfile.profileStatus == complete`
-2. the referenced `semesters/{id}` document exists and has `status: active`
-3. if the semester record has `enrolmentOpenAt` and/or `enrolmentCloseAt` set, the current server time is within that window (inclusive of open, exclusive of close)
+2. the referenced `semesters/{id}` document exists and has `status: enrollment_open`
 
-If all three pass, the backend updates `users/{id}.studentProfile` directly.
+If both pass, the backend updates `users/{id}.studentProfile` directly. Enrolment window dates (`enrolmentOpenAt` / `enrolmentCloseAt`) are informational for display; they do **not** gate semester selection or new applications in v1 — only semester `status` does (`enrollment_open` for select/apply).
 
 Request body:
 
@@ -1454,8 +1462,7 @@ Failure cases:
 - `403` caller is a student and `{id} != caller.id`
 - `404` no user exists with the referenced `id`, or the user has `role: coordinator` (semester-selection sub-resource does not exist for coordinator users), or the referenced `semesterId` does not exist
 - `409` student profile is not complete (`profileStatus != complete`)
-- `409` referenced semester has `status != active`
-- `409` current time is outside the semester's enrolment window (`enrolmentOpenAt` / `enrolmentCloseAt`)
+- `409` referenced semester has `status != enrollment_open` (`semester_not_active`)
 - `422` `semesterId` missing or malformed
 
 Side effects:
@@ -1485,7 +1492,7 @@ There is no dedicated coordinator collection URL — role-based filtering happen
 
 Purpose: Submit a coordinator decision for an internship's offer — approve, reject, or request changes. The decision is reified as an activity entry in `internships/{id}/activity` (with `type: approve_offer`, `request_changes`, or `reject`) and reflected on the internship's `coordinatorDecision` field. Only applicable to the offer review stage.
 
-Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the decision is a stored record with a reviewer, timestamp, and outcome — the plural-noun reification matches Jira's workflow-transition pattern (`POST /issue/{id}/transitions`). Submitting the same decision twice must fail with `409` because the internship has already moved out of its reviewable state.
+Why `POST` on a plural-noun sub-resource (not `PUT`, not a `:verb` custom method): the decision is a stored record with a reviewer, timestamp, and outcome — the plural-noun reification matches common workflow-transition APIs. Submitting the same decision twice must fail with `409` because the internship has already moved out of its reviewable state.
 
 Auth: Coordinator
 
@@ -1574,13 +1581,14 @@ Notes:
 
 Notification types:
 
-| Type                   | Recipient              | Trigger                                                        |
-| ---------------------- | ---------------------- | -------------------------------------------------------------- |
-| `offer_decision`       | Student                | Coordinator approves, rejects, or requests changes on an offer |
-| `opportunity_verified` | Student                | Coordinator verifies a student-submitted custom opportunity    |
-| `opportunity_rejected` | Student                | Coordinator rejects a student-submitted custom opportunity     |
-| `new_application`      | Coordinator            | A student applies to an opportunity                            |
-| `ticket_reply`         | Student or Coordinator | A reply is added to a ticket                                   |
+| Type                     | Recipient              | Trigger                                                                            |
+| ------------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| `offer_decision`         | Student                | Coordinator approves, rejects, or requests changes on an offer                     |
+| `opportunity_verified`   | Student                | Coordinator verifies a student-submitted custom opportunity                        |
+| `opportunity_rejected`   | Student                | Coordinator rejects a student-submitted custom opportunity                         |
+| `new_application`        | Coordinator            | A student applies to an opportunity                                                |
+| `semester_phase_changed` | Student                | Coordinator moves the student's enrolled semester out of enrollment or archives it |
+| `ticket_reply`           | Student or Coordinator | A reply is added to a ticket                                                       |
 
 Failure cases:
 

@@ -1,4 +1,4 @@
-title = "garage-boilerplate gitleaks config"
+title = "internbot gitleaks config"
 
 [allowlist]
   description = "Allow example/placeholder values in template files"

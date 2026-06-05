@@ -21,11 +21,18 @@ export const ONBOARDING_STEPS = [
     number: 3,
   },
   {
+    key: 'semester',
+    label: 'Semester',
+    shortLabel: 'Semester',
+    href: '/onboarding/semester',
+    number: 4,
+  },
+  {
     key: 'review',
     label: 'Review',
     shortLabel: 'Finalize',
     href: '/onboarding/review',
-    number: 4,
+    number: 5,
   },
 ] as const
 

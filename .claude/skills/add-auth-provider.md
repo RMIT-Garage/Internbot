@@ -88,6 +88,6 @@ Add the new provider to the "Auth Providers" list.
 
 ## Notes
 
-- This boilerplate uses `signInWithPopup`. For mobile-heavy apps, consider `signInWithRedirect` + `getRedirectResult`
+- This project uses `signInWithPopup`. For mobile-heavy apps, consider `signInWithRedirect` + `getRedirectResult`
 - For Microsoft, configure tenant if restricting to org accounts: `provider.setCustomParameters({ tenant: 'your-tenant-id' })`
 - Apple Sign-In requires the domain to be verified in Apple Developer Console

@@ -1,36 +1,164 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Internbot — Frontend package
 
-## Getting Started
+Next.js 16 **static export** SPA: student and coordinator internship workflows. Part of the [Internbot monorepo](../README.md) — start with the **root README codebase guide** for full system context.
 
-First, run the development server:
+## Team
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Name                         | Student ID |
+| ---------------------------- | ---------- |
+| Duc Gia Tin Huynh            | s3962053   |
+| Edelyne Keisha Tjhin         | s4190528   |
+| Amantha Mampitiya Arachchige | s3992315   |
+| Heethasha Sandeep Kumar      | s3906349   |
+| Dan Dang                     | s4059981   |
+
+---
+
+## How this package fits in
+
+The browser only talks to:
+
+1. **Firebase Auth** — sign-in, sign-up, ID tokens (`@/lib/firebase/`).
+2. **Internbot HTTP API** — every list, form, and mutation via `apiFetch('/api/v1/...')` (`@/lib/api/client.ts`).
+
+There is **no** `firebase/firestore` or `firebase/storage` for domain data. Firestore rules deny client access; the backend owns all reads/writes.
+
+Hosting serves `frontend/out/` after `pnpm --filter frontend build`. In production, `/api/**` is rewritten to the `api` Cloud Function (see root `firebase.json`).
+
+---
+
+## Directory map
+
+```text
+frontend/src/
+├── app/                    # Routes (file-based App Router)
+│   ├── page.tsx            # Landing
+│   ├── (auth)/             # Login, register, verify-email, forgot-password
+│   ├── (onboarding)/       # Student onboarding wizard steps
+│   ├── student/            # Student app (dashboard, jobs, advisor, …)
+│   ├── coordinator/        # Coordinator app (semesters, contracts, tickets, …)
+│   └── dashboard/          # Legacy entry / redirects
+├── features/               # Domain UI (prefer adding here)
+│   ├── auth/
+│   ├── onboarding/
+│   ├── profile/
+│   ├── advisor/            # Student FAQ + tickets
+│   └── coordinator-ai/     # Coordinator AI tools
+├── components/             # Shared UI
+│   ├── layout/             # Shell, sidebar, navbar
+│   ├── student/            # Student-specific widgets
+│   ├── coordinator/
+│   ├── shared/
+│   └── ui/                 # shadcn — do not hand-edit
+├── lib/
+│   ├── api/client.ts       # apiFetch — always use for backend
+│   ├── firebase/           # Auth client only
+│   ├── coordinator/        # Coordinator API helpers + route guard
+│   └── validations/        # Zod schemas for forms
+├── hooks/                  # useAuth, useRequireAuth, …
+└── providers/              # AuthProvider, Toaster
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Routing and roles
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Prefix           | Who             | Notes                                      |
+| ---------------- | --------------- | ------------------------------------------ |
+| `/student/*`     | Students        | Main post-onboarding experience            |
+| `/coordinator/*` | Coordinators    | Separate login at `/coordinator/login`     |
+| `(onboarding)/*` | New students    | Profile, credits, semester before full app |
+| `(auth)/*`       | Unauthenticated | Redirect if already signed in              |
 
-## Learn More
+Protected layouts use `useRequireAuth()` from `@/hooks/`. Role-specific guards also live in coordinator helpers (`useCoordinatorRouteGuard`).
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Patterns you should follow
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Client components
 
-## Deploy on Vercel
+Add `'use client'` when using hooks, `onClick`, `apiFetch`, or `useAuth`. Pages that show user-specific data are almost always client components.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Calling the API
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```typescript
+import { apiFetch } from '@/lib/api/client'
+
+const me = await apiFetch<User>('/api/v1/users/me')
+await apiFetch('/api/v1/semesters', { method: 'POST', body: { ... } })
+```
+
+- Base URL: `NEXT_PUBLIC_API_URL` (often `http://localhost:5000` with Hosting emulator, or function URL — see `.env.example`).
+- Paths always include the `/api/v1/...` prefix.
+- Do not use raw `fetch()` for backend calls (you will lose the auth header).
+
+### Feature modules
+
+Put new business UI in `src/features/<name>/`:
+
+- `components/` — screens and panels
+- `hooks/` — data hooks wrapping `apiFetch`
+- `types.ts` — view models and API types
+
+Avoid cross-importing between features; use `@/lib`, `@/hooks`, `@/components/shared`.
+
+### Styling
+
+Tailwind v4, tokens in `src/app/globals.css` (`@theme`). Use `cn()` from `@/lib/utils`. Follow [docs/DESIGN.md](../docs/DESIGN.md).
+
+---
+
+## Auth flow (UI)
+
+```text
+/register or /login → Firebase Auth
+       → GET /api/v1/users/me
+       → 403 no_platform_user → /verify-email
+       → student → onboarding or /student/dashboard
+       → coordinator → /coordinator/dashboard
+```
+
+`AuthProvider` (`src/providers/`) listens to `onAuthStateChanged` only — it does not write to Firestore.
+
+---
+
+## Local development
+
+From **repo root** (starts emulators + frontend):
+
+```bash
+pnpm run dev
+```
+
+Frontend only:
+
+```bash
+pnpm --filter frontend dev
+```
+
+Env: copy `frontend/.env.example` → `frontend/.env.local`. See [root README § Environment setup](../README.md#environment-setup).
+
+---
+
+## Scripts
+
+```bash
+pnpm --filter frontend dev
+pnpm --filter frontend build    # Output: frontend/out/
+pnpm --filter frontend test
+pnpm --filter frontend lint
+pnpm --filter frontend typecheck
+```
+
+---
+
+## Further reading
+
+| Topic                    | Document                                                     |
+| ------------------------ | ------------------------------------------------------------ |
+| Full monorepo guide      | [../README.md](../README.md)                                 |
+| Frontend conventions     | [../docs/FRONTEND.md](../docs/FRONTEND.md)                   |
+| API contract             | [../docs/WORKFLOW-API-SPEC.md](../docs/WORKFLOW-API-SPEC.md) |
+| Design system            | [../docs/DESIGN.md](../docs/DESIGN.md)                       |
+| Package rules for agents | [CLAUDE.md](./CLAUDE.md)                                     |

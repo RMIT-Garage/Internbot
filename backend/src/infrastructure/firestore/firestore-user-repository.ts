@@ -340,6 +340,20 @@ export class FirestoreUserRepository implements UserRepository {
     )
   }
 
+  async listStudentIdsBySemesterId(semesterId: string): Promise<readonly string[]> {
+    return translateFirestoreErrors(
+      async () => {
+        const query = adminDb
+          .collection(USER_COLLECTION)
+          .where('role', '==', 'student')
+          .where('studentProfile.semesterId', '==', semesterId)
+        const snap = await this.txn.get(query)
+        return snap.docs.map((doc) => doc.id)
+      },
+      { op: 'users.listStudentIdsBySemesterId', resource: 'User' }
+    )
+  }
+
   /** Upsert. `version === 0` → first-write; else optimistic-lock update. */
   async save(user: User): Promise<void> {
     if (user.version === 0) {

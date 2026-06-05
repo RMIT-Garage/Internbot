@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Circle,
   Clock,
+  CalendarDays,
   FileText,
   MapPin,
   Monitor,
@@ -49,6 +50,14 @@ type StageStatus = 'completed' | 'active' | 'pending' | 'changes_requested' | 'r
 interface Stage {
   label: string
   status: StageStatus
+}
+
+/** AI contract check only after the student has submitted offer documents to the coordinator. */
+function shouldShowContractAssessment(
+  internship: Pick<InternshipResponse, 'status' | 'lastSubmittedAt'>
+): boolean {
+  if (internship.lastSubmittedAt) return true
+  return internship.status !== 'applied'
 }
 
 function getStages(status: InternshipResponse['status']): Stage[] {
@@ -308,6 +317,11 @@ function JobDetailsCard({
               <FileText className="h-3.5 w-3.5 text-gray-400" />
               {OPPORTUNITY_TYPE_LABELS[internship.opportunityType] ?? internship.opportunityType}
             </div>
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
+              <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
+              {internship.semesterDisplayName}
+              {internship.semesterCode ? ` · ${internship.semesterCode}` : ''}
+            </div>
           </div>
 
           {hasDescription && (
@@ -375,7 +389,8 @@ export default function ApplicationDetailClient() {
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
 
   const [checkerInput, setCheckerInput] = useState<CheckerInput | null>(null)
-  const contractCheck = useStudentContractCheck(checkerInput)
+  const showContractAssessment = internship !== null && shouldShowContractAssessment(internship)
+  const contractCheck = useStudentContractCheck(showContractAssessment ? checkerInput : null)
 
   useEffect(() => {
     if (authLoading || !user || !id) return
@@ -407,38 +422,41 @@ export default function ApplicationDetailClient() {
             /* non-fatal — basic details still available on internship */
           })
 
-        // Build contract checker input once internship loads (use data before stuck cleanup)
-        const contractText = [
-          `Employer: ${data.opportunityEmployerName}`,
-          `Job Title: ${data.opportunityJobTitle}`,
-          `Program Code: ${data.studentProgramCode ?? 'unknown'}`,
-          `Offer Date: ${data.offerDate ?? 'unknown'}`,
-          `Start Date: ${data.startDate ?? 'unknown'}`,
-          `End Date: ${data.endDate ?? 'unknown'}`,
-        ].join('\n')
+        if (shouldShowContractAssessment(data)) {
+          const contractText = [
+            `Employer: ${data.opportunityEmployerName}`,
+            `Job Title: ${data.opportunityJobTitle}`,
+            `Program Code: ${data.studentProgramCode ?? 'unknown'}`,
+            `Offer Date: ${data.offerDate ?? 'unknown'}`,
+            `Start Date: ${data.startDate ?? 'unknown'}`,
+            `End Date: ${data.endDate ?? 'unknown'}`,
+          ].join('\n')
 
-        const primaryAtt = data.attachments.find((a) => a.uploadStatus === 'finalized')
-        if (primaryAtt && active) {
-          InternshipsService.getInternshipAttachment(id, primaryAtt.id)
-            .then(async ({ downloadUrl }) => {
-              const res = await fetch(downloadUrl)
-              if (!res.ok) throw new Error('download failed')
-              const buf = await res.arrayBuffer()
-              if (active)
-                setCheckerInput({
-                  userInput: contractText,
-                  attachment: {
-                    mimeType: primaryAtt.contentType ?? 'application/octet-stream',
-                    dataBase64: arrayBufferToBase64(buf),
-                    fileName: primaryAtt.fileName ?? undefined,
-                  },
-                })
-            })
-            .catch(() => {
-              if (active) setCheckerInput({ userInput: contractText })
-            })
+          const primaryAtt = data.attachments.find((a) => a.uploadStatus === 'finalized')
+          if (primaryAtt && active) {
+            InternshipsService.getInternshipAttachment(id, primaryAtt.id)
+              .then(async ({ downloadUrl }) => {
+                const res = await fetch(downloadUrl)
+                if (!res.ok) throw new Error('download failed')
+                const buf = await res.arrayBuffer()
+                if (active)
+                  setCheckerInput({
+                    userInput: contractText,
+                    attachment: {
+                      mimeType: primaryAtt.contentType ?? 'application/octet-stream',
+                      dataBase64: arrayBufferToBase64(buf),
+                      fileName: primaryAtt.fileName ?? undefined,
+                    },
+                  })
+              })
+              .catch(() => {
+                if (active) setCheckerInput({ userInput: contractText })
+              })
+          } else if (active) {
+            setCheckerInput({ userInput: contractText })
+          }
         } else if (active) {
-          setCheckerInput({ userInput: contractText })
+          setCheckerInput(null)
         }
       } catch (err: unknown) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load application')
@@ -1160,16 +1178,17 @@ export default function ApplicationDetailClient() {
 
           {/* Right column — reviewer panel + withdraw */}
           <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-            {(contractCheck.isLoading || contractCheck.result || contractCheck.error) && (
-              <SurfaceCard className="p-4">
-                <CheckerResultPanel
-                  result={contractCheck.result}
-                  isLoading={contractCheck.isLoading}
-                  error={contractCheck.error}
-                  feature="contract-checker"
-                />
-              </SurfaceCard>
-            )}
+            {showContractAssessment &&
+              (contractCheck.isLoading || contractCheck.result || contractCheck.error) && (
+                <SurfaceCard className="p-4">
+                  <CheckerResultPanel
+                    result={contractCheck.result}
+                    isLoading={contractCheck.isLoading}
+                    error={contractCheck.error}
+                    feature="contract-checker"
+                  />
+                </SurfaceCard>
+              )}
             <ReviewerPanel internship={internship} />
 
             {['applied', 'offer_pending_review', 'offer_changes_requested'].includes(

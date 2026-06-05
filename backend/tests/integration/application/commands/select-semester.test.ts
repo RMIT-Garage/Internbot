@@ -77,7 +77,8 @@ async function seedActiveSemester(
   )
   const transition = new TransitionSemesterCommandHandler(
     new FirestoreUnitOfWork(),
-    defaultAuthorizationService
+    defaultAuthorizationService,
+    firestoreIdGenerator
   )
   const coord = actorFor(`usr_coord_${randomUUID()}`, 'coordinator')
   const { id } = await create.handle({

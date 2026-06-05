@@ -10,7 +10,7 @@ import { getDefaultRedirectPath } from '@/features/auth/utils/redirect'
 // Signed-out → /login (the actual welcome screen with Student/Staff tabs).
 //
 // This component also runs when Firebase Hosting's catch-all rewrite serves
-// /index.html for an unknown deep-link path (e.g. /coordinator/semesters/id/students).
+// /index.html for an unknown deep-link path (e.g. /coordinator/semesters/students?semesterId=...).
 // In that case we redirect back to the intended path so the App Router can render
 // the correct component, rather than bouncing blindly to the role dashboard.
 export default function LandingPage() {

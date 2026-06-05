@@ -26,4 +26,6 @@ export interface UserRepository {
   save(user: User): Promise<void>
   delete(id: string): Promise<void>
   listCoordinators(): Promise<readonly User[]>
+  /** Students with `studentProfile.semesterId` set to the given semester. */
+  listStudentIdsBySemesterId(semesterId: string): Promise<readonly string[]>
 }

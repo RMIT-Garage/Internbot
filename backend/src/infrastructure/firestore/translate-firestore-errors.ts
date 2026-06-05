@@ -26,6 +26,7 @@ export type FirestoreOp =
   | 'users.findById'
   | 'users.findByIdentity'
   | 'users.listCoordinators'
+  | 'users.listStudentIdsBySemesterId'
   | 'users.save'
   | 'users.delete'
   | 'semesters.findById'
