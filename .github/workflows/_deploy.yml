@@ -25,6 +25,11 @@ on:
         required: false
         type: string
         default: ''
+      auto_verify_email:
+        description: When true, stamp new student signups email-verified at account creation (skips the verification round-trip; bypasses the squatting guard in platform-user-hydrator.ts)
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -81,6 +86,19 @@ jobs:
         if: inputs.rag_service_url != ''
         run: |
           echo "RAG_SERVICE_URL=${{ inputs.rag_service_url }}" >> "backend/.env.${{ inputs.firebase_project_id }}"
+
+      # AUTO_VERIFY_EMAIL is read by the `enforceStudentEmail` beforeUserCreated
+      # blocking function (backend/src/index.ts): when 'true' it returns
+      # `{ emailVerified: true }`, so a new signup's first token already carries
+      # `email_verified: true` and clears both the token verifier and the JIT
+      # hydrator gate — no verification email, no /verify-email bounce. This
+      # bypasses the email-ownership / student-number squatting guard in
+      # platform-user-hydrator.ts for the target project. Written into the same
+      # per-project dotenv the firebase CLI loads at deploy.
+      - name: Enable auto email verification
+        if: inputs.auto_verify_email
+        run: |
+          echo "AUTO_VERIFY_EMAIL=true" >> "backend/.env.${{ inputs.firebase_project_id }}"
 
       - name: Deploy to Firebase
         # Pinned firebase-tools major version for deterministic CI runs.

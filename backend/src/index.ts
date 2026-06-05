@@ -109,13 +109,14 @@ export const enforceStudentEmail: BlockingFunction = beforeUserCreated(
       )
     }
 
-    // Dev-only escape hatch: mark the new account email-verified at creation so
-    // testers skip the verification-email round-trip. The implicit sign-in that
+    // Mark the new account email-verified at creation so users skip the
+    // verification-email round-trip. The implicit sign-in that
     // `createUserWithEmailAndPassword` performs then mints a token with
     // `email_verified: true`, clearing both the token-verifier and the JIT
-    // hydrator gate. Defaults OFF — production never sets this, preserving the
-    // email-ownership check that stops student-number squatting (see
-    // `platform-user-hydrator.ts`). Enable only on the dev function's env.
+    // hydrator gate. Both deployed environments enable this via CI
+    // (`auto_verify_email: true` in deploy-dev.yml / deploy-prod.yml). Trade-off:
+    // it disables the email-ownership check that stops student-number squatting
+    // (see `platform-user-hydrator.ts`). Defaults OFF when the env is unset.
     if (process.env['AUTO_VERIFY_EMAIL'] === 'true') {
       return { emailVerified: true }
     }
