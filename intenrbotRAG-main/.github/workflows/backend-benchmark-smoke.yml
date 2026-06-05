@@ -1,0 +1,53 @@
+name: Backend Benchmark Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'docs/**'
+      - '.github/workflows/backend-benchmark-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'docs/**'
+      - '.github/workflows/backend-benchmark-smoke.yml'
+
+jobs:
+  benchmark-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck backend
+        run: pnpm --filter backend typecheck
+
+      - name: Run backend unit tests
+        run: pnpm --filter backend test
+
+      - name: Run benchmark smoke suites
+        run: pnpm --filter backend run benchmark:ci
+
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-benchmark-smoke-reports
+          path: backend/benchmarks/reports/
+          if-no-files-found: warn

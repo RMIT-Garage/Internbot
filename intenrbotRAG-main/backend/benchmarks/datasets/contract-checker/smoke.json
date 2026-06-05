@@ -1,0 +1,92 @@
+{
+  "datasetVersion": "v1.1.0",
+  "feature": "contract-checker",
+  "promptVersion": "v1.1.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "CC-SMOKE-001",
+      "feature": "contract-checker",
+      "name": "Clearly compliant contract",
+      "input": {
+        "text": "Contract between Example Pty Ltd and Alex Smith for Junior Software Developer under IT Award 2020. Placement is 260 hours over 8 weeks. Supervisor: Jane Doe jane.doe@example.com. Contract is signed by employer and student."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 pass. Rule3 pass. Rule4 pass. Rule5 pass. Rule6 pass.",
+        "decision": "Yes",
+        "confidence": 0.97,
+        "concerns": [],
+        "summary": "Contract is compliant across all rules."
+      }
+    },
+    {
+      "id": "CC-SMOKE-002",
+      "feature": "contract-checker",
+      "name": "Fail - unrelated award classification",
+      "input": {
+        "text": "Agreement for Health Information Assistant under Health Professionals Award 2010. Placement is 260 hours. Supervisor with contact is provided."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_AWARD_CLASSIFICATION"],
+        "concerns": [
+          "RULE_1_AWARD_CLASSIFICATION: Award classification is healthcare, not IT or engineering."
+        ]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 fails because Health Professionals Award is not IT/engineering.",
+        "decision": "No",
+        "confidence": 0.99,
+        "concerns": [
+          "RULE_1_AWARD_CLASSIFICATION: Award classification is healthcare, not IT or engineering."
+        ],
+        "summary": "Contract fails award classification rule."
+      }
+    },
+    {
+      "id": "CC-SMOKE-003",
+      "feature": "contract-checker",
+      "name": "Fail - missing supervisor identity/contact",
+      "input": {
+        "text": "Software internship contract under IT award for 240 hours. Supervisor is listed only as 'Engineering Team' with no person name or direct contact."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_3_NAMED_SUPERVISOR"],
+        "concerns": ["RULE_3_NAMED_SUPERVISOR: No named supervisor contact is present."]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 pass. Rule3 fail due to missing named contact. Rule4 pass. Rule5 pass. Rule6 pass.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": ["RULE_3_NAMED_SUPERVISOR: No named supervisor contact is present."],
+        "summary": "Contract is non-compliant due to missing named supervisor contact details."
+      }
+    },
+    {
+      "id": "CC-SMOKE-004",
+      "feature": "contract-checker",
+      "name": "Fail - unsigned contract",
+      "input": {
+        "text": "IT internship contract with 260 hours and technical duties. Named supervisor with email is provided. Signature sections for student and employer are blank."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_6_CONTRACT_VALIDITY"],
+        "concerns": ["RULE_6_CONTRACT_VALIDITY: Contract is not fully signed/executed."]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 pass. Rule3 pass. Rule4 pass. Rule5 pass. Rule6 fail due to missing signatures.",
+        "decision": "No",
+        "confidence": 0.96,
+        "concerns": ["RULE_6_CONTRACT_VALIDITY: Contract is not fully signed/executed."],
+        "summary": "Contract fails validity because execution evidence is missing."
+      }
+    }
+  ]
+}

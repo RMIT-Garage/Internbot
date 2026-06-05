@@ -1,0 +1,96 @@
+{
+  "metadata": {
+    "runId": "dd8f92ee-d63f-41fc-b614-d77b59161cf4",
+    "mode": "full",
+    "feature": "faq-rag",
+    "provider": "google-gemini",
+    "model": "gemini-2.5-flash-lite",
+    "promptVersion": "v1.0.0",
+    "promptPath": "C:\\Users\\Welcome\\Documents\\GitHub\\interbotRAG\\backend\\benchmarks\\prompts\\faq-rag\\v1.0.0.txt",
+    "startedAtIso": "2026-05-04T10:27:49.194Z",
+    "finishedAtIso": "2026-05-04T10:27:49.725Z",
+    "usedFixtureResponses": false
+  },
+  "executions": [
+    {
+      "caseId": "FAQ-FULL-001",
+      "name": "Eligibility answer with source",
+      "feature": "faq-rag",
+      "expected": {
+        "answeredFromContext": true,
+        "requiredSources": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Eligibility"
+          }
+        ]
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 171,
+      "error": "Gemini API request failed (429): {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, model: gemini-2.5-flash-lite\\nPlease retry in 10.440648462s.\",\n    \"status\": \"RESOURCE_EXHAUSTED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\n        \"links\": [\n          {\n            \"description\": \"Learn more about Gemini API quotas\",\n            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",\n        \"violations\": [\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"model\": \"gemini-2.5-flash-lite\",\n              \"location\": \"global\"\n            },\n            \"quotaValue\": \"10\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",\n        \"retryDelay\": \"10s\"\n      }\n    ]\n  }\n}\n"
+    },
+    {
+      "caseId": "FAQ-FULL-002",
+      "name": "Coordinator process question",
+      "feature": "faq-rag",
+      "expected": {
+        "answeredFromContext": true,
+        "requiredSources": [
+          {
+            "title": "Coordinator FAQ",
+            "section": "Approval Flow"
+          }
+        ]
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 179,
+      "error": "Gemini API request failed (429): {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, model: gemini-2.5-flash-lite\\nPlease retry in 10.262505714s.\",\n    \"status\": \"RESOURCE_EXHAUSTED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\n        \"links\": [\n          {\n            \"description\": \"Learn more about Gemini API quotas\",\n            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",\n        \"violations\": [\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"location\": \"global\",\n              \"model\": \"gemini-2.5-flash-lite\"\n            },\n            \"quotaValue\": \"10\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",\n        \"retryDelay\": \"10s\"\n      }\n    ]\n  }\n}\n"
+    },
+    {
+      "caseId": "FAQ-FULL-003",
+      "name": "Future policy prediction should refuse",
+      "feature": "faq-rag",
+      "expected": {
+        "answeredFromContext": false,
+        "refusalMessage": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "requiredSources": []
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 179,
+      "error": "Gemini API request failed (429): {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, model: gemini-2.5-flash-lite\\nPlease retry in 10.083364543s.\",\n    \"status\": \"RESOURCE_EXHAUSTED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\n        \"links\": [\n          {\n            \"description\": \"Learn more about Gemini API quotas\",\n            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",\n        \"violations\": [\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"location\": \"global\",\n              \"model\": \"gemini-2.5-flash-lite\"\n            },\n            \"quotaValue\": \"10\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",\n        \"retryDelay\": \"10s\"\n      }\n    ]\n  }\n}\n"
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 0,
+    "answered_from_context_accuracy": 0,
+    "refusal_rate_unanswerable": 0,
+    "citation_presence_rate": 0,
+    "citation_support_rate": 0,
+    "usage_coverage_rate": 0,
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_tokens": 0,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "cost_coverage_rate": 0,
+    "total_cost_usd": 0,
+    "avg_cost_usd_per_call": 0
+  },
+  "minThresholds": {
+    "parse_success_rate": 0.99,
+    "answered_from_context_accuracy": 0.9,
+    "refusal_rate_unanswerable": 0.9,
+    "citation_presence_rate": 0.9,
+    "usage_coverage_rate": 1
+  },
+  "maxThresholds": {
+    "avg_cost_usd_per_call": 0.01
+  },
+  "pass": false
+}

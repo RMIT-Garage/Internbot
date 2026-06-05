@@ -1,0 +1,44 @@
+{
+  "feature": "faq-rag",
+  "faq": {
+    "contentFile": "faq-internship-students-cleaned.txt",
+    "title": "Internship FAQ for Students",
+    "sourceUrl": "https://www.rmit.edu.au/students/careers-opportunities/internships-work-experience-wil"
+  },
+  "documents": [
+    {
+      "title": "RMIT SE WIL Coordinators",
+      "section": "Contacts",
+      "sourceUrl": "https://www.rmit.edu.au/study-with-us/levels-of-study/course-guides/056/056999",
+      "contentFile": "coordinators-rmit-se-wil.txt"
+    },
+    {
+      "title": "RMIT Internships and WIL",
+      "section": "Overview",
+      "sourceUrl": "https://www.rmit.edu.au/students/careers-opportunities/internships-work-experience-wil",
+      "contentFile": "scraped/internships-work-experience-wil.txt",
+      "optional": true
+    },
+    {
+      "title": "Internship 2a (056999)",
+      "section": "Course guide",
+      "sourceUrl": "https://www.rmit.edu.au/study-with-us/levels-of-study/course-guides/056/056999",
+      "contentFile": "scraped/course-guide-056999.txt",
+      "optional": true
+    },
+    {
+      "title": "Internship Reflection 1 (056997)",
+      "section": "Course guide",
+      "sourceUrl": "https://www.rmit.edu.au/study-with-us/levels-of-study/course-guides/056/056997",
+      "contentFile": "scraped/course-guide-056997.txt",
+      "optional": true
+    },
+    {
+      "title": "Internship 2b (057002)",
+      "section": "Handbook",
+      "sourceUrl": "https://handbook.rmit.edu.au/ords/r/rmit/catalogue/course?p6_code=057002",
+      "contentFile": "scraped/handbook-057002.txt",
+      "optional": true
+    }
+  ]
+}

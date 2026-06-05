@@ -1,0 +1,205 @@
+{
+  "metadata": {
+    "runId": "5e268ba5-7021-4452-80ae-5afbce9a8e06",
+    "mode": "full",
+    "feature": "contract-checker",
+    "provider": "google-gemini",
+    "model": "gemini-2.5-flash-lite",
+    "promptVersion": "v1.1.0",
+    "promptPath": "C:\\Users\\Welcome\\Documents\\GitHub\\interbotRAG\\backend\\benchmarks\\prompts\\contract-checker\\v1.1.0.txt",
+    "startedAtIso": "2026-05-04T10:31:31.412Z",
+    "finishedAtIso": "2026-05-04T10:32:26.707Z",
+    "usedFixtureResponses": false
+  },
+  "executions": [
+    {
+      "caseId": "CC-FULL-001",
+      "name": "Compliant contract",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "rawResponse": "{\n  \"scratchpad\": \"RULE_1_AWARD_CLASSIFICATION: PASS - IT/computing/engineering relevant.\\nRULE_2_MINIMUM_HOURS: PASS - 240+ hours meets minimum.\\nRULE_3_NAMED_SUPERVISOR: PASS - Named supervisor with email.\\nRULE_4_IDENTITY_MATCH: PASS - No contradictions.\\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: PASS - Junior Developer role implies technical work.\\nRULE_6_CONTRACT_VALIDITY: PASS - Signed by both parties, future start date.\",\n  \"decision\": \"Yes\",\n  \"confidence\": 0.95,\n  \"concerns\": [],\n  \"summary\": \"The contract meets all requirements for a compliant internship.\"\n}",
+      "parsedResponse": {
+        "scratchpad": "RULE_1_AWARD_CLASSIFICATION: PASS - IT/computing/engineering relevant.\nRULE_2_MINIMUM_HOURS: PASS - 240+ hours meets minimum.\nRULE_3_NAMED_SUPERVISOR: PASS - Named supervisor with email.\nRULE_4_IDENTITY_MATCH: PASS - No contradictions.\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: PASS - Junior Developer role implies technical work.\nRULE_6_CONTRACT_VALIDITY: PASS - Signed by both parties, future start date.",
+        "decision": "Yes",
+        "confidence": 0.95,
+        "concerns": [],
+        "summary": "The contract meets all requirements for a compliant internship."
+      },
+      "parseSuccess": true,
+      "latencyMs": 3709,
+      "usage": {
+        "inputTokens": 506,
+        "outputTokens": 170
+      },
+      "estimatedCostUsd": 0.0002538
+    },
+    {
+      "caseId": "CC-FULL-002",
+      "name": "Missing minimum hours",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_2_MINIMUM_HOURS"],
+        "concerns": ["Minimum 240 hours is not established."]
+      },
+      "rawResponse": "{\n  \"scratchpad\": \"RULE_1_AWARD_CLASSIFICATION: PASS - IT support is relevant.\\nRULE_2_MINIMUM_HOURS: FAIL - No explicit hours or equivalent duration.\\nRULE_3_NAMED_SUPERVISOR: FAIL - No supervisor details provided.\\nRULE_4_IDENTITY_MATCH: FAIL - No identity information provided.\\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: PASS - IT support is technical.\\nRULE_6_CONTRACT_VALIDITY: FAIL - No acceptance/signature details provided.\",\n  \"decision\": \"No\",\n  \"confidence\": 0.95,\n  \"concerns\": [\n    \"RULE_2_MINIMUM_HOURS: Contract does not specify minimum required internship hours or equivalent duration.\",\n    \"RULE_3_NAMED_SUPERVISOR: No named supervisor or contact details are provided.\",\n    \"RULE_4_IDENTITY_MATCH: No student or employer identity information is present to verify a match.\",\n    \"RULE_6_CONTRACT_VALIDITY: Contract lacks evidence of acceptance, signature, or date validity.\"\n  ],\n  \"summary\": \"The contract is non-compliant due to missing information regarding hours, supervisor, identity, and validity.\"\n}",
+      "parsedResponse": {
+        "scratchpad": "RULE_1_AWARD_CLASSIFICATION: PASS - IT support is relevant.\nRULE_2_MINIMUM_HOURS: FAIL - No explicit hours or equivalent duration.\nRULE_3_NAMED_SUPERVISOR: FAIL - No supervisor details provided.\nRULE_4_IDENTITY_MATCH: FAIL - No identity information provided.\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: PASS - IT support is technical.\nRULE_6_CONTRACT_VALIDITY: FAIL - No acceptance/signature details provided.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": [
+          "RULE_2_MINIMUM_HOURS: Contract does not specify minimum required internship hours or equivalent duration.",
+          "RULE_3_NAMED_SUPERVISOR: No named supervisor or contact details are provided.",
+          "RULE_4_IDENTITY_MATCH: No student or employer identity information is present to verify a match.",
+          "RULE_6_CONTRACT_VALIDITY: Contract lacks evidence of acceptance, signature, or date validity."
+        ],
+        "summary": "The contract is non-compliant due to missing information regarding hours, supervisor, identity, and validity."
+      },
+      "parseSuccess": true,
+      "latencyMs": 2920,
+      "usage": {
+        "inputTokens": 492,
+        "outputTokens": 273
+      },
+      "estimatedCostUsd": 0.0003114
+    },
+    {
+      "caseId": "CC-FULL-003",
+      "name": "Past start date",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_6_CONTRACT_VALIDITY"],
+        "concerns": ["Start date is in the past."]
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 1713,
+      "error": "Gemini API request failed (503): {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n"
+    },
+    {
+      "caseId": "CC-FULL-004",
+      "name": "Award and duties mismatch (tech company, admin role)",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_AWARD_CLASSIFICATION", "RULE_5_SUBSTANTIVE_TECHNICAL_WORK"],
+        "concerns": [
+          "RULE_1_AWARD_CLASSIFICATION: Award is clerical/admin rather than IT/engineering aligned.",
+          "RULE_5_SUBSTANTIVE_TECHNICAL_WORK: Duties are primarily administrative, not substantive technical work."
+        ]
+      },
+      "rawResponse": "{\n  \"scratchpad\": \"RULE_1_AWARD_CLASSIFICATION: FAIL - award is clerical/admin, not IT/computing/engineering.\\nRULE_2_MINIMUM_HOURS: PASS - 260 hours explicitly listed.\\nRULE_3_NAMED_SUPERVISOR: PASS - Supervisor is present.\\nRULE_4_IDENTITY_MATCH: PASS - No contradictions found.\\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: FAIL - Tasks are administrative (invoice filing, reception, calendar).\\nRULE_6_CONTRACT_VALIDITY: PASS - Signatures and hours present.\",\n  \"decision\": \"No\",\n  \"confidence\": 0.95,\n  \"concerns\": [\n    \"RULE_1_AWARD_CLASSIFICATION: Award classification is clerical/admin, not IT/computing/engineering.\",\n    \"RULE_5_SUBSTANTIVE_TECHNICAL_WORK: Duties are primarily administrative and do not appear to be substantive technical work.\"\n  ],\n  \"summary\": \"The contract is non-compliant due to an incorrect award classification and administrative duties instead of substantive technical work.\"\n}",
+      "parsedResponse": {
+        "scratchpad": "RULE_1_AWARD_CLASSIFICATION: FAIL - award is clerical/admin, not IT/computing/engineering.\nRULE_2_MINIMUM_HOURS: PASS - 260 hours explicitly listed.\nRULE_3_NAMED_SUPERVISOR: PASS - Supervisor is present.\nRULE_4_IDENTITY_MATCH: PASS - No contradictions found.\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: FAIL - Tasks are administrative (invoice filing, reception, calendar).\nRULE_6_CONTRACT_VALIDITY: PASS - Signatures and hours present.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": [
+          "RULE_1_AWARD_CLASSIFICATION: Award classification is clerical/admin, not IT/computing/engineering.",
+          "RULE_5_SUBSTANTIVE_TECHNICAL_WORK: Duties are primarily administrative and do not appear to be substantive technical work."
+        ],
+        "summary": "The contract is non-compliant due to an incorrect award classification and administrative duties instead of substantive technical work."
+      },
+      "parseSuccess": true,
+      "latencyMs": 2412,
+      "usage": {
+        "inputTokens": 516,
+        "outputTokens": 247
+      },
+      "estimatedCostUsd": 0.000303
+    },
+    {
+      "caseId": "CC-FULL-005",
+      "name": "Missing signatures despite otherwise valid details",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_6_CONTRACT_VALIDITY"],
+        "concerns": ["RULE_6_CONTRACT_VALIDITY: Contract is not fully signed/executed."]
+      },
+      "rawResponse": "{\n  \"scratchpad\": \"RULE_1_AWARD_CLASSIFICATION: PASS - IT classification.\\nRULE_2_MINIMUM_HOURS: PASS - 280 hours meets minimum.\\nRULE_3_NAMED_SUPERVISOR: PASS - Supervisor named with contact.\\nRULE_4_IDENTITY_MATCH: PASS - No contradictions.\\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: PASS - Software developer role is technical.\\nRULE_6_CONTRACT_VALIDITY: FAIL - Signature blocks are blank.\",\n  \"decision\": \"No\",\n  \"confidence\": 0.95,\n  \"concerns\": [\n    \"RULE_6_CONTRACT_VALIDITY: Contract is not signed or accepted by either party.\"\n  ],\n  \"summary\": \"The contract is non-compliant because it lacks signatures from both the student and the employer, rendering it invalid.\"\n}",
+      "parsedResponse": {
+        "scratchpad": "RULE_1_AWARD_CLASSIFICATION: PASS - IT classification.\nRULE_2_MINIMUM_HOURS: PASS - 280 hours meets minimum.\nRULE_3_NAMED_SUPERVISOR: PASS - Supervisor named with contact.\nRULE_4_IDENTITY_MATCH: PASS - No contradictions.\nRULE_5_SUBSTANTIVE_TECHNICAL_WORK: PASS - Software developer role is technical.\nRULE_6_CONTRACT_VALIDITY: FAIL - Signature blocks are blank.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": [
+          "RULE_6_CONTRACT_VALIDITY: Contract is not signed or accepted by either party."
+        ],
+        "summary": "The contract is non-compliant because it lacks signatures from both the student and the employer, rendering it invalid."
+      },
+      "parseSuccess": true,
+      "latencyMs": 1850,
+      "usage": {
+        "inputTokens": 512,
+        "outputTokens": 197
+      },
+      "estimatedCostUsd": 0.0002718
+    },
+    {
+      "caseId": "CC-FULL-006",
+      "name": "Identity inconsistency between form and contract",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_4_IDENTITY_MATCH"],
+        "concerns": [
+          "RULE_4_IDENTITY_MATCH: Student or employer identity is materially inconsistent with submission details."
+        ]
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 335,
+      "error": "Gemini API request failed (429): {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash-lite\\nPlease retry in 40.411153093s.\",\n    \"status\": \"RESOURCE_EXHAUSTED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\n        \"links\": [\n          {\n            \"description\": \"Learn more about Gemini API quotas\",\n            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",\n        \"violations\": [\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"model\": \"gemini-2.5-flash-lite\",\n              \"location\": \"global\"\n            },\n            \"quotaValue\": \"20\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",\n        \"retryDelay\": \"40s\"\n      }\n    ]\n  }\n}\n"
+    },
+    {
+      "caseId": "CC-FULL-007",
+      "name": "Borderline IT support role with strong technical scope",
+      "feature": "contract-checker",
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "rawResponse": "",
+      "parsedResponse": null,
+      "parseSuccess": false,
+      "latencyMs": 314,
+      "error": "Gemini API request failed (429): {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash-lite\\nPlease retry in 33.095921713s.\",\n    \"status\": \"RESOURCE_EXHAUSTED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\n        \"links\": [\n          {\n            \"description\": \"Learn more about Gemini API quotas\",\n            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",\n        \"violations\": [\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"location\": \"global\",\n              \"model\": \"gemini-2.5-flash-lite\"\n            },\n            \"quotaValue\": \"20\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",\n        \"retryDelay\": \"33s\"\n      }\n    ]\n  }\n}\n"
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 0.5714,
+    "decision_accuracy": 0.5714,
+    "precision_yes": 1,
+    "recall_yes": 0.5,
+    "f1_yes": 0.6667,
+    "concern_match_rate": 0.25,
+    "latency_ms_avg": 1893.2857,
+    "usage_coverage_rate": 0.571429,
+    "total_input_tokens": 2026,
+    "total_output_tokens": 887,
+    "total_tokens": 2913,
+    "avg_input_tokens": 506.5,
+    "avg_output_tokens": 221.75,
+    "cost_coverage_rate": 0.571429,
+    "total_cost_usd": 0.00114,
+    "avg_cost_usd_per_call": 0.000285
+  },
+  "minThresholds": {
+    "parse_success_rate": 0.99,
+    "decision_accuracy": 0.85,
+    "precision_yes": 0.9,
+    "recall_yes": 0.8,
+    "usage_coverage_rate": 1
+  },
+  "maxThresholds": {
+    "avg_cost_usd_per_call": 0.05
+  },
+  "pass": false
+}

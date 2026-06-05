@@ -1,0 +1,46 @@
+{
+  "name": "interbotrag",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm run emulator\" --names \"frontend,emulators\" --prefix-colors \"cyan,yellow\"",
+    "build": "pnpm --filter frontend build && pnpm --filter backend build",
+    "test": "pnpm --filter backend test",
+    "test:integration": "pnpm --filter backend test:integration",
+    "test:component": "pnpm --filter frontend test",
+    "test:all": "pnpm run test && pnpm run test:integration && pnpm run test:component",
+    "lint": "pnpm -r lint",
+    "format": "pnpm -r format",
+    "typecheck": "pnpm -r typecheck",
+    "emulator": "docker compose up -d && node scripts/seed-test-account-after-emulator.cjs",
+    "emulator:setup": "docker compose build firebase-emulators && docker compose up -d firebase-emulators && node scripts/seed-test-account-after-emulator.cjs",
+    "emulator:down": "docker compose down",
+    "emulator:logs": "docker compose logs -f",
+    "bootstrap": "node scripts/bootstrap.js",
+    "grant-admin": "node scripts/grant-admin-emulator.cjs",
+    "supabase:schema": "npx --yes supabase@2.95.4 db query -f backend/supabase/schema.sql --linked --workdir .",
+    "seed:test-account": "node scripts/ensure-test-account.cjs",
+    "validate": "node scripts/validate-placeholders.js",
+    "hooks": "lefthook install",
+    "prepare": "lefthook install"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "esbuild",
+      "lefthook",
+      "protobufjs",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "lefthook": "^1.11.13",
+    "next": "16.2.1"
+  }
+}

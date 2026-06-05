@@ -1,0 +1,27 @@
+pre-commit:
+  commands:
+    validate-placeholders:
+      run: node scripts/validate-placeholders.js
+
+    format:
+      glob: '**/*.{ts,tsx,json,md,css}'
+      exclude: '(node_modules|\.next|\.git)'
+      run: npx --yes prettier --write {staged_files} || true
+
+    lint-frontend:
+      root: 'frontend/'
+      glob: 'src/**/*.{ts,tsx}'
+      run: npx eslint --fix {staged_files}
+
+    lint-backend:
+      root: 'backend/'
+      glob: 'src/**/*.ts'
+      run: npx eslint --fix {staged_files}
+
+    gitleaks:
+      run: "command -v gitleaks >/dev/null 2>&1 && gitleaks protect --staged --no-banner || echo 'WARNING: gitleaks not installed — secret scanning skipped locally. Install: https://github.com/gitleaks/gitleaks/releases'"
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: node scripts/check-commit-msg.js {1}

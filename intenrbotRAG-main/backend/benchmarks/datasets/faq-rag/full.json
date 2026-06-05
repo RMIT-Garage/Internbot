@@ -1,0 +1,104 @@
+{
+  "datasetVersion": "v1.0.0",
+  "feature": "faq-rag",
+  "promptVersion": "v1.0.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "FAQ-FULL-001",
+      "feature": "faq-rag",
+      "name": "Eligibility answer with source",
+      "input": {
+        "question": "What is the minimum internship hour requirement?",
+        "retrievedChunks": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Eligibility",
+            "text": "The internship requirement is a minimum of 240 placement hours."
+          }
+        ]
+      },
+      "expected": {
+        "answeredFromContext": true,
+        "requiredSources": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Eligibility"
+          }
+        ]
+      },
+      "fixtureResponse": {
+        "answer": "The minimum internship requirement is 240 placement hours. [Source: RMIT WIL Internship Policy, Eligibility]",
+        "sources": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Eligibility"
+          }
+        ],
+        "confidence": 0.93,
+        "answered_from_context": true
+      }
+    },
+    {
+      "id": "FAQ-FULL-002",
+      "feature": "faq-rag",
+      "name": "Coordinator process question",
+      "input": {
+        "question": "Who approves contract compliance outcomes?",
+        "retrievedChunks": [
+          {
+            "title": "Coordinator FAQ",
+            "section": "Approval Flow",
+            "text": "Course coordinators review and approve or reject contract compliance decisions."
+          }
+        ]
+      },
+      "expected": {
+        "answeredFromContext": true,
+        "requiredSources": [
+          {
+            "title": "Coordinator FAQ",
+            "section": "Approval Flow"
+          }
+        ]
+      },
+      "fixtureResponse": {
+        "answer": "Course coordinators approve or reject contract compliance outcomes. [Source: Coordinator FAQ, Approval Flow]",
+        "sources": [
+          {
+            "title": "Coordinator FAQ",
+            "section": "Approval Flow"
+          }
+        ],
+        "confidence": 0.9,
+        "answered_from_context": true
+      }
+    },
+    {
+      "id": "FAQ-FULL-003",
+      "feature": "faq-rag",
+      "name": "Future policy prediction should refuse",
+      "input": {
+        "question": "Will the required hours change next semester?",
+        "retrievedChunks": [
+          {
+            "title": "RMIT WIL Internship Policy",
+            "section": "Eligibility",
+            "text": "Current policy states a minimum of 240 hours."
+          }
+        ]
+      },
+      "expected": {
+        "answeredFromContext": false,
+        "refusalMessage": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "requiredSources": []
+      },
+      "fixtureResponse": {
+        "answer": "I don't have enough information to answer that from the available policy documents. Please contact your course coordinator directly for guidance.",
+        "sources": [],
+        "confidence": 0,
+        "answered_from_context": false
+      }
+    }
+  ]
+}

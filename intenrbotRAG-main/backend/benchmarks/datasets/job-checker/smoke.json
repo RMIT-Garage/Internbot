@@ -1,0 +1,96 @@
+{
+  "datasetVersion": "v1.1.0",
+  "feature": "job-checker",
+  "promptVersion": "v1.1.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "JC-SMOKE-001",
+      "feature": "job-checker",
+      "name": "Eligible technical role",
+      "input": {
+        "text": "Junior React Developer at Acme Fintech Pty Ltd, 6-month paid internship, supervised by senior engineer."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 pass. Rule3 pass. Rule4 pass. Rule5 pass.",
+        "decision": "Yes",
+        "confidence": 0.96,
+        "concerns": [],
+        "summary": "Role is eligible for WIL internship."
+      }
+    },
+    {
+      "id": "JC-SMOKE-002",
+      "feature": "job-checker",
+      "name": "Ineligible non-technical role",
+      "input": {
+        "text": "Social media content creator role at TechBrand Co, 3 months part-time."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_TECHNICAL_ALIGNMENT"],
+        "concerns": [
+          "RULE_1_TECHNICAL_ALIGNMENT: Role is marketing-focused and not a computing discipline."
+        ]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 fails because role is social media marketing. Other rules not sufficient to pass.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": [
+          "RULE_1_TECHNICAL_ALIGNMENT: Role is marketing-focused and not a computing discipline."
+        ],
+        "summary": "Ineligible due to non-technical role alignment."
+      }
+    },
+    {
+      "id": "JC-SMOKE-003",
+      "feature": "job-checker",
+      "name": "Fail - no technical supervisor",
+      "input": {
+        "text": "Frontend internship where intern reports to office manager. No engineer/technical mentor is identified."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_3_SUPERVISION_STRUCTURE"],
+        "concerns": ["RULE_3_SUPERVISION_STRUCTURE: No clear technical supervision is identified."]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass/unclear. Rule2 pass/unclear. Rule3 fail due to absent technical supervisor. Rule4 unclear. Rule5 pass.",
+        "decision": "No",
+        "confidence": 0.92,
+        "concerns": ["RULE_3_SUPERVISION_STRUCTURE: No clear technical supervision is identified."],
+        "summary": "Role is ineligible because technical supervision is missing."
+      }
+    },
+    {
+      "id": "JC-SMOKE-004",
+      "feature": "job-checker",
+      "name": "Fail - duration too short",
+      "input": {
+        "text": "Paid backend engineering internship with named supervisor at a legitimate company, but total duration is one week (~30 hours)."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_2_MIN_DURATION_OR_HOURS"],
+        "concerns": [
+          "RULE_2_MIN_DURATION_OR_HOURS: Placement duration/hours are insufficient for internship outcomes."
+        ]
+      },
+      "fixtureResponse": {
+        "scratchpad": "Rule1 pass. Rule2 fail due to very short duration. Rule3 pass. Rule4 pass. Rule5 pass.",
+        "decision": "No",
+        "confidence": 0.94,
+        "concerns": [
+          "RULE_2_MIN_DURATION_OR_HOURS: Placement duration/hours are insufficient for internship outcomes."
+        ],
+        "summary": "Role is ineligible due to insufficient duration/hours."
+      }
+    }
+  ]
+}

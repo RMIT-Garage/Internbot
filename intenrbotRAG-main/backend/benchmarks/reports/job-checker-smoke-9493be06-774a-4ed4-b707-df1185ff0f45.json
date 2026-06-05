@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "runId": "9493be06-774a-4ed4-b707-df1185ff0f45",
+    "mode": "smoke",
+    "feature": "job-checker",
+    "provider": "fixture-provider",
+    "model": "gemini-2.0-flash-lite",
+    "promptVersion": "v1.0.0",
+    "promptPath": "/Users/shinya/Documents/GitHub/interbotRAG/backend/benchmarks/prompts/job-checker/v1.0.0.txt",
+    "startedAtIso": "2026-04-15T15:24:27.417Z",
+    "finishedAtIso": "2026-04-15T15:24:27.418Z",
+    "usedFixtureResponses": true
+  },
+  "executions": [
+    {
+      "caseId": "JC-SMOKE-001",
+      "name": "Eligible technical role",
+      "feature": "job-checker",
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      },
+      "rawResponse": "{\"scratchpad\":\"All five eligibility rules pass.\",\"decision\":\"Yes\",\"confidence\":0.96,\"concerns\":[],\"summary\":\"Role is eligible for WIL internship.\"}",
+      "parsedResponse": {
+        "scratchpad": "All five eligibility rules pass.",
+        "decision": "Yes",
+        "confidence": 0.96,
+        "concerns": [],
+        "summary": "Role is eligible for WIL internship."
+      },
+      "parseSuccess": true,
+      "latencyMs": 0
+    },
+    {
+      "caseId": "JC-SMOKE-002",
+      "name": "Ineligible non-technical role",
+      "feature": "job-checker",
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_TECHNICAL_ALIGNMENT"],
+        "concerns": ["Role is marketing-focused and not a computing discipline."]
+      },
+      "rawResponse": "{\"scratchpad\":\"Rule1 fails because role is social media marketing.\",\"decision\":\"No\",\"confidence\":0.95,\"concerns\":[\"Role is marketing-focused and not a computing discipline.\"],\"summary\":\"Ineligible due to non-technical role alignment.\"}",
+      "parsedResponse": {
+        "scratchpad": "Rule1 fails because role is social media marketing.",
+        "decision": "No",
+        "confidence": 0.95,
+        "concerns": ["Role is marketing-focused and not a computing discipline."],
+        "summary": "Ineligible due to non-technical role alignment."
+      },
+      "parseSuccess": true,
+      "latencyMs": 0
+    }
+  ],
+  "metrics": {
+    "parse_success_rate": 1,
+    "decision_accuracy": 1,
+    "precision_yes": 1,
+    "recall_yes": 1,
+    "f1_yes": 1,
+    "concern_match_rate": 1,
+    "latency_ms_avg": 0
+  },
+  "thresholds": {
+    "parse_success_rate": 1,
+    "decision_accuracy": 0.8,
+    "precision_yes": 0.8,
+    "recall_yes": 0.8
+  },
+  "pass": true
+}

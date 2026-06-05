@@ -1,0 +1,119 @@
+I have consolidated repeated questions, aligned wording, removed unnecessary overlaps, and 
+grouped content into logical sections so it is easier for students to navigate and understand. 
+Internship FAQ for Students 
+This document answers common questions about internships for students enrolled in professional 
+and Software Engineering degree programs. 
+1. Eligibility and Enrolment 
+Can I enrol in internship subjects if I haven’t secured an internship yet? 
+• Software Engineering students who have completed their first two years may enrol in their 
+remaining coursework while continuing to apply for an internship. 
+• If an internship is secured and approved at the start of semester, students may withdraw 
+from coursework and enrol in the internship courses. 
+• Students in professional degree programs (Information Technology, Computer Science, 
+Cybersecurity, Data Science) who have completed all coursework except the internship must 
+contact the Professional Year Coordinator Program Manager for personalised advice 
+before enrolling. 
+Do I need to complete all coursework before starting an internship? 
+Ideally, all coursework should be completed before commencing an internship. 
+However, internships secured earlier may be considered on a case‑by‑case basis. 
+• Students may undertake no more than one additional course during their internship. 
+• This requires approval from the Professional Year Coordinator Program Manager and 
+Internship Manager. 
+2. Internship Duration and Structure 
+How long must the internship be? 
+• Internships must run for a minimum of 40 weeks. 
+• They must span two standard teaching semesters. 
+• Summer semesters do not count toward this requirement. 
+
+If the internship runs for a full calendar year, start dates are flexible as the two‑semester requirement 
+is automatically met. 
+Is there any flexibility if the internship is slightly shorter than 40 weeks? 
+In limited circumstances, internships slightly shorter than 40 weeks may be considered. 
+Students must discuss this in advance with the Professional Year Coordinator Program Manager 
+and obtain approval. 
+Is this the same as a “summer internship”? 
+No. Unlike short-term internships (1–3 months), this is a substantial, assessed, paid placement that 
+forms part of your academic program. 
+3. Workplace and Employment Conditions 
+Must the internship be with one employer? 
+It is strongly recommended that students remain with one employer for the full duration. 
+• If an employer change is unavoidable, students must work with the new employer for a 
+minimum of four months. 
+• All changes require approval. 
+Does the internship need to be paid? 
+Yes. All internships must be paid. 
+• Australia: At least the Australian minimum wage plus superannuation. 
+• Overseas: Remuneration must align with the local market rate for a junior graduate role. 
+The Course Coordinator will advise the acceptable minimum salary for each country. 
+4. Overseas and Remote Internships 
+Can I complete my internship overseas? 
+Yes, provided you: 
+• Remain in the host country for the entire placement, or 
+
+• If working remotely while in Australia, the employer pays at least the Australian minimum 
+wage plus superannuation. 
+Indicative salary benchmarks exist for countries such as India, Malaysia, China, and Indonesia. 
+Students must discuss individual circumstances with the Course Coordinator before proceeding. 
+5. Finding and Approving an Internship 
+Does RMIT guarantee an internship? 
+No. Students are responsible for finding their own internship. 
+However, the University provides extensive support, including: 
+• Resume and cover letter workshops 
+• Interview preparation sessions 
+• Industry engagement activities 
+• Internship opportunities shared through a Microsoft Teams channel 
+What if I find my own internship externally? 
+If you self‑source a paid, degree‑relevant role: 
+• Contact your Course Coordinator for approval before applying, provided the role has not 
+already been advertised via the Teams channel. 
+How do I register my internship with the University? 
+1. Submit your signed employment contract to your Course Coordinator. 
+2. Once approved, complete the required WIL documentation. 
+3. The University will arrange a third‑party agreement between you, the employer, and RMIT. 
+4. After written approval, you may enrol in the internship courses. 
+
+6. Course Enrolment Requirements 
+Which subjects should I enrol in? 
+Software Engineering 
+• Semester 1 start: 
+INTE2710 + INTE2708 → followed by INTE2711 + INTE2709 
+• Semester 2 start: 
+Reverse the above order 
+Professional Programs (IT, CS, Data Science, Cybersecurity) 
+• ≈360 hours per semester or more: 
+INTE2376 + INTE2374 → followed by INTE2377 + INTE2375 
+• ≈240 hours per semester: 
+Follow the alternative pathway outlined in your Program Guide 
+Always refer to your Program Guide for the most current course information. 
+7. Assessment and Academic Requirements 
+Are there academic requirements during the internship? 
+Yes. Students remain enrolled at RMIT and must complete required assessments via Canvas, 
+including: 
+• Monthly progress reports 
+• End‑of‑semester final presentation 
+Employer feedback also contributes to the overall course grade. 
+8. Credit for Prior or Current Employment 
+Can I receive internship credit for previous or current work? 
+Yes, via a formal credit application process. You must provide: 
+• Employment contract and payslips 
+
+• Official position description 
+• Manager’s performance statement 
+• Evidence of 40 weeks of full‑time work (excluding leave) 
+• A statement mapping your duties to internship learning outcomes 
+Applications are submitted through RMIT Connect and assessed by a committee once per semester. 
+9. Fees 
+Do I pay course fees during the internship? 
+• Students commencing in 2026 or later: Pay full course fees. 
+• Students commencing before 2026: Pay fees only for 12 credit points (Reflection course). 
+Course names and structures may change—always check your Program Guide. 
+10. If You Don’t Secure an Internship in Time 
+What are my options? 
+• Domestic students: May apply for a one‑semester leave of absence, then re‑enrol once an 
+internship is secured. 
+• International students: Leave of absence may not be permitted due to visa conditions. In 
+most cases, students may need to: 
+o Transfer to a three‑year degree and graduate, or 
+o Seek tailored advice from RMIT Connect 
+When should I start applying? 
+Begin planning and applying at least one semester in advance.

@@ -1,0 +1,92 @@
+{
+  "datasetVersion": "foundation-v1.0.0",
+  "feature": "job-checker",
+  "promptVersion": "v1.0.0",
+  "model": "gemini-2.5-flash-lite",
+  "cases": [
+    {
+      "id": "JC-FOUND-001",
+      "feature": "job-checker",
+      "name": "Pass - software engineering internship",
+      "input": {
+        "text": "6-month internship at CloudForge Pty Ltd for Junior Software Engineer. Duties: implement REST APIs, write unit tests, fix production bugs, and participate in sprint planning. Supervised by Senior Engineer (name and email provided). Paid role with formal contract."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      }
+    },
+    {
+      "id": "JC-FOUND-002",
+      "feature": "job-checker",
+      "name": "Fail - mostly social media marketing",
+      "input": {
+        "text": "Intern role: Social Media Coordinator at a startup. Duties include creating Instagram reels, scheduling posts, influencer outreach, and analytics reporting. No software development tasks."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_1_TECHNICAL_ALIGNMENT"],
+        "concerns": [
+          "Role focus is marketing/content rather than computing or engineering practice."
+        ]
+      }
+    },
+    {
+      "id": "JC-FOUND-003",
+      "feature": "job-checker",
+      "name": "Fail - insufficient placement scope",
+      "input": {
+        "text": "One-week part-time internship (total around 20 hours) for IT assistant tasks. Employer and supervisor are genuine."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_2_MIN_DURATION_OR_HOURS"],
+        "concerns": [
+          "Placement duration/hours appear insufficient for internship learning outcomes."
+        ]
+      }
+    },
+    {
+      "id": "JC-FOUND-004",
+      "feature": "job-checker",
+      "name": "Fail - no qualified supervision",
+      "input": {
+        "text": "Frontend internship in a small business. Candidate reports directly to office admin; no technical supervisor or mentor identified."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_3_SUPERVISION_STRUCTURE"],
+        "concerns": ["No clear technical supervision structure is provided."]
+      }
+    },
+    {
+      "id": "JC-FOUND-005",
+      "feature": "job-checker",
+      "name": "Borderline fail-safe - vague role and unclear employer legitimacy",
+      "input": {
+        "text": "Remote role advertised by 'Global Digital Group'. Duties listed as 'assist team as required' and 'various online tasks'. No company website, ABN, or formal contract terms provided."
+      },
+      "expected": {
+        "decision": "No",
+        "failingRules": ["RULE_5_LEGITIMATE_EMPLOYER"],
+        "concerns": [
+          "Employer legitimacy and role specificity are not sufficiently evidenced."
+        ]
+      }
+    },
+    {
+      "id": "JC-FOUND-006",
+      "feature": "job-checker",
+      "name": "Pass - cybersecurity analyst intern",
+      "input": {
+        "text": "12-week paid internship with SecureNet Australia. Tasks include SIEM alert triage, log analysis, vulnerability reporting, and scripting for detection improvements. Supervised by Security Operations Lead with daily check-ins."
+      },
+      "expected": {
+        "decision": "Yes",
+        "failingRules": [],
+        "concerns": []
+      }
+    }
+  ]
+}
