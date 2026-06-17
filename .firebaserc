@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "internbot-dev-f1abe",
+    "dev": "internbot-dev-f1abe",
+    "prod": "internbot-65e94"
+  }
+}

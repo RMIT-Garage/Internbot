@@ -45,7 +45,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
-          terraform_version: 1.10.5
+          terraform_version: 1.15.6
           terraform_wrapper: false
 
       - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2

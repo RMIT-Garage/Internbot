@@ -4,6 +4,13 @@
     "codebase": "default",
     "ignore": ["node_modules", ".git", "tests", "*.test.ts"]
   },
+  "firestore": {
+    "rules": "docker/firebase-emulator/firebase/firestore.rules",
+    "indexes": "docker/firebase-emulator/firebase/firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "docker/firebase-emulator/firebase/storage.rules"
+  },
   "hosting": {
     "public": "frontend/out",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],

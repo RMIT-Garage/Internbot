@@ -70,25 +70,25 @@ jobs:
     with:
       action: apply
       env: dev
-      state_bucket: internbot-dev-ae3a3-tf-state
-      wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
-      terraform_sa: terraform-ci@internbot-dev-ae3a3.iam.gserviceaccount.com
+      state_bucket: internbot-dev-f1abe-tf-state
+      wif_provider: projects/421196143498/locations/global/workloadIdentityPools/github/providers/github-provider
+      terraform_sa: terraform-ci@internbot-dev-f1abe.iam.gserviceaccount.com
 
   deploy-backend:
     needs: [changes, ci, terraform]
     if: needs.changes.outputs.backend == 'true'
     uses: ./.github/workflows/_deploy.yml
     with:
-      firebase_project_id: internbot-dev-ae3a3
-      wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
-      deploy_service_account: github-deploy@internbot-dev-ae3a3.iam.gserviceaccount.com
+      firebase_project_id: internbot-dev-f1abe
+      wif_provider: projects/421196143498/locations/global/workloadIdentityPools/github/providers/github-provider
+      deploy_service_account: github-deploy@internbot-dev-f1abe.iam.gserviceaccount.com
       # Only functions via firebase CLI. Firestore/Storage rules + indexes
       # are managed by Terraform (google_firebaserules_* + google_firestore_*)
       # for drift detection and atomic infra deploys.
       deploy_targets: functions
       # Non-secret RAG service URL — written into the function's runtime env
       # at deploy. The RAG API key is a separate secret (functions:secrets:set).
-      rag_service_url: https://australia-southeast1-internbotrag.cloudfunctions.net/api
+      rag_service_url: https://australia-southeast1-internbotrag-178b0.cloudfunctions.net/api
       # Auto-verify student email at signup — skips the verification round-trip.
       auto_verify_email: true
 
@@ -97,9 +97,9 @@ jobs:
     if: needs.changes.outputs.frontend == 'true'
     uses: ./.github/workflows/_deploy-hosting.yml
     with:
-      firebase_project_id: internbot-dev-ae3a3
-      wif_provider: projects/990371971523/locations/global/workloadIdentityPools/github/providers/github-provider
-      deploy_service_account: github-deploy@internbot-dev-ae3a3.iam.gserviceaccount.com
+      firebase_project_id: internbot-dev-f1abe
+      wif_provider: projects/421196143498/locations/global/workloadIdentityPools/github/providers/github-provider
+      deploy_service_account: github-deploy@internbot-dev-f1abe.iam.gserviceaccount.com
       # Firebase web SDK config (NEXT_PUBLIC_FIREBASE_* + apiUrl/appUrl) is
       # fetched from Secret Manager (`firebase-web-config`) at build time.
       # Terraform owns the secret — see infrastructure/modules/web-app/.

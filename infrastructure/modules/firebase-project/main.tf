@@ -20,6 +20,7 @@ locals {
     "sts.googleapis.com",
     "secretmanager.googleapis.com",
     "cloudbilling.googleapis.com",
+    "billingbudgets.googleapis.com",
   ]
 }
 
