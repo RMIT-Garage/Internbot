@@ -523,3 +523,59 @@ Confirm with the outgoing team (password manager or secure channel):
 | Current RAG project (outgoing)  | `internbotrag` (example URL in `deploy-dev.yml`) |
 
 Replace all outgoing project ids with your own before go-live.
+
+---
+
+## 15. Actual deployment run notes — RMIT-Garage (2026-06)
+
+What the RMIT-Garage team actually deployed, and the concrete gotchas hit — so the next team doesn't rediscover them.
+
+### Deployed environments (current)
+
+| Env            | Project (number)                      | URL                                                                      | How it was deployed                               |
+| -------------- | ------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
+| Internbot dev  | `internbot-dev-f1abe` (#421196143498) | https://internbot-dev-f1abe.web.app                                      | Terraform + CI (push `develop`)                   |
+| Internbot prod | `internbot-65e94` (#1022879312196)    | https://internbot-65e94.web.app                                          | Terraform (local apply) + local `firebase deploy` |
+| interbotRAG    | `internbotrag-178b0`                  | `https://australia-southeast1-internbotrag-178b0.cloudfunctions.net/api` | CI (push `main`)                                  |
+
+GitHub: `RMIT-Garage/Internbot`, `RMIT-Garage/interbotRAG`. Firebase/gcloud identity: `alexbonti83@gmail.com`. Prod CI auto-deploy is NOT wired yet — it needs the `terraform-ci` SA on `internbot-65e94` (see gotcha 5); prod was deployed with a local `firebase deploy`.
+
+### Gotchas hit during deploy (and the fix)
+
+1. **`terraform apply` token expiry.** The ~55 Firestore composite indexes take ~50 min to build; a static `gcloud auth print-access-token` (1 h TTL) expires mid-apply → `Error 401: Failed to upload state` + a stale lock, leaving partial remote state. **Fix:** run `terraform apply -parallelism=30` (builds indexes concurrently, ~15 min — fits the token); better, use real ADC (`gcloud auth application-default login`, auto-refreshes). **Recovery if it happens:** `gsutil rm gs://<project>-tf-state/terraform/state/default.tflock`; `terraform state push -lock=false -force errored.tfstate`; for any index that built on GCP but isn't in state (query `gcloud firestore indexes composite list`), add a Terraform `import {}` block; re-apply.
+2. **`google_firebase_project` already exists.** An already-Firebase-enabled project must be imported before the first apply: `terraform import module.firebase_project.google_firebase_project.default <project-id>`.
+3. **Missing `billingbudgets.googleapis.com`.** `main.tf` creates a `google_billing_budget` but the `firebase-project` module didn't enable that API → apply 403. **Fixed** by adding `billingbudgets.googleapis.com` to the module `required_apis`.
+4. **CI Terraform version vs state.** `_terraform.yml` pinned `1.10.5` but the local apply wrote state with `1.15.6` → CI refuses "state created by a newer version." **Fixed** by bumping `_terraform.yml` to `1.15.6`.
+5. **`terraform-ci` SA (CI Terraform job).** The CI `terraform` job impersonates `terraform-ci@<project>`. Create it and grant `roles/editor, iam.securityAdmin, iam.workloadIdentityPoolAdmin, iam.serviceAccountAdmin, resourcemanager.projectIamAdmin, storage.admin`, plus a WIF binding scoped to the deploy branch (`principalSet …/attribute.ref/refs/heads/{develop|main}`). A _local_ first apply uses your own creds and does NOT need this.
+6. **Manual `firebase deploy --only functions` rejects `backend/.env`.** Functions rejects reserved-prefix keys (`FIREBASE_*`, `PORT`). Move `backend/.env` aside during a manual deploy and rely on `backend/.env.<projectId>` holding only safe runtime keys (`RAG_SERVICE_URL`). On the deployed function the project comes from `GCLOUD_PROJECT` and admin creds from the runtime SA, so those keys aren't needed.
+7. **`api` public function transient 500.** First deploy on a fresh project can fail `api` with `HTTP 500 Could not create Cloud Run service` (no org policy involved) — just re-run the deploy; it succeeds once the serverless backend warms up.
+8. **Storage `OBJECT_FINALIZE` first-event delay.** On a freshly-provisioned bucket the Eventarc trigger for `syncAttachmentMetadata` doesn't deliver its first event for a while, so offer-attachment uploads never `finalize`. The seed tolerates this (skips the offer step, leaves internships `applied`). It warms up on its own — re-run the seed later to populate the offer-stage internships.
+9. **`enforceStudentEmail` auto-wires at deploy.** Deploying the `beforeUserCreated` blocking function registers it as a GCIP `beforeCreate` trigger _regardless_ of Terraform's `wire_blocking_function`, so **client sign-up requires an `s#######@student.rmit.edu.au` email**. Admin-created users (Identity Toolkit admin API / Admin SDK) bypass it — that's how coordinators are provisioned.
+10. **Coordinators can't JIT.** The JIT hydrator only mints `role: student` for verified student-shaped emails. A coordinator needs a Firebase Auth user **plus** a `users/{id}` doc (`role: coordinator`, `onboardingStage: profile_complete`, `version: 1`, `_schemaVersion: 1`) and a `userIdentities/firebase__{uid}` sentinel, created out-of-band.
+11. **Firestore/Storage rules in CLI deploys.** Rules are Terraform-managed; `firebase.json` now also references `docker/firebase-emulator/firebase/*.rules` so a plain `firebase deploy` can push them.
+12. **Seed vs semester lifecycle.** The seed used the removed `active` status; semesters are now created `draft` and transitioned to `enrollment_open`. **Fixed** in `backend/scripts/seed.ts`.
+13. **interbotRAG AI = Gemini billing.** RAG advisor/FAQ returns **502** when the Gemini API key's prepaid credits are depleted (`429 "prepayment credits are depleted"` on the query-embedding call, seen in the RAG `api` logs). Top up billing in Google AI Studio — no redeploy needed.
+
+### Seeded demo credentials
+
+Demo/test accounts created by `backend/scripts/seed.ts`. **These are throwaway demo credentials — rotate (or delete) before any real production use.**
+
+| Env  | Role        | Email                          | Password           |
+| ---- | ----------- | ------------------------------ | ------------------ |
+| dev  | coordinator | `coordinator@rmit.edu.au`      | `Aa1!1r1FCg256VPP` |
+| dev  | student     | `s3999999@student.rmit.edu.au` | `Aa1!XGkiyL0dLg76` |
+| prod | coordinator | `coordinator@rmit.edu.au`      | `Aa1!jhZt5EJovmX9` |
+| prod | student     | `s3999999@student.rmit.edu.au` | `Aa1!zrivv3FUY1nu` |
+
+Re-seed a fresh env: create the coordinator (admin API + `users/{id}` doc + identity sentinel, per gotcha 10) and student (admin-create with `emailVerified: true`), then:
+
+```bash
+SEED_API_BASE_URL=<hosting-url> SEED_FIREBASE_API_KEY=<web-api-key> \
+SEED_COORD_EMAIL=… SEED_COORD_PASSWORD=… SEED_STUDENT_EMAIL=… SEED_STUDENT_PASSWORD=… \
+[SEED_FORCE=yes  # only if the URL doesn't contain "dev"] \
+  pnpm --filter backend run seed
+```
+
+### Known application bugs
+
+See [KNOWN-ISSUES.md](./KNOWN-ISSUES.md).
