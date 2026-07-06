@@ -176,7 +176,7 @@ interface SemesterResponse {
   id: string
   semesterCode: string
   courseCode: string
-  status: 'draft' | 'active' | 'archived'
+  status: 'draft' | 'enrollment_open' | 'placement_running' | 'reporting' | 'archived'
 }
 
 interface OpportunityResponse {
@@ -269,29 +269,35 @@ async function ensureActiveSemester(
   courseCode: string
 ): Promise<SemesterResponse> {
   const list = await coordApi.get<ListResponse<SemesterResponse>>('/api/v1/semesters?limit=50')
-  const existing = list.items.find(
+  let existing = list.items.find(
     (s) => s.semesterCode === semesterCode && s.courseCode === courseCode
   )
-  if (existing) {
+  if (!existing) {
+    process.stdout.write(`  ↪ creating semester ${semesterCode}/${courseCode} (draft)\n`)
+    const dayMs = 24 * 60 * 60 * 1000
+    const now = Date.now()
+    existing = await coordApi.post<SemesterResponse>('/api/v1/semesters', {
+      semesterCode,
+      courseCode,
+      displayName: `Seeded ${semesterCode} / ${courseCode}`,
+      status: 'draft',
+      enrolmentOpenAt: isoZ(new Date(now - 1 * dayMs)),
+      enrolmentCloseAt: isoZ(new Date(now + 60 * dayMs)),
+    })
+  } else {
     process.stdout.write(
       `  ↪ semester ${semesterCode}/${courseCode} exists (id=${existing.id}, status=${existing.status})\n`
     )
-    if (existing.status === 'active') return existing
-    process.stdout.write(`  ↪ transitioning semester ${existing.id} → active\n`)
-    await coordApi.post(`/api/v1/semesters/${existing.id}/transitions`, { to: 'active' })
-    return { ...existing, status: 'active' }
   }
-  process.stdout.write(`  ↪ creating semester ${semesterCode}/${courseCode}\n`)
-  const dayMs = 24 * 60 * 60 * 1000
-  const now = Date.now()
-  return coordApi.post<SemesterResponse>('/api/v1/semesters', {
-    semesterCode,
-    courseCode,
-    displayName: `Seeded ${semesterCode} / ${courseCode}`,
-    status: 'active',
-    enrolmentOpenAt: isoZ(new Date(now - 1 * dayMs)),
-    enrolmentCloseAt: isoZ(new Date(now + 60 * dayMs)),
+  // Semesters are created at `draft` and move via transitions. `enrollment_open`
+  // is the enrol-and-apply state (the old `active`).
+  if (existing.status === 'enrollment_open') return existing
+  process.stdout.write(`  ↪ transitioning semester ${existing.id} → enrollment_open\n`)
+  await coordApi.post(`/api/v1/semesters/${existing.id}/transitions`, {
+    to: 'enrollment_open',
+    comment: 'Seeded — opening enrollment.',
   })
+  return { ...existing, status: 'enrollment_open' }
 }
 
 async function ensureStudentEnrolled(studentApi: ApiClient, semesterId: string): Promise<void> {
@@ -487,7 +493,7 @@ interface UploadIntentResponse {
  * production this round-trip is typically sub-second; the wider window
  * tolerates Pub/Sub redelivery and cold-start latency on the worker.
  */
-const FINALIZE_POLL_TIMEOUT_MS = 30_000
+const FINALIZE_POLL_TIMEOUT_MS = 12_000
 const FINALIZE_POLL_INTERVAL_MS = 1_000
 
 async function waitForFinalized(
@@ -602,10 +608,17 @@ async function driveInternshipTo(
   }
 
   if (current.status === 'applied' && target !== 'applied') {
-    await uploadOfferAttachmentIfMissing(studentApi, internshipId)
-    process.stdout.write(`  ↪ ${internshipId}: submit offer\n`)
-    await studentApi.post(`/api/v1/internships/${internshipId}/offer-submissions`, offerBody)
-    current = await studentApi.get<InternshipResponse>(`/api/v1/internships/${internshipId}`)
+    try {
+      await uploadOfferAttachmentIfMissing(studentApi, internshipId)
+      process.stdout.write(`  ↪ ${internshipId}: submit offer\n`)
+      await studentApi.post(`/api/v1/internships/${internshipId}/offer-submissions`, offerBody)
+      current = await studentApi.get<InternshipResponse>(`/api/v1/internships/${internshipId}`)
+    } catch {
+      process.stdout.write(
+        `  ⚠ ${internshipId}: offer flow skipped (storage OBJECT_FINALIZE not delivering yet) — left as 'applied'\n`
+      )
+      return current
+    }
   }
   if (current.status === 'offer_pending_review' && target === 'offer_approved') {
     process.stdout.write(`  ↪ ${internshipId}: coord approves offer\n`)
