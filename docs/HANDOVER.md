@@ -556,6 +556,26 @@ GitHub: `RMIT-Garage/Internbot`, `RMIT-Garage/interbotRAG`. Firebase/gcloud iden
 12. **Seed vs semester lifecycle.** The seed used the removed `active` status; semesters are now created `draft` and transitioned to `enrollment_open`. **Fixed** in `backend/scripts/seed.ts`.
 13. **interbotRAG AI = Gemini billing.** RAG advisor/FAQ returns **502** when the Gemini API key's prepaid credits are depleted (`429 "prepayment credits are depleted"` on the query-embedding call, seen in the RAG `api` logs). Top up billing in Google AI Studio — no redeploy needed.
 
+### More setup gotchas — GCP / IAM / billing (hit across Internbot + interbotRAG)
+
+- **Blaze (pay-as-you-go) billing is mandatory.** Cloud Functions v2 (used by both apps) will **not** deploy on the Spark free plan — the GCP project must be on **Blaze**. interbotRAG started on Spark and had to be upgraded; Internbot's dev/prod projects had billing linked from the start. Link billing before the first functions deploy: `gcloud billing projects link <project> --billing-account <ACCOUNT_ID>`.
+- **Default compute SA needs `roles/cloudbuild.builds.builder`.** 2nd-gen function builds run in Cloud Build as `{PROJECT_NUMBER}-compute@developer.gserviceaccount.com`; on a fresh project that SA often has only `roles/editor` and the build fails. Grant it: `gcloud projects add-iam-policy-binding <project> --member="serviceAccount:{PROJECT_NUMBER}-compute@developer.gserviceaccount.com" --role=roles/cloudbuild.builds.builder`. (interbotRAG hit this.)
+- **Public 2nd-gen functions need `allUsers` → `roles/run.invoker`.** A public HTTP function returns 403 until its underlying Cloud Run service grants `allUsers` the invoker role. Internbot's `api` declares `invoker: 'public'` so `firebase deploy` applies it automatically; a manual deploy (interbotRAG) needed it by hand: `gcloud run services add-iam-policy-binding <fn> --region=australia-southeast1 --member=allUsers --role=roles/run.invoker`. Requires the org policy `iam.allowedPolicyMemberDomains` to permit `allUsers` (fine on personal-Gmail projects with no org). The app still enforces its own Firebase-token auth on `/api/*`.
+- **Firebase Storage must be initialized.** Without Terraform, Storage isn't provisioned until you click **Storage → Get Started** in the console; Terraform's `storage` module creates the bucket (`<project>-storage`) + Firebase link + the Eventarc/GCS service-agent IAM. interbotRAG deployed without storage until this was done.
+- **Register a Web app for the frontend config.** A bare project has no Web app, so there's no `NEXT_PUBLIC_FIREBASE_*` SDK config. Terraform's `web-app` module creates one and stashes it in the `firebase-web-config` secret; manually: `firebase apps:create WEB <name> --project <id>` then `firebase apps:sdkconfig WEB <appId>`.
+- **Firestore location is permanent.** `firestore_location` defaults to `australia-southeast2`; we pinned **`australia-southeast1`** to co-locate with Functions. A database's location cannot be changed after creation — decide before the first apply.
+- **Let Terraform create the Firestore DB + Web app on a bare project.** On dev we pre-created them manually before Terraform → had to `terraform import` both to avoid "already exists" (extra friction + a token-expiry-prone reconcile). On prod we let Terraform create them fresh — cleaner. Only `google_firebase_project` genuinely needs importing (see gotcha 2).
+- **`cloudbilling.googleapis.com` must be enabled for Firebase Hosting (Next.js frameworks)** — it 403s at build otherwise. (Enabled for interbotRAG; Internbot's `firebase-project` module already lists it.)
+
+### interbotRAG-specific deploy gotchas
+
+interbotRAG (the RAG service — separate repo `RMIT-Garage/interbotRAG` and project `internbotrag-178b0`) has its own `docs/HANDOVER.md`. The ones the Internbot advisor proxy depends on:
+
+- **Embedding model / dimension mismatch.** The Gemini key had **no access to `text-embedding-004`** (404). Use `gemini-embedding-001` with `GEMINI_EMBEDDING_DIMENSION=768` to match the Supabase `vector(768)` schema.
+- **CI env-propagation gap.** The RAG deploy workflow must write `GEMINI_MODEL` + `GEMINI_EMBEDDING_MODEL` + `GEMINI_EMBEDDING_DIMENSION` into the function runtime env, or CI-deployed retrieval dimension-mismatches (3072 vs 768) and returns nothing.
+- **URL routing.** Cloud Functions strips the `/api` function-name segment, so Internbot's `RAG_SERVICE_URL={base}/api` + the app's `/api/chat/message` resolves correctly to the RAG app's `/api/chat/message`. Payload is `{feature, userInput}` (features `faq-rag` / `job-checker` / `contract-checker`).
+- Plus the Blaze, Cloud Build Builder, public-invoker, reserved-env-key, Storage-init, and Gemini-credits gotchas above — several were first hit on interbotRAG.
+
 ### Seeded demo credentials
 
 Demo/test accounts created by `backend/scripts/seed.ts`. **These are throwaway demo credentials — rotate (or delete) before any real production use.**
